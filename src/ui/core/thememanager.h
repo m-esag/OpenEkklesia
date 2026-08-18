@@ -1,0 +1,90 @@
+#ifndef THEMEMANAGER_H
+#define THEMEMANAGER_H
+
+#include <QObject>
+#include <QString>
+#include <QMap>
+#include <QColor>
+#include <QJsonObject>
+#include <QPalette>
+#include <QStringList>
+
+struct ThemeTokens {
+    QString id;
+    QString name;
+    bool isDark = true;
+    bool isCustom = false;
+
+    // Backgrounds
+    QColor bgBase;
+    QColor bgSurface;
+    QColor bgOverlay;
+    QColor bgInput;
+
+    // Text
+    QColor textPrimary;
+    QColor textSecondary;
+    QColor textMuted;
+
+    // Accents & Status
+    QColor accentPrimary;
+    QColor accentSuccess;
+    QColor accentWarning;
+    QColor accentDanger;
+
+    // Borders & Styling
+    QColor borderColor;
+    int borderRadiusSm = 4;
+    int borderRadiusMd = 8;
+    int fontSizePx = 13;
+};
+
+class ThemeManager : public QObject {
+    Q_OBJECT
+
+public:
+    static ThemeManager& instance();
+
+    void initialize();
+    bool loadTheme(const QString& themeId);
+    bool applyCustomTokens(const ThemeTokens& tokens);
+    bool saveCustomPreset(const QString& presetName, const ThemeTokens& tokens);
+
+    void zoomIn();
+    void zoomOut();
+    void setFontSize(int px);
+
+    bool generateChurchBrandTheme(const QColor& brandColor, bool darkBase = true);
+
+    QString activeThemeId() const;
+    ThemeTokens currentTokens() const;
+
+    QString generateGlobalQSS() const;
+    QPalette generateQPalette() const;
+
+    QStringList availableThemes() const;
+    ThemeTokens getThemeTokens(const QString& themeId) const;
+
+    QString customThemesDir() const;
+    void reloadCustomThemesFromDisk();
+
+    bool isSystemDark() const;
+    void syncSystemTheme();
+
+signals:
+    void themeChanged(const ThemeTokens& tokens);
+
+private:
+    ThemeManager() = default;
+    ~ThemeManager() = default;
+    ThemeManager(const ThemeManager&) = delete;
+    ThemeManager& operator=(const ThemeManager&) = delete;
+
+    void registerDefaultThemes();
+
+    QString m_activeThemeId;
+    ThemeTokens m_currentTokens;
+    QMap<QString, ThemeTokens> m_registeredThemes;
+};
+
+#endif // THEMEMANAGER_H

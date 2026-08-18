@@ -1,0 +1,12 @@
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - "-std=c++20"
+    - "-I/usr/include/qt6"
+    - "-I/usr/include/qt6/QtCore"
+    - "-I/usr/include/qt6/QtWidgets"
+    - "-I/usr/include/qt6/QtGui"
+    - "-I/usr/include/qt6/QtSql"
+    - "-I/usr/include/qt6/QtCharts"
+    - "-I/usr/include/c++/14"
+    - "-I/usr/include/c++/14/x86_64-redhat-linux"

@@ -1,0 +1,845 @@
+#include "thememanager.h"
+#include <QApplication>
+#include <QGuiApplication>
+#include <QStyleHints>
+#include <QSettings>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
+#include <QDir>
+#include <QStandardPaths>
+#include <QDebug>
+
+ThemeManager& ThemeManager::instance() {
+    static ThemeManager inst;
+    return inst;
+}
+
+QString ThemeManager::customThemesDir() const {
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/themes";
+    if (path.isEmpty()) {
+        path = QDir::homePath() + "/.local/share/openekklesia/themes";
+    }
+    QDir().mkpath(path);
+    return path;
+}
+
+void ThemeManager::initialize() {
+    registerDefaultThemes();
+    reloadCustomThemesFromDisk();
+
+    if (qApp && QGuiApplication::styleHints()) {
+        connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
+            syncSystemTheme();
+        });
+    }
+
+    QSettings settings("OpenEkklesia", "CHMS");
+    QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
+    if (!loadTheme(savedTheme)) {
+        loadTheme("catppuccin_mocha");
+    }
+}
+
+bool ThemeManager::isSystemDark() const {
+    if (qApp) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+        return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+#else
+        return QGuiApplication::palette().color(QPalette::Window).lightness() < 128;
+#endif
+    }
+    return true;
+}
+
+void ThemeManager::syncSystemTheme() {
+    if (m_activeThemeId == "system_auto") {
+        bool dark = isSystemDark();
+        QString targetId = dark ? "catppuccin_mocha" : "catppuccin_latte";
+        if (m_registeredThemes.contains(targetId)) {
+            m_currentTokens = m_registeredThemes.value(targetId);
+            if (qApp) {
+                qApp->setPalette(generateQPalette());
+                qApp->setStyleSheet(generateGlobalQSS());
+            }
+            emit themeChanged(m_currentTokens);
+        }
+    }
+}
+
+void ThemeManager::registerDefaultThemes() {
+    // 0. System Auto
+    ThemeTokens autoTok;
+    autoTok.id = "system_auto";
+    autoTok.name = "🌓 System Auto (Follow OS Dark/Light)";
+    autoTok.isDark = isSystemDark();
+    m_registeredThemes.insert(autoTok.id, autoTok);
+
+    // --- PAIR 1: Catppuccin Pastel Pair ---
+    ThemeTokens mocha;
+    mocha.id = "catppuccin_mocha";
+    mocha.name = "🌙 Catppuccin Mocha (Dark Pastel)";
+    mocha.isDark = true;
+    mocha.bgBase = QColor("#181825");
+    mocha.bgSurface = QColor("#1e1e2e");
+    mocha.bgOverlay = QColor("#313244");
+    mocha.bgInput = QColor("#11111b");
+    mocha.textPrimary = QColor("#cdd6f4");
+    mocha.textSecondary = QColor("#a6adc8");
+    mocha.textMuted = QColor("#6c7086");
+    mocha.accentPrimary = QColor("#89b4fa");
+    mocha.accentSuccess = QColor("#a6e3a1");
+    mocha.accentWarning = QColor("#f9e2af");
+    mocha.accentDanger = QColor("#f38ba8");
+    mocha.borderColor = QColor("#313244");
+    mocha.borderRadiusMd = 8;
+    m_registeredThemes.insert(mocha.id, mocha);
+
+    ThemeTokens latte;
+    latte.id = "catppuccin_latte";
+    latte.name = "☀️ Catppuccin Latte (Light Pastel)";
+    latte.isDark = false;
+    latte.bgBase = QColor("#eff1f5");
+    latte.bgSurface = QColor("#e6e9ef");
+    latte.bgOverlay = QColor("#ccd0da");
+    latte.bgInput = QColor("#ffffff");
+    latte.textPrimary = QColor("#4c4f69");
+    latte.textSecondary = QColor("#5c5f77");
+    latte.textMuted = QColor("#8c8fa1");
+    latte.accentPrimary = QColor("#1e66f5");
+    latte.accentSuccess = QColor("#40a02b");
+    latte.accentWarning = QColor("#df8e1d");
+    latte.accentDanger = QColor("#d20f39");
+    latte.borderColor = QColor("#bcc0cc");
+    latte.borderRadiusMd = 8;
+    m_registeredThemes.insert(latte.id, latte);
+
+    // --- PAIR 2: Warm Brown Coffee Pair ---
+    ThemeTokens warmEspresso;
+    warmEspresso.id = "warm_espresso_dark";
+    warmEspresso.name = "🌙 Dark Espresso (Warm Brown)";
+    warmEspresso.isDark = true;
+    warmEspresso.bgBase = QColor("#1e1b18");
+    warmEspresso.bgSurface = QColor("#28231f");
+    warmEspresso.bgOverlay = QColor("#38312b");
+    warmEspresso.bgInput = QColor("#141210");
+    warmEspresso.textPrimary = QColor("#f5ebe0");
+    warmEspresso.textSecondary = QColor("#d7c4b7");
+    warmEspresso.textMuted = QColor("#9a887b");
+    warmEspresso.accentPrimary = QColor("#e5a968");
+    warmEspresso.accentSuccess = QColor("#8dbb81");
+    warmEspresso.accentWarning = QColor("#e3bc63");
+    warmEspresso.accentDanger = QColor("#e57c68");
+    warmEspresso.borderColor = QColor("#3d352e");
+    warmEspresso.borderRadiusMd = 8;
+    m_registeredThemes.insert(warmEspresso.id, warmEspresso);
+
+    ThemeTokens warmCaramel;
+    warmCaramel.id = "warm_caramel_light";
+    warmCaramel.name = "☀️ Light Caramel (Warm Brown)";
+    warmCaramel.isDark = false;
+    warmCaramel.bgBase = QColor("#fdf8f4");
+    warmCaramel.bgSurface = QColor("#f4e9df");
+    warmCaramel.bgOverlay = QColor("#e6d7c9");
+    warmCaramel.bgInput = QColor("#ffffff");
+    warmCaramel.textPrimary = QColor("#3d2612");
+    warmCaramel.textSecondary = QColor("#58402c");
+    warmCaramel.textMuted = QColor("#8d7561");
+    warmCaramel.accentPrimary = QColor("#8c4a16");
+    warmCaramel.accentSuccess = QColor("#2e6f40");
+    warmCaramel.accentWarning = QColor("#b46d0e");
+    warmCaramel.accentDanger = QColor("#b71c1c");
+    warmCaramel.borderColor = QColor("#d8c3b2");
+    warmCaramel.borderRadiusMd = 8;
+    m_registeredThemes.insert(warmCaramel.id, warmCaramel);
+
+    // --- PAIR 3: Ocean & Sky Blue Pair ---
+    ThemeTokens oceanDeep;
+    oceanDeep.id = "ocean_deep_dark";
+    oceanDeep.name = "🌙 Ocean Deep (Dark Blue)";
+    oceanDeep.isDark = true;
+    oceanDeep.bgBase = QColor("#0f172a");
+    oceanDeep.bgSurface = QColor("#1e293b");
+    oceanDeep.bgOverlay = QColor("#334155");
+    oceanDeep.bgInput = QColor("#090d16");
+    oceanDeep.textPrimary = QColor("#f8fafc");
+    oceanDeep.textSecondary = QColor("#cbd5e1");
+    oceanDeep.textMuted = QColor("#64748b");
+    oceanDeep.accentPrimary = QColor("#38bdf8");
+    oceanDeep.accentSuccess = QColor("#4ade80");
+    oceanDeep.accentWarning = QColor("#fbbf24");
+    oceanDeep.accentDanger = QColor("#f87171");
+    oceanDeep.borderColor = QColor("#334155");
+    oceanDeep.borderRadiusMd = 8;
+    m_registeredThemes.insert(oceanDeep.id, oceanDeep);
+
+    ThemeTokens skyAzure;
+    skyAzure.id = "sky_azure_light";
+    skyAzure.name = "☀️ Sky Azure (Light Blue)";
+    skyAzure.isDark = false;
+    skyAzure.bgBase = QColor("#f0f9ff");
+    skyAzure.bgSurface = QColor("#e0f2fe");
+    skyAzure.bgOverlay = QColor("#bae6fd");
+    skyAzure.bgInput = QColor("#ffffff");
+    skyAzure.textPrimary = QColor("#0c4a6e");
+    skyAzure.textSecondary = QColor("#0369a1");
+    skyAzure.textMuted = QColor("#38bdf8");
+    skyAzure.accentPrimary = QColor("#0284c7");
+    skyAzure.accentSuccess = QColor("#16a34a");
+    skyAzure.accentWarning = QColor("#d97706");
+    skyAzure.accentDanger = QColor("#dc2626");
+    skyAzure.borderColor = QColor("#93c5fd");
+    skyAzure.borderRadiusMd = 8;
+    m_registeredThemes.insert(skyAzure.id, skyAzure);
+
+    // --- PAIR 4: Emerald Forest Green Pair ---
+    ThemeTokens emeraldPine;
+    emeraldPine.id = "emerald_pine_dark";
+    emeraldPine.name = "🌙 Emerald Pine (Dark Green)";
+    emeraldPine.isDark = true;
+    emeraldPine.bgBase = QColor("#0b1d17");
+    emeraldPine.bgSurface = QColor("#142e26");
+    emeraldPine.bgOverlay = QColor("#1f4237");
+    emeraldPine.bgInput = QColor("#07130f");
+    emeraldPine.textPrimary = QColor("#ecfdf5");
+    emeraldPine.textSecondary = QColor("#a7f3d0");
+    emeraldPine.textMuted = QColor("#5eead4");
+    emeraldPine.accentPrimary = QColor("#34d399");
+    emeraldPine.accentSuccess = QColor("#4ade80");
+    emeraldPine.accentWarning = QColor("#facc15");
+    emeraldPine.accentDanger = QColor("#f87171");
+    emeraldPine.borderColor = QColor("#1f4237");
+    emeraldPine.borderRadiusMd = 8;
+    m_registeredThemes.insert(emeraldPine.id, emeraldPine);
+
+    ThemeTokens sageMeadow;
+    sageMeadow.id = "sage_meadow_light";
+    sageMeadow.name = "☀️ Sage Meadow (Light Green)";
+    sageMeadow.isDark = false;
+    sageMeadow.bgBase = QColor("#f0fdf4");
+    sageMeadow.bgSurface = QColor("#dcfce7");
+    sageMeadow.bgOverlay = QColor("#bbf7d0");
+    sageMeadow.bgInput = QColor("#ffffff");
+    sageMeadow.textPrimary = QColor("#064e3b");
+    sageMeadow.textSecondary = QColor("#047857");
+    sageMeadow.textMuted = QColor("#34d399");
+    sageMeadow.accentPrimary = QColor("#059669");
+    sageMeadow.accentSuccess = QColor("#15803d");
+    sageMeadow.accentWarning = QColor("#ca8a04");
+    sageMeadow.accentDanger = QColor("#dc2626");
+    sageMeadow.borderColor = QColor("#86efac");
+    sageMeadow.borderRadiusMd = 8;
+    m_registeredThemes.insert(sageMeadow.id, sageMeadow);
+
+    // --- PAIR 5: Midnight Amethyst Purple Pair ---
+    ThemeTokens amethystDark;
+    amethystDark.id = "midnight_amethyst_dark";
+    amethystDark.name = "🌙 Midnight Amethyst (Dark Purple)";
+    amethystDark.isDark = true;
+    amethystDark.bgBase = QColor("#170f24");
+    amethystDark.bgSurface = QColor("#231738");
+    amethystDark.bgOverlay = QColor("#342352");
+    amethystDark.bgInput = QColor("#0f0918");
+    amethystDark.textPrimary = QColor("#f3e8ff");
+    amethystDark.textSecondary = QColor("#e9d5ff");
+    amethystDark.textMuted = QColor("#a855f7");
+    amethystDark.accentPrimary = QColor("#c084fc");
+    amethystDark.accentSuccess = QColor("#4ade80");
+    amethystDark.accentWarning = QColor("#facc15");
+    amethystDark.accentDanger = QColor("#f87171");
+    amethystDark.borderColor = QColor("#342352");
+    amethystDark.borderRadiusMd = 8;
+    m_registeredThemes.insert(amethystDark.id, amethystDark);
+
+    ThemeTokens lavenderLight;
+    lavenderLight.id = "soft_lavender_light";
+    lavenderLight.name = "☀️ Soft Lavender (Light Purple)";
+    lavenderLight.isDark = false;
+    lavenderLight.bgBase = QColor("#faf5ff");
+    lavenderLight.bgSurface = QColor("#f3e8ff");
+    lavenderLight.bgOverlay = QColor("#e9d5ff");
+    lavenderLight.bgInput = QColor("#ffffff");
+    lavenderLight.textPrimary = QColor("#3b0764");
+    lavenderLight.textSecondary = QColor("#581c87");
+    lavenderLight.textMuted = QColor("#9333ea");
+    lavenderLight.accentPrimary = QColor("#7e22ce");
+    lavenderLight.accentSuccess = QColor("#15803d");
+    lavenderLight.accentWarning = QColor("#c2410c");
+    lavenderLight.accentDanger = QColor("#b91c1c");
+    lavenderLight.borderColor = QColor("#d8b4fe");
+    lavenderLight.borderRadiusMd = 8;
+    m_registeredThemes.insert(lavenderLight.id, lavenderLight);
+
+    // --- PAIR 6: Nordic Frost Pair ---
+    ThemeTokens nord;
+    nord.id = "nord_slate";
+    nord.name = "🌙 Nordic Slate (Dark Frost)";
+    nord.isDark = true;
+    nord.bgBase = QColor("#2e3440");
+    nord.bgSurface = QColor("#3b4252");
+    nord.bgOverlay = QColor("#434c5e");
+    nord.bgInput = QColor("#242933");
+    nord.textPrimary = QColor("#eceff4");
+    nord.textSecondary = QColor("#d8dee9");
+    nord.textMuted = QColor("#4c566a");
+    nord.accentPrimary = QColor("#88c0d0");
+    nord.accentSuccess = QColor("#a3be8c");
+    nord.accentWarning = QColor("#ebcb8b");
+    nord.accentDanger = QColor("#bf616a");
+    nord.borderColor = QColor("#4c566a");
+    nord.borderRadiusMd = 8;
+    m_registeredThemes.insert(nord.id, nord);
+
+    ThemeTokens nordicSnow;
+    nordicSnow.id = "nordic_snow_light";
+    nordicSnow.name = "☀️ Nordic Snow (Light Frost)";
+    nordicSnow.isDark = false;
+    nordicSnow.bgBase = QColor("#f8fafc");
+    nordicSnow.bgSurface = QColor("#f1f5f9");
+    nordicSnow.bgOverlay = QColor("#e2e8f0");
+    nordicSnow.bgInput = QColor("#ffffff");
+    nordicSnow.textPrimary = QColor("#0f172a");
+    nordicSnow.textSecondary = QColor("#334155");
+    nordicSnow.textMuted = QColor("#64748b");
+    nordicSnow.accentPrimary = QColor("#0284c7");
+    nordicSnow.accentSuccess = QColor("#059669");
+    nordicSnow.accentWarning = QColor("#d97706");
+    nordicSnow.accentDanger = QColor("#e11d48");
+    nordicSnow.borderColor = QColor("#cbd5e1");
+    nordicSnow.borderRadiusMd = 8;
+    m_registeredThemes.insert(nordicSnow.id, nordicSnow);
+
+    // --- PAIR 7: High Contrast Accessibility Pair ---
+    ThemeTokens hcDark;
+    hcDark.id = "high_contrast_dark";
+    hcDark.name = "👁️ High-Contrast Dark";
+    hcDark.isDark = true;
+    hcDark.bgBase = QColor("#000000");
+    hcDark.bgSurface = QColor("#121212");
+    hcDark.bgOverlay = QColor("#242424");
+    hcDark.bgInput = QColor("#000000");
+    hcDark.textPrimary = QColor("#ffffff");
+    hcDark.textSecondary = QColor("#e0e0e0");
+    hcDark.textMuted = QColor("#b0b0b0");
+    hcDark.accentPrimary = QColor("#ffff00");
+    hcDark.accentSuccess = QColor("#00ff00");
+    hcDark.accentWarning = QColor("#ffaa00");
+    hcDark.accentDanger = QColor("#ff3333");
+    hcDark.borderColor = QColor("#ffffff");
+    hcDark.borderRadiusMd = 4;
+    m_registeredThemes.insert(hcDark.id, hcDark);
+
+    ThemeTokens hcLight;
+    hcLight.id = "high_contrast_light";
+    hcLight.name = "👁️ High-Contrast Light";
+    hcLight.isDark = false;
+    hcLight.bgBase = QColor("#ffffff");
+    hcLight.bgSurface = QColor("#f0f0f0");
+    hcLight.bgOverlay = QColor("#e0e0e0");
+    hcLight.bgInput = QColor("#ffffff");
+    hcLight.textPrimary = QColor("#000000");
+    hcLight.textSecondary = QColor("#222222");
+    hcLight.textMuted = QColor("#555555");
+    hcLight.accentPrimary = QColor("#0000d6");
+    hcLight.accentSuccess = QColor("#008000");
+    hcLight.accentWarning = QColor("#b8860b");
+    hcLight.accentDanger = QColor("#d90000");
+    hcLight.borderColor = QColor("#000000");
+    hcLight.borderRadiusMd = 4;
+    m_registeredThemes.insert(hcLight.id, hcLight);
+
+    // --- PAIR 8: Sunset Crimson & Solar Coral Pair ---
+    ThemeTokens sunsetCrimson;
+    sunsetCrimson.id = "sunset_crimson_dark";
+    sunsetCrimson.name = "🌙 Sunset Crimson (Dark Ruby)";
+    sunsetCrimson.isDark = true;
+    sunsetCrimson.bgBase = QColor("#1a0c10");
+    sunsetCrimson.bgSurface = QColor("#281318");
+    sunsetCrimson.bgOverlay = QColor("#381c23");
+    sunsetCrimson.bgInput = QColor("#12080a");
+    sunsetCrimson.textPrimary = QColor("#ffe4e6");
+    sunsetCrimson.textSecondary = QColor("#fecdd3");
+    sunsetCrimson.textMuted = QColor("#fda4af");
+    sunsetCrimson.accentPrimary = QColor("#f43f5e");
+    sunsetCrimson.accentSuccess = QColor("#4ade80");
+    sunsetCrimson.accentWarning = QColor("#fbbf24");
+    sunsetCrimson.accentDanger = QColor("#ff4d4d");
+    sunsetCrimson.borderColor = QColor("#381c23");
+    sunsetCrimson.borderRadiusMd = 8;
+    m_registeredThemes.insert(sunsetCrimson.id, sunsetCrimson);
+
+    ThemeTokens solarCoral;
+    solarCoral.id = "solar_coral_light";
+    solarCoral.name = "☀️ Solar Coral (Light Rose)";
+    solarCoral.isDark = false;
+    solarCoral.bgBase = QColor("#fff1f2");
+    solarCoral.bgSurface = QColor("#ffe4e6");
+    solarCoral.bgOverlay = QColor("#fecdd3");
+    solarCoral.bgInput = QColor("#ffffff");
+    solarCoral.textPrimary = QColor("#4c0519");
+    solarCoral.textSecondary = QColor("#881337");
+    solarCoral.textMuted = QColor("#9f1239");
+    solarCoral.accentPrimary = QColor("#e11d48");
+    solarCoral.accentSuccess = QColor("#16a34a");
+    solarCoral.accentWarning = QColor("#d97706");
+    solarCoral.accentDanger = QColor("#be123c");
+    solarCoral.borderColor = QColor("#fda4af");
+    solarCoral.borderRadiusMd = 8;
+    m_registeredThemes.insert(solarCoral.id, solarCoral);
+
+    // --- PAIR 9: Cypress Teal & Seafoam Pair ---
+    ThemeTokens cypressTeal;
+    cypressTeal.id = "cypress_teal_dark";
+    cypressTeal.name = "🌙 Cypress Teal (Dark Cyan)";
+    cypressTeal.isDark = true;
+    cypressTeal.bgBase = QColor("#081c24");
+    cypressTeal.bgSurface = QColor("#102a36");
+    cypressTeal.bgOverlay = QColor("#1a3847");
+    cypressTeal.bgInput = QColor("#041016");
+    cypressTeal.textPrimary = QColor("#ecfeff");
+    cypressTeal.textSecondary = QColor("#cffaff");
+    cypressTeal.textMuted = QColor("#a5f3fc");
+    cypressTeal.accentPrimary = QColor("#06b6d4");
+    cypressTeal.accentSuccess = QColor("#34d399");
+    cypressTeal.accentWarning = QColor("#facc15");
+    cypressTeal.accentDanger = QColor("#f87171");
+    cypressTeal.borderColor = QColor("#1a3847");
+    cypressTeal.borderRadiusMd = 8;
+    m_registeredThemes.insert(cypressTeal.id, cypressTeal);
+
+    ThemeTokens seafoamBreeze;
+    seafoamBreeze.id = "seafoam_breeze_light";
+    seafoamBreeze.name = "☀️ Seafoam Breeze (Light Cyan)";
+    seafoamBreeze.isDark = false;
+    seafoamBreeze.bgBase = QColor("#f0fdfa");
+    seafoamBreeze.bgSurface = QColor("#ccfbf1");
+    seafoamBreeze.bgOverlay = QColor("#99f6e4");
+    seafoamBreeze.bgInput = QColor("#ffffff");
+    seafoamBreeze.textPrimary = QColor("#042f2e");
+    seafoamBreeze.textSecondary = QColor("#134e4a");
+    seafoamBreeze.textMuted = QColor("#0f766e");
+    seafoamBreeze.accentPrimary = QColor("#0f766e");
+    seafoamBreeze.accentSuccess = QColor("#15803d");
+    seafoamBreeze.accentWarning = QColor("#d97706");
+    seafoamBreeze.accentDanger = QColor("#b91c1c");
+    seafoamBreeze.borderColor = QColor("#5eead4");
+    seafoamBreeze.borderRadiusMd = 8;
+    m_registeredThemes.insert(seafoamBreeze.id, seafoamBreeze);
+
+    // --- PAIR 10: Cyberpunk Neon & Vaporwave Pair ---
+    ThemeTokens cyberpunkSynth;
+    cyberpunkSynth.id = "cyberpunk_synth_dark";
+    cyberpunkSynth.name = "🌙 Cyberpunk Neon (Dark Synth)";
+    cyberpunkSynth.isDark = true;
+    cyberpunkSynth.bgBase = QColor("#09090e");
+    cyberpunkSynth.bgSurface = QColor("#141420");
+    cyberpunkSynth.bgOverlay = QColor("#202033");
+    cyberpunkSynth.bgInput = QColor("#050508");
+    cyberpunkSynth.textPrimary = QColor("#e0ffff");
+    cyberpunkSynth.textSecondary = QColor("#80ffff");
+    cyberpunkSynth.textMuted = QColor("#ff80df");
+    cyberpunkSynth.accentPrimary = QColor("#ff007f");
+    cyberpunkSynth.accentSuccess = QColor("#00ff88");
+    cyberpunkSynth.accentWarning = QColor("#ffe600");
+    cyberpunkSynth.accentDanger = QColor("#ff2a6d");
+    cyberpunkSynth.borderColor = QColor("#ff007f");
+    cyberpunkSynth.borderRadiusMd = 6;
+    m_registeredThemes.insert(cyberpunkSynth.id, cyberpunkSynth);
+
+    ThemeTokens vaporwavePastel;
+    vaporwavePastel.id = "vaporwave_pastel_light";
+    vaporwavePastel.name = "☀️ Vaporwave Pastel (Light Sunset)";
+    vaporwavePastel.isDark = false;
+    vaporwavePastel.bgBase = QColor("#fff0f5");
+    vaporwavePastel.bgSurface = QColor("#ffe4e1");
+    vaporwavePastel.bgOverlay = QColor("#ffd1dc");
+    vaporwavePastel.bgInput = QColor("#ffffff");
+    vaporwavePastel.textPrimary = QColor("#4b0082");
+    vaporwavePastel.textSecondary = QColor("#483d8b");
+    vaporwavePastel.textMuted = QColor("#8a2be2");
+    vaporwavePastel.accentPrimary = QColor("#c71585");
+    vaporwavePastel.accentSuccess = QColor("#2e8b57");
+    vaporwavePastel.accentWarning = QColor("#d2691e");
+    vaporwavePastel.accentDanger = QColor("#dc143c");
+    vaporwavePastel.borderColor = QColor("#ffb6c1");
+    vaporwavePastel.borderRadiusMd = 6;
+    m_registeredThemes.insert(vaporwavePastel.id, vaporwavePastel);
+
+    // --- PAIR 11: Autumn Amber & Harvest Copper Pair ---
+    ThemeTokens autumnAmber;
+    autumnAmber.id = "autumn_amber_dark";
+    autumnAmber.name = "🌙 Autumn Amber (Dark Copper)";
+    autumnAmber.isDark = true;
+    autumnAmber.bgBase = QColor("#1c130d");
+    autumnAmber.bgSurface = QColor("#2a1d13");
+    autumnAmber.bgOverlay = QColor("#3c2a1c");
+    autumnAmber.bgInput = QColor("#130c08");
+    autumnAmber.textPrimary = QColor("#ffedd5");
+    autumnAmber.textSecondary = QColor("#fed7aa");
+    autumnAmber.textMuted = QColor("#fdba74");
+    autumnAmber.accentPrimary = QColor("#f97316");
+    autumnAmber.accentSuccess = QColor("#4ade80");
+    autumnAmber.accentWarning = QColor("#facc15");
+    autumnAmber.accentDanger = QColor("#ef4444");
+    autumnAmber.borderColor = QColor("#3c2a1c");
+    autumnAmber.borderRadiusMd = 8;
+    m_registeredThemes.insert(autumnAmber.id, autumnAmber);
+
+    ThemeTokens harvestCopper;
+    harvestCopper.id = "harvest_copper_light";
+    harvestCopper.name = "☀️ Harvest Copper (Light Amber)";
+    harvestCopper.isDark = false;
+    harvestCopper.bgBase = QColor("#fff7ed");
+    harvestCopper.bgSurface = QColor("#ffedd5");
+    harvestCopper.bgOverlay = QColor("#fed7aa");
+    harvestCopper.bgInput = QColor("#ffffff");
+    harvestCopper.textPrimary = QColor("#431407");
+    harvestCopper.textSecondary = QColor("#7c2d12");
+    harvestCopper.textMuted = QColor("#9a3412");
+    harvestCopper.accentPrimary = QColor("#c2410c");
+    harvestCopper.accentSuccess = QColor("#15803d");
+    harvestCopper.accentWarning = QColor("#ca8a04");
+    harvestCopper.accentDanger = QColor("#b91c1c");
+    harvestCopper.borderColor = QColor("#fdba74");
+    harvestCopper.borderRadiusMd = 8;
+    m_registeredThemes.insert(harvestCopper.id, harvestCopper);
+
+    // --- PAIR 12: Midnight Onyx & Minimal Pearl Pair ---
+    ThemeTokens midnightOnyx;
+    midnightOnyx.id = "midnight_onyx_dark";
+    midnightOnyx.name = "🌙 Midnight Onyx (Monochrome Dark)";
+    midnightOnyx.isDark = true;
+    midnightOnyx.bgBase = QColor("#121214");
+    midnightOnyx.bgSurface = QColor("#1c1c20");
+    midnightOnyx.bgOverlay = QColor("#28282e");
+    midnightOnyx.bgInput = QColor("#0a0a0c");
+    midnightOnyx.textPrimary = QColor("#fafafa");
+    midnightOnyx.textSecondary = QColor("#e4e4e7");
+    midnightOnyx.textMuted = QColor("#a1a1aa");
+    midnightOnyx.accentPrimary = QColor("#e4e4e7");
+    midnightOnyx.accentSuccess = QColor("#4ade80");
+    midnightOnyx.accentWarning = QColor("#fbbf24");
+    midnightOnyx.accentDanger = QColor("#f87171");
+    midnightOnyx.borderColor = QColor("#3f3f46");
+    midnightOnyx.borderRadiusMd = 4;
+    m_registeredThemes.insert(midnightOnyx.id, midnightOnyx);
+
+    ThemeTokens minimalPearl;
+    minimalPearl.id = "minimal_pearl_light";
+    minimalPearl.name = "☀️ Minimal Pearl (Monochrome Light)";
+    minimalPearl.isDark = false;
+    minimalPearl.bgBase = QColor("#fafafa");
+    minimalPearl.bgSurface = QColor("#f4f4f5");
+    minimalPearl.bgOverlay = QColor("#e4e4e7");
+    minimalPearl.bgInput = QColor("#ffffff");
+    minimalPearl.textPrimary = QColor("#09090b");
+    minimalPearl.textSecondary = QColor("#18181b");
+    minimalPearl.textMuted = QColor("#3f3f46");
+    minimalPearl.accentPrimary = QColor("#18181b");
+    minimalPearl.accentSuccess = QColor("#16a34a");
+    minimalPearl.accentWarning = QColor("#d97706");
+    minimalPearl.accentDanger = QColor("#dc2626");
+    minimalPearl.borderColor = QColor("#d4d4d8");
+    minimalPearl.borderRadiusMd = 4;
+    m_registeredThemes.insert(minimalPearl.id, minimalPearl);
+
+    // --- PAIR 13: Cosmic Nebula & Aurora Pair ---
+    ThemeTokens cosmicNebula;
+    cosmicNebula.id = "cosmic_nebula_dark";
+    cosmicNebula.name = "🌙 Cosmic Nebula (Dark Deep Space)";
+    cosmicNebula.isDark = true;
+    cosmicNebula.bgBase = QColor("#0b0c16");
+    cosmicNebula.bgSurface = QColor("#141628");
+    cosmicNebula.bgOverlay = QColor("#202340");
+    cosmicNebula.bgInput = QColor("#06070e");
+    cosmicNebula.textPrimary = QColor("#f1f5f9");
+    cosmicNebula.textSecondary = QColor("#e2e8f0");
+    cosmicNebula.textMuted = QColor("#94a3b8");
+    cosmicNebula.accentPrimary = QColor("#a855f7");
+    cosmicNebula.accentSuccess = QColor("#34d399");
+    cosmicNebula.accentWarning = QColor("#fbbf24");
+    cosmicNebula.accentDanger = QColor("#f43f5e");
+    cosmicNebula.borderColor = QColor("#202340");
+    cosmicNebula.borderRadiusMd = 8;
+    m_registeredThemes.insert(cosmicNebula.id, cosmicNebula);
+
+    ThemeTokens auroraSky;
+    auroraSky.id = "aurora_sky_light";
+    auroraSky.name = "☀️ Aurora Sky (Light Pastel Sky)";
+    auroraSky.isDark = false;
+    auroraSky.bgBase = QColor("#f5f3ff");
+    auroraSky.bgSurface = QColor("#ede9fe");
+    auroraSky.bgOverlay = QColor("#ddd6fe");
+    auroraSky.bgInput = QColor("#ffffff");
+    auroraSky.textPrimary = QColor("#1e1b4b");
+    auroraSky.textSecondary = QColor("#312e81");
+    auroraSky.textMuted = QColor("#4338ca");
+    auroraSky.accentPrimary = QColor("#6d28d9");
+    auroraSky.accentSuccess = QColor("#059669");
+    auroraSky.accentWarning = QColor("#d97706");
+    auroraSky.accentDanger = QColor("#e11d48");
+    auroraSky.borderColor = QColor("#c4b5fd");
+    auroraSky.borderRadiusMd = 8;
+    m_registeredThemes.insert(auroraSky.id, auroraSky);
+}
+
+void ThemeManager::zoomIn() {
+    int nextPx = qMin(m_currentTokens.fontSizePx + 1, 18);
+    setFontSize(nextPx);
+}
+
+void ThemeManager::zoomOut() {
+    int nextPx = qMax(m_currentTokens.fontSizePx - 1, 11);
+    setFontSize(nextPx);
+}
+
+void ThemeManager::setFontSize(int px) {
+    m_currentTokens.fontSizePx = qBound(11, px, 18);
+    applyCustomTokens(m_currentTokens);
+}
+
+bool ThemeManager::generateChurchBrandTheme(const QColor& brandColor, bool darkBase) {
+    ThemeTokens tok;
+    tok.id = "church_brand";
+    tok.name = "🏛️ Church Brand Theme";
+    tok.isDark = darkBase;
+    tok.isCustom = true;
+
+    tok.accentPrimary = brandColor;
+    tok.accentSuccess = QColor("#a6e3a1");
+    tok.accentWarning = QColor("#f9e2af");
+    tok.accentDanger = QColor("#f38ba8");
+
+    if (darkBase) {
+        tok.bgBase = brandColor.darker(350);
+        tok.bgSurface = brandColor.darker(250);
+        tok.bgOverlay = brandColor.darker(180);
+        tok.bgInput = brandColor.darker(400);
+        tok.textPrimary = QColor("#ffffff");
+        tok.textSecondary = QColor("#e0e0e0");
+        tok.textMuted = QColor("#a0a0a0");
+        tok.borderColor = brandColor.darker(160);
+    } else {
+        tok.bgBase = QColor("#f8f9fa");
+        tok.bgSurface = QColor("#ffffff");
+        tok.bgOverlay = QColor("#e9ecef");
+        tok.bgInput = QColor("#ffffff");
+        tok.textPrimary = QColor("#212529");
+        tok.textSecondary = QColor("#495057");
+        tok.textMuted = QColor("#6c757d");
+        tok.borderColor = brandColor.lighter(170);
+    }
+    tok.borderRadiusMd = 8;
+    return saveCustomPreset("Church Brand Theme", tok);
+}
+
+void ThemeManager::reloadCustomThemesFromDisk() {
+    QDir dir(customThemesDir());
+    QStringList files = dir.entryList({"*.json"}, QDir::Files);
+    for (const QString& file : files) {
+        QFile f(dir.absoluteFilePath(file));
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            if (doc.isObject()) {
+                QJsonObject json = doc.object();
+                ThemeTokens t;
+                t.id = json.value("id").toString(QFileInfo(file).baseName());
+                t.name = json.value("name").toString(t.id);
+                t.isDark = json.value("isDark").toBool(true);
+                t.isCustom = true;
+
+                t.bgBase = QColor(json.value("bgBase").toString("#181825"));
+                t.bgSurface = QColor(json.value("bgSurface").toString("#1e1e2e"));
+                t.bgOverlay = QColor(json.value("bgOverlay").toString("#313244"));
+                t.bgInput = QColor(json.value("bgInput").toString("#11111b"));
+
+                t.textPrimary = QColor(json.value("textPrimary").toString("#cdd6f4"));
+                t.textSecondary = QColor(json.value("textSecondary").toString("#a6adc8"));
+                t.textMuted = QColor(json.value("textMuted").toString("#6c7086"));
+
+                t.accentPrimary = QColor(json.value("accentPrimary").toString("#89b4fa"));
+                t.accentSuccess = QColor(json.value("accentSuccess").toString("#a6e3a1"));
+                t.accentWarning = QColor(json.value("accentWarning").toString("#f9e2af"));
+                t.accentDanger = QColor(json.value("accentDanger").toString("#f38ba8"));
+
+                t.borderColor = QColor(json.value("borderColor").toString("#313244"));
+                t.borderRadiusMd = json.value("borderRadiusMd").toInt(8);
+
+                m_registeredThemes.insert(t.id, t);
+            }
+            f.close();
+        }
+    }
+}
+
+QStringList ThemeManager::availableThemes() const {
+    return m_registeredThemes.keys();
+}
+
+ThemeTokens ThemeManager::getThemeTokens(const QString& themeId) const {
+    return m_registeredThemes.value(themeId, m_currentTokens);
+}
+
+QString ThemeManager::activeThemeId() const {
+    return m_activeThemeId;
+}
+
+ThemeTokens ThemeManager::currentTokens() const {
+    return m_currentTokens;
+}
+
+bool ThemeManager::loadTheme(const QString& themeId) {
+    if (!m_registeredThemes.contains(themeId)) return false;
+
+    m_activeThemeId = themeId;
+    if (themeId == "system_auto") {
+        bool dark = isSystemDark();
+        QString targetId = dark ? "catppuccin_mocha" : "catppuccin_latte";
+        m_currentTokens = m_registeredThemes.value(targetId);
+    } else {
+        m_currentTokens = m_registeredThemes.value(themeId);
+    }
+
+    QSettings settings("OpenEkklesia", "CHMS");
+    settings.setValue("activeThemeId", themeId);
+    settings.setValue("isDarkMode", m_currentTokens.isDark);
+
+    if (qApp) {
+        qApp->setPalette(generateQPalette());
+        qApp->setStyleSheet(generateGlobalQSS());
+    }
+
+    emit themeChanged(m_currentTokens);
+    return true;
+}
+
+bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
+    m_currentTokens = tokens;
+
+    if (qApp) {
+        qApp->setPalette(generateQPalette());
+        qApp->setStyleSheet(generateGlobalQSS());
+    }
+
+    emit themeChanged(m_currentTokens);
+    return true;
+}
+
+bool ThemeManager::saveCustomPreset(const QString& presetName, const ThemeTokens& tokens) {
+    QString safeId = QString(presetName).toLower().replace(" ", "_");
+    ThemeTokens t = tokens;
+    t.id = safeId;
+    t.name = presetName;
+    t.isCustom = true;
+
+    QJsonObject json;
+    json["id"] = t.id;
+    json["name"] = t.name;
+    json["isDark"] = t.isDark;
+    json["bgBase"] = t.bgBase.name();
+    json["bgSurface"] = t.bgSurface.name();
+    json["bgOverlay"] = t.bgOverlay.name();
+    json["bgInput"] = t.bgInput.name();
+    json["textPrimary"] = t.textPrimary.name();
+    json["textSecondary"] = t.textSecondary.name();
+    json["textMuted"] = t.textMuted.name();
+    json["accentPrimary"] = t.accentPrimary.name();
+    json["accentSuccess"] = t.accentSuccess.name();
+    json["accentWarning"] = t.accentWarning.name();
+    json["accentDanger"] = t.accentDanger.name();
+    json["borderColor"] = t.borderColor.name();
+    json["borderRadiusMd"] = t.borderRadiusMd;
+
+    QString filePath = QString("%1/%2.json").arg(customThemesDir(), safeId);
+    QFile f(filePath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(json).toJson());
+        f.close();
+        m_registeredThemes.insert(t.id, t);
+        loadTheme(t.id);
+        return true;
+    }
+    return false;
+}
+
+QPalette ThemeManager::generateQPalette() const {
+    QPalette pal;
+    pal.setColor(QPalette::Window, m_currentTokens.bgBase);
+    pal.setColor(QPalette::WindowText, m_currentTokens.textPrimary);
+    pal.setColor(QPalette::Base, m_currentTokens.bgInput);
+    pal.setColor(QPalette::AlternateBase, m_currentTokens.bgSurface);
+    pal.setColor(QPalette::ToolTipBase, m_currentTokens.bgOverlay);
+    pal.setColor(QPalette::ToolTipText, m_currentTokens.textPrimary);
+    pal.setColor(QPalette::Text, m_currentTokens.textPrimary);
+    pal.setColor(QPalette::Button, m_currentTokens.bgSurface);
+    pal.setColor(QPalette::ButtonText, m_currentTokens.textPrimary);
+    pal.setColor(QPalette::Highlight, m_currentTokens.accentPrimary);
+
+    QString highlightText = (m_currentTokens.accentPrimary.lightness() > 140) ? "#11111b" : "#ffffff";
+    pal.setColor(QPalette::HighlightedText, QColor(highlightText));
+    return pal;
+}
+
+QString ThemeManager::generateGlobalQSS() const {
+    const auto& t = m_currentTokens;
+    QString primaryBtnTextColor = (t.accentPrimary.lightness() > 140) ? "#11111b" : "#ffffff";
+    QString dangerBtnTextColor = (t.accentDanger.lightness() > 140) ? "#11111b" : "#ffffff";
+
+    return QString(
+        "QMainWindow, QDialog { background-color: %1; color: %2; font-family: 'Segoe UI', system-ui, sans-serif; font-size: %10px; }\n"
+        "QStackedWidget#mainContent { background-color: %1; }\n"
+        "QWidget { color: %2; font-size: %10px; }\n"
+        "QLabel { color: %2; font-size: %10px; }\n"
+        "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {\n"
+        "  background-color: %3; border: 1px solid %4; border-radius: %9px; color: %2; padding: 6px 10px; font-size: %10px;\n"
+        "}\n"
+        "QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {\n"
+        "  border: 1px solid %5;\n"
+        "}\n"
+        "QPushButton {\n"
+        "  background-color: %6; border: 1px solid %4; color: %2; padding: 8px 16px; border-radius: %9px; font-weight: bold; font-size: %10px;\n"
+        "}\n"
+        "QPushButton:hover { background-color: %4; }\n"
+        "QPushButton#primaryBtn, QPushButton#saveBtn {\n"
+        "  background-color: %5; color: %11; border: none;\n"
+        "}\n"
+        "QPushButton#dangerBtn {\n"
+        "  background-color: %7; color: %12; border: none;\n"
+        "}\n"
+        "QPushButton#sectionHeaderBtn {\n"
+        "  font-size: 11px; font-weight: bold; color: %5; text-align: left; background: transparent; border: none; padding: 4px 0px;\n"
+        "}\n"
+        "QGroupBox {\n"
+        "  background-color: %6; border: 1px solid %4; border-radius: %9px; margin-top: 12px; font-weight: bold; color: %5;\n"
+        "}\n"
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: %5; }\n"
+        "QTableView, QTableWidget, QListWidget, QTreeWidget {\n"
+        "  background-color: %3; alternate-background-color: %1; border: 1px solid %4; gridline-color: %4; color: %2; border-radius: %9px; font-size: %10px;\n"
+        "}\n"
+        "QHeaderView::section {\n"
+        "  background-color: %6; color: %2; font-weight: bold; border: none; border-bottom: 2px solid %5; padding: 6px; font-size: %10px;\n"
+        "}\n"
+        "QTabWidget::pane { border: 1px solid %4; background-color: %6; border-radius: %9px; }\n"
+        "QTabBar::tab { background-color: %3; color: %8; padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid %4; border-bottom: none; font-size: %10px; }\n"
+        "QTabBar::tab:selected { background-color: %6; color: %2; border-bottom: 3px solid %5; }\n"
+        "QFrame#cardWidget, QFrame#hintPanel {\n"
+        "  background-color: %6; border: 1px solid %4; border-radius: %9px;\n"
+        "}\n"
+        "QCheckBox, QRadioButton {\n"
+        "  color: %2; font-weight: bold; font-size: %10px;\n"
+        "}\n"
+    ).arg(
+        t.bgBase.name(),        // %1
+        t.textPrimary.name(),   // %2
+        t.bgInput.name(),       // %3
+        t.borderColor.name(),   // %4
+        t.accentPrimary.name(), // %5
+        t.bgSurface.name(),     // %6
+        t.accentDanger.name(),  // %7
+        t.textSecondary.name(), // %8
+        QString::number(t.borderRadiusMd), // %9
+        QString::number(t.fontSizePx),     // %10
+        primaryBtnTextColor,                // %11
+        dangerBtnTextColor                  // %12
+    );
+}

@@ -1,0 +1,31 @@
+# Build directories
+/build/
+/build_warn/
+/build_release/
+/AppDir/
+
+# CMake generated files
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/Makefile
+/compile_commands.json
+/OpenEkklesia_autogen/
+
+# Qt build artifacts
+*.o
+*.moc
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# User databases (generated at runtime; seed data lives in code)
+*.db
+*.db-wal
+*.db-shm
+/backups/
+
+# Editor / OS
+*.user
+*.swp
+.DS_Store
