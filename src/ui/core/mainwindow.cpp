@@ -1033,10 +1033,10 @@ QWidget* MainWindow::createDashboardPage() {
     m_lblWelcomeHeader->setObjectName("pageHeader");
     m_lblWelcomeHeader->setStyleSheet("font-size: 22px; font-weight: bold; margin: 0;");
 
-    QLabel* subHeader = new QLabel("Church Executive Overview & Pastoral Analytics Portal", page);
-    subHeader->setStyleSheet("font-size: 13px; opacity: 0.8;");
+    m_lblSubHeader = new QLabel(page);
+    m_lblSubHeader->setStyleSheet("font-size: 13px; opacity: 0.8;");
     headerTextLay->addWidget(m_lblWelcomeHeader);
-    headerTextLay->addWidget(subHeader);
+    headerTextLay->addWidget(m_lblSubHeader);
 
     headerRow->addLayout(headerTextLay);
     headerRow->addStretch();
@@ -1303,8 +1303,12 @@ void MainWindow::updateDashboardStats() {
     QString greeting = (hour < 12) ? "Good Morning" : (hour < 17) ? "Good Afternoon" : "Good Evening";
     QSettings s("OpenEkklesia", "CHMS");
     QString churchName = s.value("churchName", "OpenEkklesia Church").toString();
+    QString churchSubtitle = s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
     if (m_lblWelcomeHeader) {
         m_lblWelcomeHeader->setText(QString("⛪ %1, %2").arg(greeting, m_username.isEmpty() ? "Pastor / Leader" : m_username));
+    }
+    if (m_lblSubHeader) {
+        m_lblSubHeader->setText(QString("%1 — %2").arg(churchName, churchSubtitle));
     }
 
     QSqlQuery query;

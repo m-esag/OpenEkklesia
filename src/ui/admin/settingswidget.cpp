@@ -50,18 +50,15 @@ void SettingsWidget::setupUI() {
     orgLay->setContentsMargins(15, 15, 15, 15);
     orgLay->setSpacing(12);
 
-    QGroupBox* grpOrg = new QGroupBox("🏛️ Church Profile & Fiscal Setup", this);
+    QGroupBox* grpOrg = new QGroupBox("🏛️ Church Profile", this);
     QFormLayout* formOrg = new QFormLayout(grpOrg);
     formOrg->setSpacing(12);
 
     m_txtChurchName = new QLineEdit(this);
     m_txtChurchSubtitle = new QLineEdit(this);
-    m_cmbFiscalYearStart = new QComboBox(this);
-    m_cmbFiscalYearStart->addItems({"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"});
 
     formOrg->addRow("Church / Ministry Name:", m_txtChurchName);
     formOrg->addRow("Subtitle / Motto:", m_txtChurchSubtitle);
-    formOrg->addRow("Fiscal Year Start Month:", m_cmbFiscalYearStart);
 
     orgLay->addWidget(grpOrg);
     orgLay->addStretch();
@@ -355,8 +352,7 @@ void SettingsWidget::loadSettings() {
 
     m_txtChurchName->setText(s.value("churchName", "OpenEkklesia Church").toString());
     m_txtChurchSubtitle->setText(s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString());
-    m_cmbFiscalYearStart->setCurrentText(s.value("fiscalYearStart", "January").toString());
-    
+
     m_chkAutoCollapseSidebar->setChecked(s.value("autoCollapseSidebar", true).toBool());
     
     m_spnBurnoutThreshold->setValue(s.value("burnoutThreshold", 3).toInt());
@@ -382,7 +378,6 @@ void SettingsWidget::saveSettings() {
 
     s.setValue("churchName", m_txtChurchName->text().trimmed());
     s.setValue("churchSubtitle", m_txtChurchSubtitle->text().trimmed());
-    s.setValue("fiscalYearStart", m_cmbFiscalYearStart->currentText());
 
     s.setValue("autoCollapseSidebar", m_chkAutoCollapseSidebar->isChecked());
 

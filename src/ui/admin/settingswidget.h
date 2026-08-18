@@ -37,8 +37,7 @@ private:
 
     QLineEdit* m_txtChurchName;
     QLineEdit* m_txtChurchSubtitle;
-    QComboBox* m_cmbFiscalYearStart;
-    
+
     QComboBox* m_cmbThemeModeFilter;
     QComboBox* m_cmbThemePreset;
     void populateThemePresets(int filterIndex);

@@ -141,6 +141,7 @@ private:
     QSqlQueryModel* m_ledgerModel;
 
     QLabel* m_lblWelcomeHeader;
+    QLabel* m_lblSubHeader;
     QLabel* m_lblTotalMembers;
     QLabel* m_lblTotalVisitors;
     QLabel* m_lblTotalGroups;

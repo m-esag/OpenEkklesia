@@ -88,7 +88,7 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         borderCol = tok.accentDanger; // Critical Overload Red
         bodyColStart = tok.isDark ? QColor("#4a1a24") : QColor("#fce8e6");
         bodyColEnd = tok.bgSurface;
-    } else if (m_burnoutGroupCount >= 3 || m_isWarning) {
+    } else if (m_burnoutGroupCount > 0 || m_isWarning) {
         borderCol = tok.accentWarning; // High Warning Amber/Orange
         bodyColStart = tok.isDark ? QColor("#3b2a1a") : QColor("#fef3e7");
         bodyColEnd = tok.bgSurface;
@@ -819,18 +819,64 @@ void GraphWidget::loadGraph() {
         }
     }
 
+    // Read the configured thresholds (Settings → Graph & Pastoral Thresholds).
+    QSettings s("OpenEkklesia", "CHMS");
+    m_burnoutThreshold = qMax(2, s.value("burnoutThreshold", 3).toInt());
+    m_familyDominancePercent = qBound(30, s.value("familyDominancePercent", 50).toInt(), 90);
+
     int totalBurnoutCount = 0;
     for (auto it = personGroupRolesMap.begin(); it != personGroupRolesMap.end(); ++it) {
         int pid = it.key();
         QStringList roles = it.value();
         int count = roles.size();
 
-        if (count >= 3) {
+        if (count >= m_burnoutThreshold) {
             NodeItem* pnode = findNode(NodeItem::Person, pid);
             if (pnode) {
-                bool isCritical = (count >= 5);
+                bool isCritical = (count >= m_burnoutThreshold + 2);
                 pnode->setBurnoutDetails(count, isCritical, roles.join(", "));
                 totalBurnoutCount++;
+            }
+        }
+    }
+
+    // 7. Compute Family Dominance alerts (one household dominating a group).
+    if (q.exec("SELECT id, household_id FROM people")) {
+        QMap<int, int> personHousehold;
+        while (q.next()) personHousehold[q.value(0).toInt()] = q.value(1).toInt();
+
+        QSqlQuery q2(db);
+        if (q2.exec("SELECT target_id, source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group'")) {
+            QMap<int, QList<int>> groupMembers;
+            while (q2.next()) groupMembers[q2.value(0).toInt()].append(q2.value(1).toInt());
+
+            for (auto it = groupMembers.begin(); it != groupMembers.end(); ++it) {
+                const int gid = it.key();
+                const QList<int> members = it.value();
+                if (members.size() < 2) continue;
+
+                QMap<int, int> householdCount;
+                int counted = 0;
+                for (int pid : members) {
+                    const int hid = personHousehold.value(pid, 0);
+                    if (hid == 0) continue;
+                    householdCount[hid]++;
+                    counted++;
+                }
+                if (counted < 2) continue;
+
+                int maxCount = 0;
+                for (auto hIt = householdCount.begin(); hIt != householdCount.end(); ++hIt) {
+                    if (hIt.value() > maxCount) maxCount = hIt.value();
+                }
+
+                const int pct = qRound(100.0 * maxCount / counted);
+                if (pct >= m_familyDominancePercent) {
+                    NodeItem* gnode = findNode(NodeItem::Group, gid);
+                    if (gnode) {
+                        gnode->setFamilyConcentration(QString("Family dominance: %1% of members from one household").arg(pct));
+                    }
+                }
             }
         }
     }
@@ -1168,7 +1214,7 @@ void GraphWidget::onFilterToggled() {
 
         if (m_filterIsolationActive && node->nodeType() != NodeItem::IsolatedPerson) {
             show = false;
-        } else if (m_filterBurnoutActive && node->burnoutGroupCount() < 3) {
+        } else if (m_filterBurnoutActive && node->burnoutGroupCount() < m_burnoutThreshold) {
             show = false;
         } else {
             if (node->isPersonNode() && !m_filterPeopleActive) show = false;
@@ -1254,7 +1300,7 @@ void GraphWidget::spotlightBurnoutNodes() {
     QRectF bounds;
     int count = 0;
     for (NodeItem* n : m_nodes) {
-        if (n->isVisible() && n->burnoutGroupCount() >= 3) {
+        if (n->isVisible() && n->burnoutGroupCount() >= m_burnoutThreshold) {
             if (count == 0) {
                 bounds = QRectF(n->pos(), QSizeF(1, 1));
             } else {
@@ -1338,7 +1384,7 @@ void GraphWidget::selectNodeForDetails(NodeItem* node) {
         int totalHouseholds = 0;
 
         for (NodeItem* n : m_nodes) {
-            if (n->burnoutGroupCount() >= 3) burnout++;
+            if (n->burnoutGroupCount() >= m_burnoutThreshold) burnout++;
             if (n->isPersonNode()) totalPeople++;
             else if (n->nodeType() == NodeItem::Group) totalGroups++;
             else if (n->nodeType() == NodeItem::Household) totalHouseholds++;
@@ -1628,7 +1674,7 @@ void GraphWidget::onRunAudit() {
 
     // 2. Burnout Risk Findings
     for (NodeItem* n : m_nodes) {
-        if (n->burnoutGroupCount() >= 3) {
+        if (n->burnoutGroupCount() >= m_burnoutThreshold) {
             table->insertRow(row);
             bool isCrit = n->isCriticalBurnout();
             if (isCrit) burnoutCriticalCount++; else burnoutHighCount++;

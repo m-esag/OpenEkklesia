@@ -283,6 +283,10 @@ protected:
     double m_damping;
     double m_gravity;
     bool m_physicsRunning;
+
+    // Configured thresholds (read from QSettings on graph load).
+    int m_burnoutThreshold = 3;
+    int m_familyDominancePercent = 50;
 };
 
 #endif // GRAPHWIDGET_H
