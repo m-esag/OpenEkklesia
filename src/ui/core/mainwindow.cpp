@@ -1107,8 +1107,8 @@ QWidget* MainWindow::createDashboardPage() {
     cardsLayout->addWidget(makeKpiCard("Visitors / Attenders", &m_lblTotalVisitors, "🤝", "Growth Pipeline"));
     cardsLayout->addWidget(makeKpiCard("Active Groups", &m_lblTotalGroups, "🏠", "Small Groups & Ministries"));
     cardsLayout->addWidget(makeKpiCard("Check-ins", &m_lblTotalCheckins, "📌", "Kiosk Attendance Logged"));
-    cardsLayout->addWidget(makeKpiCard("Liquid Assets", &m_lblAssetBalance, "💰", "Checking & Savings"));
-    cardsLayout->addWidget(makeKpiCard("Total Income", &m_lblTotalContributions, "📈", "YTD Tithes & Offerings"));
+    cardsLayout->addWidget(makeKpiCard("Total Assets", &m_lblAssetBalance, "💰", "Asset Account Balance"));
+    cardsLayout->addWidget(makeKpiCard("YTD Income", &m_lblTotalContributions, "📈", "This Year's Tithes & Offerings"));
 
     layout->addLayout(cardsLayout);
 
@@ -1337,23 +1337,39 @@ void MainWindow::updateDashboardStats() {
         m_lblAssetBalance->setText(QString("$%1").arg(QString::number(assets, 'f', 2)));
     }
 
-    // Total Contributions/Income (credits on income accounts are stored negative)
-    if (query.exec("SELECT -SUM(s.amount) FROM splits s JOIN accounts a ON s.account_id = a.id WHERE a.type = 'INCOME'")) {
-        query.next();
-        double income = query.value(0).toDouble();
+    // Fiscal year used for YTD income and budget-vs-actual comparisons. The
+    // ledger stores dates as "yyyy-MM-dd", so the calendar year is derived
+    // from the transaction date prefix to stay consistent with tax statements.
+    int fiscalYear = QDate::currentDate().year();
+    QString fiscalYearStr = QString::number(fiscalYear);
+
+    // YTD Income (credits on income accounts are stored negative)
+    QSqlQuery incomeQuery;
+    incomeQuery.prepare(
+        "SELECT -SUM(s.amount) FROM splits s "
+        "JOIN transactions t ON s.transaction_id = t.id "
+        "JOIN accounts a ON s.account_id = a.id "
+        "WHERE a.type = 'INCOME' AND substr(t.date, 1, 4) = ?");
+    incomeQuery.addBindValue(fiscalYearStr);
+    if (incomeQuery.exec() && incomeQuery.next()) {
+        double income = incomeQuery.value(0).toDouble();
         m_lblTotalContributions->setText(QString("$%1").arg(QString::number(income, 'f', 2)));
     }
 
-    // Total Budget & Variance calculations
+    // YTD Expenses for budget-vs-actual comparison
     double totalExpenses = 0.0;
-    if (query.exec("SELECT SUM(s.amount) FROM splits s JOIN accounts a ON s.account_id = a.id WHERE a.type = 'EXPENSE'")) {
-        if (query.next()) {
-            totalExpenses = query.value(0).toDouble();
-        }
+    QSqlQuery expenseQuery;
+    expenseQuery.prepare(
+        "SELECT SUM(s.amount) FROM splits s "
+        "JOIN transactions t ON s.transaction_id = t.id "
+        "JOIN accounts a ON s.account_id = a.id "
+        "WHERE a.type = 'EXPENSE' AND substr(t.date, 1, 4) = ?");
+    expenseQuery.addBindValue(fiscalYearStr);
+    if (expenseQuery.exec() && expenseQuery.next()) {
+        totalExpenses = expenseQuery.value(0).toDouble();
     }
 
     double totalBudget = 0.0;
-    int fiscalYear = QDate::currentDate().year();
     QSqlQuery budgetQuery;
     budgetQuery.prepare("SELECT SUM(budgeted_amount_cents) FROM account_budgets WHERE fiscal_year = ?");
     budgetQuery.addBindValue(fiscalYear);

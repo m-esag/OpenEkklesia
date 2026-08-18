@@ -16,6 +16,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Sql Charts PrintSupport)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql Charts PrintSupport)
 
+# Enable CTest so `ctest` runs the test suite defined below.
+enable_testing()
+
 message(STATUS "Found Qt Version: ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}")
 
 # Define source files organized by module
@@ -87,3 +90,22 @@ target_link_libraries(OpenEkklesia PRIVATE
     Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
+
+# --- Test Suite (data layer integration tests) ---
+add_executable(openekklesia_tests
+    tests/tst_openekklesia.cpp
+    src/database/databasemanager.cpp
+    src/database/databasemanager.h
+)
+
+target_include_directories(openekklesia_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/database
+)
+
+target_link_libraries(openekklesia_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Sql
+)
+
+add_test(NAME openekklesia_tests COMMAND openekklesia_tests)

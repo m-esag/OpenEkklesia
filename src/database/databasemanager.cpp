@@ -124,8 +124,11 @@ bool DatabaseManager::initialize(const QString& dbPath) {
 }
 
 void DatabaseManager::close() {
-    if (m_db.isOpen()) {
+    if (m_db.isValid()) {
+        const QString connectionName = m_db.connectionName();
         m_db.close();
+        m_db = QSqlDatabase(); // release our handle so the connection can be removed
+        QSqlDatabase::removeDatabase(connectionName);
     }
 }
 
