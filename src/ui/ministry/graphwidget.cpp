@@ -394,6 +394,20 @@ GraphWidget::GraphWidget(QWidget* parent)
 
 GraphWidget::~GraphWidget() {}
 
+void GraphWidget::styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor) {
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    const QString textOnActive = (activeColor.lightness() > 140) ? "#11111b" : "#ffffff";
+    if (active) {
+        btn->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
+            .arg(activeColor.name(), textOnActive));
+    } else {
+        btn->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
+            .arg(tok.bgSurface.name(), tok.textSecondary.name(), tok.borderColor.name()));
+    }
+}
+
 void GraphWidget::setupUI() {
     // Top Controls Container (2-Row Responsive Layout)
     QVBoxLayout* topControlsLayout = new QVBoxLayout();
@@ -412,55 +426,49 @@ void GraphWidget::setupUI() {
         btn->setCheckable(true);
         btn->setChecked(defaultActive);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet(defaultActive ?
-            "QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
         return btn;
     };
 
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+
     m_btnTogglePeople = createToggleBtn("👤 People", true);
+    styleFilterButton(m_btnTogglePeople, true, tok.accentPrimary);
     m_btnToggleHouseholds = createToggleBtn("🏡 Households", true);
+    styleFilterButton(m_btnToggleHouseholds, true, tok.accentPrimary);
     m_btnToggleGroups = createToggleBtn("🏛️ Groups", true);
+    styleFilterButton(m_btnToggleGroups, true, tok.accentPrimary);
     m_btnToggleBurnout = createToggleBtn("⚠️ Burnout Risk", false);
+    styleFilterButton(m_btnToggleBurnout, false, tok.accentWarning);
     m_btnToggleIsolation = createToggleBtn("🔴 Isolated Only", false);
+    styleFilterButton(m_btnToggleIsolation, false, tok.accentDanger);
 
     connect(m_btnTogglePeople, &QPushButton::clicked, this, [this]() {
         m_filterPeopleActive = m_btnTogglePeople->isChecked();
-        m_btnTogglePeople->setStyleSheet(m_filterPeopleActive ?
-            "QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
+        styleFilterButton(m_btnTogglePeople, m_filterPeopleActive, ThemeManager::instance().currentTokens().accentPrimary);
         onFilterToggled();
     });
 
     connect(m_btnToggleHouseholds, &QPushButton::clicked, this, [this]() {
         m_filterHouseholdsActive = m_btnToggleHouseholds->isChecked();
-        m_btnToggleHouseholds->setStyleSheet(m_filterHouseholdsActive ?
-            "QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
+        styleFilterButton(m_btnToggleHouseholds, m_filterHouseholdsActive, ThemeManager::instance().currentTokens().accentPrimary);
         onFilterToggled();
     });
 
     connect(m_btnToggleGroups, &QPushButton::clicked, this, [this]() {
         m_filterGroupsActive = m_btnToggleGroups->isChecked();
-        m_btnToggleGroups->setStyleSheet(m_filterGroupsActive ?
-            "QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
+        styleFilterButton(m_btnToggleGroups, m_filterGroupsActive, ThemeManager::instance().currentTokens().accentPrimary);
         onFilterToggled();
     });
 
     connect(m_btnToggleBurnout, &QPushButton::clicked, this, [this]() {
         m_filterBurnoutActive = m_btnToggleBurnout->isChecked();
-        m_btnToggleBurnout->setStyleSheet(m_filterBurnoutActive ?
-            "QPushButton { background-color: #fab387; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
+        styleFilterButton(m_btnToggleBurnout, m_filterBurnoutActive, ThemeManager::instance().currentTokens().accentWarning);
         onFilterToggled();
     });
 
     connect(m_btnToggleIsolation, &QPushButton::clicked, this, [this]() {
         m_filterIsolationActive = m_btnToggleIsolation->isChecked();
-        m_btnToggleIsolation->setStyleSheet(m_filterIsolationActive ?
-            "QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }" :
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }");
+        styleFilterButton(m_btnToggleIsolation, m_filterIsolationActive, ThemeManager::instance().currentTokens().accentDanger);
         onFilterToggled();
     });
 
@@ -480,8 +488,16 @@ void GraphWidget::setupUI() {
 
     // Persistent Unconnected Alert Banner Badge
     m_btnIsolatedBanner = new QPushButton("⚠️ Unconnected Members → Spotlight", this);
-    m_btnIsolatedBanner->setStyleSheet("QPushButton { background-color: rgba(243, 139, 168, 0.2); color: #f38ba8; border: 1px solid #f38ba8; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }"
-                                        "QPushButton:hover { background-color: #f38ba8; color: #11111b; }");
+    {
+        const ThemeTokens t = ThemeManager::instance().currentTokens();
+        QColor dangerBg = t.accentDanger;
+        dangerBg.setAlpha(51); // ~20% opacity
+        const QString textOnDanger = (t.accentDanger.lightness() > 140) ? "#11111b" : "#ffffff";
+        m_btnIsolatedBanner->setStyleSheet(
+            QString("QPushButton { background-color: %1; color: %2; border: 1px solid %2; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }"
+                    "QPushButton:hover { background-color: %2; color: %3; }")
+                .arg(dangerBg.name(), t.accentDanger.name(), textOnDanger));
+    }
     m_btnIsolatedBanner->setCursor(Qt::PointingHandCursor);
     connect(m_btnIsolatedBanner, &QPushButton::clicked, this, &GraphWidget::onSpotlightIsolatedClicked);
 
@@ -1191,15 +1207,11 @@ void GraphWidget::spotlightIsolatedNodes() {
 
     if (m_btnToggleIsolation) {
         m_btnToggleIsolation->setChecked(true);
-        m_btnToggleIsolation->setStyleSheet(
-            "QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }"
-        );
+        styleFilterButton(m_btnToggleIsolation, true, ThemeManager::instance().currentTokens().accentDanger);
     }
     if (m_btnToggleBurnout) {
         m_btnToggleBurnout->setChecked(false);
-        m_btnToggleBurnout->setStyleSheet(
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }"
-        );
+        styleFilterButton(m_btnToggleBurnout, false, ThemeManager::instance().currentTokens().accentWarning);
     }
 
     onFilterToggled();
@@ -1230,15 +1242,11 @@ void GraphWidget::spotlightBurnoutNodes() {
 
     if (m_btnToggleBurnout) {
         m_btnToggleBurnout->setChecked(true);
-        m_btnToggleBurnout->setStyleSheet(
-            "QPushButton { background-color: #fab387; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }"
-        );
+        styleFilterButton(m_btnToggleBurnout, true, ThemeManager::instance().currentTokens().accentWarning);
     }
     if (m_btnToggleIsolation) {
         m_btnToggleIsolation->setChecked(false);
-        m_btnToggleIsolation->setStyleSheet(
-            "QPushButton { background-color: #181825; color: #a6adc8; border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px; font-size: 11px; }"
-        );
+        styleFilterButton(m_btnToggleIsolation, false, ThemeManager::instance().currentTokens().accentDanger);
     }
 
     onFilterToggled();

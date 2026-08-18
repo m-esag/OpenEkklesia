@@ -1377,17 +1377,24 @@ void MainWindow::updateDashboardStats() {
         totalBudget = budgetQuery.value(0).toDouble() / 100.0;
     }
 
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+
     if (totalBudget > 0.0) {
         int pct = qBound(0, static_cast<int>((totalExpenses / totalBudget) * 100), 100);
         if (m_progressBudget) {
             m_progressBudget->setValue(pct);
+            QString chunkColor;
             if (totalExpenses > totalBudget) {
-                m_progressBudget->setStyleSheet("QProgressBar { background-color: #313244; border-radius: 5px; } QProgressBar::chunk { background-color: #f38ba8; border-radius: 5px; }");
+                chunkColor = tok.accentDanger.name();
             } else if (pct >= 85) {
-                m_progressBudget->setStyleSheet("QProgressBar { background-color: #313244; border-radius: 5px; } QProgressBar::chunk { background-color: #f9e2af; border-radius: 5px; }");
+                chunkColor = tok.accentWarning.name();
             } else {
-                m_progressBudget->setStyleSheet("QProgressBar { background-color: #313244; border-radius: 5px; } QProgressBar::chunk { background-color: #a6e3a1; border-radius: 5px; }");
+                chunkColor = tok.accentSuccess.name();
             }
+            m_progressBudget->setStyleSheet(
+                QString("QProgressBar { background-color: %1; border-radius: 5px; } "
+                        "QProgressBar::chunk { background-color: %2; border-radius: 5px; }")
+                    .arg(tok.bgOverlay.name(), chunkColor));
         }
         m_lblBudgetProgress->setText(QString("$%1 / $%2 (%3%) — %4")
                                      .arg(QString::number(totalExpenses, 'f', 2))
@@ -1395,16 +1402,16 @@ void MainWindow::updateDashboardStats() {
                                      .arg(pct)
                                      .arg(QString::number(fiscalYear)));
         if (totalExpenses > totalBudget) {
-            m_lblBudgetProgress->setStyleSheet("font-size: 13px; color: #f38ba8; font-weight: bold;"); // Over budget warning (red)
+            m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.accentDanger.name()));
         } else {
-            m_lblBudgetProgress->setStyleSheet("font-size: 13px; color: #a6e3a1; font-weight: bold;"); // Under budget (green)
+            m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.accentSuccess.name()));
         }
     } else {
         if (m_progressBudget) m_progressBudget->setValue(0);
         m_lblBudgetProgress->setText(QString("$%1 / $0.00 — %2")
                                      .arg(QString::number(totalExpenses, 'f', 2))
                                      .arg(QString::number(fiscalYear)));
-        m_lblBudgetProgress->setStyleSheet("font-size: 13px; color: #a6adc8; font-weight: bold;");
+        m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.textSecondary.name()));
     }
 
     // ---- Member Inactivity, Care & Lapsed Giving Alerts ----

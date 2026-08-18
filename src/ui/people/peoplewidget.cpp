@@ -1,5 +1,6 @@
 #include "peoplewidget.h"
 #include "../database/databasemanager.h"
+#include "../core/thememanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -1232,7 +1233,10 @@ void PeopleWidget::loadAvatar(const QString& path) {
 
     m_avatarLabel->clear();
     m_avatarLabel->setText("👤");
-    m_avatarLabel->setStyleSheet("border: 2px dashed #45475a; border-radius: 50px; background-color: #11111b; font-size: 32px; color: #89b4fa;");
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    m_avatarLabel->setStyleSheet(
+        QString("border: 2px dashed %1; border-radius: 50px; background-color: %2; font-size: 32px; color: %3;")
+            .arg(tok.borderColor.name(), tok.bgInput.name(), tok.accentPrimary.name()));
 }
 
 void PeopleWidget::onSaveProfile() {

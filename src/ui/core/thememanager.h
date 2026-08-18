@@ -81,10 +81,12 @@ private:
     ThemeManager& operator=(const ThemeManager&) = delete;
 
     void registerDefaultThemes();
+    void appendThemeOrder(const QString& id);
 
     QString m_activeThemeId;
     ThemeTokens m_currentTokens;
     QMap<QString, ThemeTokens> m_registeredThemes;
+    QStringList m_themeOrder; // preserves intentional registration order
 };
 
 #endif // THEMEMANAGER_H

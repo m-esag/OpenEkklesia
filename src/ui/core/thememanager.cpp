@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
 #include <QDebug>
@@ -28,11 +29,15 @@ void ThemeManager::initialize() {
     registerDefaultThemes();
     reloadCustomThemesFromDisk();
 
+    // QStyleHints::colorSchemeChanged only exists since Qt 6.5; guard it so the
+    // codebase still compiles against the Qt 6.x versions the README advertises.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (qApp && QGuiApplication::styleHints()) {
         connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
             syncSystemTheme();
         });
     }
+#endif
 
     QSettings settings("OpenEkklesia", "CHMS");
     QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
@@ -67,14 +72,13 @@ void ThemeManager::syncSystemTheme() {
     }
 }
 
-void ThemeManager::registerDefaultThemes() {
-    // 0. System Auto
-    ThemeTokens autoTok;
-    autoTok.id = "system_auto";
-    autoTok.name = "🌓 System Auto (Follow OS Dark/Light)";
-    autoTok.isDark = isSystemDark();
-    m_registeredThemes.insert(autoTok.id, autoTok);
+void ThemeManager::appendThemeOrder(const QString& id) {
+    if (!m_themeOrder.contains(id)) {
+        m_themeOrder.append(id);
+    }
+}
 
+void ThemeManager::registerDefaultThemes() {
     // --- PAIR 1: Catppuccin Pastel Pair ---
     ThemeTokens mocha;
     mocha.id = "catppuccin_mocha";
@@ -94,6 +98,7 @@ void ThemeManager::registerDefaultThemes() {
     mocha.borderColor = QColor("#313244");
     mocha.borderRadiusMd = 8;
     m_registeredThemes.insert(mocha.id, mocha);
+    appendThemeOrder(mocha.id);
 
     ThemeTokens latte;
     latte.id = "catppuccin_latte";
@@ -113,6 +118,16 @@ void ThemeManager::registerDefaultThemes() {
     latte.borderColor = QColor("#bcc0cc");
     latte.borderRadiusMd = 8;
     m_registeredThemes.insert(latte.id, latte);
+    appendThemeOrder(latte.id);
+
+    // System Auto is resolved to the Catppuccin pair (mocha/latte) so it also
+    // carries real color values for any consumer (e.g. a future preview swatch).
+    ThemeTokens autoTok = m_registeredThemes.value(isSystemDark() ? "catppuccin_mocha" : "catppuccin_latte");
+    autoTok.id = "system_auto";
+    autoTok.name = "🌓 System Auto (Follow OS Dark/Light)";
+    autoTok.isDark = isSystemDark();
+    m_registeredThemes.insert(autoTok.id, autoTok);
+    appendThemeOrder(autoTok.id);
 
     // --- PAIR 2: Warm Brown Coffee Pair ---
     ThemeTokens warmEspresso;
@@ -133,6 +148,7 @@ void ThemeManager::registerDefaultThemes() {
     warmEspresso.borderColor = QColor("#3d352e");
     warmEspresso.borderRadiusMd = 8;
     m_registeredThemes.insert(warmEspresso.id, warmEspresso);
+    appendThemeOrder(warmEspresso.id);
 
     ThemeTokens warmCaramel;
     warmCaramel.id = "warm_caramel_light";
@@ -152,6 +168,7 @@ void ThemeManager::registerDefaultThemes() {
     warmCaramel.borderColor = QColor("#d8c3b2");
     warmCaramel.borderRadiusMd = 8;
     m_registeredThemes.insert(warmCaramel.id, warmCaramel);
+    appendThemeOrder(warmCaramel.id);
 
     // --- PAIR 3: Ocean & Sky Blue Pair ---
     ThemeTokens oceanDeep;
@@ -172,6 +189,7 @@ void ThemeManager::registerDefaultThemes() {
     oceanDeep.borderColor = QColor("#334155");
     oceanDeep.borderRadiusMd = 8;
     m_registeredThemes.insert(oceanDeep.id, oceanDeep);
+    appendThemeOrder(oceanDeep.id);
 
     ThemeTokens skyAzure;
     skyAzure.id = "sky_azure_light";
@@ -191,6 +209,7 @@ void ThemeManager::registerDefaultThemes() {
     skyAzure.borderColor = QColor("#93c5fd");
     skyAzure.borderRadiusMd = 8;
     m_registeredThemes.insert(skyAzure.id, skyAzure);
+    appendThemeOrder(skyAzure.id);
 
     // --- PAIR 4: Emerald Forest Green Pair ---
     ThemeTokens emeraldPine;
@@ -211,6 +230,7 @@ void ThemeManager::registerDefaultThemes() {
     emeraldPine.borderColor = QColor("#1f4237");
     emeraldPine.borderRadiusMd = 8;
     m_registeredThemes.insert(emeraldPine.id, emeraldPine);
+    appendThemeOrder(emeraldPine.id);
 
     ThemeTokens sageMeadow;
     sageMeadow.id = "sage_meadow_light";
@@ -230,6 +250,7 @@ void ThemeManager::registerDefaultThemes() {
     sageMeadow.borderColor = QColor("#86efac");
     sageMeadow.borderRadiusMd = 8;
     m_registeredThemes.insert(sageMeadow.id, sageMeadow);
+    appendThemeOrder(sageMeadow.id);
 
     // --- PAIR 5: Midnight Amethyst Purple Pair ---
     ThemeTokens amethystDark;
@@ -250,6 +271,7 @@ void ThemeManager::registerDefaultThemes() {
     amethystDark.borderColor = QColor("#342352");
     amethystDark.borderRadiusMd = 8;
     m_registeredThemes.insert(amethystDark.id, amethystDark);
+    appendThemeOrder(amethystDark.id);
 
     ThemeTokens lavenderLight;
     lavenderLight.id = "soft_lavender_light";
@@ -269,6 +291,7 @@ void ThemeManager::registerDefaultThemes() {
     lavenderLight.borderColor = QColor("#d8b4fe");
     lavenderLight.borderRadiusMd = 8;
     m_registeredThemes.insert(lavenderLight.id, lavenderLight);
+    appendThemeOrder(lavenderLight.id);
 
     // --- PAIR 6: Nordic Frost Pair ---
     ThemeTokens nord;
@@ -289,6 +312,7 @@ void ThemeManager::registerDefaultThemes() {
     nord.borderColor = QColor("#4c566a");
     nord.borderRadiusMd = 8;
     m_registeredThemes.insert(nord.id, nord);
+    appendThemeOrder(nord.id);
 
     ThemeTokens nordicSnow;
     nordicSnow.id = "nordic_snow_light";
@@ -308,6 +332,7 @@ void ThemeManager::registerDefaultThemes() {
     nordicSnow.borderColor = QColor("#cbd5e1");
     nordicSnow.borderRadiusMd = 8;
     m_registeredThemes.insert(nordicSnow.id, nordicSnow);
+    appendThemeOrder(nordicSnow.id);
 
     // --- PAIR 7: High Contrast Accessibility Pair ---
     ThemeTokens hcDark;
@@ -328,6 +353,7 @@ void ThemeManager::registerDefaultThemes() {
     hcDark.borderColor = QColor("#ffffff");
     hcDark.borderRadiusMd = 4;
     m_registeredThemes.insert(hcDark.id, hcDark);
+    appendThemeOrder(hcDark.id);
 
     ThemeTokens hcLight;
     hcLight.id = "high_contrast_light";
@@ -347,6 +373,7 @@ void ThemeManager::registerDefaultThemes() {
     hcLight.borderColor = QColor("#000000");
     hcLight.borderRadiusMd = 4;
     m_registeredThemes.insert(hcLight.id, hcLight);
+    appendThemeOrder(hcLight.id);
 
     // --- PAIR 8: Sunset Crimson & Solar Coral Pair ---
     ThemeTokens sunsetCrimson;
@@ -367,6 +394,7 @@ void ThemeManager::registerDefaultThemes() {
     sunsetCrimson.borderColor = QColor("#381c23");
     sunsetCrimson.borderRadiusMd = 8;
     m_registeredThemes.insert(sunsetCrimson.id, sunsetCrimson);
+    appendThemeOrder(sunsetCrimson.id);
 
     ThemeTokens solarCoral;
     solarCoral.id = "solar_coral_light";
@@ -386,6 +414,7 @@ void ThemeManager::registerDefaultThemes() {
     solarCoral.borderColor = QColor("#fda4af");
     solarCoral.borderRadiusMd = 8;
     m_registeredThemes.insert(solarCoral.id, solarCoral);
+    appendThemeOrder(solarCoral.id);
 
     // --- PAIR 9: Cypress Teal & Seafoam Pair ---
     ThemeTokens cypressTeal;
@@ -406,6 +435,7 @@ void ThemeManager::registerDefaultThemes() {
     cypressTeal.borderColor = QColor("#1a3847");
     cypressTeal.borderRadiusMd = 8;
     m_registeredThemes.insert(cypressTeal.id, cypressTeal);
+    appendThemeOrder(cypressTeal.id);
 
     ThemeTokens seafoamBreeze;
     seafoamBreeze.id = "seafoam_breeze_light";
@@ -425,6 +455,7 @@ void ThemeManager::registerDefaultThemes() {
     seafoamBreeze.borderColor = QColor("#5eead4");
     seafoamBreeze.borderRadiusMd = 8;
     m_registeredThemes.insert(seafoamBreeze.id, seafoamBreeze);
+    appendThemeOrder(seafoamBreeze.id);
 
     // --- PAIR 10: Cyberpunk Neon & Vaporwave Pair ---
     ThemeTokens cyberpunkSynth;
@@ -445,6 +476,7 @@ void ThemeManager::registerDefaultThemes() {
     cyberpunkSynth.borderColor = QColor("#ff007f");
     cyberpunkSynth.borderRadiusMd = 6;
     m_registeredThemes.insert(cyberpunkSynth.id, cyberpunkSynth);
+    appendThemeOrder(cyberpunkSynth.id);
 
     ThemeTokens vaporwavePastel;
     vaporwavePastel.id = "vaporwave_pastel_light";
@@ -464,6 +496,7 @@ void ThemeManager::registerDefaultThemes() {
     vaporwavePastel.borderColor = QColor("#ffb6c1");
     vaporwavePastel.borderRadiusMd = 6;
     m_registeredThemes.insert(vaporwavePastel.id, vaporwavePastel);
+    appendThemeOrder(vaporwavePastel.id);
 
     // --- PAIR 11: Autumn Amber & Harvest Copper Pair ---
     ThemeTokens autumnAmber;
@@ -484,6 +517,7 @@ void ThemeManager::registerDefaultThemes() {
     autumnAmber.borderColor = QColor("#3c2a1c");
     autumnAmber.borderRadiusMd = 8;
     m_registeredThemes.insert(autumnAmber.id, autumnAmber);
+    appendThemeOrder(autumnAmber.id);
 
     ThemeTokens harvestCopper;
     harvestCopper.id = "harvest_copper_light";
@@ -503,6 +537,7 @@ void ThemeManager::registerDefaultThemes() {
     harvestCopper.borderColor = QColor("#fdba74");
     harvestCopper.borderRadiusMd = 8;
     m_registeredThemes.insert(harvestCopper.id, harvestCopper);
+    appendThemeOrder(harvestCopper.id);
 
     // --- PAIR 12: Midnight Onyx & Minimal Pearl Pair ---
     ThemeTokens midnightOnyx;
@@ -523,6 +558,7 @@ void ThemeManager::registerDefaultThemes() {
     midnightOnyx.borderColor = QColor("#3f3f46");
     midnightOnyx.borderRadiusMd = 4;
     m_registeredThemes.insert(midnightOnyx.id, midnightOnyx);
+    appendThemeOrder(midnightOnyx.id);
 
     ThemeTokens minimalPearl;
     minimalPearl.id = "minimal_pearl_light";
@@ -542,6 +578,7 @@ void ThemeManager::registerDefaultThemes() {
     minimalPearl.borderColor = QColor("#d4d4d8");
     minimalPearl.borderRadiusMd = 4;
     m_registeredThemes.insert(minimalPearl.id, minimalPearl);
+    appendThemeOrder(minimalPearl.id);
 
     // --- PAIR 13: Cosmic Nebula & Aurora Pair ---
     ThemeTokens cosmicNebula;
@@ -562,6 +599,7 @@ void ThemeManager::registerDefaultThemes() {
     cosmicNebula.borderColor = QColor("#202340");
     cosmicNebula.borderRadiusMd = 8;
     m_registeredThemes.insert(cosmicNebula.id, cosmicNebula);
+    appendThemeOrder(cosmicNebula.id);
 
     ThemeTokens auroraSky;
     auroraSky.id = "aurora_sky_light";
@@ -581,6 +619,7 @@ void ThemeManager::registerDefaultThemes() {
     auroraSky.borderColor = QColor("#c4b5fd");
     auroraSky.borderRadiusMd = 8;
     m_registeredThemes.insert(auroraSky.id, auroraSky);
+    appendThemeOrder(auroraSky.id);
 }
 
 void ThemeManager::zoomIn() {
@@ -595,6 +634,7 @@ void ThemeManager::zoomOut() {
 
 void ThemeManager::setFontSize(int px) {
     m_currentTokens.fontSizePx = qBound(11, px, 18);
+    QSettings("OpenEkklesia", "CHMS").setValue("fontSizePx", m_currentTokens.fontSizePx);
     applyCustomTokens(m_currentTokens);
 }
 
@@ -666,6 +706,7 @@ void ThemeManager::reloadCustomThemesFromDisk() {
                 t.borderRadiusMd = json.value("borderRadiusMd").toInt(8);
 
                 m_registeredThemes.insert(t.id, t);
+                appendThemeOrder(t.id);
             }
             f.close();
         }
@@ -673,7 +714,21 @@ void ThemeManager::reloadCustomThemesFromDisk() {
 }
 
 QStringList ThemeManager::availableThemes() const {
-    return m_registeredThemes.keys();
+    // Return themes in the intentional registration order (default pair first,
+    // System Auto near the top) rather than alphabetical map order.
+    QStringList ordered;
+    for (const QString& id : m_themeOrder) {
+        if (m_registeredThemes.contains(id)) {
+            ordered.append(id);
+        }
+    }
+    // Include any themes not tracked in the order list (defensive).
+    for (const QString& id : m_registeredThemes.keys()) {
+        if (!ordered.contains(id)) {
+            ordered.append(id);
+        }
+    }
+    return ordered;
 }
 
 ThemeTokens ThemeManager::getThemeTokens(const QString& themeId) const {
@@ -701,6 +756,10 @@ bool ThemeManager::loadTheme(const QString& themeId) {
     }
 
     QSettings settings("OpenEkklesia", "CHMS");
+    // Restore the user's font-size preference, which is theme-independent and
+    // should survive both restarts and theme switches.
+    m_currentTokens.fontSizePx = qBound(11, settings.value("fontSizePx", 13).toInt(), 18);
+
     settings.setValue("activeThemeId", themeId);
     settings.setValue("isDarkMode", m_currentTokens.isDark);
 
@@ -756,6 +815,7 @@ bool ThemeManager::saveCustomPreset(const QString& presetName, const ThemeTokens
         f.write(QJsonDocument(json).toJson());
         f.close();
         m_registeredThemes.insert(t.id, t);
+        appendThemeOrder(t.id);
         loadTheme(t.id);
         return true;
     }
@@ -774,9 +834,17 @@ QPalette ThemeManager::generateQPalette() const {
     pal.setColor(QPalette::Button, m_currentTokens.bgSurface);
     pal.setColor(QPalette::ButtonText, m_currentTokens.textPrimary);
     pal.setColor(QPalette::Highlight, m_currentTokens.accentPrimary);
+    pal.setColor(QPalette::PlaceholderText, m_currentTokens.textMuted);
+    pal.setColor(QPalette::Link, m_currentTokens.accentPrimary);
+    pal.setColor(QPalette::LinkVisited, m_currentTokens.accentPrimary);
 
     QString highlightText = (m_currentTokens.accentPrimary.lightness() > 140) ? "#11111b" : "#ffffff";
     pal.setColor(QPalette::HighlightedText, QColor(highlightText));
+
+    // Disabled state: muted text on the surface color for legibility.
+    pal.setColor(QPalette::Disabled, QPalette::Text, m_currentTokens.textMuted);
+    pal.setColor(QPalette::Disabled, QPalette::ButtonText, m_currentTokens.textMuted);
+    pal.setColor(QPalette::Disabled, QPalette::WindowText, m_currentTokens.textMuted);
     return pal;
 }
 

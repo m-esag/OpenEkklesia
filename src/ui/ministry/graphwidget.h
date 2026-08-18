@@ -202,6 +202,7 @@ private:
     void clearPathfind();
     void saveNodePositions();
     void loadNodePositions();
+    void styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor);
 
     QGraphicsScene* m_scene;
     QTimer* m_timer;
