@@ -130,8 +130,9 @@ MainWindow::MainWindow(QWidget *parent)
         refreshGroupDetailPanel(m_selectedGroupId);
     });
     
-    // Apply role permissions restriction
+    // Apply role permissions & module visibility
     applyRolePermissions();
+    applyModuleVisibility();
 
     QShortcut* searchShortcut = new QShortcut(QKeySequence("Ctrl+K"), this);
     connect(searchShortcut, &QShortcut::activated, this, [this]() {
@@ -211,44 +212,53 @@ void MainWindow::setupMenuBar() {
     actDash->setShortcut(QKeySequence("Ctrl+1"));
     connect(actDash, &QAction::triggered, this, &MainWindow::onDashboardClicked);
 
-    QAction* actMembers = congMenu->addAction("👥 Members Directory");
-    actMembers->setShortcut(QKeySequence("Ctrl+2"));
-    connect(actMembers, &QAction::triggered, this, &MainWindow::onMembersClicked);
+    m_actMembers = congMenu->addAction("👥 Members Directory");
+    m_actMembers->setShortcut(QKeySequence("Ctrl+2"));
+    connect(m_actMembers, &QAction::triggered, this, &MainWindow::onMembersClicked);
 
-    QAction* actGraph = congMenu->addAction("🕸️ Connection Graph Map");
-    connect(actGraph, &QAction::triggered, this, &MainWindow::onGraphClicked);
+    m_actGraph = congMenu->addAction("🕸️ Connection Graph Map");
+    connect(m_actGraph, &QAction::triggered, this, &MainWindow::onGraphClicked);
+
+    m_actAnalytics = congMenu->addAction("📈 Pastoral Analytics");
+    connect(m_actAnalytics, &QAction::triggered, this, &MainWindow::onAnalyticsClicked);
 
     // 3. Ministry & Services Menu
     QMenu* minMenu = mb->addMenu("&Ministry");
 
-    QAction* actGroups = minMenu->addAction("👨‍👩‍👧 Small Groups & Serving Teams");
-    actGroups->setShortcut(QKeySequence("Ctrl+3"));
-    connect(actGroups, &QAction::triggered, this, &MainWindow::onGroupsClicked);
+    m_actGroups = minMenu->addAction("👨‍👩‍👧 Small Groups & Serving Teams");
+    m_actGroups->setShortcut(QKeySequence("Ctrl+3"));
+    connect(m_actGroups, &QAction::triggered, this, &MainWindow::onGroupsClicked);
 
-    QAction* actService = minMenu->addAction("📋 Service Liturgy Builder");
-    actService->setShortcut(QKeySequence("Ctrl+5"));
-    connect(actService, &QAction::triggered, this, &MainWindow::onServiceClicked);
+    m_actService = minMenu->addAction("📋 Service Liturgy Builder");
+    m_actService->setShortcut(QKeySequence("Ctrl+5"));
+    connect(m_actService, &QAction::triggered, this, &MainWindow::onServiceClicked);
+
+    m_actFacilities = minMenu->addAction("🏛️ Facilities Matrix");
+    connect(m_actFacilities, &QAction::triggered, this, &MainWindow::onFacilitiesClicked);
+
+    m_actPlanning = minMenu->addAction("📌 Ministry Planning");
+    connect(m_actPlanning, &QAction::triggered, this, &MainWindow::onPlanningClicked);
 
     // 4. Finance & Operations Menu
     QMenu* finMenu = mb->addMenu("&Finance");
 
-    QAction* actCont = finMenu->addAction("💳 Donation Contributions");
-    actCont->setShortcut(QKeySequence("Ctrl+4"));
-    connect(actCont, &QAction::triggered, this, &MainWindow::onContributionsClicked);
+    m_actCont = finMenu->addAction("💳 Donation Contributions");
+    m_actCont->setShortcut(QKeySequence("Ctrl+4"));
+    connect(m_actCont, &QAction::triggered, this, &MainWindow::onContributionsClicked);
 
-    QAction* actAccounts = finMenu->addAction("📈 Chart of Accounts");
-    connect(actAccounts, &QAction::triggered, this, &MainWindow::onAccountsClicked);
+    m_actAccounts = finMenu->addAction("📈 Chart of Accounts");
+    connect(m_actAccounts, &QAction::triggered, this, &MainWindow::onAccountsClicked);
 
-    QAction* actLedger = finMenu->addAction("📒 Double-Entry Ledger");
-    connect(actLedger, &QAction::triggered, this, &MainWindow::onLedgerClicked);
+    m_actLedger = finMenu->addAction("📒 Double-Entry Ledger");
+    connect(m_actLedger, &QAction::triggered, this, &MainWindow::onLedgerClicked);
 
     finMenu->addSeparator();
 
-    QAction* actInventory = finMenu->addAction("📦 Asset Inventory");
-    connect(actInventory, &QAction::triggered, this, &MainWindow::onInventoryClicked);
+    m_actInventory = finMenu->addAction("📦 Asset Inventory");
+    connect(m_actInventory, &QAction::triggered, this, &MainWindow::onInventoryClicked);
 
-    QAction* actVault = finMenu->addAction("📁 Document Vault");
-    connect(actVault, &QAction::triggered, this, &MainWindow::onVaultClicked);
+    m_actVault = finMenu->addAction("📁 Document Vault");
+    connect(m_actVault, &QAction::triggered, this, &MainWindow::onVaultClicked);
 
     // 5. View / Theme Menu
     QMenu* viewMenu = mb->addMenu("&View");
@@ -297,11 +307,11 @@ void MainWindow::setupUI() {
     QSettings settings("OpenEkklesia", "CHMS");
 
     // 1. CONGREGATION Section
-    QPushButton* header1 = new QPushButton("▼ CONGREGATION", this);
-    header1->setObjectName("sectionHeaderBtn");
-    header1->setCursor(Qt::PointingHandCursor);
-    header1->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
-    sidebarLayout->addWidget(header1);
+    m_headerCongregation = new QPushButton("▼ CONGREGATION", this);
+    m_headerCongregation->setObjectName("sectionHeaderBtn");
+    m_headerCongregation->setCursor(Qt::PointingHandCursor);
+    m_headerCongregation->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    sidebarLayout->addWidget(m_headerCongregation);
 
     m_secCongregation = new QWidget(this);
     QVBoxLayout* layCong = new QVBoxLayout(m_secCongregation);
@@ -332,22 +342,22 @@ void MainWindow::setupUI() {
 
     bool showCong = settings.value("sidebarSecCongregation", true).toBool();
     m_secCongregation->setVisible(showCong);
-    header1->setText(showCong ? "▼ CONGREGATION" : "▶ CONGREGATION");
+    m_headerCongregation->setText(showCong ? "▼ CONGREGATION" : "▶ CONGREGATION");
 
-    connect(header1, &QPushButton::clicked, this, [this, header1]() {
+    connect(m_headerCongregation, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secCongregation->isVisible();
         m_secCongregation->setVisible(nowVis);
-        header1->setText(nowVis ? "▼ CONGREGATION" : "▶ CONGREGATION");
+        m_headerCongregation->setText(nowVis ? "▼ CONGREGATION" : "▶ CONGREGATION");
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecCongregation", nowVis);
     });
 
     // 2. MINISTRY & SERVICES Section
-    QPushButton* header2 = new QPushButton("▼ MINISTRY & SERVICES", this);
-    header2->setObjectName("sectionHeaderBtn");
-    header2->setCursor(Qt::PointingHandCursor);
-    header2->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
-    sidebarLayout->addWidget(header2);
+    m_headerMinistry = new QPushButton("▼ MINISTRY & SERVICES", this);
+    m_headerMinistry->setObjectName("sectionHeaderBtn");
+    m_headerMinistry->setCursor(Qt::PointingHandCursor);
+    m_headerMinistry->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    sidebarLayout->addWidget(m_headerMinistry);
 
     m_secMinistry = new QWidget(this);
     QVBoxLayout* layMin = new QVBoxLayout(m_secMinistry);
@@ -378,22 +388,22 @@ void MainWindow::setupUI() {
 
     bool showMin = settings.value("sidebarSecMinistry", true).toBool();
     m_secMinistry->setVisible(showMin);
-    header2->setText(showMin ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
+    m_headerMinistry->setText(showMin ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
 
-    connect(header2, &QPushButton::clicked, this, [this, header2]() {
+    connect(m_headerMinistry, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secMinistry->isVisible();
         m_secMinistry->setVisible(nowVis);
-        header2->setText(nowVis ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
+        m_headerMinistry->setText(nowVis ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecMinistry", nowVis);
     });
 
     // 3. FINANCE & OPERATIONS Section
-    QPushButton* header3 = new QPushButton("▼ FINANCE & OPERATIONS", this);
-    header3->setObjectName("sectionHeaderBtn");
-    header3->setCursor(Qt::PointingHandCursor);
-    header3->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
-    sidebarLayout->addWidget(header3);
+    m_headerFinance = new QPushButton("▼ FINANCE & OPERATIONS", this);
+    m_headerFinance->setObjectName("sectionHeaderBtn");
+    m_headerFinance->setCursor(Qt::PointingHandCursor);
+    m_headerFinance->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    sidebarLayout->addWidget(m_headerFinance);
 
     m_secFinance = new QWidget(this);
     QVBoxLayout* layFin = new QVBoxLayout(m_secFinance);
@@ -429,12 +439,12 @@ void MainWindow::setupUI() {
 
     bool showFin = settings.value("sidebarSecFinance", true).toBool();
     m_secFinance->setVisible(showFin);
-    header3->setText(showFin ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
+    m_headerFinance->setText(showFin ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
 
-    connect(header3, &QPushButton::clicked, this, [this, header3]() {
+    connect(m_headerFinance, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secFinance->isVisible();
         m_secFinance->setVisible(nowVis);
-        header3->setText(nowVis ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
+        m_headerFinance->setText(nowVis ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecFinance", nowVis);
     });
@@ -470,11 +480,12 @@ void MainWindow::setupUI() {
     QHBoxLayout* bottomDock = new QHBoxLayout();
     bottomDock->setSpacing(8);
 
-    QPushButton* btnKiosk = new QPushButton("🖥️ Kiosk Portal", this);
-    btnKiosk->setObjectName("navButton");
-    btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
+    m_btnKiosk = new QPushButton("🖥️ Kiosk Portal", this);
+    m_btnKiosk->setObjectName("navButton");
+    m_btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
+    connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 
-    bottomDock->addWidget(btnKiosk);
+    bottomDock->addWidget(m_btnKiosk);
     sidebarLayout->addLayout(bottomDock);
 
     QLabel* footerLabel = new QLabel("v1.5.0 (ChMS Suite)", this);
@@ -509,7 +520,7 @@ void MainWindow::setupUI() {
     connect(m_btnFacilities, &QPushButton::clicked, this, &MainWindow::onFacilitiesClicked);
     connect(m_btnAnalytics, &QPushButton::clicked, this, &MainWindow::onAnalyticsClicked);
     connect(m_btnPlanning, &QPushButton::clicked, this, &MainWindow::onPlanningClicked);
-    connect(btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
+    connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 }
 
 void MainWindow::setupModels() {
@@ -1626,6 +1637,7 @@ void MainWindow::onSettingsClicked() {
             QString chName = s.value("churchName", "OpenEkklesia").toString();
             setWindowTitle(QString("%1 - Church Management System").arg(chName));
             m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
+            applyModuleVisibility();
         });
         ensurePageLoaded(10, [this]() { return m_settingsWidget; });
     }
@@ -1804,6 +1816,68 @@ void MainWindow::applyRolePermissions() {
     if (m_graphWidget) m_graphWidget->applyRole(m_userRole);
     if (m_inventoryWidget) m_inventoryWidget->applyRole(m_userRole);
     if (m_vaultWidget) m_vaultWidget->applyRole(m_userRole);
+}
+
+void MainWindow::applyModuleVisibility() {
+    QSettings s("OpenEkklesia", "CHMS");
+    bool modPeople = s.value("modules/people", true).toBool();
+    bool modGroups = s.value("modules/groups", true).toBool();
+    bool modGraph = s.value("modules/graph", true).toBool();
+    bool modAnalytics = s.value("modules/analytics", true).toBool();
+    bool modService = s.value("modules/service", true).toBool();
+    bool modPlanning = s.value("modules/planning", true).toBool();
+    bool modFacilities = s.value("modules/facilities", true).toBool();
+    bool modFinance = s.value("modules/finance", true).toBool();
+    bool modInventory = s.value("modules/inventory", true).toBool();
+    bool modVault = s.value("modules/vault", true).toBool();
+    bool modKiosk = s.value("modules/kiosk", true).toBool();
+
+    // 1. Sidebar Nav Buttons
+    if (m_btnMembers) m_btnMembers->setVisible(modPeople);
+    if (m_btnGraph) m_btnGraph->setVisible(modGraph);
+    if (m_btnAnalytics) m_btnAnalytics->setVisible(modAnalytics);
+
+    if (m_btnGroups) m_btnGroups->setVisible(modGroups);
+    if (m_btnService) m_btnService->setVisible(modService);
+    if (m_btnFacilities) m_btnFacilities->setVisible(modFacilities);
+    if (m_btnPlanning) m_btnPlanning->setVisible(modPlanning);
+
+    if (m_btnContributions) m_btnContributions->setVisible(modFinance);
+    if (m_btnAccounts) m_btnAccounts->setVisible(modFinance);
+    if (m_btnLedger) m_btnLedger->setVisible(modFinance);
+    if (m_btnInventory) m_btnInventory->setVisible(modInventory);
+    if (m_btnVault) m_btnVault->setVisible(modVault);
+
+    if (m_btnKiosk) m_btnKiosk->setVisible(modKiosk);
+
+    // 2. Hide Section Header and Container if all children are disabled
+    bool anyCongregation = (modPeople || modGraph || modAnalytics);
+    if (m_headerCongregation) m_headerCongregation->setVisible(anyCongregation);
+    if (m_secCongregation) m_secCongregation->setVisible(anyCongregation && s.value("sidebarSecCongregation", true).toBool());
+
+    bool anyMinistry = (modGroups || modService || modFacilities || modPlanning);
+    if (m_headerMinistry) m_headerMinistry->setVisible(anyMinistry);
+    if (m_secMinistry) m_secMinistry->setVisible(anyMinistry && s.value("sidebarSecMinistry", true).toBool());
+
+    bool anyFinance = (modFinance || modInventory || modVault);
+    if (m_headerFinance) m_headerFinance->setVisible(anyFinance);
+    if (m_secFinance) m_secFinance->setVisible(anyFinance && s.value("sidebarSecFinance", true).toBool());
+
+    // 3. Menu Bar Actions
+    if (m_actMembers) m_actMembers->setVisible(modPeople);
+    if (m_actGraph) m_actGraph->setVisible(modGraph);
+    if (m_actAnalytics) m_actAnalytics->setVisible(modAnalytics);
+
+    if (m_actGroups) m_actGroups->setVisible(modGroups);
+    if (m_actService) m_actService->setVisible(modService);
+    if (m_actFacilities) m_actFacilities->setVisible(modFacilities);
+    if (m_actPlanning) m_actPlanning->setVisible(modPlanning);
+
+    if (m_actCont) m_actCont->setVisible(modFinance);
+    if (m_actAccounts) m_actAccounts->setVisible(modFinance);
+    if (m_actLedger) m_actLedger->setVisible(modFinance);
+    if (m_actInventory) m_actInventory->setVisible(modInventory);
+    if (m_actVault) m_actVault->setVisible(modVault);
 }
 
 bool MainWindow::promptLogin() {

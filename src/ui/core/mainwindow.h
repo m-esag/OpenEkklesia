@@ -71,6 +71,7 @@ private:
     void setupModels();
     void populatePages();
     void applyRolePermissions();
+    void applyModuleVisibility();
     void updateDashboardStats();
     void refreshAccountsModel();
     void refreshLedgerModel();
@@ -98,6 +99,21 @@ private:
     QPushButton* m_btnFacilities;
     QPushButton* m_btnAnalytics;
     QPushButton* m_btnPlanning;
+    QPushButton* m_btnKiosk;
+
+    // Menu Actions for Module Toggling
+    QAction* m_actMembers;
+    QAction* m_actGraph;
+    QAction* m_actAnalytics;
+    QAction* m_actGroups;
+    QAction* m_actService;
+    QAction* m_actFacilities;
+    QAction* m_actPlanning;
+    QAction* m_actCont;
+    QAction* m_actAccounts;
+    QAction* m_actLedger;
+    QAction* m_actInventory;
+    QAction* m_actVault;
 
     PeopleWidget* m_peopleWidget;
     ContributionsWidget* m_contributionsWidget;
@@ -117,6 +133,9 @@ private:
     QWidget* m_secCongregation;
     QWidget* m_secMinistry;
     QWidget* m_secFinance;
+    QPushButton* m_headerCongregation;
+    QPushButton* m_headerMinistry;
+    QPushButton* m_headerFinance;
     void toggleCategorySection(QWidget* container, const QString& settingsKey);
     
     QString m_barcodeBuffer;

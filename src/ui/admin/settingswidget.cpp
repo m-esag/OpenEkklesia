@@ -85,6 +85,7 @@ void SettingsWidget::setupUI() {
     QStringList categories = {
         "🏛️ General & Profile",
         "🎨 Appearance & Theme",
+        "🧩 Modules & Features",
         "🌍 Localization & Region",
         "🕸️ Pastoral & Graph",
         "💾 Data & Backup",
@@ -312,7 +313,128 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollTheme);
 
     // -------------------------------------------------------------
-    // Page 2: Localization & Region
+    // Page 2: Modules & Features
+    // -------------------------------------------------------------
+    QScrollArea* scrollModules = new QScrollArea(this);
+    scrollModules->setWidgetResizable(true);
+    scrollModules->setFrameShape(QFrame::NoFrame);
+    QWidget* pageModules = new QWidget();
+    QVBoxLayout* layModules = new QVBoxLayout(pageModules);
+    layModules->setContentsMargins(10, 0, 10, 10);
+    layModules->setSpacing(16);
+
+    QGroupBox* grpModPresets = new QGroupBox("⚡ Quick Module Presets", pageModules);
+    QHBoxLayout* layModPresets = new QHBoxLayout(grpModPresets);
+    QPushButton* btnModAll = new QPushButton("✨ Enable All Modules", pageModules);
+    QPushButton* btnModStandard = new QPushButton("⛪ Standard Church (Roster + Finance + Groups)", pageModules);
+    QPushButton* btnModMinimal = new QPushButton("🌱 Minimal (Roster + Liturgy Only)", pageModules);
+    btnModAll->setObjectName("secondaryBtn");
+    btnModStandard->setObjectName("secondaryBtn");
+    btnModMinimal->setObjectName("secondaryBtn");
+    layModPresets->addWidget(btnModAll);
+    layModPresets->addWidget(btnModStandard);
+    layModPresets->addWidget(btnModMinimal);
+    layModPresets->addStretch();
+    layModules->addWidget(grpModPresets);
+
+    QGroupBox* grpModCong = new QGroupBox("👥 Congregation & Community", pageModules);
+    QVBoxLayout* layModCong = new QVBoxLayout(grpModCong);
+    m_chkModPeople = new QCheckBox("People & Membership Directory (Demographics, Timeline, Care Logs)", pageModules);
+    m_chkModGroups = new QCheckBox("Small Groups & Discipleship (Life groups, serving teams, chemistry analytics)", pageModules);
+    m_chkModGraph = new QCheckBox("Relational Connection Graph (Visual demographic map & network clusters)", pageModules);
+    m_chkModAnalytics = new QCheckBox("Pastoral Analytics (Radar charts, engagement metrics, care follow-ups)", pageModules);
+    layModCong->addWidget(m_chkModPeople);
+    layModCong->addWidget(m_chkModGroups);
+    layModCong->addWidget(m_chkModGraph);
+    layModCong->addWidget(m_chkModAnalytics);
+    layModules->addWidget(grpModCong);
+
+    QGroupBox* grpModMin = new QGroupBox("🗓️ Ministry & Services", pageModules);
+    QVBoxLayout* layModMin = new QVBoxLayout(grpModMin);
+    m_chkModService = new QCheckBox("Service Liturgy Builder (Order of service, music cues, volunteer scheduling)", pageModules);
+    m_chkModPlanning = new QCheckBox("Ministry Planning & Roadmaps (Milestones, timelines, project boards)", pageModules);
+    m_chkModFacilities = new QCheckBox("Facilities & Room Bookings (Facility calendar, room reservation matrix)", pageModules);
+    layModMin->addWidget(m_chkModService);
+    layModMin->addWidget(m_chkModPlanning);
+    layModMin->addWidget(m_chkModFacilities);
+    layModules->addWidget(grpModMin);
+
+    QGroupBox* grpModFin = new QGroupBox("💰 Finance, Operations & Kiosk", pageModules);
+    QVBoxLayout* layModFin = new QVBoxLayout(grpModFin);
+    m_chkModFinance = new QCheckBox("Double-Entry Accounting & Ledger (Chart of accounts, splits, donations)", pageModules);
+    m_chkModInventory = new QCheckBox("Asset & Equipment Inventory (Barcodes, item locations, check-outs)", pageModules);
+    m_chkModVault = new QCheckBox("Secure Document Vault (Encrypted bylaws, board minutes, contracts)", pageModules);
+    m_chkModKiosk = new QCheckBox("Self-Service Nursery Check-In Kiosk (Full-screen checkin & barcode badging)", pageModules);
+    layModFin->addWidget(m_chkModFinance);
+    layModFin->addWidget(m_chkModInventory);
+    layModFin->addWidget(m_chkModVault);
+    layModFin->addWidget(m_chkModKiosk);
+    layModules->addWidget(grpModFin);
+
+    connect(btnModAll, &QPushButton::clicked, this, [this]() {
+        m_chkModPeople->setChecked(true);
+        m_chkModGroups->setChecked(true);
+        m_chkModGraph->setChecked(true);
+        m_chkModAnalytics->setChecked(true);
+        m_chkModService->setChecked(true);
+        m_chkModPlanning->setChecked(true);
+        m_chkModFacilities->setChecked(true);
+        m_chkModFinance->setChecked(true);
+        m_chkModInventory->setChecked(true);
+        m_chkModVault->setChecked(true);
+        m_chkModKiosk->setChecked(true);
+        onMarkDirty();
+    });
+
+    connect(btnModStandard, &QPushButton::clicked, this, [this]() {
+        m_chkModPeople->setChecked(true);
+        m_chkModGroups->setChecked(true);
+        m_chkModGraph->setChecked(false);
+        m_chkModAnalytics->setChecked(true);
+        m_chkModService->setChecked(true);
+        m_chkModPlanning->setChecked(false);
+        m_chkModFacilities->setChecked(false);
+        m_chkModFinance->setChecked(true);
+        m_chkModInventory->setChecked(false);
+        m_chkModVault->setChecked(true);
+        m_chkModKiosk->setChecked(true);
+        onMarkDirty();
+    });
+
+    connect(btnModMinimal, &QPushButton::clicked, this, [this]() {
+        m_chkModPeople->setChecked(true);
+        m_chkModGroups->setChecked(false);
+        m_chkModGraph->setChecked(false);
+        m_chkModAnalytics->setChecked(false);
+        m_chkModService->setChecked(true);
+        m_chkModPlanning->setChecked(false);
+        m_chkModFacilities->setChecked(false);
+        m_chkModFinance->setChecked(false);
+        m_chkModInventory->setChecked(false);
+        m_chkModVault->setChecked(false);
+        m_chkModKiosk->setChecked(false);
+        onMarkDirty();
+    });
+
+    auto trackMod = [this]() { onMarkDirty(); };
+    connect(m_chkModPeople, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModGroups, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModGraph, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModAnalytics, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModService, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModPlanning, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModFacilities, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModFinance, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModInventory, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModVault, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModKiosk, &QCheckBox::toggled, this, trackMod);
+
+    layModules->addStretch();
+    scrollModules->setWidget(pageModules);
+    m_stackPages->addWidget(scrollModules);
+
+    // -------------------------------------------------------------
+    // Page 3: Localization & Region
     // -------------------------------------------------------------
     QScrollArea* scrollLocale = new QScrollArea(this);
     scrollLocale->setWidgetResizable(true);
@@ -361,7 +483,7 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollLocale);
 
     // -------------------------------------------------------------
-    // Page 3: Pastoral & Graph Thresholds
+    // Page 4: Pastoral & Graph Thresholds
     // -------------------------------------------------------------
     QScrollArea* scrollPastoral = new QScrollArea(this);
     scrollPastoral->setWidgetResizable(true);
@@ -399,7 +521,7 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollPastoral);
 
     // -------------------------------------------------------------
-    // Page 4: Data & Backup
+    // Page 5: Data & Backup
     // -------------------------------------------------------------
     QScrollArea* scrollData = new QScrollArea(this);
     scrollData->setWidgetResizable(true);
@@ -555,7 +677,7 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollData);
 
     // -------------------------------------------------------------
-    // Page 5: Danger Zone
+    // Page 6: Danger Zone
     // -------------------------------------------------------------
     QScrollArea* scrollDanger = new QScrollArea(this);
     scrollDanger->setWidgetResizable(true);
@@ -690,10 +812,11 @@ void SettingsWidget::onSearchTextChanged(const QString& text) {
             // Search inside category keywords
             if (i == 0 && (q.contains("church") || q.contains("profile") || q.contains("email") || q.contains("phone") || q.contains("tax") || q.contains("address") || q.contains("denomination") || q.contains("name"))) matches = true;
             if (i == 1 && (q.contains("theme") || q.contains("color") || q.contains("dark") || q.contains("light") || q.contains("font") || q.contains("radius") || q.contains("brand") || q.contains("preview"))) matches = true;
-            if (i == 2 && (q.contains("currency") || q.contains("date") || q.contains("week") || q.contains("timezone") || q.contains("locale") || q.contains("format"))) matches = true;
-            if (i == 3 && (q.contains("graph") || q.contains("burnout") || q.contains("pastoral") || q.contains("care") || q.contains("dominance") || q.contains("follow"))) matches = true;
-            if (i == 4 && (q.contains("backup") || q.contains("compact") || q.contains("vacuum") || q.contains("audit") || q.contains("share") || q.contains("export") || q.contains("database"))) matches = true;
-            if (i == 5 && (q.contains("danger") || q.contains("purge") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
+            if (i == 2 && (q.contains("module") || q.contains("feature") || q.contains("toggle") || q.contains("plugin") || q.contains("kiosk") || q.contains("planning") || q.contains("facilities") || q.contains("vault") || q.contains("inventory") || q.contains("finance"))) matches = true;
+            if (i == 3 && (q.contains("currency") || q.contains("date") || q.contains("week") || q.contains("timezone") || q.contains("locale") || q.contains("format"))) matches = true;
+            if (i == 4 && (q.contains("graph") || q.contains("burnout") || q.contains("pastoral") || q.contains("care") || q.contains("dominance") || q.contains("follow"))) matches = true;
+            if (i == 5 && (q.contains("backup") || q.contains("compact") || q.contains("vacuum") || q.contains("audit") || q.contains("share") || q.contains("export") || q.contains("database"))) matches = true;
+            if (i == 6 && (q.contains("danger") || q.contains("purge") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
             item->setHidden(!matches);
         }
     }
@@ -767,6 +890,19 @@ void SettingsWidget::loadSettings() {
 
     m_chkAutoCollapseSidebar->setChecked(s.value("autoCollapseSidebar", true).toBool());
 
+    // Load Modules & Features (default all to true)
+    m_chkModPeople->setChecked(s.value("modules/people", true).toBool());
+    m_chkModGroups->setChecked(s.value("modules/groups", true).toBool());
+    m_chkModGraph->setChecked(s.value("modules/graph", true).toBool());
+    m_chkModAnalytics->setChecked(s.value("modules/analytics", true).toBool());
+    m_chkModService->setChecked(s.value("modules/service", true).toBool());
+    m_chkModPlanning->setChecked(s.value("modules/planning", true).toBool());
+    m_chkModFacilities->setChecked(s.value("modules/facilities", true).toBool());
+    m_chkModFinance->setChecked(s.value("modules/finance", true).toBool());
+    m_chkModInventory->setChecked(s.value("modules/inventory", true).toBool());
+    m_chkModVault->setChecked(s.value("modules/vault", true).toBool());
+    m_chkModKiosk->setChecked(s.value("modules/kiosk", true).toBool());
+
     int curIdx = m_cmbCurrency->findData(s.value("currencySymbol", "$").toString());
     if (curIdx >= 0) m_cmbCurrency->setCurrentIndex(curIdx);
 
@@ -816,6 +952,20 @@ void SettingsWidget::saveSettings() {
     s.setValue("churchTaxId", m_txtTaxId->text().trimmed());
 
     s.setValue("autoCollapseSidebar", m_chkAutoCollapseSidebar->isChecked());
+
+    // Save Module states
+    s.setValue("modules/people", m_chkModPeople->isChecked());
+    s.setValue("modules/groups", m_chkModGroups->isChecked());
+    s.setValue("modules/graph", m_chkModGraph->isChecked());
+    s.setValue("modules/analytics", m_chkModAnalytics->isChecked());
+    s.setValue("modules/service", m_chkModService->isChecked());
+    s.setValue("modules/planning", m_chkModPlanning->isChecked());
+    s.setValue("modules/facilities", m_chkModFacilities->isChecked());
+    s.setValue("modules/finance", m_chkModFinance->isChecked());
+    s.setValue("modules/inventory", m_chkModInventory->isChecked());
+    s.setValue("modules/vault", m_chkModVault->isChecked());
+    s.setValue("modules/kiosk", m_chkModKiosk->isChecked());
+
     s.setValue("currencySymbol", m_cmbCurrency->currentData().toString());
     s.setValue("dateFormat", m_cmbDateFormat->currentData().toString());
     s.setValue("startOfWeek", m_cmbStartOfWeek->currentData().toInt());

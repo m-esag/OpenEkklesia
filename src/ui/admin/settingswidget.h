@@ -87,25 +87,38 @@ private:
     QPushButton* m_btnPreviewSecondary;
     QLabel* m_lblPreviewBadge;
 
-    // --- Page 3: Localization & Region ---
+    // --- Page 3: Modules & Features ---
+    QCheckBox* m_chkModPeople;
+    QCheckBox* m_chkModGroups;
+    QCheckBox* m_chkModFinance;
+    QCheckBox* m_chkModService;
+    QCheckBox* m_chkModGraph;
+    QCheckBox* m_chkModInventory;
+    QCheckBox* m_chkModVault;
+    QCheckBox* m_chkModFacilities;
+    QCheckBox* m_chkModPlanning;
+    QCheckBox* m_chkModAnalytics;
+    QCheckBox* m_chkModKiosk;
+
+    // --- Page 4: Localization & Region ---
     QComboBox* m_cmbCurrency;
     QComboBox* m_cmbDateFormat;
     QComboBox* m_cmbStartOfWeek;
     QComboBox* m_cmbTimezone;
 
-    // --- Page 4: Pastoral & Graph Thresholds ---
+    // --- Page 5: Pastoral & Graph Thresholds ---
     QSpinBox* m_spnBurnoutThreshold;
     QSpinBox* m_spnFamilyDominancePercent;
     QSpinBox* m_spnFollowUpDays;
 
-    // --- Page 5: Data & Backup ---
+    // --- Page 6: Data & Backup ---
     QLabel* m_lblDbPath;
     QPushButton* m_btnBackupDb;
     QPushButton* m_btnCompactDb;
     QPushButton* m_btnViewAuditLogs;
     QPushButton* m_btnSelectiveShare;
 
-    // --- Page 6: Danger Zone ---
+    // --- Page 7: Danger Zone ---
     QPushButton* m_btnPurgeDemoData;
     QPushButton* m_btnResetAppDefaults;
 };
