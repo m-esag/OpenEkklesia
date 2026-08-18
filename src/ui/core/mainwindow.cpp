@@ -123,7 +123,9 @@ MainWindow::MainWindow(QWidget *parent)
     setActiveNav(m_btnDashboard);
     updateDashboardStats();
 
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+    m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemeTokens& tokens) {
+        m_isDarkMode = tokens.isDark;
         updatePieChart();
         refreshGroupDetailPanel(m_selectedGroupId);
     });
@@ -1621,11 +1623,9 @@ void MainWindow::onSettingsClicked() {
         m_settingsWidget = new SettingsWidget(this);
         connect(m_settingsWidget, &SettingsWidget::settingsSaved, this, [this]() {
             QSettings s("OpenEkklesia", "CHMS");
-            bool isDark = s.value("isDarkMode", true).toBool();
-            if (m_isDarkMode != isDark) {
-                m_isDarkMode = isDark;
-                toggleTheme();
-            }
+            QString chName = s.value("churchName", "OpenEkklesia").toString();
+            setWindowTitle(QString("%1 - Church Management System").arg(chName));
+            m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
         });
         ensurePageLoaded(10, [this]() { return m_settingsWidget; });
     }
