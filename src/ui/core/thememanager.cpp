@@ -881,7 +881,7 @@ QString ThemeManager::generateGlobalQSS() const {
         "  background-color: %6; border: 1px solid %4; border-radius: %9px; margin-top: 12px; font-weight: bold; color: %5;\n"
         "}\n"
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: %5; }\n"
-        "QTableView, QTableWidget, QListWidget, QTreeWidget {\n"
+        "QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {\n"
         "  background-color: %3; alternate-background-color: %1; border: 1px solid %4; gridline-color: %4; color: %2; border-radius: %9px; font-size: %10px;\n"
         "}\n"
         "QHeaderView::section {\n"
@@ -896,6 +896,14 @@ QString ThemeManager::generateGlobalQSS() const {
         "QCheckBox, QRadioButton {\n"
         "  color: %2; font-weight: bold; font-size: %10px;\n"
         "}\n"
+        "QComboBox QAbstractItemView {\n"
+        "  background-color: %3; color: %2; border: 1px solid %4; selection-background-color: %5; selection-color: %11; border-radius: %9px;\n"
+        "}\n"
+        "QMenu { background-color: %6; color: %2; border: 1px solid %4; }\n"
+        "QMenu::item { color: %2; padding: 6px 22px; }\n"
+        "QMenu::item:selected { background-color: %5; color: %11; }\n"
+        "QMenuBar { background-color: %1; color: %2; }\n"
+        "QMenuBar::item:selected { background-color: %6; border-radius: %9px; }\n"
     ).arg(
         t.bgBase.name(),        // %1
         t.textPrimary.name(),   // %2

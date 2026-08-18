@@ -28,6 +28,8 @@ set(SOURCES
     # Database Module
     src/database/databasemanager.h
     src/database/databasemanager.cpp
+    src/database/datasharing.h
+    src/database/datasharing.cpp
 
     # UI Core Submodule
     src/ui/core/mainwindow.h
@@ -96,6 +98,8 @@ add_executable(openekklesia_tests
     tests/tst_openekklesia.cpp
     src/database/databasemanager.cpp
     src/database/databasemanager.h
+    src/database/datasharing.cpp
+    src/database/datasharing.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE

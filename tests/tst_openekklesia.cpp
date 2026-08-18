@@ -13,11 +13,15 @@
 #include <QDate>
 #include <QSet>
 #include <QStringList>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QByteArray>
 #include <cmath>
 #include <functional>
 #include <iostream>
 
 #include "../src/database/databasemanager.h"
+#include "../src/database/datasharing.h"
 
 namespace {
 
@@ -253,6 +257,42 @@ bool test_ytdIncomeAndExpensesFilterByYear() {
     return true;
 }
 
+bool test_splitSharingRoundTrip() {
+    QSqlDatabase d = db();
+
+    // Scope → table mapping sanity.
+    CHECK(DataSharing::tablesForScope("care_notes") == QStringList({"care_logs", "member_history"}));
+    CHECK(DataSharing::tablesForScope("membership").contains("people"));
+    CHECK(DataSharing::tablesForScope("finance").contains("contributions"));
+
+    // Round-trip the membership scope through a portable JSON payload.
+    const QJsonObject doc = DataSharing::exportTables(d, DataSharing::tablesForScope("membership"));
+    const QByteArray payload = QJsonDocument(doc).toJson();
+    CHECK(payload.size() > 1000);
+
+    // Wipe membership tables (FK checks deferred so finance rows that reference
+    // people do not block the delete — this mirrors a fresh receive-only copy).
+    QSqlQuery q(d);
+    q.exec("PRAGMA foreign_keys = OFF");
+    for (const QString& t : {"checkout_logs", "care_logs", "member_history", "attendance",
+                             "member_skills", "entity_relationships", "people", "groups", "households"}) {
+        CHECK(q.exec(QString("DELETE FROM %1").arg(t)));
+    }
+    q.exec("PRAGMA foreign_keys = ON");
+
+    CHECK_EQ(countRows("people"), 0);
+    CHECK_EQ(countRows("households"), 0);
+    CHECK_EQ(countRows("groups"), 0);
+
+    // Import and verify the data is restored.
+    const QJsonObject restored = QJsonDocument::fromJson(payload).object();
+    CHECK(DataSharing::importDocument(d, restored));
+    CHECK_EQ(countRows("people"), 12);
+    CHECK_EQ(countRows("households"), 6);
+    CHECK_EQ(countRows("groups"), 3);
+    return true;
+}
+
 bool test_purgeDemoData() {
     CHECK(DatabaseManager::instance().purgeDemoData());
 
@@ -297,6 +337,7 @@ int main(int argc, char** argv) {
         {"unconnected_filter", test_unconnectedFilter},
         {"attendance_count", test_attendanceCount},
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
+        {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"purge_demo_data", test_purgeDemoData},
     };
 
