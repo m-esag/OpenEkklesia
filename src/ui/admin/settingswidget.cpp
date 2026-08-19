@@ -372,10 +372,21 @@ void SettingsWidget::setupUI() {
     presetBtns->addWidget(m_btnResetTheme);
     presetBtns->addStretch();
 
+    m_lblContrastTextBg = new QLabel(pageTheme);
+    m_lblContrastTextBg->setStyleSheet("font-size: 11px; font-weight: bold;");
+    m_lblContrastButtonAccent = new QLabel(pageTheme);
+    m_lblContrastButtonAccent->setStyleSheet("font-size: 11px; font-weight: bold;");
+    m_lblContrastWarning = new QLabel(pageTheme);
+    m_lblContrastWarning->setStyleSheet("font-size: 11px; color: #f38ba8; font-weight: bold;");
+    m_lblContrastWarning->setVisible(false);
+
     customForm->addRow("Window Background:", m_btnBgBaseColor);
     customForm->addRow("Cards & Panels:", m_btnBgSurfaceColor);
     customForm->addRow("Accent Color:", m_btnAccentPrimaryColor);
     customForm->addRow("Text Color:", m_btnTextPrimaryColor);
+    customForm->addRow("Text Contrast (WCAG):", m_lblContrastTextBg);
+    customForm->addRow("Button Contrast (WCAG):", m_lblContrastButtonAccent);
+    customForm->addRow("", m_lblContrastWarning);
     customForm->addRow("Corner Radius:", m_spnCornerRadius);
     customForm->addRow("UI Font Scale:", m_spnFontSize);
     customForm->addRow(presetBtns);
@@ -983,7 +994,6 @@ void SettingsWidget::populateThemePresets(int filterIndex) {
         p.setBrush(tok.bgSurface);
         p.drawRoundedRect(r.adjusted(8, 24, -8, -8), 4, 4);
         // accent "button"
-        const QColor btnText = tok.accentPrimary.lightness() > 140 ? QColor("#11111b") : QColor("#ffffff");
         p.setBrush(tok.accentPrimary);
         p.drawRoundedRect(QRect(r.right() - 38, r.bottom() - 14, 30, 8), 2, 2);
         // text lines
@@ -1197,6 +1207,25 @@ void SettingsWidget::updateColorButtonStyles() {
     applyBtnStyle(m_btnAccentPrimaryColor, t.accentPrimary, "Accent Color");
     applyBtnStyle(m_btnTextPrimaryColor, t.textPrimary, "Text Color");
     m_spnCornerRadius->setValue(t.borderRadiusMd);
+
+    // Update WCAG Contrast Guardian meters
+    if (m_lblContrastTextBg && m_lblContrastButtonAccent && m_lblContrastWarning) {
+        double textRatio = ThemeManager::contrastRatio(t.textPrimary, t.bgBase);
+        QColor onBtnColor = (t.accentPrimary.lightness() > 140) ? QColor("#11111b") : QColor("#ffffff");
+        double btnRatio = ThemeManager::contrastRatio(onBtnColor, t.accentPrimary);
+
+        m_lblContrastTextBg->setText(QString("%1 (Text vs Background)")
+                                         .arg(ThemeManager::contrastRating(textRatio)));
+        m_lblContrastButtonAccent->setText(QString("%1 (Button Text vs Accent)")
+                                               .arg(ThemeManager::contrastRating(btnRatio)));
+
+        if (textRatio < 4.5 || btnRatio < 4.5) {
+            m_lblContrastWarning->setText("⚠️ Caution: Contrast ratio falls below WCAG 2.1 AA (4.5:1) minimum standard.");
+            m_lblContrastWarning->setVisible(true);
+        } else {
+            m_lblContrastWarning->setVisible(false);
+        }
+    }
 }
 
 void SettingsWidget::onPickLogo() {
