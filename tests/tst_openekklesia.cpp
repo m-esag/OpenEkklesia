@@ -79,8 +79,8 @@ bool test_expectedTablesExist() {
         "board_motions", "care_logs", "checkout_logs", "contributions",
         "entity_relationships", "facility_reservations", "funds", "graph_layout",
         "groups", "households", "member_history", "member_skills", "ministry_tasks",
-        "people", "schema_version", "services", "service_volunteers", "splits",
-        "transactions", "users", "vault_documents"
+        "pastoral_activities", "people", "schema_version", "services",
+        "service_volunteers", "splits", "transactions", "users", "vault_documents"
     };
     QSqlQuery q(db());
     for (const QString& t : tables) {
@@ -261,7 +261,7 @@ bool test_splitSharingRoundTrip() {
     QSqlDatabase d = db();
 
     // Scope → table mapping sanity.
-    CHECK(DataSharing::tablesForScope("care_notes") == QStringList({"care_logs", "member_history"}));
+    CHECK(DataSharing::tablesForScope("care_notes") == QStringList({"care_logs", "member_history", "pastoral_activities"}));
     CHECK(DataSharing::tablesForScope("membership").contains("people"));
     CHECK(DataSharing::tablesForScope("finance").contains("contributions"));
 
@@ -290,6 +290,45 @@ bool test_splitSharingRoundTrip() {
     CHECK_EQ(countRows("people"), 12);
     CHECK_EQ(countRows("households"), 6);
     CHECK_EQ(countRows("groups"), 3);
+    return true;
+}
+
+bool test_pastoralQueue() {
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+
+    // An activity with a follow-up due YESTERDAY (should appear in the queue).
+    // Dates use SQLite's localtime so the test is timezone-independent.
+    q.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, outcome, follow_up_date, follow_up_done) "
+              "VALUES (1, 'Visit', date('now','localtime','-1 day'), 'test visit', 'Called', date('now','localtime','-1 day'), 0)");
+    CHECK(q.exec());
+
+    // A prayer item with a follow-up due TOMORROW (must NOT appear yet).
+    q.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, follow_up_date, follow_up_done) "
+              "VALUES (2, 'Prayer', date('now','localtime','-1 day'), 'test prayer', date('now','localtime','+1 day'), 0)");
+    CHECK(q.exec());
+
+    // The Today's Queue query.
+    q.prepare(
+        "SELECT pa.id FROM pastoral_activities pa "
+        "WHERE pa.follow_up_date IS NOT NULL AND pa.follow_up_date <= date('now','localtime') AND pa.follow_up_done = 0 "
+        "ORDER BY pa.follow_up_date ASC");
+    CHECK(q.exec());
+    int queueCount = 0;
+    int dueId = -1;
+    while (q.next()) { ++queueCount; dueId = q.value(0).toInt(); }
+    CHECK_EQ(queueCount, 1); // only the due visit
+
+    // Mark the due item done and verify the queue empties.
+    q.prepare("UPDATE pastoral_activities SET follow_up_done = 1 WHERE id = ?");
+    q.addBindValue(dueId);
+    CHECK(q.exec());
+    CHECK(q.exec("SELECT COUNT(*) FROM pastoral_activities WHERE follow_up_date IS NOT NULL AND follow_up_date <= date('now','localtime') AND follow_up_done = 0"));
+    CHECK(q.next());
+    CHECK_EQ(q.value(0).toInt(), 0);
+
+    // Clean up test rows.
+    CHECK(q.exec("DELETE FROM pastoral_activities"));
     return true;
 }
 
@@ -338,6 +377,7 @@ int main(int argc, char** argv) {
         {"attendance_count", test_attendanceCount},
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
+        {"pastoral_queue", test_pastoralQueue},
         {"purge_demo_data", test_purgeDemoData},
     };
 

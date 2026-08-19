@@ -382,6 +382,26 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
+    // Create pastoral_activities table (the Shepherd's Workbench queue: visits,
+    // calls, prayer, care, discipleship, sacraments, outreach — each can carry
+    // a follow-up date the Today's Queue surfaces until it is done).
+    QString createPastoralActivities =
+        "CREATE TABLE IF NOT EXISTS pastoral_activities ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  person_id INTEGER NOT NULL,"
+        "  activity_type TEXT NOT NULL,"
+        "  activity_date TEXT NOT NULL,"
+        "  notes TEXT,"
+        "  outcome TEXT,"
+        "  follow_up_date TEXT,"
+        "  follow_up_done INTEGER DEFAULT 0,"
+        "  FOREIGN KEY(person_id) REFERENCES people(id)"
+        ");";
+    if (!query.exec(createPastoralActivities)) {
+        qCritical() << "Failed to create pastoral_activities table:" << query.lastError().text();
+        return false;
+    }
+
     // Create attendance table
     QString createAttendance = 
         "CREATE TABLE IF NOT EXISTS attendance ("
@@ -1135,6 +1155,7 @@ bool DatabaseManager::purgeDemoData() {
         "entity_relationships",  // no FK (polymorphic)
         "member_history",        // -> people
         "care_logs",             // -> people
+        "pastoral_activities",   // -> people
         "member_skills",         // -> people
         "attendance",            // -> people
         "service_volunteers",    // -> people

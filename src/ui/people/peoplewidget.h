@@ -92,6 +92,7 @@ public:
     void applyRole(const QString& role);
     void onAddPerson();
     void applyDrillThroughFilter(const QString& type, const QString& val);
+    void refreshModel();
 
 private slots:
     void onSearchTextChanged(const QString& text);

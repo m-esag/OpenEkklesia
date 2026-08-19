@@ -162,6 +162,38 @@ void ContributionsWidget::setupModels() {
     m_historyTable->setModel(m_historyModel);
 }
 
+void ContributionsWidget::refreshContributions() {
+    m_personCombo->blockSignals(true);
+    m_personCombo->clear();
+    m_peopleList.clear();
+
+    QSqlQuery q;
+    if (q.exec("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name")) {
+        while (q.next()) {
+            int id = q.value(0).toInt();
+            QString name = q.value(1).toString();
+            m_peopleList.append({id, name});
+            m_personCombo->addItem(name, id);
+        }
+    }
+    m_personCombo->blockSignals(false);
+
+    m_fundCombo->blockSignals(true);
+    m_fundCombo->clear();
+    m_fundsList.clear();
+    if (q.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
+        while (q.next()) {
+            int id = q.value(0).toInt();
+            QString name = q.value(1).toString();
+            m_fundsList.append({id, name});
+            m_fundCombo->addItem(name, id);
+        }
+    }
+    m_fundCombo->blockSignals(false);
+
+    refreshHistoryModel();
+}
+
 void ContributionsWidget::refreshHistoryModel() {
     QString queryStr = 
         "SELECT c.id AS \"ID\", "

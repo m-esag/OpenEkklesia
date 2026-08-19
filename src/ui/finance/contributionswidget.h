@@ -20,6 +20,7 @@ public:
     ~ContributionsWidget();
 
     void applyRole(const QString& role);
+    void refreshContributions();
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;

@@ -31,6 +31,10 @@ set(SOURCES
     src/database/datasharing.h
     src/database/datasharing.cpp
 
+    # Integrations Module
+    src/integrations/planningcenterclient.h
+    src/integrations/planningcenterclient.cpp
+
     # UI Core Submodule
     src/ui/core/mainwindow.h
     src/ui/core/mainwindow.cpp
@@ -60,6 +64,8 @@ set(SOURCES
     src/ui/ministry/servicebuilderwidget.cpp
     src/ui/ministry/planningwidget.h
     src/ui/ministry/planningwidget.cpp
+    src/ui/ministry/shepherdwidget.h
+    src/ui/ministry/shepherdwidget.cpp
     src/ui/ministry/facilitieswidget.h
     src/ui/ministry/facilitieswidget.cpp
     src/ui/ministry/graphwidget.h
@@ -70,6 +76,8 @@ set(SOURCES
     src/ui/admin/settingswidget.cpp
     src/ui/admin/vaultwidget.h
     src/ui/admin/vaultwidget.cpp
+    src/ui/admin/planningcenterdialog.h
+    src/ui/admin/planningcenterdialog.cpp
 )
 
 add_executable(OpenEkklesia ${SOURCES})
@@ -77,6 +85,7 @@ add_executable(OpenEkklesia ${SOURCES})
 target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people

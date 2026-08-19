@@ -23,6 +23,7 @@
 #include "facilitieswidget.h"
 #include "pastoralanalyticswidget.h"
 #include "planningwidget.h"
+#include "shepherdwidget.h"
 
 #include <QtCharts/QChartView>
 #include <QDateTime>
@@ -60,6 +61,7 @@ public slots:
     void onFacilitiesClicked();
     void onAnalyticsClicked();
     void onPlanningClicked();
+    void onShepherdClicked();
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -100,11 +102,13 @@ private:
     QPushButton* m_btnAnalytics;
     QPushButton* m_btnPlanning;
     QPushButton* m_btnKiosk;
+    QPushButton* m_btnShepherd;
 
     // Menu Actions for Module Toggling
     QAction* m_actMembers;
     QAction* m_actGraph;
     QAction* m_actAnalytics;
+    QAction* m_actShepherd;
     QAction* m_actGroups;
     QAction* m_actService;
     QAction* m_actFacilities;
@@ -125,6 +129,7 @@ private:
     FacilitiesWidget* m_facilitiesWidget;
     PastoralAnalyticsWidget* m_analyticsWidget;
     PlanningWidget* m_planningWidget;
+    ShepherdWidget* m_shepherdWidget;
 
     QWidget* m_sidebar;
     QLabel* m_logoLabel;

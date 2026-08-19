@@ -98,6 +98,7 @@ private:
     QCheckBox* m_chkModFacilities;
     QCheckBox* m_chkModPlanning;
     QCheckBox* m_chkModAnalytics;
+    QCheckBox* m_chkModShepherd;
     QCheckBox* m_chkModKiosk;
 
     // --- Page 4: Localization & Region ---
@@ -117,6 +118,7 @@ private:
     QPushButton* m_btnCompactDb;
     QPushButton* m_btnViewAuditLogs;
     QPushButton* m_btnSelectiveShare;
+    QPushButton* m_btnPlanningCenter;
 
     // --- Page 7: Danger Zone ---
     QPushButton* m_btnPurgeDemoData;

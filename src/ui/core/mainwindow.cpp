@@ -222,6 +222,10 @@ void MainWindow::setupMenuBar() {
     m_actAnalytics = congMenu->addAction("📈 Pastoral Analytics");
     connect(m_actAnalytics, &QAction::triggered, this, &MainWindow::onAnalyticsClicked);
 
+    QAction* actShepherd = congMenu->addAction("🛐 Shepherd's Workbench");
+    m_actShepherd = actShepherd;
+    connect(actShepherd, &QAction::triggered, this, &MainWindow::onShepherdClicked);
+
     // 3. Ministry & Services Menu
     QMenu* minMenu = mb->addMenu("&Ministry");
 
@@ -337,6 +341,11 @@ void MainWindow::setupUI() {
     m_btnAnalytics->setObjectName("navButton");
     m_btnAnalytics->setToolTip("Pastoral Analytics: View 5-Point Health Radar and Discipleship Pipeline.");
     layCong->addWidget(m_btnAnalytics);
+
+    m_btnShepherd = new QPushButton("🛐 Shepherd's Workbench", this);
+    m_btnShepherd->setObjectName("navButton");
+    m_btnShepherd->setToolTip("Shepherd's Workbench: Today's follow-up queue, member care timeline, and prayer list.");
+    layCong->addWidget(m_btnShepherd);
 
     sidebarLayout->addWidget(m_secCongregation);
 
@@ -456,16 +465,22 @@ void MainWindow::setupUI() {
 
     sidebarLayout->addSpacing(15);
 
+    bool showHintsPref = settings.value("showHelpHints", true).toBool();
+    m_hintsEnabled = showHintsPref;
+
     m_chkShowHints = new QCheckBox("Show Help Hints", this);
-    m_chkShowHints->setChecked(true);
+    m_chkShowHints->setChecked(showHintsPref);
     connect(m_chkShowHints, &QCheckBox::toggled, this, [this](bool checked) {
         m_hintsEnabled = checked;
         m_hintPanel->setVisible(checked);
+        QSettings s("OpenEkklesia", "CHMS");
+        s.setValue("showHelpHints", checked);
     });
     sidebarLayout->addWidget(m_chkShowHints);
 
     m_hintPanel = new QWidget(this);
     m_hintPanel->setObjectName("hintPanel");
+    m_hintPanel->setVisible(showHintsPref);
     QVBoxLayout* hintPanelLayout = new QVBoxLayout(m_hintPanel);
     hintPanelLayout->setContentsMargins(10, 10, 10, 10);
     m_lblHintText = new QLabel("Hover over items to see tips.", m_hintPanel);
@@ -520,6 +535,7 @@ void MainWindow::setupUI() {
     connect(m_btnFacilities, &QPushButton::clicked, this, &MainWindow::onFacilitiesClicked);
     connect(m_btnAnalytics, &QPushButton::clicked, this, &MainWindow::onAnalyticsClicked);
     connect(m_btnPlanning, &QPushButton::clicked, this, &MainWindow::onPlanningClicked);
+    connect(m_btnShepherd, &QPushButton::clicked, this, &MainWindow::onShepherdClicked);
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 }
 
@@ -536,6 +552,7 @@ void MainWindow::setupModels() {
     m_facilitiesWidget = nullptr;
     m_analyticsWidget = nullptr;
     m_planningWidget = nullptr;
+    m_shepherdWidget = nullptr;
     m_settingsWidget = nullptr;
 
     // Accounts
@@ -1029,6 +1046,7 @@ void MainWindow::populatePages() {
     m_stackedWidget->addWidget(makePlaceholder()); // 11: Facilities
     m_stackedWidget->addWidget(makePlaceholder()); // 12: Analytics
     m_stackedWidget->addWidget(makePlaceholder()); // 13: Planning
+    m_stackedWidget->addWidget(makePlaceholder()); // 14: Shepherd's Workbench
 }
 
 QWidget* MainWindow::createDashboardPage() {
@@ -1548,6 +1566,7 @@ void MainWindow::onMembersClicked() {
         m_peopleWidget->applyRole(m_userRole);
         ensurePageLoaded(1, [this]() { return m_peopleWidget; });
     }
+    m_peopleWidget->refreshModel();
     switchPage(1);
     setActiveNav(m_btnMembers);
 }
@@ -1564,6 +1583,7 @@ void MainWindow::onContributionsClicked() {
         m_contributionsWidget->applyRole(m_userRole);
         ensurePageLoaded(3, [this]() { return m_contributionsWidget; });
     }
+    m_contributionsWidget->refreshContributions();
     switchPage(3);
     setActiveNav(m_btnContributions);
 }
@@ -1678,6 +1698,17 @@ void MainWindow::onPlanningClicked() {
     }
     switchPage(13);
     setActiveNav(m_btnPlanning);
+}
+
+void MainWindow::onShepherdClicked() {
+    if (!m_shepherdWidget) {
+        m_shepherdWidget = new ShepherdWidget(this);
+        connect(m_shepherdWidget, &ShepherdWidget::navigateToMember, this, &MainWindow::selectPerson);
+        ensurePageLoaded(14, [this]() { return m_shepherdWidget; });
+    }
+    m_shepherdWidget->refreshAll();
+    switchPage(14);
+    setActiveNav(m_btnShepherd);
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -1824,6 +1855,7 @@ void MainWindow::applyModuleVisibility() {
     bool modGroups = s.value("modules/groups", true).toBool();
     bool modGraph = s.value("modules/graph", true).toBool();
     bool modAnalytics = s.value("modules/analytics", true).toBool();
+    bool modShepherd = s.value("modules/shepherd", true).toBool();
     bool modService = s.value("modules/service", true).toBool();
     bool modPlanning = s.value("modules/planning", true).toBool();
     bool modFacilities = s.value("modules/facilities", true).toBool();
@@ -1836,6 +1868,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_btnMembers) m_btnMembers->setVisible(modPeople);
     if (m_btnGraph) m_btnGraph->setVisible(modGraph);
     if (m_btnAnalytics) m_btnAnalytics->setVisible(modAnalytics);
+    if (m_btnShepherd) m_btnShepherd->setVisible(modShepherd);
 
     if (m_btnGroups) m_btnGroups->setVisible(modGroups);
     if (m_btnService) m_btnService->setVisible(modService);
@@ -1851,7 +1884,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_btnKiosk) m_btnKiosk->setVisible(modKiosk);
 
     // 2. Hide Section Header and Container if all children are disabled
-    bool anyCongregation = (modPeople || modGraph || modAnalytics);
+    bool anyCongregation = (modPeople || modGraph || modAnalytics || modShepherd);
     if (m_headerCongregation) m_headerCongregation->setVisible(anyCongregation);
     if (m_secCongregation) m_secCongregation->setVisible(anyCongregation && s.value("sidebarSecCongregation", true).toBool());
 
@@ -1867,6 +1900,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_actMembers) m_actMembers->setVisible(modPeople);
     if (m_actGraph) m_actGraph->setVisible(modGraph);
     if (m_actAnalytics) m_actAnalytics->setVisible(modAnalytics);
+    if (m_actShepherd) m_actShepherd->setVisible(modShepherd);
 
     if (m_actGroups) m_actGroups->setVisible(modGroups);
     if (m_actService) m_actService->setVisible(modService);

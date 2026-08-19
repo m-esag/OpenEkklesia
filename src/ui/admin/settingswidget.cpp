@@ -1,5 +1,6 @@
 #include "settingswidget.h"
 #include "thememanager.h"
+#include "planningcenterdialog.h"
 #include "../database/databasemanager.h"
 #include "../database/datasharing.h"
 #include <QVBoxLayout>
@@ -343,10 +344,12 @@ void SettingsWidget::setupUI() {
     m_chkModGroups = new QCheckBox("Small Groups & Discipleship (Life groups, serving teams, chemistry analytics)", pageModules);
     m_chkModGraph = new QCheckBox("Relational Connection Graph (Visual demographic map & network clusters)", pageModules);
     m_chkModAnalytics = new QCheckBox("Pastoral Analytics (Radar charts, engagement metrics, care follow-ups)", pageModules);
+    m_chkModShepherd = new QCheckBox("🛐 Shepherd's Workbench (Today's follow-up queue, member care timeline, prayer list)", pageModules);
     layModCong->addWidget(m_chkModPeople);
     layModCong->addWidget(m_chkModGroups);
     layModCong->addWidget(m_chkModGraph);
     layModCong->addWidget(m_chkModAnalytics);
+    layModCong->addWidget(m_chkModShepherd);
     layModules->addWidget(grpModCong);
 
     QGroupBox* grpModMin = new QGroupBox("🗓️ Ministry & Services", pageModules);
@@ -376,6 +379,7 @@ void SettingsWidget::setupUI() {
         m_chkModGroups->setChecked(true);
         m_chkModGraph->setChecked(true);
         m_chkModAnalytics->setChecked(true);
+        m_chkModShepherd->setChecked(true);
         m_chkModService->setChecked(true);
         m_chkModPlanning->setChecked(true);
         m_chkModFacilities->setChecked(true);
@@ -391,6 +395,7 @@ void SettingsWidget::setupUI() {
         m_chkModGroups->setChecked(true);
         m_chkModGraph->setChecked(false);
         m_chkModAnalytics->setChecked(true);
+        m_chkModShepherd->setChecked(true);
         m_chkModService->setChecked(true);
         m_chkModPlanning->setChecked(false);
         m_chkModFacilities->setChecked(false);
@@ -406,6 +411,7 @@ void SettingsWidget::setupUI() {
         m_chkModGroups->setChecked(false);
         m_chkModGraph->setChecked(false);
         m_chkModAnalytics->setChecked(false);
+        m_chkModShepherd->setChecked(false);
         m_chkModService->setChecked(true);
         m_chkModPlanning->setChecked(false);
         m_chkModFacilities->setChecked(false);
@@ -421,6 +427,7 @@ void SettingsWidget::setupUI() {
     connect(m_chkModGroups, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModGraph, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModAnalytics, &QCheckBox::toggled, this, trackMod);
+    connect(m_chkModShepherd, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModService, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModPlanning, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModFacilities, &QCheckBox::toggled, this, trackMod);
@@ -608,16 +615,17 @@ void SettingsWidget::setupUI() {
         QVBoxLayout* v = new QVBoxLayout(&dlg);
         v->setSpacing(12);
 
-        QLabel* lblInfo = new QLabel("Export or import scoped portions of your church data (JSON format) without sharing sensitive financial or care records.", &dlg);
+        QLabel* lblInfo = new QLabel("Export or import scoped portions of your church data as a portable JSON file (e.g. on a USB drive) so the office and pastor can share exactly the records they need.", &dlg);
         lblInfo->setWordWrap(true);
         v->addWidget(lblInfo);
 
         QComboBox* cmbScope = new QComboBox(&dlg);
+        cmbScope->addItem("🗄️ Full Database (All Tables)", "full");
         cmbScope->addItem("👥 Membership Only (People, Households, Groups)", "membership");
         cmbScope->addItem("💰 Finance Only (Accounts, Funds, Contributions)", "finance");
         cmbScope->addItem("📋 Ministry Schedules (Services, Facilities, Plans)", "schedules");
         cmbScope->addItem("🕊️ Pastoral Care & History", "care_notes");
-        cmbScope->addItem("🔒 Vault Documents & Metadata", "vault");
+        cmbScope->addItem("🔒 Governance & Documents (Board Motions, Vault)", "governance");
         v->addWidget(new QLabel("Select Data Scope:", &dlg));
         v->addWidget(cmbScope);
 
@@ -665,10 +673,18 @@ void SettingsWidget::setupUI() {
         dlg.exec();
     });
 
+    m_btnPlanningCenter = new QPushButton("🔌 Planning Center Sync Wizard", pageData);
+    m_btnPlanningCenter->setObjectName("primaryBtn");
+    connect(m_btnPlanningCenter, &QPushButton::clicked, this, [this]() {
+        PlanningCenterDialog dlg(this);
+        dlg.exec();
+    });
+
     dbActions->addWidget(m_btnBackupDb);
     dbActions->addWidget(m_btnCompactDb);
     dbActions->addWidget(m_btnViewAuditLogs);
     dbActions->addWidget(m_btnSelectiveShare);
+    dbActions->addWidget(m_btnPlanningCenter);
     grpDbLay->addLayout(dbActions);
 
     layData->addWidget(grpDb);
@@ -791,6 +807,7 @@ void SettingsWidget::setupUI() {
     connect(m_spnBurnoutThreshold, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnFamilyDominancePercent, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnFollowUpDays, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_chkAutoCollapseSidebar, &QCheckBox::toggled, this, trackChanges);
 
     m_navList->setCurrentRow(0);
 }
@@ -895,6 +912,7 @@ void SettingsWidget::loadSettings() {
     m_chkModGroups->setChecked(s.value("modules/groups", true).toBool());
     m_chkModGraph->setChecked(s.value("modules/graph", true).toBool());
     m_chkModAnalytics->setChecked(s.value("modules/analytics", true).toBool());
+    m_chkModShepherd->setChecked(s.value("modules/shepherd", true).toBool());
     m_chkModService->setChecked(s.value("modules/service", true).toBool());
     m_chkModPlanning->setChecked(s.value("modules/planning", true).toBool());
     m_chkModFacilities->setChecked(s.value("modules/facilities", true).toBool());
@@ -940,6 +958,7 @@ void SettingsWidget::loadSettings() {
 }
 
 void SettingsWidget::saveSettings() {
+    const bool wasDirty = m_isDirty;
     QSettings s("OpenEkklesia", "CHMS");
 
     s.setValue("churchName", m_txtChurchName->text().trimmed());
@@ -958,6 +977,7 @@ void SettingsWidget::saveSettings() {
     s.setValue("modules/groups", m_chkModGroups->isChecked());
     s.setValue("modules/graph", m_chkModGraph->isChecked());
     s.setValue("modules/analytics", m_chkModAnalytics->isChecked());
+    s.setValue("modules/shepherd", m_chkModShepherd->isChecked());
     s.setValue("modules/service", m_chkModService->isChecked());
     s.setValue("modules/planning", m_chkModPlanning->isChecked());
     s.setValue("modules/facilities", m_chkModFacilities->isChecked());
@@ -990,7 +1010,9 @@ void SettingsWidget::saveSettings() {
     m_btnSaveSettings->setText("💾 Save All Changes");
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
 
-    QMessageBox::information(this, "Settings Saved", "Application settings have been updated successfully.");
+    if (wasDirty) {
+        QMessageBox::information(this, "Settings Saved", "Application settings have been updated successfully.");
+    }
     emit settingsSaved();
 }
 

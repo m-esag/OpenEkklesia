@@ -1144,6 +1144,13 @@ void PeopleWidget::reapplyFilter() {
     m_peopleModel->select();
 }
 
+void PeopleWidget::refreshModel() {
+    populateHouseholdCombo();
+    m_householdModel->select();
+    m_peopleModel->select();
+    refreshTagCompleter();
+}
+
 void PeopleWidget::onSortByChanged(int index) {
     switch (index) {
         case 0: m_proxyModel->sort(0, Qt::AscendingOrder); break;

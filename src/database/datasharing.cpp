@@ -20,8 +20,8 @@ QStringList allTables() {
         "households", "groups", "people", "accounts", "funds", "transactions",
         "services", "splits", "contributions", "entity_relationships",
         "member_skills", "attendance", "member_history", "care_logs",
-        "service_volunteers", "account_budgets", "assets", "checkout_logs",
-        "vault_documents", "board_motions", "ministry_tasks",
+        "pastoral_activities", "service_volunteers", "account_budgets", "assets",
+        "checkout_logs", "vault_documents", "board_motions", "ministry_tasks",
         "facility_reservations", "graph_layout", "audit_log", "users"
     };
 }
@@ -41,11 +41,11 @@ QStringList tablesForScope(const QString& scope) {
         // skills, attendance and the pastoral/care trail tied to people.
         return {"households", "groups", "people", "entity_relationships",
                 "member_skills", "attendance", "member_history", "care_logs",
-                "checkout_logs"};
+                "pastoral_activities", "checkout_logs"};
     }
     if (scope == "care_notes") {
         // Pastoral notes and activity history only (small, safe to share).
-        return {"care_logs", "member_history"};
+        return {"care_logs", "member_history", "pastoral_activities"};
     }
     if (scope == "schedules") {
         // Worship services, volunteers, room bookings, and ministry roadmap.
