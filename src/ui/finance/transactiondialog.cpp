@@ -1,5 +1,6 @@
 #include "transactiondialog.h"
 #include "../database/databasemanager.h"
+#include "../core/appcurrency.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDate>
@@ -83,7 +84,7 @@ void TransactionDialog::setupUI() {
     QLabel* lblBalText = new QLabel("Total Balance:", this);
     footerLayout->addWidget(lblBalText);
 
-    m_lblBalance = new QLabel("$0.00", this);
+    m_lblBalance = new QLabel(appCurrencySymbol() + "0.00", this);
     m_lblBalance->setStyleSheet("font-weight: bold; font-size: 14px;");
     footerLayout->addWidget(m_lblBalance);
 
@@ -215,7 +216,7 @@ void TransactionDialog::updateBalanceVerification() {
         total += row.amountSpin->value();
     }
 
-    m_lblBalance->setText(QString("$%1").arg(QString::number(total, 'f', 2)));
+    m_lblBalance->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(total, 'f', 2)));
 
     // Double-entry matches to zero
     bool balanced = qAbs(total) < 0.001 && m_splitRows.size() >= 2;

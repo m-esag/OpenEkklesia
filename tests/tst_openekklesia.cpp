@@ -332,6 +332,29 @@ bool test_pastoralQueue() {
     return true;
 }
 
+bool test_restoreFromBackup() {
+    QSqlDatabase d = db();
+    const QString dbPath = d.databaseName();
+    const QString backupPath = dbPath + ".backup_test";
+    QFile::remove(backupPath);
+
+    // Snapshot the current database.
+    CHECK(QFile::copy(dbPath, backupPath));
+    CHECK_EQ(countRows("people"), 12);
+
+    // Mutate the live database.
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Restore', 'Test', 'Member')"));
+    CHECK_EQ(countRows("people"), 13);
+
+    // Restore from the snapshot and verify the mutation is gone.
+    CHECK(DatabaseManager::instance().restoreFromBackup(backupPath));
+    CHECK_EQ(countRows("people"), 12);
+
+    QFile::remove(backupPath);
+    return true;
+}
+
 bool test_purgeDemoData() {
     CHECK(DatabaseManager::instance().purgeDemoData());
 
@@ -378,6 +401,7 @@ int main(int argc, char** argv) {
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"pastoral_queue", test_pastoralQueue},
+        {"restore_from_backup", test_restoreFromBackup},
         {"purge_demo_data", test_purgeDemoData},
     };
 

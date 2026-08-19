@@ -760,6 +760,28 @@ bool ThemeManager::loadTheme(const QString& themeId) {
     // should survive both restarts and theme switches.
     m_currentTokens.fontSizePx = qBound(11, settings.value("fontSizePx", 13).toInt(), 18);
 
+    // Re-apply any saved color/radius customization on top of the chosen preset
+    // so interactive color tweaks survive restarts.
+    const QString overrideJson = settings.value("customThemeJson").toString();
+    if (!overrideJson.isEmpty()) {
+        const QJsonObject obj = QJsonDocument::fromJson(overrideJson.toUtf8()).object();
+        if (!obj.isEmpty()) {
+            m_currentTokens.bgBase = QColor(obj.value("bgBase").toString());
+            m_currentTokens.bgSurface = QColor(obj.value("bgSurface").toString());
+            m_currentTokens.bgOverlay = QColor(obj.value("bgOverlay").toString());
+            m_currentTokens.bgInput = QColor(obj.value("bgInput").toString());
+            m_currentTokens.textPrimary = QColor(obj.value("textPrimary").toString());
+            m_currentTokens.textSecondary = QColor(obj.value("textSecondary").toString());
+            m_currentTokens.textMuted = QColor(obj.value("textMuted").toString());
+            m_currentTokens.accentPrimary = QColor(obj.value("accentPrimary").toString());
+            m_currentTokens.accentSuccess = QColor(obj.value("accentSuccess").toString());
+            m_currentTokens.accentWarning = QColor(obj.value("accentWarning").toString());
+            m_currentTokens.accentDanger = QColor(obj.value("accentDanger").toString());
+            m_currentTokens.borderColor = QColor(obj.value("borderColor").toString());
+            m_currentTokens.borderRadiusMd = obj.value("borderRadiusMd").toInt(m_currentTokens.borderRadiusMd);
+        }
+    }
+
     settings.setValue("activeThemeId", themeId);
     settings.setValue("isDarkMode", m_currentTokens.isDark);
 
@@ -775,6 +797,25 @@ bool ThemeManager::loadTheme(const QString& themeId) {
 bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
     m_currentTokens = tokens;
 
+    // Persist the interactive color/radius customization immediately so the
+    // live tweaks are also the saved state ("Save All Changes" model).
+    QJsonObject obj;
+    obj["bgBase"] = m_currentTokens.bgBase.name();
+    obj["bgSurface"] = m_currentTokens.bgSurface.name();
+    obj["bgOverlay"] = m_currentTokens.bgOverlay.name();
+    obj["bgInput"] = m_currentTokens.bgInput.name();
+    obj["textPrimary"] = m_currentTokens.textPrimary.name();
+    obj["textSecondary"] = m_currentTokens.textSecondary.name();
+    obj["textMuted"] = m_currentTokens.textMuted.name();
+    obj["accentPrimary"] = m_currentTokens.accentPrimary.name();
+    obj["accentSuccess"] = m_currentTokens.accentSuccess.name();
+    obj["accentWarning"] = m_currentTokens.accentWarning.name();
+    obj["accentDanger"] = m_currentTokens.accentDanger.name();
+    obj["borderColor"] = m_currentTokens.borderColor.name();
+    obj["borderRadiusMd"] = m_currentTokens.borderRadiusMd;
+    QSettings("OpenEkklesia", "CHMS").setValue("customThemeJson",
+        QJsonDocument(obj).toJson(QJsonDocument::Compact));
+
     if (qApp) {
         qApp->setPalette(generateQPalette());
         qApp->setStyleSheet(generateGlobalQSS());
@@ -782,6 +823,10 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
 
     emit themeChanged(m_currentTokens);
     return true;
+}
+
+void ThemeManager::clearCustomizationOverride() {
+    QSettings("OpenEkklesia", "CHMS").remove("customThemeJson");
 }
 
 bool ThemeManager::saveCustomPreset(const QString& presetName, const ThemeTokens& tokens) {

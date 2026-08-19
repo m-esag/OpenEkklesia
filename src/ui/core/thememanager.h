@@ -54,6 +54,9 @@ public:
     void zoomOut();
     void setFontSize(int px);
 
+    // Drop any persisted color/radius customization (used by "Reset" actions).
+    void clearCustomizationOverride();
+
     bool generateChurchBrandTheme(const QColor& brandColor, bool darkBase = true);
 
     QString activeThemeId() const;

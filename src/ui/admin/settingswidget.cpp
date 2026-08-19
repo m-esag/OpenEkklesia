@@ -564,6 +564,31 @@ void SettingsWidget::setupUI() {
         }
     });
 
+    m_btnRestoreDb = new QPushButton("📥 Restore Database from Backup", pageData);
+    m_btnRestoreDb->setObjectName("secondaryBtn");
+    connect(m_btnRestoreDb, &QPushButton::clicked, this, [this]() {
+        QString openPath = QFileDialog::getOpenFileName(this, "Restore Database from Backup", QString(), "SQLite Database (*.db)");
+        if (openPath.isEmpty()) return;
+
+        const auto res = QMessageBox::warning(
+            this,
+            "Confirm Database Restore",
+            "This will REPLACE all current data with the contents of the selected backup file.\n\n"
+            "Make sure you have an up-to-date export of the current data first. Continue?",
+            QMessageBox::Yes | QMessageBox::No);
+        if (res != QMessageBox::Yes) return;
+
+        if (DatabaseManager::instance().restoreFromBackup(openPath)) {
+            QMessageBox::information(
+                this, "Restore Complete",
+                "The database was restored from the selected backup.\n\n"
+                "Please restart OpenEkklesia so all screens reload the restored data.");
+        } else {
+            QMessageBox::critical(this, "Restore Failed",
+                                  "Could not restore the database from that file. It may be corrupted or in use.");
+        }
+    });
+
     m_btnCompactDb = new QPushButton("🧹 Compact Database (VACUUM)", pageData);
     m_btnCompactDb->setObjectName("accentBtnOrange");
     connect(m_btnCompactDb, &QPushButton::clicked, this, [this]() {
@@ -681,6 +706,7 @@ void SettingsWidget::setupUI() {
     });
 
     dbActions->addWidget(m_btnBackupDb);
+    dbActions->addWidget(m_btnRestoreDb);
     dbActions->addWidget(m_btnCompactDb);
     dbActions->addWidget(m_btnViewAuditLogs);
     dbActions->addWidget(m_btnSelectiveShare);
@@ -1107,6 +1133,7 @@ void SettingsWidget::onSaveCustomPreset() {
 }
 
 void SettingsWidget::onResetDefaultTheme() {
+    ThemeManager::instance().clearCustomizationOverride();
     ThemeManager::instance().loadTheme("catppuccin_mocha");
     populateThemePresets(m_cmbThemeModeFilter->currentIndex());
     int idx = m_cmbThemePreset->findData("catppuccin_mocha");

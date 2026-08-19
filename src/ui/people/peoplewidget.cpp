@@ -1101,7 +1101,8 @@ void PeopleWidget::selectPerson(int personId) {
 }
 
 void PeopleWidget::applyRole(const QString& role) {
-    bool isAdmin = (role == "admin" || role == "pastor");
+    // Roles only gate full-access vs read-only (Guest); modules gate features.
+    bool isAdmin = (role != "readonly");
     m_btnSave->setEnabled(isAdmin);
     m_btnDeletePerson->setEnabled(isAdmin);
     m_btnAddPerson->setEnabled(isAdmin);

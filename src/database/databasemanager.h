@@ -10,6 +10,11 @@ public:
     bool initialize(const QString& dbPath = QString());
     void close();
 
+    // Replace the current database with a previously exported .db backup.
+    // Closes the live connection, swaps the file, and re-initializes. Callers
+    // should warn the user to restart afterward so in-memory models reload.
+    bool restoreFromBackup(const QString& backupPath);
+
     QSqlDatabase database() const;
 
     bool purgeDemoData();

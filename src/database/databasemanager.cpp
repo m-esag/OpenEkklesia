@@ -132,6 +132,30 @@ void DatabaseManager::close() {
     }
 }
 
+bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
+    if (!QFile::exists(backupPath)) {
+        qWarning() << "Restore failed: backup file does not exist:" << backupPath;
+        return false;
+    }
+
+    const QString dbPath = m_db.isValid() ? m_db.databaseName() : QString();
+    if (dbPath.isEmpty()) {
+        qWarning() << "Restore failed: no active database path to replace";
+        return false;
+    }
+
+    // Close and release the live connection, swap the file, reopen fresh.
+    close();
+    QFile::remove(dbPath);
+    QFile::remove(dbPath + "-wal");
+    QFile::remove(dbPath + "-shm");
+    if (!QFile::copy(backupPath, dbPath)) {
+        qWarning() << "Restore failed: could not copy backup over" << dbPath;
+        return false;
+    }
+    return initialize(dbPath);
+}
+
 QSqlDatabase DatabaseManager::database() const {
     return QSqlDatabase::database(m_db.connectionName());
 }

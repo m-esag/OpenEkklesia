@@ -115,6 +115,7 @@ private:
     // --- Page 6: Data & Backup ---
     QLabel* m_lblDbPath;
     QPushButton* m_btnBackupDb;
+    QPushButton* m_btnRestoreDb;
     QPushButton* m_btnCompactDb;
     QPushButton* m_btnViewAuditLogs;
     QPushButton* m_btnSelectiveShare;

@@ -1,5 +1,7 @@
 #include "contributionswidget.h"
 #include "../database/databasemanager.h"
+#include <QSettings>
+#include "../core/appcurrency.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -62,7 +64,7 @@ void ContributionsWidget::setupUI() {
     m_amountSpin = new QDoubleSpinBox(this);
     m_amountSpin->setRange(0.00, 999999.00);
     m_amountSpin->setDecimals(2);
-    m_amountSpin->setPrefix("$ ");
+    m_amountSpin->setPrefix(appCurrencySymbol() + " ");
 
     m_fundCombo = new QComboBox(this);
 
@@ -195,17 +197,17 @@ void ContributionsWidget::refreshContributions() {
 }
 
 void ContributionsWidget::refreshHistoryModel() {
-    QString queryStr = 
+    QString queryStr = QString(
         "SELECT c.id AS \"ID\", "
         "       c.contribution_date AS \"Date\", "
         "       (p.first_name || ' ' || p.last_name) AS \"Contributor\", "
         "       f.fund_name AS \"Fund\", "
-        "       printf('$%.2f', c.amount / 100.0) AS \"Amount\", "
+        "       printf('%1%.2f', c.amount / 100.0) AS \"Amount\", "
         "       c.payment_method AS \"Method\" "
         "FROM contributions c "
         "JOIN people p ON c.person_id = p.id "
         "JOIN funds f ON c.fund_id = f.id "
-        "ORDER BY c.id DESC LIMIT 50";
+        "ORDER BY c.id DESC LIMIT 50").arg(appCurrencySymbol());
     m_historyModel->setQuery(queryStr);
     m_historyTable->hideColumn(0);
 }
@@ -366,7 +368,7 @@ void ContributionsWidget::onExportTaxStatements() {
                 "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%2</td>"
                 "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%3</td>"
                 "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%4</td>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd; text-align: right;'>$%5</td>"
+                "  <td style='padding: 6px; border-bottom: 1px solid #ddd; text-align: right;'>%7%5</td>"
                 "</tr>"
             ).arg(date, fund, method, checkNo, QString::number(amount, 'f', 2));
         }
@@ -376,8 +378,8 @@ void ContributionsWidget::onExportTaxStatements() {
             "<html>"
             "<body>"
             "  <div style='font-family: sans-serif; padding: 20px;'>"
-            "    <h1 style='color: #444;'>OpenEkklesia Church</h1>"
-            "    <p style='color: #666;'>123 Church Way, Suite 100 | Metropolis, NY 12345</p>"
+            "    <h1 style='color: #444;'>%8</h1>"
+            "    <p style='color: #666;'>%9</p>"
             "    <hr style='border: 0; border-top: 2px solid #555;'>"
             "    <br><br>"
             "    <table style='width: 100%;'>"
@@ -411,7 +413,7 @@ void ContributionsWidget::onExportTaxStatements() {
             "    </table>"
             "    <br>"
             "    <div style='text-align: right; font-size: 16px; font-weight: bold;'>"
-            "      Total Tax-Deductible Contribution: $%6"
+            "      Total Tax-Deductible Contribution: %7%6"
             "    </div>"
             "    <br><br><br>"
             "    <p style='font-size: 12px; color: #555; text-align: center;'>"
@@ -420,7 +422,11 @@ void ContributionsWidget::onExportTaxStatements() {
             "  </div>"
             "</body>"
             "</html>"
-        ).arg(fullName, address, yearStr, QDate::currentDate().toString("yyyy-MM-dd"), itemsHtml, QString::number(totalSum, 'f', 2));
+        ).arg(fullName, address, yearStr, QDate::currentDate().toString("yyyy-MM-dd"), itemsHtml,
+              QString::number(totalSum, 'f', 2),
+              appCurrencySymbol(),
+              QSettings("OpenEkklesia", "CHMS").value("churchName", "OpenEkklesia Church").toString(),
+              QSettings("OpenEkklesia", "CHMS").value("churchAddress", "").toString());
 
         // Output to PDF
         QString pdfPath = QString("%1Tax_Statement_%2_%3.pdf").arg(exportDir, yearStr, lastName + "_" + firstName);
@@ -442,7 +448,7 @@ void ContributionsWidget::onExportTaxStatements() {
 }
 
 void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
-    if (m_userRole == "readonly" || m_userRole == "pastor") return;
+    if (m_userRole == "readonly") return;
 
     QModelIndex index = m_historyTable->indexAt(pos);
     if (!index.isValid()) return;
@@ -466,7 +472,7 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
 
     if (selected == actEdit) {
         bool ok;
-        double currentAmount = amountStr.replace("$", "").toDouble();
+        double currentAmount = amountStr.replace(appCurrencySymbol(), "").toDouble();
         double newAmount = QInputDialog::getDouble(this, "Edit Contribution", 
                                                     QString("Enter new amount for %1's contribution to %2:").arg(name, fundName), 
                                                     currentAmount, 0.01, 999999.99, 2, &ok);
@@ -506,14 +512,16 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
 
 void ContributionsWidget::applyRole(const QString& role) {
     m_userRole = role;
-    if (role == "readonly" || role == "pastor") {
-        m_btnSave->setEnabled(false);
-        m_btnExportPDF->setEnabled(false);
-        m_dateEdit->setEnabled(false);
-        m_personCombo->setEnabled(false);
-        m_amountSpin->setEnabled(false);
-        m_fundCombo->setEnabled(false);
-        m_paymentCombo->setEnabled(false);
-        m_checkNumberEdit->setEnabled(false);
-    }
+    // Feature visibility is controlled by the Modules system; roles only
+    // distinguish full access from read-only (Guest). A pastor/admin/finance
+    // user gets the full finance form.
+    const bool readOnly = (role == "readonly");
+    m_btnSave->setEnabled(!readOnly);
+    m_btnExportPDF->setEnabled(!readOnly);
+    m_dateEdit->setEnabled(!readOnly);
+    m_personCombo->setEnabled(!readOnly);
+    m_amountSpin->setEnabled(!readOnly);
+    m_fundCombo->setEnabled(!readOnly);
+    m_paymentCombo->setEnabled(!readOnly);
+    m_checkNumberEdit->setEnabled(!readOnly);
 }

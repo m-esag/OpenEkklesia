@@ -280,7 +280,8 @@ void VaultWidget::onDeleteClicked() {
 }
 
 void VaultWidget::applyRole(const QString& role) {
-    if (role == "readonly" || role == "finance") {
+    // Only the read-only Guest role is restricted; modules gate feature access.
+    if (role == "readonly") {
         m_btnUpload->setEnabled(false);
         m_btnDelete->setEnabled(false);
     }

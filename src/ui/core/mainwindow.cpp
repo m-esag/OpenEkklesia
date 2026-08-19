@@ -22,6 +22,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include "../database/databasemanager.h"
+#include "appcurrency.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -1261,38 +1262,38 @@ QWidget* MainWindow::createTablePage(const QString& title, QTableView* view) {
 }
 
 void MainWindow::refreshAccountsModel() {
-    QString queryStr = 
+    QString queryStr = QString(
         "SELECT a.name AS \"Account Name\", "
         "       a.type AS \"Account Type\", "
         "       CASE "
-        "         WHEN a.type IN ('ASSET', 'EXPENSE') THEN printf('$%.2f', COALESCE(SUM(s.amount), 0.00))"
-        "         ELSE printf('$%.2f', -COALESCE(SUM(s.amount), 0.00))"
+        "         WHEN a.type IN ('ASSET', 'EXPENSE') THEN printf('%1%.2f', COALESCE(SUM(s.amount), 0.00))"
+        "         ELSE printf('%1%.2f', -COALESCE(SUM(s.amount), 0.00))"
         "       END AS \"Balance\", "
-        "       printf('$%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00)) AS \"Budget\", "
+        "       printf('%1%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00)) AS \"Budget\", "
         "       CASE "
-        "         WHEN a.type = 'EXPENSE' THEN printf('$%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00) - COALESCE(SUM(s.amount), 0.00))"
+        "         WHEN a.type = 'EXPENSE' THEN printf('%1%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00) - COALESCE(SUM(s.amount), 0.00))"
         "         ELSE '-'"
         "       END AS \"Variance\" "
         "FROM accounts a "
         "LEFT JOIN splits s ON a.id = s.account_id "
         "LEFT JOIN account_budgets ab ON a.id = ab.account_id "
         "GROUP BY a.id, a.name, a.type, ab.budgeted_amount_cents "
-        "ORDER BY a.type, a.name";
+        "ORDER BY a.type, a.name").arg(appCurrencySymbol());
     m_accountsModel->setQuery(queryStr);
 }
 
 void MainWindow::refreshLedgerModel() {
-    QString queryStr = 
+    QString queryStr = QString(
         "SELECT t.date AS \"Date\", "
         "       t.description AS \"Description\", "
         "       a.name AS \"Account\", "
-        "       printf('$%.2f', s.amount) AS \"Amount\", "
+        "       printf('%1%.2f', s.amount) AS \"Amount\", "
         "       COALESCE(p.first_name || ' ' || p.last_name, '-') AS \"Member/Donor\" "
         "FROM transactions t "
         "JOIN splits s ON t.id = s.transaction_id "
         "JOIN accounts a ON s.account_id = a.id "
         "LEFT JOIN people p ON s.person_id = p.id "
-        "ORDER BY t.date DESC, t.id DESC";
+        "ORDER BY t.date DESC, t.id DESC").arg(appCurrencySymbol());
     m_ledgerModel->setQuery(queryStr);
 }
 
@@ -1314,7 +1315,7 @@ void MainWindow::updatePieChart() {
 
     for (auto slice : series->slices()) {
         slice->setLabelVisible(true);
-        slice->setLabel(QString("%1\n$%2").arg(slice->label()).arg(QString::number(slice->value(), 'f', 2)));
+        slice->setLabel(QString("%1\n%2%3").arg(slice->label(), appCurrencySymbol(), QString::number(slice->value(), 'f', 2)));
     }
 
     chart->addSeries(series);
@@ -1369,7 +1370,7 @@ void MainWindow::updateDashboardStats() {
     if (query.exec("SELECT SUM(s.amount) FROM splits s JOIN accounts a ON s.account_id = a.id WHERE a.type = 'ASSET'")) {
         query.next();
         double assets = query.value(0).toDouble();
-        m_lblAssetBalance->setText(QString("$%1").arg(QString::number(assets, 'f', 2)));
+        m_lblAssetBalance->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(assets, 'f', 2)));
     }
 
     // Fiscal year used for YTD income and budget-vs-actual comparisons. The
@@ -1388,7 +1389,7 @@ void MainWindow::updateDashboardStats() {
     incomeQuery.addBindValue(fiscalYearStr);
     if (incomeQuery.exec() && incomeQuery.next()) {
         double income = incomeQuery.value(0).toDouble();
-        m_lblTotalContributions->setText(QString("$%1").arg(QString::number(income, 'f', 2)));
+        m_lblTotalContributions->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(income, 'f', 2)));
     }
 
     // YTD Expenses for budget-vs-actual comparison
@@ -1431,11 +1432,10 @@ void MainWindow::updateDashboardStats() {
                         "QProgressBar::chunk { background-color: %2; border-radius: 5px; }")
                     .arg(tok.bgOverlay.name(), chunkColor));
         }
-        m_lblBudgetProgress->setText(QString("$%1 / $%2 (%3%) — %4")
-                                     .arg(QString::number(totalExpenses, 'f', 2))
-                                     .arg(QString::number(totalBudget, 'f', 2))
-                                     .arg(pct)
-                                     .arg(QString::number(fiscalYear)));
+        m_lblBudgetProgress->setText(QString("%1%2 / %1%3 (%4%) — %5")
+                                     .arg(appCurrencySymbol(), QString::number(totalExpenses, 'f', 2),
+                                          QString::number(totalBudget, 'f', 2), QString::number(pct),
+                                          QString::number(fiscalYear)));
         if (totalExpenses > totalBudget) {
             m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.accentDanger.name()));
         } else {
@@ -1443,9 +1443,10 @@ void MainWindow::updateDashboardStats() {
         }
     } else {
         if (m_progressBudget) m_progressBudget->setValue(0);
-        m_lblBudgetProgress->setText(QString("$%1 / $0.00 — %2")
-                                     .arg(QString::number(totalExpenses, 'f', 2))
-                                     .arg(QString::number(fiscalYear)));
+        m_lblBudgetProgress->setText(QString("%1%2 / %3%4 — %5")
+                                     .arg(appCurrencySymbol(), QString::number(totalExpenses, 'f', 2),
+                                          appCurrencySymbol(), QString("0.00"),
+                                          QString::number(fiscalYear)));
         m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.textSecondary.name()));
     }
 
@@ -1561,6 +1562,7 @@ void MainWindow::onDashboardClicked() {
 }
 
 void MainWindow::onMembersClicked() {
+    if (!isModuleEnabled("people")) return;
     if (!m_peopleWidget) {
         m_peopleWidget = new PeopleWidget(this);
         m_peopleWidget->applyRole(m_userRole);
@@ -1572,12 +1574,14 @@ void MainWindow::onMembersClicked() {
 }
 
 void MainWindow::onGroupsClicked() {
+    if (!isModuleEnabled("groups")) return;
     refreshGroupsTree();
     switchPage(2);
     setActiveNav(m_btnGroups);
 }
 
 void MainWindow::onContributionsClicked() {
+    if (!isModuleEnabled("finance")) return;
     if (!m_contributionsWidget) {
         m_contributionsWidget = new ContributionsWidget(this);
         m_contributionsWidget->applyRole(m_userRole);
@@ -1589,6 +1593,7 @@ void MainWindow::onContributionsClicked() {
 }
 
 void MainWindow::onServiceClicked() {
+    if (!isModuleEnabled("service")) return;
     if (!m_serviceWidget) {
         m_serviceWidget = new ServiceBuilderWidget(this);
         ensurePageLoaded(4, [this]() { return m_serviceWidget; });
@@ -1598,18 +1603,21 @@ void MainWindow::onServiceClicked() {
 }
 
 void MainWindow::onAccountsClicked() {
+    if (!isModuleEnabled("finance")) return;
     refreshAccountsModel();
     switchPage(5);
     setActiveNav(m_btnAccounts);
 }
 
 void MainWindow::onLedgerClicked() {
+    if (!isModuleEnabled("finance")) return;
     refreshLedgerModel();
     switchPage(6);
     setActiveNav(m_btnLedger);
 }
 
 void MainWindow::onGraphClicked() {
+    if (!isModuleEnabled("graph")) return;
     if (!m_graphWidget) {
         m_graphWidget = new GraphWidget(this);
         m_graphWidget->applyRole(m_userRole);
@@ -1628,6 +1636,7 @@ void MainWindow::onGraphClicked() {
 }
 
 void MainWindow::onInventoryClicked() {
+    if (!isModuleEnabled("inventory")) return;
     if (!m_inventoryWidget) {
         m_inventoryWidget = new InventoryWidget(this);
         m_inventoryWidget->applyRole(m_userRole);
@@ -1639,6 +1648,7 @@ void MainWindow::onInventoryClicked() {
 }
 
 void MainWindow::onVaultClicked() {
+    if (!isModuleEnabled("vault")) return;
     if (!m_vaultWidget) {
         m_vaultWidget = new VaultWidget(this);
         m_vaultWidget->applyRole(m_userRole);
@@ -1667,6 +1677,7 @@ void MainWindow::onSettingsClicked() {
 }
 
 void MainWindow::onFacilitiesClicked() {
+    if (!isModuleEnabled("facilities")) return;
     if (!m_facilitiesWidget) {
         m_facilitiesWidget = new FacilitiesWidget(this);
         ensurePageLoaded(11, [this]() { return m_facilitiesWidget; });
@@ -1676,6 +1687,7 @@ void MainWindow::onFacilitiesClicked() {
 }
 
 void MainWindow::onAnalyticsClicked() {
+    if (!isModuleEnabled("analytics")) return;
     if (!m_analyticsWidget) {
         m_analyticsWidget = new PastoralAnalyticsWidget(this);
         connect(m_analyticsWidget, &PastoralAnalyticsWidget::drillThroughRequested, this, [this](const QString& type, const QString& val) {
@@ -1692,6 +1704,7 @@ void MainWindow::onAnalyticsClicked() {
 }
 
 void MainWindow::onPlanningClicked() {
+    if (!isModuleEnabled("planning")) return;
     if (!m_planningWidget) {
         m_planningWidget = new PlanningWidget(this);
         ensurePageLoaded(13, [this]() { return m_planningWidget; });
@@ -1701,6 +1714,7 @@ void MainWindow::onPlanningClicked() {
 }
 
 void MainWindow::onShepherdClicked() {
+    if (!isModuleEnabled("shepherd")) return;
     if (!m_shepherdWidget) {
         m_shepherdWidget = new ShepherdWidget(this);
         connect(m_shepherdWidget, &ShepherdWidget::navigateToMember, this, &MainWindow::selectPerson);
@@ -1789,6 +1803,7 @@ void MainWindow::toggleTheme() {
 }
 
 void MainWindow::launchKiosk() {
+    if (!isModuleEnabled("kiosk")) return;
     KioskWindow kiosk(this);
     kiosk.exec();
 }
@@ -1914,6 +1929,10 @@ void MainWindow::applyModuleVisibility() {
     if (m_actVault) m_actVault->setVisible(modVault);
 }
 
+bool MainWindow::isModuleEnabled(const QString& moduleKey) const {
+    return QSettings("OpenEkklesia", "CHMS").value(QString("modules/%1").arg(moduleKey), true).toBool();
+}
+
 bool MainWindow::promptLogin() {
     LoginDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted) {
@@ -1947,7 +1966,7 @@ void MainWindow::onSetBudget() {
 
     QDoubleSpinBox* budgetSpin = new QDoubleSpinBox(&dlg);
     budgetSpin->setRange(0.00, 9999999.00);
-    budgetSpin->setPrefix("$ ");
+    budgetSpin->setPrefix(appCurrencySymbol() + " ");
     budgetSpin->setDecimals(2);
     layout->addRow("Budget Target ($):", budgetSpin);
 
