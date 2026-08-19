@@ -213,7 +213,7 @@ void MainWindow::setupMenuBar() {
     actDash->setShortcut(QKeySequence("Ctrl+1"));
     connect(actDash, &QAction::triggered, this, &MainWindow::onDashboardClicked);
 
-    m_actMembers = congMenu->addAction("👥 Members Directory");
+    m_actMembers = congMenu->addAction("👥 People Directory");
     m_actMembers->setShortcut(QKeySequence("Ctrl+2"));
     connect(m_actMembers, &QAction::triggered, this, &MainWindow::onMembersClicked);
 
@@ -328,7 +328,7 @@ void MainWindow::setupUI() {
     m_btnDashboard->setToolTip("Dashboard: View overall member counts, fund stats, and budget progress.");
     layCong->addWidget(m_btnDashboard);
 
-    m_btnMembers = new QPushButton("👥 Members", this);
+    m_btnMembers = new QPushButton("👥 People", this);
     m_btnMembers->setObjectName("navButton");
     m_btnMembers->setToolTip("Members: Search, add, edit member details and view activity history.");
     layCong->addWidget(m_btnMembers);
@@ -1054,7 +1054,7 @@ QWidget* MainWindow::createDashboardPage() {
     headerRow->addStretch();
 
     // Quick Actions Bar
-    QPushButton* btnAddPersonQuick = new QPushButton("➕ Add Member", page);
+    QPushButton* btnAddPersonQuick = new QPushButton("➕ Add Person", page);
     btnAddPersonQuick->setObjectName("primaryBtn");
     connect(btnAddPersonQuick, &QPushButton::clicked, this, [this]() {
         onMembersClicked();

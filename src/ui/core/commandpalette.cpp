@@ -144,7 +144,7 @@ void CommandPaletteDialog::populateItems() {
 
     // 1. Navigation Actions
     addPaletteItem("⚙ Navigation: Go to Dashboard", "Command", 1);
-    addPaletteItem("👥 Navigation: Go to Members Directory (CRM)", "Command", 2);
+    addPaletteItem("👥 Navigation: Go to People Directory (CRM)", "Command", 2);
     addPaletteItem("🏷 Navigation: Go to Small Groups / Ministries List", "Command", 3);
     addPaletteItem("💰 Navigation: Go to Contributions Offering batch entry", "Command", 4);
     addPaletteItem("📜 Navigation: Go to Sunday Service Run-Sheet Builder", "Command", 5);
@@ -164,7 +164,7 @@ void CommandPaletteDialog::populateItems() {
     while (qPeople.next()) {
         int id = qPeople.value(0).toInt();
         QString name = qPeople.value(1).toString();
-        addPaletteItem(QString("👤 CRM Member Profile: %1").arg(name), "Person", id);
+        addPaletteItem(QString("👤 CRM Profile: %1").arg(name), "Person", id);
     }
 
     QSqlQuery qGroups("SELECT id, name FROM groups", db);
