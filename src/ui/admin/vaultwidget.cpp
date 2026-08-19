@@ -157,24 +157,20 @@ void VaultWidget::onUploadClicked() {
     QDialog dlg(this);
     dlg.setWindowTitle("Document Metadata");
     dlg.resize(350, 220);
-    dlg.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;");
 
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
     QFormLayout* form = new QFormLayout();
 
     QLineEdit* titleEdit = new QLineEdit(&dlg);
     titleEdit->setPlaceholderText("E.g. Q2 Elder Minutes...");
-    titleEdit->setStyleSheet("background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px; border-radius: 4px;");
     form->addRow("Title:", titleEdit);
 
     QDateEdit* dateEdit = new QDateEdit(QDate::currentDate(), &dlg);
     dateEdit->setCalendarPopup(true);
-    dateEdit->setStyleSheet("background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px; border-radius: 4px;");
     form->addRow("Document Date:", dateEdit);
 
     QComboBox* categoryBox = new QComboBox(&dlg);
     categoryBox->addItems({"Board Minutes", "Financial Bylaws", "Legal Documents", "Other"});
-    categoryBox->setStyleSheet("background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px; border-radius: 4px;");
     form->addRow("Category:", categoryBox);
 
     lay->addLayout(form);
@@ -182,12 +178,12 @@ void VaultWidget::onUploadClicked() {
 
     QHBoxLayout* actions = new QHBoxLayout();
     QPushButton* btnCancel = new QPushButton("Cancel", &dlg);
-    btnCancel->setStyleSheet("background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 8px; border-radius: 5px;");
+    btnCancel->setObjectName("secondaryBtn");
     connect(btnCancel, &QPushButton::clicked, &dlg, &QDialog::reject);
     actions->addWidget(btnCancel);
 
     QPushButton* btnConfirm = new QPushButton("Upload", &dlg);
-    btnConfirm->setStyleSheet("background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 8px; border-radius: 5px;");
+    btnConfirm->setObjectName("saveBtn");
     connect(btnConfirm, &QPushButton::clicked, &dlg, [&]() {
         QString title = titleEdit->text().trimmed();
         if (title.isEmpty()) {

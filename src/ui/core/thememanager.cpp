@@ -916,8 +916,32 @@ QPalette ThemeManager::generateQPalette() const {
 
 QString ThemeManager::generateGlobalQSS() const {
     const auto& t = m_currentTokens;
-    QString primaryBtnTextColor = (t.accentPrimary.lightness() > 140) ? "#11111b" : "#ffffff";
-    QString dangerBtnTextColor = (t.accentDanger.lightness() > 140) ? "#11111b" : "#ffffff";
+
+    auto textOn = [](const QColor& c) {
+        return c.lightness() > 140 ? QString("#11111b") : QString("#ffffff");
+    };
+    const QString primaryBtnTextColor = textOn(t.accentPrimary);
+    const QString dangerBtnTextColor  = textOn(t.accentDanger);
+    const QString successBtnTextColor = textOn(t.accentSuccess);
+
+    // Harmonized accent variants derived from the theme's primary hue so the
+    // cyan/orange/pink accent buttons stay on-palette in both dark and light.
+    const int hue = t.accentPrimary.hue() >= 0 ? t.accentPrimary.hue() : 0;
+    const QColor accentCyan   = QColor::fromHsv((hue + 40) % 360, 200, 225);
+    const QColor accentOrange = QColor::fromHsv((hue + 120) % 360, 210, 215);
+    const QColor accentPink   = QColor::fromHsv((hue + 300) % 360, 190, 230);
+
+    // Subtle accent-tinted background for the active sidebar nav item.
+    QColor navActiveBg = t.accentPrimary;
+    navActiveBg.setAlpha(28);
+
+    // Hover states: slightly darker (or lighter for dark accents).
+    const QColor primaryHover = (t.accentPrimary.lightness() > 128)
+                                    ? t.accentPrimary.darker(112) : t.accentPrimary.lighter(115);
+    const QColor dangerHover  = (t.accentDanger.lightness() > 128)
+                                    ? t.accentDanger.darker(112)  : t.accentDanger.lighter(115);
+    const QColor surfaceHover = (t.bgSurface.lightness() > 128)
+                                    ? t.bgSurface.darker(104)     : t.bgSurface.lighter(112);
 
     return QString(
         "QMainWindow, QDialog { background-color: %1; color: %2; font-family: 'Segoe UI', system-ui, sans-serif; font-size: %10px; }\n"
@@ -930,15 +954,43 @@ QString ThemeManager::generateGlobalQSS() const {
         "QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {\n"
         "  border: 1px solid %5;\n"
         "}\n"
+        // --- Button taxonomy (all buttons route through these object names) ---
         "QPushButton {\n"
         "  background-color: %6; border: 1px solid %4; color: %2; padding: 8px 16px; border-radius: %9px; font-weight: bold; font-size: %10px;\n"
         "}\n"
-        "QPushButton:hover { background-color: %4; }\n"
+        "QPushButton:hover { background-color: %22; }\n"
         "QPushButton#primaryBtn, QPushButton#saveBtn {\n"
         "  background-color: %5; color: %11; border: none;\n"
         "}\n"
+        "QPushButton#primaryBtn:hover, QPushButton#saveBtn:hover { background-color: %23; }\n"
+        "QPushButton#secondaryBtn {\n"
+        "  background-color: %6; color: %2; border: 1px solid %4;\n"
+        "}\n"
+        "QPushButton#secondaryBtn:hover { background-color: %22; }\n"
         "QPushButton#dangerBtn {\n"
         "  background-color: %7; color: %12; border: none;\n"
+        "}\n"
+        "QPushButton#dangerBtn:hover { background-color: %24; }\n"
+        "QPushButton#ghostDangerBtn, QPushButton#dangerGhostBtn {\n"
+        "  background: transparent; color: %7; border: none; font-weight: bold;\n"
+        "}\n"
+        "QPushButton#ghostDangerBtn:hover, QPushButton#dangerGhostBtn:hover { text-decoration: underline; }\n"
+        "QPushButton#accentBtnCyan   { background-color: %13; color: %16; border: none; }\n"
+        "QPushButton#accentBtnCyan:hover   { background-color: %13; }\n"
+        "QPushButton#accentBtnOrange { background-color: %14; color: %17; border: none; }\n"
+        "QPushButton#accentBtnOrange:hover { background-color: %14; }\n"
+        "QPushButton#accentBtnPink   { background-color: %15; color: %18; border: none; }\n"
+        "QPushButton#accentBtnPink:hover   { background-color: %15; }\n"
+        "QPushButton#navButton {\n"
+        "  background: transparent; border: none; text-align: left; padding: 9px 12px; border-radius: 6px; color: %2; font-weight: 500;\n"
+        "}\n"
+        "QPushButton#navButton:hover { background-color: %6; }\n"
+        "QPushButton#navButton[active=\"true\"] { background-color: %19; color: %5; font-weight: bold; }\n"
+        "QPushButton#checkinBtn {\n"
+        "  background-color: %20; color: %21; border: none; border-radius: 10px; font-size: 18px;\n"
+        "}\n"
+        "QPushButton#unlockBtn {\n"
+        "  background-color: %7; color: %12; border: none; border-radius: 8px; font-size: 15px;\n"
         "}\n"
         "QPushButton#sectionHeaderBtn {\n"
         "  font-size: 11px; font-weight: bold; color: %5; text-align: left; background: transparent; border: none; padding: 4px 0px;\n"
@@ -962,12 +1014,18 @@ QString ThemeManager::generateGlobalQSS() const {
         "QCheckBox, QRadioButton {\n"
         "  color: %2; font-weight: bold; font-size: %10px;\n"
         "}\n"
+        "QComboBox::drop-down { border: none; width: 26px; }\n"
+        "QComboBox::down-arrow {\n"
+        "  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid %8; margin-right: 8px;\n"
+        "}\n"
         "QComboBox QAbstractItemView {\n"
         "  background-color: %3; color: %2; border: 1px solid %4; selection-background-color: %5; selection-color: %11; border-radius: %9px;\n"
         "}\n"
         "QMenu { background-color: %6; color: %2; border: 1px solid %4; }\n"
         "QMenu::item { color: %2; padding: 6px 22px; }\n"
         "QMenu::item:selected { background-color: %5; color: %11; }\n"
+        "QMenu::item:disabled { color: %8; }\n"
+        "QMenu::separator { height: 1px; background-color: %4; margin: 4px 10px; }\n"
         "QMenuBar { background-color: %1; color: %2; }\n"
         "QMenuBar::item:selected { background-color: %6; border-radius: %9px; }\n"
     ).arg(
@@ -982,6 +1040,18 @@ QString ThemeManager::generateGlobalQSS() const {
         QString::number(t.borderRadiusMd), // %9
         QString::number(t.fontSizePx),     // %10
         primaryBtnTextColor,                // %11
-        dangerBtnTextColor                  // %12
+        dangerBtnTextColor,                 // %12
+        accentCyan.name(),                  // %13
+        accentOrange.name(),                // %14
+        accentPink.name(),                  // %15
+        textOn(accentCyan),                 // %16
+        textOn(accentOrange),               // %17
+        textOn(accentPink),                 // %18
+        navActiveBg.name(QColor::HexArgb),  // %19
+        t.accentSuccess.name(),             // %20
+        successBtnTextColor,                // %21
+        surfaceHover.name(),                // %22 (generic hover)
+        primaryHover.name(),                // %23 (primary/save hover)
+        dangerHover.name()                  // %24 (danger hover)
     );
 }

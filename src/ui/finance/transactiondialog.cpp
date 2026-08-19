@@ -174,9 +174,10 @@ void TransactionDialog::onAddSplitRow() {
     layout->addWidget(row.memberCombo, 2);
 
     // Remove row button
-    row.btnRemove = new QPushButton("X", row.container);
+    row.btnRemove = new QPushButton("✕", row.container);
+    row.btnRemove->setObjectName("ghostDangerBtn");
     row.btnRemove->setFixedWidth(30);
-    row.btnRemove->setStyleSheet("background-color: #f38ba8; color: #11111b; font-weight: bold;");
+    row.btnRemove->setToolTip("Remove this split row");
     connect(row.btnRemove, &QPushButton::clicked, this, &TransactionDialog::onRemoveSplitRow);
     layout->addWidget(row.btnRemove);
 

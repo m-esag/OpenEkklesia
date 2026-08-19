@@ -315,7 +315,7 @@ void MainWindow::setupUI() {
     m_headerCongregation = new QPushButton("▼ CONGREGATION", this);
     m_headerCongregation->setObjectName("sectionHeaderBtn");
     m_headerCongregation->setCursor(Qt::PointingHandCursor);
-    m_headerCongregation->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    
     sidebarLayout->addWidget(m_headerCongregation);
 
     m_secCongregation = new QWidget(this);
@@ -366,7 +366,7 @@ void MainWindow::setupUI() {
     m_headerMinistry = new QPushButton("▼ MINISTRY & SERVICES", this);
     m_headerMinistry->setObjectName("sectionHeaderBtn");
     m_headerMinistry->setCursor(Qt::PointingHandCursor);
-    m_headerMinistry->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    
     sidebarLayout->addWidget(m_headerMinistry);
 
     m_secMinistry = new QWidget(this);
@@ -412,7 +412,7 @@ void MainWindow::setupUI() {
     m_headerFinance = new QPushButton("▼ FINANCE & OPERATIONS", this);
     m_headerFinance->setObjectName("sectionHeaderBtn");
     m_headerFinance->setCursor(Qt::PointingHandCursor);
-    m_headerFinance->setStyleSheet("QPushButton#sectionHeaderBtn { font-size: 11px; font-weight: bold; color: #89b4fa; text-align: left; background: transparent; border: none; padding: 4px 0px; }");
+    
     sidebarLayout->addWidget(m_headerFinance);
 
     m_secFinance = new QWidget(this);
