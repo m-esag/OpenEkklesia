@@ -1546,11 +1546,14 @@ void GraphWidget::onPathfindToggle() {
     clearPathfind();
 
     if (m_pathfindActive) {
-        m_btnPathfind->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; }");
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        const QString txt = tok.accentPrimary.lightness() > 140 ? "#11111b" : "#ffffff";
+        m_btnPathfind->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: 6px; font-size: 11px; padding: 5px 10px;")
+                                         .arg(tok.accentPrimary.name(), txt));
         m_lblDetailTitle->setText("🔍 Pathfinder Mode");
         m_lblDetailCategory->setText("Step 1: Click starting person/node");
     } else {
-        m_btnPathfind->setStyleSheet("");
+        m_btnPathfind->setStyleSheet("font-size: 11px; padding: 5px 10px;");
         selectNodeForDetails(nullptr);
     }
 }

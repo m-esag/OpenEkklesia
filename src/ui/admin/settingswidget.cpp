@@ -940,7 +940,10 @@ void SettingsWidget::onSearchTextChanged(const QString& text) {
 void SettingsWidget::onMarkDirty() {
     m_isDirty = true;
     m_btnSaveSettings->setText("💾 Save Changes (Unsaved)");
-    m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px; background-color: #fab387; color: #11111b;");
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    const QString txt = tok.accentWarning.lightness() > 140 ? "#11111b" : "#ffffff";
+    m_btnSaveSettings->setStyleSheet(QString("padding: 8px 18px; font-weight: bold; font-size: 13px; background-color: %1; color: %2;")
+                                         .arg(tok.accentWarning.name(), txt));
 }
 
 void SettingsWidget::selectThemeCard(const QString& themeId) {

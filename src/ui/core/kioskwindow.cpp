@@ -1,5 +1,6 @@
 #include "kioskwindow.h"
 #include "../database/databasemanager.h"
+#include "thememanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -21,19 +22,26 @@ KioskWindow::KioskWindow(QWidget* parent)
 KioskWindow::~KioskWindow() {}
 
 void KioskWindow::setupUI() {
-    // Kiosk Background Styling
-    setStyleSheet(
-        "QDialog { background-color: #11111b; }"
-        "QLabel { color: #cdd6f4; }"
-        "QLineEdit { background-color: #1e1e2e; border: 2px solid #313244; border-radius: 8px; color: #cdd6f4; font-size: 24px; padding: 12px; font-weight: bold; font-family: monospace; }"
-        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 10px; font-size: 20px; font-weight: bold; min-height: 55px; min-width: 70px; }"
-        "QPushButton:hover { background-color: #45475a; }"
-        "QPushButton:pressed { background-color: #585b70; }"
-        "QPushButton#checkinBtn { background-color: #a6e3a1; color: #11111b; font-size: 20px; }"
-        "QPushButton#checkinBtn:hover { background-color: #94e2d5; }"
-        "QPushButton#unlockBtn { background-color: #f38ba8; color: #11111b; font-size: 16px; }"
-        "QPushButton#unlockBtn:hover { background-color: #f5e0dc; }"
-    );
+    // Kiosk Background Styling (token-driven so it follows the active theme)
+    {
+        const ThemeTokens t = ThemeManager::instance().currentTokens();
+        const QString onAccent = t.accentPrimary.lightness() > 140 ? "#11111b" : "#ffffff";
+        const QString onDanger = t.accentDanger.lightness() > 140 ? "#11111b" : "#ffffff";
+        setStyleSheet(QString(
+            "QDialog { background-color: %1; }"
+            "QLabel { color: %2; }"
+            "QLineEdit { background-color: %3; border: 2px solid %4; border-radius: 8px; color: %2; font-size: 24px; padding: 12px; font-weight: bold; font-family: monospace; }"
+            "QPushButton { background-color: %6; color: %2; border: 1px solid %4; border-radius: 10px; font-size: 20px; font-weight: bold; min-height: 55px; min-width: 70px; }"
+            "QPushButton:hover { background-color: %4; }"
+            "QPushButton:pressed { background-color: %6; }"
+            "QPushButton#checkinBtn { background-color: %8; color: %9; font-size: 20px; }"
+            "QPushButton#checkinBtn:hover { background-color: %8; }"
+            "QPushButton#unlockBtn { background-color: %7; color: %10; font-size: 16px; }"
+            "QPushButton#unlockBtn:hover { background-color: %7; }"
+        ).arg(t.bgInput.name(), t.textPrimary.name(), t.bgInput.name(), t.borderColor.name(),
+              t.accentPrimary.name(), t.bgSurface.name(), t.accentDanger.name(),
+              t.accentSuccess.name(), onAccent, onDanger));
+    }
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(60, 60, 60, 60);
@@ -41,12 +49,12 @@ void KioskWindow::setupUI() {
 
     // Kiosk Headers
     QLabel* titleLabel = new QLabel("OpenEkklesia Child Check-in Kiosk", this);
-    titleLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #89b4fa;");
+    titleLabel->setStyleSheet(QString("font-size: 32px; font-weight: bold; color: %1;").arg(ThemeManager::instance().currentTokens().accentPrimary.name()));
     titleLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(titleLabel);
 
     QLabel* subtitle = new QLabel("Please scan your family barcode card or enter your phone number below:", this);
-    subtitle->setStyleSheet("font-size: 18px; color: #a6adc8;");
+    subtitle->setStyleSheet(QString("font-size: 18px; color: %1;").arg(ThemeManager::instance().currentTokens().textSecondary.name()));
     subtitle->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(subtitle);
 
