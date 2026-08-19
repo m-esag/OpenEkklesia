@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Build OpenEkklesia as a self-contained Linux AppImage.
+# Produces: dist/OpenEkklesia-<arch>.AppImage
+set -euo pipefail
+cd "$(dirname "$0")"
+
+ARCH="$(uname -m)"
+
+# 1. Build the application
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+
+# 2. Tooling (downloaded once into tools/, gitignored)
+mkdir -p tools
+if [ ! -x tools/linuxdeploy.AppImage ]; then
+  echo "Downloading AppImage tooling..."
+  curl -sL -o tools/linuxdeploy.AppImage \
+    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage
+  curl -sL -o tools/linuxdeploy-plugin-qt.AppImage \
+    https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH}.AppImage
+  curl -sL -o tools/appimagetool.AppImage \
+    https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${ARCH}.AppImage
+  chmod +x tools/*.AppImage
+fi
+
+export APPIMAGE_EXTRACT_AND_RUN=1
+export PATH="$PWD/tools:$PATH"
+export QMAKE="$(command -v qmake6 || command -v qmake || true)"
+
+# 3. Assemble the AppDir with the Qt plugin (bundles libs + plugins)
+rm -rf dist/OpenEkklesia.AppDir
+linuxdeploy.AppImage --appdir dist/OpenEkklesia.AppDir \
+  --executable build/OpenEkklesia --plugin qt
+
+# Desktop entry + icon (required by AppImage packaging)
+cp openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
+cat > dist/OpenEkklesia.AppDir/OpenEkklesia.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=OpenEkklesia
+Comment=Church Management System (ChMS)
+Exec=OpenEkklesia
+Icon=OpenEkklesia
+Categories=Office;Finance;Database;
+Terminal=false
+DESKTOP
+
+# Qt 6 linuxdeploy skips AppRun generation; write the standard launcher.
+cat > dist/OpenEkklesia.AppDir/AppRun <<'RUN'
+#!/bin/sh
+SELF=$(readlink -f "$0")
+HERE=${SELF%/*}
+export PATH="${HERE}/usr/bin/:${HERE}/usr/sbin/:${HERE}/bin/:${HERE}/sbin/:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib/:${HERE}/usr/lib/x86_64-linux-gnu/:${HERE}/usr/lib64/:${LD_LIBRARY_PATH}"
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins/platforms"
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+exec "${HERE}/usr/bin/OpenEkklesia" "$@"
+RUN
+chmod +x dist/OpenEkklesia.AppDir/AppRun
+
+# Include the offscreen platform plugin so the app also runs headless
+# (real desktops use the bundled xcb plugin).
+if [ ! -f dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqoffscreen.so ]; then
+  OFFSCREEN="$(find /usr -name libqoffscreen.so 2>/dev/null | head -1)"
+  [ -n "$OFFSCREEN" ] && cp "$OFFSCREEN" dist/OpenEkklesia.AppDir/usr/plugins/platforms/ || true
+fi
+
+# 4. Package into a single-file AppImage
+appimagetool.AppImage dist/OpenEkklesia.AppDir dist/OpenEkklesia-${ARCH}.AppImage
+echo "✅ Built: dist/OpenEkklesia-${ARCH}.AppImage"
