@@ -65,7 +65,7 @@ private:
 
     // --- Page 2: Appearance & Theme ---
     QComboBox* m_cmbThemeModeFilter;
-    QComboBox* m_cmbThemePreset;
+    QListWidget* m_themeGallery;   // visual theme card gallery (IconMode)
     QCheckBox* m_chkSyncSystemTheme;
     QCheckBox* m_chkAutoCollapseSidebar;
     QPushButton* m_btnBgBaseColor;
@@ -78,6 +78,7 @@ private:
     QComboBox* m_cmbBrandBaseMode;
     QPushButton* m_btnSavePreset;
     QPushButton* m_btnResetTheme;
+    void selectThemeCard(const QString& themeId);
 
     // Live Theme Preview Card
     QFrame* m_previewCard;
@@ -86,6 +87,10 @@ private:
     QPushButton* m_btnPreviewPrimary;
     QPushButton* m_btnPreviewSecondary;
     QLabel* m_lblPreviewBadge;
+    QWidget* m_prevSidebar;
+    QLineEdit* m_prevInput;
+    QLabel* m_prevRow1;
+    QLabel* m_prevRow2;
 
     // --- Page 3: Modules & Features ---
     QCheckBox* m_chkModPeople;

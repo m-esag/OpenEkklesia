@@ -19,6 +19,11 @@
 #include <QDateTime>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QPainter>
+#include <QPixmap>
+#include <QIcon>
+#include <QListView>
+#include <QLineEdit>
 
 SettingsWidget::SettingsWidget(QWidget *parent)
     : QWidget(parent)
@@ -155,59 +160,107 @@ void SettingsWidget::setupUI() {
     layTheme->setContentsMargins(10, 0, 10, 10);
     layTheme->setSpacing(16);
 
-    // Live Preview Card
+    // Live Preview Card (mini app mock: sidebar + content)
     QGroupBox* grpPreview = new QGroupBox("👁️ Real-Time Theme Preview", pageTheme);
     QVBoxLayout* prevLay = new QVBoxLayout(grpPreview);
-    
+
     m_previewCard = new QFrame(grpPreview);
     m_previewCard->setObjectName("liveThemePreviewCard");
     m_previewCard->setFrameShape(QFrame::StyledPanel);
-    QVBoxLayout* cardInner = new QVBoxLayout(m_previewCard);
-    cardInner->setContentsMargins(18, 16, 18, 16);
-    cardInner->setSpacing(10);
+    m_previewCard->setMinimumHeight(150);
+    QHBoxLayout* prevOuter = new QHBoxLayout(m_previewCard);
+    prevOuter->setContentsMargins(0, 0, 0, 0);
+    prevOuter->setSpacing(0);
+
+    // Thin navigation sidebar strip
+    m_prevSidebar = new QWidget(m_previewCard);
+    m_prevSidebar->setFixedWidth(44);
+    prevOuter->addWidget(m_prevSidebar);
+
+    // Main content column
+    QWidget* prevContent = new QWidget(m_previewCard);
+    QVBoxLayout* cardInner = new QVBoxLayout(prevContent);
+    cardInner->setContentsMargins(16, 14, 16, 14);
+    cardInner->setSpacing(8);
 
     QHBoxLayout* prevHeaderRow = new QHBoxLayout();
-    m_lblPreviewHeader = new QLabel("Grace Community Church • ChMS Preview", m_previewCard);
+    m_lblPreviewHeader = new QLabel("Grace Community Church", prevContent);
     m_lblPreviewHeader->setStyleSheet("font-size: 15px; font-weight: bold;");
-    m_lblPreviewBadge = new QLabel("ACTIVE PRESET", m_previewCard);
+    m_lblPreviewBadge = new QLabel("ACTIVE PRESET", prevContent);
     m_lblPreviewBadge->setStyleSheet("padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold;");
     prevHeaderRow->addWidget(m_lblPreviewHeader);
     prevHeaderRow->addStretch();
     prevHeaderRow->addWidget(m_lblPreviewBadge);
     cardInner->addLayout(prevHeaderRow);
 
-    m_lblPreviewSub = new QLabel("Sample live controls showing current theme tokens, surface elevation, and typography.", m_previewCard);
+    m_lblPreviewSub = new QLabel("Sample controls rendered with the current theme tokens.", prevContent);
     m_lblPreviewSub->setStyleSheet("font-size: 12px; opacity: 0.85;");
     cardInner->addWidget(m_lblPreviewSub);
 
+    m_prevInput = new QLineEdit(prevContent);
+    m_prevInput->setPlaceholderText("Search members...");
+    m_prevInput->setMaximumWidth(250);
+    cardInner->addWidget(m_prevInput);
+
+    m_prevRow1 = new QLabel("•  Jane Smith  —  Member  (At-Risk)", prevContent);
+    m_prevRow2 = new QLabel("•  John Doe    —  Leader", prevContent);
+    m_prevRow1->setStyleSheet("font-size: 11px; padding: 3px 8px; border-radius: 4px;");
+    m_prevRow2->setStyleSheet("font-size: 11px; padding: 3px 8px; border-radius: 4px;");
+    cardInner->addWidget(m_prevRow1);
+    cardInner->addWidget(m_prevRow2);
+
     QHBoxLayout* prevBtnRow = new QHBoxLayout();
-    m_btnPreviewPrimary = new QPushButton("Primary Action", m_previewCard);
-    m_btnPreviewSecondary = new QPushButton("Secondary Option", m_previewCard);
+    m_btnPreviewPrimary = new QPushButton("Primary Action", prevContent);
+    m_btnPreviewSecondary = new QPushButton("Secondary", prevContent);
     prevBtnRow->addWidget(m_btnPreviewPrimary);
     prevBtnRow->addWidget(m_btnPreviewSecondary);
     prevBtnRow->addStretch();
     cardInner->addLayout(prevBtnRow);
 
+    prevOuter->addWidget(prevContent, 1);
     prevLay->addWidget(m_previewCard);
     layTheme->addWidget(grpPreview);
 
-    // Presets Card
-    QGroupBox* grpPreset = new QGroupBox("🎨 Active Theme Presets & Auto-Sync", pageTheme);
-    QFormLayout* presetForm = new QFormLayout(grpPreset);
+    // Theme Gallery (visual preset cards)
+    QGroupBox* grpPreset = new QGroupBox("🎨 Theme Gallery — click a preset to apply", pageTheme);
+    QVBoxLayout* presetForm = new QVBoxLayout(grpPreset);
     presetForm->setSpacing(10);
 
+    QHBoxLayout* galleryToolbar = new QHBoxLayout();
     m_cmbThemeModeFilter = new QComboBox(pageTheme);
-    m_cmbThemeModeFilter->addItems({"🎨 All Themes (Dark & Light Pairs)", "🌙 Dark Themes Only", "☀️ Light Themes Only"});
+    m_cmbThemeModeFilter->addItems({"🎨 All Themes", "🌙 Dark Themes", "☀️ Light Themes"});
+    m_chkSyncSystemTheme = new QCheckBox("Follow OS system theme (auto dark/light)", pageTheme);
+    m_chkAutoCollapseSidebar = new QCheckBox("Auto-collapse sidebar on small screens", pageTheme);
+    m_chkAutoCollapseSidebar->setChecked(true);
+    galleryToolbar->addWidget(new QLabel("Show:", pageTheme));
+    galleryToolbar->addWidget(m_cmbThemeModeFilter);
+    galleryToolbar->addSpacing(18);
+    galleryToolbar->addWidget(m_chkSyncSystemTheme);
+    galleryToolbar->addWidget(m_chkAutoCollapseSidebar);
+    galleryToolbar->addStretch();
+    presetForm->addLayout(galleryToolbar);
 
-    m_cmbThemePreset = new QComboBox(pageTheme);
+    m_themeGallery = new QListWidget(pageTheme);
+    m_themeGallery->setViewMode(QListView::IconMode);
+    m_themeGallery->setIconSize(QSize(120, 68));
+    m_themeGallery->setGridSize(QSize(138, 108));
+    m_themeGallery->setResizeMode(QListView::Adjust);
+    m_themeGallery->setMovement(QListView::Static);
+    m_themeGallery->setWrapping(true);
+    m_themeGallery->setSpacing(8);
+    m_themeGallery->setMinimumHeight(250);
+    m_themeGallery->setUniformItemSizes(true);
+    presetForm->addWidget(m_themeGallery);
+
     populateThemePresets(0);
 
     connect(m_cmbThemeModeFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         populateThemePresets(index);
     });
 
-    connect(m_cmbThemePreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        QString tId = m_cmbThemePreset->itemData(index).toString();
+    connect(m_themeGallery, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current, QListWidgetItem*) {
+        if (!current) return;
+        const QString tId = current->data(Qt::UserRole).toString();
         if (!tId.isEmpty()) {
             ThemeManager::instance().loadTheme(tId);
             updateColorButtonStyles();
@@ -215,33 +268,23 @@ void SettingsWidget::setupUI() {
         }
     });
 
-    m_chkSyncSystemTheme = new QCheckBox("Automatically follow OS system theme (Auto-sync dark/light mode)", pageTheme);
     connect(m_chkSyncSystemTheme, &QCheckBox::toggled, this, [this](bool checked) {
         if (checked) {
             ThemeManager::instance().loadTheme("system_auto");
-            m_cmbThemePreset->setEnabled(false);
-            m_cmbThemeModeFilter->setEnabled(false);
         } else {
-            m_cmbThemePreset->setEnabled(true);
-            m_cmbThemeModeFilter->setEnabled(true);
-            QString tId = m_cmbThemePreset->currentData().toString();
+            QListWidgetItem* cur = m_themeGallery->currentItem();
+            QString tId = cur ? cur->data(Qt::UserRole).toString() : QString();
             if (!tId.isEmpty() && tId != "system_auto") {
                 ThemeManager::instance().loadTheme(tId);
             } else {
                 ThemeManager::instance().loadTheme("catppuccin_mocha");
             }
         }
+        m_themeGallery->setEnabled(!checked);
         updateColorButtonStyles();
         updateLivePreview();
     });
 
-    m_chkAutoCollapseSidebar = new QCheckBox("Automatically collapse sidebar on smaller screens (< 940px)", pageTheme);
-    m_chkAutoCollapseSidebar->setChecked(true);
-
-    presetForm->addRow("Theme Style Filter:", m_cmbThemeModeFilter);
-    presetForm->addRow("Active Preset Theme:", m_cmbThemePreset);
-    presetForm->addRow("OS Theme Auto-Sync:", m_chkSyncSystemTheme);
-    presetForm->addRow("Responsive Sidebar:", m_chkAutoCollapseSidebar);
     layTheme->addWidget(grpPreset);
 
     // 1-Click Church Brand Generator
@@ -300,9 +343,9 @@ void SettingsWidget::setupUI() {
     presetBtns->addWidget(m_btnResetTheme);
     presetBtns->addStretch();
 
-    customForm->addRow("Main Window BG:", m_btnBgBaseColor);
-    customForm->addRow("Surface / Panel:", m_btnBgSurfaceColor);
-    customForm->addRow("Primary Accent:", m_btnAccentPrimaryColor);
+    customForm->addRow("Window Background:", m_btnBgBaseColor);
+    customForm->addRow("Cards & Panels:", m_btnBgSurfaceColor);
+    customForm->addRow("Accent Color:", m_btnAccentPrimaryColor);
     customForm->addRow("Text Color:", m_btnTextPrimaryColor);
     customForm->addRow("Corner Radius:", m_spnCornerRadius);
     customForm->addRow("UI Font Scale:", m_spnFontSize);
@@ -871,33 +914,71 @@ void SettingsWidget::onMarkDirty() {
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px; background-color: #fab387; color: #11111b;");
 }
 
+void SettingsWidget::selectThemeCard(const QString& themeId) {
+    if (!m_themeGallery) return;
+    for (int i = 0; i < m_themeGallery->count(); ++i) {
+        QListWidgetItem* item = m_themeGallery->item(i);
+        if (item->data(Qt::UserRole).toString() == themeId) {
+            m_themeGallery->setCurrentItem(item);
+            return;
+        }
+    }
+    if (m_themeGallery->count() > 0) m_themeGallery->setCurrentRow(0);
+}
+
 void SettingsWidget::populateThemePresets(int filterIndex) {
-    m_cmbThemePreset->blockSignals(true);
-    m_cmbThemePreset->clear();
+    if (!m_themeGallery) return;
+    m_themeGallery->blockSignals(true);
+    m_themeGallery->clear();
 
     QString currentId = ThemeManager::instance().activeThemeId();
 
     for (const QString& tId : ThemeManager::instance().availableThemes()) {
         ThemeTokens tok = ThemeManager::instance().getThemeTokens(tId);
-        // filterIndex 0: All Themes, 1: Dark Themes Only, 2: Light Themes Only
+        // filterIndex 0: All Themes, 1: Dark Only, 2: Light Only
         if (filterIndex == 1 && !tok.isDark && tId != "system_auto") continue;
         if (filterIndex == 2 && tok.isDark && tId != "system_auto") continue;
 
-        m_cmbThemePreset->addItem(tok.name, tId);
-    }
+        QPixmap preview(120, 68);
+        preview.fill(Qt::transparent);
+        QPainter p(&preview);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QRect r = preview.rect().adjusted(1, 1, -1, -1);
 
-    int idx = m_cmbThemePreset->findData(currentId);
-    if (idx >= 0) {
-        m_cmbThemePreset->setCurrentIndex(idx);
-    } else if (m_cmbThemePreset->count() > 0) {
-        m_cmbThemePreset->setCurrentIndex(0);
-    }
+        // window base
+        p.setBrush(tok.bgBase);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(r, 6, 6);
+        // surface panel
+        p.setBrush(tok.bgSurface);
+        p.drawRoundedRect(r.adjusted(8, 24, -8, -8), 4, 4);
+        // accent "button"
+        const QColor btnText = tok.accentPrimary.lightness() > 140 ? QColor("#11111b") : QColor("#ffffff");
+        p.setBrush(tok.accentPrimary);
+        p.drawRoundedRect(QRect(r.right() - 38, r.bottom() - 14, 30, 8), 2, 2);
+        // text lines
+        p.setBrush(tok.textPrimary);
+        p.drawRoundedRect(QRect(r.left() + 14, r.top() + 9, 46, 4), 2, 2);
+        p.setBrush(tok.textSecondary);
+        p.drawRoundedRect(QRect(r.left() + 16, r.top() + 30, 58, 3), 1, 1);
+        p.drawRoundedRect(QRect(r.left() + 16, r.top() + 37, 44, 3), 1, 1);
+        p.drawRoundedRect(QRect(r.left() + 16, r.top() + 44, 52, 3), 1, 1);
 
-    m_cmbThemePreset->blockSignals(false);
+        QListWidgetItem* item = new QListWidgetItem(QIcon(preview), tok.name, m_themeGallery);
+        item->setData(Qt::UserRole, tId);
+        item->setToolTip(tok.name);
+        item->setSizeHint(QSize(128, 92));
+        if (tId == currentId) m_themeGallery->setCurrentItem(item);
+    }
+    if (m_themeGallery->currentRow() < 0 && m_themeGallery->count() > 0) {
+        m_themeGallery->setCurrentRow(0);
+    }
+    m_themeGallery->blockSignals(false);
 }
 
 void SettingsWidget::updateLivePreview() {
     ThemeTokens t = ThemeManager::instance().currentTokens();
+    const QString onAccent = (t.accentPrimary.lightness() > 128) ? "#11111b" : "#ffffff";
 
     m_previewCard->setStyleSheet(QString(
         "#liveThemePreviewCard { "
@@ -907,13 +988,30 @@ void SettingsWidget::updateLivePreview() {
         "}"
     ).arg(t.bgSurface.name(), t.borderColor.name(), QString::number(t.borderRadiusMd)));
 
+    // Sidebar strip: base background with an accent nav "item" and muted items.
+    m_prevSidebar->setStyleSheet(QString(
+        "QWidget { background-color: %1; border-top-left-radius: %2px; border-bottom-left-radius: %2px; }"
+    ).arg(t.bgBase.name(), QString::number(t.borderRadiusMd)));
+
     m_lblPreviewHeader->setStyleSheet(QString("color: %1; font-size: 15px; font-weight: bold;").arg(t.textPrimary.name()));
     m_lblPreviewSub->setStyleSheet(QString("color: %1; font-size: 12px;").arg(t.textSecondary.name()));
     m_lblPreviewBadge->setStyleSheet(QString("background-color: %1; color: %2; padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: bold;")
-                                         .arg(t.accentPrimary.name(), (t.accentPrimary.lightness() > 128 ? "#11111b" : "#ffffff")));
+                                         .arg(t.accentPrimary.name(), onAccent));
+
+    m_prevInput->setStyleSheet(QString(
+        "QLineEdit { background-color: %1; border: 1px solid %2; border-radius: %3px; "
+        "color: %4; padding: 5px 10px; font-size: 12px; }"
+        "QLineEdit::placeholder { color: %5; }"
+    ).arg(t.bgInput.name(), t.borderColor.name(), QString::number(t.borderRadiusSm),
+          t.textPrimary.name(), t.textMuted.name()));
+
+    m_prevRow1->setStyleSheet(QString("background-color: %1; color: %2; font-size: 11px; padding: 3px 8px; border-radius: 4px;")
+                                  .arg(t.bgBase.name(), t.textSecondary.name()));
+    m_prevRow2->setStyleSheet(QString("background-color: %1; color: %2; font-size: 11px; padding: 3px 8px; border-radius: 4px;")
+                                  .arg(t.bgBase.name(), t.textPrimary.name()));
 
     m_btnPreviewPrimary->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border-radius: %3px; padding: 6px 14px;")
-                                           .arg(t.accentPrimary.name(), (t.accentPrimary.lightness() > 128 ? "#11111b" : "#ffffff"), QString::number(t.borderRadiusSm)));
+                                           .arg(t.accentPrimary.name(), onAccent, QString::number(t.borderRadiusSm)));
 
     m_btnPreviewSecondary->setStyleSheet(QString("background-color: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: 6px 14px;")
                                              .arg(t.bgOverlay.name(), t.textPrimary.name(), t.borderColor.name(), QString::number(t.borderRadiusSm)));
@@ -969,7 +1067,7 @@ void SettingsWidget::loadSettings() {
     m_chkSyncSystemTheme->blockSignals(true);
     m_chkSyncSystemTheme->setChecked(isSystemAuto);
     m_chkSyncSystemTheme->blockSignals(false);
-    m_cmbThemePreset->setEnabled(!isSystemAuto);
+    m_themeGallery->setEnabled(!isSystemAuto);
     m_cmbThemeModeFilter->setEnabled(!isSystemAuto);
 
     updateColorButtonStyles();
@@ -1024,10 +1122,9 @@ void SettingsWidget::saveSettings() {
     if (m_chkSyncSystemTheme->isChecked()) {
         ThemeManager::instance().loadTheme("system_auto");
     } else {
-        QString activeThemeId = m_cmbThemePreset->currentData().toString();
-        if (!activeThemeId.isEmpty()) {
-            ThemeManager::instance().loadTheme(activeThemeId);
-        }
+        // The active theme is already applied live by the gallery;
+        // re-apply so the setting round-trips cleanly.
+        ThemeManager::instance().loadTheme(ThemeManager::instance().activeThemeId());
     }
 
     s.sync();
@@ -1045,16 +1142,20 @@ void SettingsWidget::saveSettings() {
 void SettingsWidget::updateColorButtonStyles() {
     ThemeTokens t = ThemeManager::instance().currentTokens();
 
-    auto applyBtnStyle = [](QPushButton* btn, const QColor& col) {
-        btn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; border: 1px solid #45475a; border-radius: 4px; padding: 6px;")
-                               .arg(col.name(), (col.lightness() > 128 ? "#11111b" : "#ffffff")));
-        btn->setText(QString("%1").arg(col.name().toUpper()));
+    auto applyBtnStyle = [](QPushButton* btn, const QColor& col, const QString& label) {
+        const QString textColor = (col.lightness() > 128) ? "#11111b" : "#ffffff";
+        btn->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; border: 1px solid rgba(0,0,0,0.25); "
+            "border-radius: 6px; padding: 6px 10px; text-align: left; font-weight: bold; }"
+            "QPushButton:hover { border: 2px solid %2; }")
+            .arg(col.name(), textColor));
+        btn->setText(QString("%1  %2").arg(label, col.name().toUpper()));
     };
 
-    applyBtnStyle(m_btnBgBaseColor, t.bgBase);
-    applyBtnStyle(m_btnBgSurfaceColor, t.bgSurface);
-    applyBtnStyle(m_btnAccentPrimaryColor, t.accentPrimary);
-    applyBtnStyle(m_btnTextPrimaryColor, t.textPrimary);
+    applyBtnStyle(m_btnBgBaseColor, t.bgBase, "Window Background");
+    applyBtnStyle(m_btnBgSurfaceColor, t.bgSurface, "Cards & Panels");
+    applyBtnStyle(m_btnAccentPrimaryColor, t.accentPrimary, "Accent Color");
+    applyBtnStyle(m_btnTextPrimaryColor, t.textPrimary, "Text Color");
     m_spnCornerRadius->setValue(t.borderRadiusMd);
 }
 
@@ -1104,8 +1205,7 @@ void SettingsWidget::onGenerateChurchBrand() {
     bool darkBase = (m_cmbBrandBaseMode->currentIndex() == 0);
     if (ThemeManager::instance().generateChurchBrandTheme(chosen, darkBase)) {
         populateThemePresets(m_cmbThemeModeFilter->currentIndex());
-        int idx = m_cmbThemePreset->findData("church_brand");
-        if (idx >= 0) m_cmbThemePreset->setCurrentIndex(idx);
+        selectThemeCard(ThemeManager::instance().activeThemeId());
 
         updateColorButtonStyles();
         updateLivePreview();
@@ -1123,8 +1223,7 @@ void SettingsWidget::onSaveCustomPreset() {
         ThemeTokens t = ThemeManager::instance().currentTokens();
         if (ThemeManager::instance().saveCustomPreset(presetName.trimmed(), t)) {
             populateThemePresets(m_cmbThemeModeFilter->currentIndex());
-            int idx = m_cmbThemePreset->findData(ThemeManager::instance().activeThemeId());
-            if (idx >= 0) m_cmbThemePreset->setCurrentIndex(idx);
+            selectThemeCard(ThemeManager::instance().activeThemeId());
 
             updateLivePreview();
             QMessageBox::information(this, "Preset Saved", QString("Custom theme preset '%1' has been saved!").arg(presetName));
@@ -1136,8 +1235,7 @@ void SettingsWidget::onResetDefaultTheme() {
     ThemeManager::instance().clearCustomizationOverride();
     ThemeManager::instance().loadTheme("catppuccin_mocha");
     populateThemePresets(m_cmbThemeModeFilter->currentIndex());
-    int idx = m_cmbThemePreset->findData("catppuccin_mocha");
-    if (idx >= 0) m_cmbThemePreset->setCurrentIndex(idx);
+    selectThemeCard("catppuccin_mocha");
     updateColorButtonStyles();
     updateLivePreview();
     onMarkDirty();
