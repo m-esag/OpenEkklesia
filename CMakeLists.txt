@@ -76,14 +76,15 @@ set(SOURCES
     src/ui/admin/settingswidget.cpp
     src/ui/admin/vaultwidget.h
     src/ui/admin/vaultwidget.cpp
-    src/ui/admin/planningcenterdialog.h
-    src/ui/admin/planningcenterdialog.cpp
+    src/integrations/planningcenterdialog.h
+    src/integrations/planningcenterdialog.cpp
 )
 
 add_executable(OpenEkklesia ${SOURCES})
 
 target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
     ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui

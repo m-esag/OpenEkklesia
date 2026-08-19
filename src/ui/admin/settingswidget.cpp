@@ -1,6 +1,6 @@
 #include "settingswidget.h"
 #include "thememanager.h"
-#include "planningcenterdialog.h"
+#include "../integrations/planningcenterdialog.h"
 #include "../database/databasemanager.h"
 #include "../database/datasharing.h"
 #include <QVBoxLayout>

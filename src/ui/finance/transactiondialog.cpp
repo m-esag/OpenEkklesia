@@ -1,6 +1,6 @@
 #include "transactiondialog.h"
 #include "../database/databasemanager.h"
-#include "../core/appcurrency.h"
+#include "../common/appcurrency.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDate>
