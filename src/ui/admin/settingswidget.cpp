@@ -626,9 +626,7 @@ void SettingsWidget::setupUI() {
         QString defaultName = QString("open_ekklesia_backup_%1.db").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
         QString savePath = QFileDialog::getSaveFileName(this, "Export Database Backup", defaultName, "SQLite Database (*.db)");
         if (!savePath.isEmpty()) {
-            QSqlDatabase db = DatabaseManager::instance().database();
-            QString srcPath = db.databaseName();
-            if (QFile::copy(srcPath, savePath)) {
+            if (DatabaseManager::instance().exportBackup(savePath)) {
                 QMessageBox::information(this, "Backup Successful", QString("Database successfully backed up to:\n%1").arg(savePath));
             } else {
                 QMessageBox::critical(this, "Backup Failed", "Could not copy database file to specified destination.");

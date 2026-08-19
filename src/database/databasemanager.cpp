@@ -144,16 +144,34 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
         return false;
     }
 
-    // Close and release the live connection, swap the file, reopen fresh.
-    close();
+    // Close the live connection WITHOUT removing it from the registry: the app
+    // (and tests) may still hold QSqlDatabase/QSqlQuery handles, so
+    // QSqlDatabase::removeDatabase() would warn "connection is still in use"
+    // and leave a stale connection behind. Closing, swapping the file, and
+    // reopening the same connection avoids that entirely.
+    m_db.close();
+
     QFile::remove(dbPath);
     QFile::remove(dbPath + "-wal");
     QFile::remove(dbPath + "-shm");
     if (!QFile::copy(backupPath, dbPath)) {
         qWarning() << "Restore failed: could not copy backup over" << dbPath;
+        m_db.open(); // try to bring the original connection back
         return false;
     }
-    return initialize(dbPath);
+    return m_db.open();
+}
+
+bool DatabaseManager::exportBackup(const QString& destPath) {
+    const QString dbPath = m_db.isValid() ? m_db.databaseName() : QString();
+    if (dbPath.isEmpty()) return false;
+
+    // Force the write-ahead log into the main file so the copy is complete.
+    QSqlQuery q(m_db);
+    q.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+
+    QFile::remove(destPath);
+    return QFile::copy(dbPath, destPath);
 }
 
 QSqlDatabase DatabaseManager::database() const {

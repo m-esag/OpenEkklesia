@@ -1,5 +1,6 @@
 #include "shepherdwidget.h"
 #include "../database/databasemanager.h"
+#include "../core/thememanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -222,7 +223,8 @@ void ShepherdWidget::refreshQueue() {
         m_queueTable->setItem(row, 3, new QTableWidgetItem(notes));
         const bool overdue = due < today;
         QTableWidgetItem* od = new QTableWidgetItem(overdue ? "⚠️ Overdue" : "Due today");
-        od->setForeground(QColor(overdue ? "#f38ba8" : "#f9e2af"));
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        od->setForeground(overdue ? tok.accentDanger : tok.accentWarning);
         m_queueTable->setItem(row, 4, od);
         m_queueTable->item(row, 0)->setData(Qt::UserRole, q.value(0).toInt());
         m_queueTable->item(row, 1)->setData(Qt::UserRole + 1, q.value(6).toInt());

@@ -77,15 +77,16 @@ void PlanningCenterClient::fetchPeople(const QString& appId, const QString& secr
     auto allPeople = std::make_shared<QJsonArray>();
 
     auto fetchPage = std::make_shared<std::function<void(int)>>();
-    *fetchPage = [this, appId, secret, allPeople, fetchPage, callback](int offset) {
+    *fetchPage = [this, appId, secret, allPeople, fetchPage, callback](int offset) mutable {
         QString endpoint = QString("/people/v2/people?per_page=100&offset=%1").arg(offset);
-        executeGet(endpoint, appId, secret, [this, appId, secret, allPeople, fetchPage, callback, offset](int httpCode, const QByteArray& body, const QString& err) {
+        executeGet(endpoint, appId, secret, [this, appId, secret, allPeople, fetchPage, callback, offset](int httpCode, const QByteArray& body, const QString& err) mutable {
             if (!err.isEmpty() || httpCode != 200) {
                 if (allPeople->size() > 0) {
                     callback(true, *allPeople, QString());
                 } else {
                     callback(false, QJsonArray(), err.isEmpty() ? QString("HTTP %1").arg(httpCode) : err);
                 }
+                fetchPage.reset(); // break the self-reference so the cycle frees
                 return;
             }
 
@@ -103,6 +104,7 @@ void PlanningCenterClient::fetchPeople(const QString& appId, const QString& secr
                 (*fetchPage)(offset + 100);
             } else {
                 callback(true, *allPeople, QString());
+                fetchPage.reset(); // break the self-reference so the cycle frees
             }
         });
     };
@@ -167,25 +169,12 @@ PcoImportSummary PlanningCenterClient::importPeopleData(const QJsonArray& people
         QString membership = attrs.value("membership").toString("Member");
         if (membership.isEmpty()) membership = "Member";
 
-        // Assign or create household from last name if present
+        // Household assignment: the People endpoint does not carry household
+        // relationships, so we deliberately do NOT auto-create "{Surname}
+        // Family" households — that would wrongly merge unrelated people who
+        // happen to share a last name. Everyone lands in the shared
+        // "General / Unassigned" household until real household sync exists.
         int householdId = defaultHouseholdId;
-        if (!lastName.isEmpty()) {
-            QString householdName = QString("%1 Family").arg(lastName);
-            QSqlQuery qHFind(db);
-            qHFind.prepare("SELECT id FROM households WHERE family_name = ?");
-            qHFind.addBindValue(householdName);
-            if (qHFind.exec() && qHFind.next()) {
-                householdId = qHFind.value(0).toInt();
-            } else {
-                QSqlQuery qHIns(db);
-                qHIns.prepare("INSERT INTO households (family_name) VALUES (?)");
-                qHIns.addBindValue(householdName);
-                if (qHIns.exec()) {
-                    householdId = qHIns.lastInsertId().toInt();
-                    summary.householdsCount++;
-                }
-            }
-        }
 
         QString pcoId = personObj.value("id").toString();
         QString barcode = !pcoId.isEmpty() ? QString("PCO-%1").arg(pcoId) : QString();

@@ -15,6 +15,11 @@ public:
     // should warn the user to restart afterward so in-memory models reload.
     bool restoreFromBackup(const QString& backupPath);
 
+    // Snapshot the live database to destPath. Runs a WAL checkpoint first so
+    // the copy is complete (a raw file copy of a WAL-mode DB misses data still
+    // held in the write-ahead log).
+    bool exportBackup(const QString& destPath);
+
     QSqlDatabase database() const;
 
     bool purgeDemoData();

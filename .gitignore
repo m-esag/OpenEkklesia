@@ -29,3 +29,4 @@ qrc_*.cpp
 *.user
 *.swp
 .DS_Store
+oe_uicheck
