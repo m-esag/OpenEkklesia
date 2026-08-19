@@ -1,7 +1,7 @@
 #include "contributionswidget.h"
 #include "../database/databasemanager.h"
 #include <QSettings>
-#include "../core/appcurrency.h"
+#include "../common/appcurrency.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>

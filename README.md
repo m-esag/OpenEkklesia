@@ -11,33 +11,40 @@ The project follows a clean, domain-driven modular structure:
 ```
 OpenEkklesia/
 ├── CMakeLists.txt              # Primary CMake Build Configuration
-├── compile_commands.json       # IDE LSP Compilation Database
 ├── .clangd                     # Language Server Configuration
 ├── README.md                   # Architecture & Developer Documentation
+├── NOTES.md                    # Future roadmap & decision log
+├── tests/                      # Data-layer integration tests (ctest)
 └── src/
     ├── main.cpp                # Application Entry Point & Bootstrap
-    ├── database/               # Relational Database Manager & Schema Migrations
-    │   ├── databasemanager.h
-    │   └── databasemanager.cpp
+    ├── common/                 # Shared app utilities
+    │   └── appcurrency.h       # Currency symbol helper (Settings → Localization)
+    ├── database/               # Persistence & data sharing
+    │   ├── databasemanager.h / .cpp   # SQLite, migrations, backup/restore
+    │   └── datasharing.h / .cpp       # Scoped export/import ("split sharing")
+    ├── integrations/           # Third-party service integrations
+    │   ├── planningcenterclient.h / .cpp
+    │   └── planningcenterdialog.h / .cpp
     └── ui/                     # Graphical User Interface Modules
-        ├── core/               # App Shell, Command Palette, Kiosk & Theme Engine
+        ├── core/               # App shell, navigation, command palette, kiosk & theme engine
         │   ├── mainwindow.h / .cpp
         │   ├── commandpalette.h / .cpp
         │   ├── kioskwindow.h / .cpp
         │   └── thememanager.h / .cpp
-        ├── people/             # Congregation Directory & Pastoral Care Analytics
+        ├── people/             # Congregation directory & pastoral analytics
         │   ├── peoplewidget.h / .cpp
         │   └── pastoralanalyticswidget.h / .cpp
-        ├── finance/            # Giving Ledger, Transactions & Asset Inventory
+        ├── finance/            # Giving, double-entry ledger, transactions & inventory
         │   ├── contributionswidget.h / .cpp
         │   ├── inventorywidget.h / .cpp
         │   └── transactiondialog.h / .cpp
-        ├── ministry/           # Worship Service Builder, Planning, Facilities & Networks
+        ├── ministry/           # Service builder, planning, facilities, graph & Shepherd
         │   ├── servicebuilderwidget.h / .cpp
         │   ├── planningwidget.h / .cpp
         │   ├── facilitieswidget.h / .cpp
-        │   └── graphwidget.h / .cpp
-        └── admin/              # Security Vault, Role-Based Access & App Settings
+        │   ├── graphwidget.h / .cpp
+        │   └── shepherdwidget.h / .cpp
+        └── admin/              # Settings & document vault
             ├── settingswidget.h / .cpp
             └── vaultwidget.h / .cpp
 ```

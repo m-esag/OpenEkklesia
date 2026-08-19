@@ -22,7 +22,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include "../database/databasemanager.h"
-#include "appcurrency.h"
+#include "../common/appcurrency.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>

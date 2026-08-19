@@ -8,7 +8,7 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QTextEdit>
-#include "../integrations/planningcenterclient.h"
+#include "planningcenterclient.h"
 
 class PlanningCenterDialog : public QDialog {
     Q_OBJECT
