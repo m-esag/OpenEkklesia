@@ -578,36 +578,16 @@ void MainWindow::switchPage(int index) {
     if (!m_stackedWidget || index < 0 || index >= m_stackedWidget->count()) return;
     if (m_stackedWidget->currentIndex() == index) return;
 
+    // Switch pages instantly. A QGraphicsOpacityEffect fade used to be applied
+    // here, but it renders each page to an offscreen buffer and, on switching
+    // (especially between heavy modules like the Connection Graph and the
+    // members list), leaves ghost layers from the previous page bleeding into
+    // the next one ("header bleed-through"). The effect also interfered with
+    // QGraphicsView scene rendering. An instant switch has no artifacts.
     QWidget* targetPage = m_stackedWidget->widget(index);
     if (!targetPage) return;
-
     targetPage->ensurePolished();
-
-    // Do not assign QGraphicsOpacityEffect to QGraphicsView (index 7) as offscreen pixmap caching interferes with scene items
-    if (index == 7) {
-        m_stackedWidget->setCurrentIndex(index);
-        return;
-    }
-
-    QGraphicsOpacityEffect* effect = qobject_cast<QGraphicsOpacityEffect*>(targetPage->graphicsEffect());
-    if (!effect) {
-        effect = new QGraphicsOpacityEffect(targetPage);
-        targetPage->setGraphicsEffect(effect);
-    }
-
-    effect->setEnabled(true);
-    effect->setOpacity(0.0);
     m_stackedWidget->setCurrentIndex(index);
-
-    QPropertyAnimation* anim = new QPropertyAnimation(effect, "opacity", targetPage);
-    anim->setDuration(150);
-    anim->setStartValue(0.0);
-    anim->setEndValue(1.0);
-    anim->setEasingCurve(QEasingCurve::OutQuad);
-    connect(anim, &QPropertyAnimation::finished, this, [effect]() {
-        effect->setEnabled(false); // Disable graphics effect after transition to prevent header bleed-through & layout artifacts
-    });
-    anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void MainWindow::setSidebarCompact(bool compact) {
