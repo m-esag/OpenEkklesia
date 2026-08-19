@@ -85,6 +85,7 @@ private:
 
     void registerDefaultThemes();
     void appendThemeOrder(const QString& id);
+    void restoreColorCustomization();
 
     QString m_activeThemeId;
     ThemeTokens m_currentTokens;
