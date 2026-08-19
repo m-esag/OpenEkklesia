@@ -52,7 +52,8 @@ void ContributionsWidget::setupUI() {
 
     // Default to previous Sunday
     QDate today = QDate::currentDate();
-    int daysToSubtract = today.dayOfWeek(); // Mon=1, Sun=7
+    // Most-recent Sunday; on Sunday itself that is today (dayOfWeek 7 -> 0).
+    int daysToSubtract = today.dayOfWeek() % 7;
     QDate prevSunday = today.addDays(-daysToSubtract);
     m_dateEdit = new QDateEdit(prevSunday, this);
     m_dateEdit->setCalendarPopup(true);

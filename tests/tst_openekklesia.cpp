@@ -338,8 +338,8 @@ bool test_restoreFromBackup() {
     const QString backupPath = dbPath + ".backup_test";
     QFile::remove(backupPath);
 
-    // Snapshot the current database.
-    CHECK(QFile::copy(dbPath, backupPath));
+    // Snapshot the current database (via the WAL-aware export helper).
+    CHECK(DatabaseManager::instance().exportBackup(backupPath));
     CHECK_EQ(countRows("people"), 12);
 
     // Mutate the live database.

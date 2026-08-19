@@ -88,6 +88,10 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 - PIN auth + plaintext `users.pin` and Planning Center credentials in QSettings
   are accepted for now (single local operator machines). Revisit if multi-user
   network sync or mobile access is added.
+- Planning Center sync shells out to `curl` with `-u appId:secret` (credentials
+  briefly visible in `ps`). Replace with `QNetworkAccessManager` (HTTP Basic
+  Auth header) once the `qt6-network-devel` package is available — the runtime
+  lib is installed but the headers/cmake config are not.
 
 ## 6. Misc / polish backlog
 
