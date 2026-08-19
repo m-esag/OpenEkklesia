@@ -83,6 +83,11 @@ private:
     QPushButton* m_btnResetTheme;
     void selectThemeCard(const QString& themeId);
 
+    // WCAG Contrast Guardian
+    QLabel* m_lblContrastTextBg;
+    QLabel* m_lblContrastButtonAccent;
+    QLabel* m_lblContrastWarning;
+
     // Live Theme Preview Card
     QFrame* m_previewCard;
     QLabel* m_lblPreviewHeader;

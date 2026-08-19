@@ -4,7 +4,7 @@
 // Uses a minimal self-contained assertion harness so it does not depend on the
 // QtTest component being installed.
 
-#include <QCoreApplication>
+#include <QApplication>
 #include <QSqlQuery>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -22,6 +22,7 @@
 
 #include "../src/database/databasemanager.h"
 #include "../src/database/datasharing.h"
+#include "../src/ui/core/thememanager.h"
 
 namespace {
 
@@ -274,7 +275,7 @@ bool test_splitSharingRoundTrip() {
     // people do not block the delete — this mirrors a fresh receive-only copy).
     QSqlQuery q(d);
     q.exec("PRAGMA foreign_keys = OFF");
-    for (const QString& t : {"checkout_logs", "care_logs", "member_history", "attendance",
+    for (const QString& t : QStringList{"checkout_logs", "care_logs", "member_history", "attendance",
                              "member_skills", "entity_relationships", "people", "groups", "households"}) {
         CHECK(q.exec(QString("DELETE FROM %1").arg(t)));
     }
@@ -333,8 +334,7 @@ bool test_pastoralQueue() {
 }
 
 bool test_restoreFromBackup() {
-    QSqlDatabase d = db();
-    const QString dbPath = d.databaseName();
+    const QString dbPath = DatabaseManager::instance().database().databaseName();
     const QString backupPath = dbPath + ".backup_test";
     QFile::remove(backupPath);
 
@@ -342,9 +342,11 @@ bool test_restoreFromBackup() {
     CHECK(DatabaseManager::instance().exportBackup(backupPath));
     CHECK_EQ(countRows("people"), 12);
 
-    // Mutate the live database.
-    QSqlQuery q(d);
-    CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Restore', 'Test', 'Member')"));
+    // Mutate the live database inside an isolated scope so handles close before restore.
+    {
+        QSqlQuery q(DatabaseManager::instance().database());
+        CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Restore', 'Test', 'Member')"));
+    }
     CHECK_EQ(countRows("people"), 13);
 
     // Restore from the snapshot and verify the mutation is gone.
@@ -373,10 +375,46 @@ bool test_purgeDemoData() {
     return true;
 }
 
+bool test_themeNamedTokensTemplate() {
+    ThemeManager::instance().initialize();
+    ThemeManager::instance().loadTheme("catppuccin_mocha");
+    QString qss = ThemeManager::instance().generateGlobalQSS();
+
+    // Verify template generated non-empty QSS
+    CHECK(!qss.isEmpty());
+    // Verify zero unexpanded "var(--" token placeholders remain
+    CHECK(!qss.contains("var(--"));
+    // Verify essential selectors are styled
+    CHECK(qss.contains("QMainWindow"));
+    CHECK(qss.contains("QPushButton#primaryBtn"));
+    CHECK(qss.contains("QTableView"));
+    return true;
+}
+
+bool test_themeContrastGuardian() {
+    // Luminance benchmarks
+    double blackLum = ThemeManager::relativeLuminance(QColor(0, 0, 0));
+    double whiteLum = ThemeManager::relativeLuminance(QColor(255, 255, 255));
+    CHECK(std::abs(blackLum - 0.0) < 0.001);
+    CHECK(std::abs(whiteLum - 1.0) < 0.001);
+
+    // Contrast ratio benchmarks
+    double maxContrast = ThemeManager::contrastRatio(QColor(0, 0, 0), QColor(255, 255, 255));
+    double minContrast = ThemeManager::contrastRatio(QColor(255, 255, 255), QColor(255, 255, 255));
+    CHECK(std::abs(maxContrast - 21.0) < 0.01);
+    CHECK(std::abs(minContrast - 1.0) < 0.01);
+
+    // Rating badges
+    CHECK(ThemeManager::contrastRating(21.0).contains("AAA Pass"));
+    CHECK(ThemeManager::contrastRating(5.5).contains("AA Pass"));
+    CHECK(ThemeManager::contrastRating(2.5).contains("Fail"));
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv);
+    QApplication app(argc, argv);
     QCoreApplication::setApplicationName("openekklesia_tests");
 
     // Fresh, unique database file in the temp directory.
@@ -403,6 +441,8 @@ int main(int argc, char** argv) {
         {"pastoral_queue", test_pastoralQueue},
         {"restore_from_backup", test_restoreFromBackup},
         {"purge_demo_data", test_purgeDemoData},
+        {"theme_named_tokens_template", test_themeNamedTokensTemplate},
+        {"theme_contrast_guardian", test_themeContrastGuardian},
     };
 
     for (const Test& t : tests) {
@@ -423,3 +463,4 @@ int main(int argc, char** argv) {
 
     return g_failures == 0 ? 0 : 1;
 }
+

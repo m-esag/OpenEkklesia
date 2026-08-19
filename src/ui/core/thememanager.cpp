@@ -914,6 +914,35 @@ QPalette ThemeManager::generateQPalette() const {
     return pal;
 }
 
+// WCAG 2.1 Relative Luminance and Contrast Ratio calculations
+double ThemeManager::relativeLuminance(const QColor& c) {
+    auto channelLum = [](double srgbNorm) {
+        return (srgbNorm <= 0.04045) ? (srgbNorm / 12.92) : std::pow((srgbNorm + 0.055) / 1.055, 2.4);
+    };
+    double r = channelLum(c.redF());
+    double g = channelLum(c.greenF());
+    double b = channelLum(c.blueF());
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+double ThemeManager::contrastRatio(const QColor& c1, const QColor& c2) {
+    double l1 = relativeLuminance(c1);
+    double l2 = relativeLuminance(c2);
+    double lighter = qMax(l1, l2);
+    double darker = qMin(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+QString ThemeManager::contrastRating(double ratio) {
+    if (ratio >= 7.0) {
+        return QString("🟢 AAA Pass (%1:1)").arg(ratio, 0, 'f', 1);
+    } else if (ratio >= 4.5) {
+        return QString("🟡 AA Pass (%1:1)").arg(ratio, 0, 'f', 1);
+    } else {
+        return QString("🔴 Fail (%1:1 < 4.5:1)").arg(ratio, 0, 'f', 1);
+    }
+}
+
 QString ThemeManager::generateGlobalQSS() const {
     const auto& t = m_currentTokens;
 
@@ -943,115 +972,126 @@ QString ThemeManager::generateGlobalQSS() const {
     const QColor surfaceHover = (t.bgSurface.lightness() > 128)
                                     ? t.bgSurface.darker(104)     : t.bgSurface.lighter(112);
 
-    return QString(
-        "QMainWindow, QDialog { background-color: %1; color: %2; font-family: 'Segoe UI', system-ui, sans-serif; font-size: %10px; }\n"
-        "QStackedWidget#mainContent { background-color: %1; }\n"
-        "QWidget { color: %2; font-size: %10px; }\n"
-        "QLabel { color: %2; font-size: %10px; }\n"
-        "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {\n"
-        "  background-color: %3; border: 1px solid %4; border-radius: %9px; color: %2; padding: 6px 10px; font-size: %10px;\n"
-        "}\n"
-        "QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {\n"
-        "  border: 1px solid %5;\n"
-        "}\n"
-        // --- Button taxonomy (all buttons route through these object names) ---
-        "QPushButton {\n"
-        "  background-color: %6; border: 1px solid %4; color: %2; padding: 8px 16px; border-radius: %9px; font-weight: bold; font-size: %10px;\n"
-        "}\n"
-        "QPushButton:hover { background-color: %22; }\n"
-        "QPushButton#primaryBtn, QPushButton#saveBtn {\n"
-        "  background-color: %5; color: %11; border: none;\n"
-        "}\n"
-        "QPushButton#primaryBtn:hover, QPushButton#saveBtn:hover { background-color: %23; }\n"
-        "QPushButton#secondaryBtn {\n"
-        "  background-color: %6; color: %2; border: 1px solid %4;\n"
-        "}\n"
-        "QPushButton#secondaryBtn:hover { background-color: %22; }\n"
-        "QPushButton#dangerBtn {\n"
-        "  background-color: %7; color: %12; border: none;\n"
-        "}\n"
-        "QPushButton#dangerBtn:hover { background-color: %24; }\n"
-        "QPushButton#ghostDangerBtn, QPushButton#dangerGhostBtn {\n"
-        "  background: transparent; color: %7; border: none; font-weight: bold;\n"
-        "}\n"
-        "QPushButton#ghostDangerBtn:hover, QPushButton#dangerGhostBtn:hover { text-decoration: underline; }\n"
-        "QPushButton#accentBtnCyan   { background-color: %13; color: %16; border: none; }\n"
-        "QPushButton#accentBtnCyan:hover   { background-color: %13; }\n"
-        "QPushButton#accentBtnOrange { background-color: %14; color: %17; border: none; }\n"
-        "QPushButton#accentBtnOrange:hover { background-color: %14; }\n"
-        "QPushButton#accentBtnPink   { background-color: %15; color: %18; border: none; }\n"
-        "QPushButton#accentBtnPink:hover   { background-color: %15; }\n"
-        "QPushButton#navButton {\n"
-        "  background: transparent; border: none; text-align: left; padding: 9px 12px; border-radius: 6px; color: %2; font-weight: 500;\n"
-        "}\n"
-        "QPushButton#navButton:hover { background-color: %6; }\n"
-        "QPushButton#navButton[active=\"true\"] { background-color: %19; color: %5; font-weight: bold; }\n"
-        "QPushButton#checkinBtn {\n"
-        "  background-color: %20; color: %21; border: none; border-radius: 10px; font-size: 18px;\n"
-        "}\n"
-        "QPushButton#unlockBtn {\n"
-        "  background-color: %7; color: %12; border: none; border-radius: 8px; font-size: 15px;\n"
-        "}\n"
-        "QPushButton#sectionHeaderBtn {\n"
-        "  font-size: 11px; font-weight: bold; color: %5; text-align: left; background: transparent; border: none; padding: 4px 0px;\n"
-        "}\n"
-        "QGroupBox {\n"
-        "  background-color: %6; border: 1px solid %4; border-radius: %9px; margin-top: 12px; font-weight: bold; color: %5;\n"
-        "}\n"
-        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: %5; }\n"
-        "QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {\n"
-        "  background-color: %3; alternate-background-color: %1; border: 1px solid %4; gridline-color: %4; color: %2; border-radius: %9px; font-size: %10px;\n"
-        "}\n"
-        "QHeaderView::section {\n"
-        "  background-color: %6; color: %2; font-weight: bold; border: none; border-bottom: 2px solid %5; padding: 6px; font-size: %10px;\n"
-        "}\n"
-        "QTabWidget::pane { border: 1px solid %4; background-color: %6; border-radius: %9px; }\n"
-        "QTabBar::tab { background-color: %3; color: %8; padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid %4; border-bottom: none; font-size: %10px; }\n"
-        "QTabBar::tab:selected { background-color: %6; color: %2; border-bottom: 3px solid %5; }\n"
-        "QFrame#cardWidget, QFrame#hintPanel {\n"
-        "  background-color: %6; border: 1px solid %4; border-radius: %9px;\n"
-        "}\n"
-        "QCheckBox, QRadioButton {\n"
-        "  color: %2; font-weight: bold; font-size: %10px;\n"
-        "}\n"
-        "QComboBox::drop-down { border: none; width: 26px; }\n"
-        "QComboBox::down-arrow {\n"
-        "  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid %8; margin-right: 8px;\n"
-        "}\n"
-        "QComboBox QAbstractItemView {\n"
-        "  background-color: %3; color: %2; border: 1px solid %4; selection-background-color: %5; selection-color: %11; border-radius: %9px;\n"
-        "}\n"
-        "QMenu { background-color: %6; color: %2; border: 1px solid %4; }\n"
-        "QMenu::item { color: %2; padding: 6px 22px; }\n"
-        "QMenu::item:selected { background-color: %5; color: %11; }\n"
-        "QMenu::item:disabled { color: %8; }\n"
-        "QMenu::separator { height: 1px; background-color: %4; margin: 4px 10px; }\n"
-        "QMenuBar { background-color: %1; color: %2; }\n"
-        "QMenuBar::item:selected { background-color: %6; border-radius: %9px; }\n"
-    ).arg(
-        t.bgBase.name(),        // %1
-        t.textPrimary.name(),   // %2
-        t.bgInput.name(),       // %3
-        t.borderColor.name(),   // %4
-        t.accentPrimary.name(), // %5
-        t.bgSurface.name(),     // %6
-        t.accentDanger.name(),  // %7
-        t.textSecondary.name(), // %8
-        QString::number(t.borderRadiusMd), // %9
-        QString::number(t.fontSizePx),     // %10
-        primaryBtnTextColor,                // %11
-        dangerBtnTextColor,                 // %12
-        accentCyan.name(),                  // %13
-        accentOrange.name(),                // %14
-        accentPink.name(),                  // %15
-        textOn(accentCyan),                 // %16
-        textOn(accentOrange),               // %17
-        textOn(accentPink),                 // %18
-        navActiveBg.name(QColor::HexArgb),  // %19
-        t.accentSuccess.name(),             // %20
-        successBtnTextColor,                // %21
-        surfaceHover.name(),                // %22 (generic hover)
-        primaryHover.name(),                // %23 (primary/save hover)
-        dangerHover.name()                  // %24 (danger hover)
-    );
+    QMap<QString, QString> tokenMap = {
+        {"--bg-base", t.bgBase.name()},
+        {"--bg-surface", t.bgSurface.name()},
+        {"--bg-overlay", t.bgOverlay.name()},
+        {"--bg-input", t.bgInput.name()},
+        {"--text-primary", t.textPrimary.name()},
+        {"--text-secondary", t.textSecondary.name()},
+        {"--text-muted", t.textMuted.name()},
+        {"--accent-primary", t.accentPrimary.name()},
+        {"--accent-success", t.accentSuccess.name()},
+        {"--accent-warning", t.accentWarning.name()},
+        {"--accent-danger", t.accentDanger.name()},
+        {"--border-color", t.borderColor.name()},
+        {"--radius-sm", QString::number(t.borderRadiusSm) + "px"},
+        {"--radius-md", QString::number(t.borderRadiusMd) + "px"},
+        {"--font-size", QString::number(t.fontSizePx) + "px"},
+        {"--text-on-primary", primaryBtnTextColor},
+        {"--text-on-danger", dangerBtnTextColor},
+        {"--text-on-success", successBtnTextColor},
+        {"--accent-cyan", accentCyan.name()},
+        {"--accent-orange", accentOrange.name()},
+        {"--accent-pink", accentPink.name()},
+        {"--text-on-cyan", textOn(accentCyan)},
+        {"--text-on-orange", textOn(accentOrange)},
+        {"--text-on-pink", textOn(accentPink)},
+        {"--nav-active-bg", navActiveBg.name(QColor::HexArgb)},
+        {"--surface-hover", surfaceHover.name()},
+        {"--primary-hover", primaryHover.name()},
+        {"--danger-hover", dangerHover.name()}
+    };
+
+    QString qss = R"(
+QMainWindow, QDialog { background-color: var(--bg-base); color: var(--text-primary); font-family: 'Segoe UI', system-ui, sans-serif; font-size: var(--font-size); }
+QStackedWidget#mainContent { background-color: var(--bg-base); }
+QWidget { color: var(--text-primary); font-size: var(--font-size); }
+QLabel { color: var(--text-primary); font-size: var(--font-size); }
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {
+  background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); padding: 6px 10px; font-size: var(--font-size);
 }
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {
+  border: 1px solid var(--accent-primary);
+}
+QPushButton {
+  background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px 16px; border-radius: var(--radius-md); font-weight: bold; font-size: var(--font-size);
+}
+QPushButton:hover { background-color: var(--surface-hover); }
+QPushButton#primaryBtn, QPushButton#saveBtn {
+  background-color: var(--accent-primary); color: var(--text-on-primary); border: none;
+}
+QPushButton#primaryBtn:hover, QPushButton#saveBtn:hover { background-color: var(--primary-hover); }
+QPushButton#secondaryBtn {
+  background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color);
+}
+QPushButton#secondaryBtn:hover { background-color: var(--surface-hover); }
+QPushButton#dangerBtn {
+  background-color: var(--accent-danger); color: var(--text-on-danger); border: none;
+}
+QPushButton#dangerBtn:hover { background-color: var(--danger-hover); }
+QPushButton#ghostDangerBtn, QPushButton#dangerGhostBtn {
+  background: transparent; color: var(--accent-danger); border: none; font-weight: bold;
+}
+QPushButton#ghostDangerBtn:hover, QPushButton#dangerGhostBtn:hover { text-decoration: underline; }
+QPushButton#accentBtnCyan   { background-color: var(--accent-cyan); color: var(--text-on-cyan); border: none; }
+QPushButton#accentBtnCyan:hover   { background-color: var(--accent-cyan); }
+QPushButton#accentBtnOrange { background-color: var(--accent-orange); color: var(--text-on-orange); border: none; }
+QPushButton#accentBtnOrange:hover { background-color: var(--accent-orange); }
+QPushButton#accentBtnPink   { background-color: var(--accent-pink); color: var(--text-on-pink); border: none; }
+QPushButton#accentBtnPink:hover   { background-color: var(--accent-pink); }
+QPushButton#navButton {
+  background: transparent; border: none; text-align: left; padding: 9px 12px; border-radius: 6px; color: var(--text-primary); font-weight: 500;
+}
+QPushButton#navButton:hover { background-color: var(--bg-surface); }
+QPushButton#navButton[active="true"] { background-color: var(--nav-active-bg); color: var(--accent-primary); font-weight: bold; }
+QPushButton#checkinBtn {
+  background-color: var(--accent-success); color: var(--text-on-success); border: none; border-radius: 10px; font-size: 18px;
+}
+QPushButton#unlockBtn {
+  background-color: var(--accent-danger); color: var(--text-on-danger); border: none; border-radius: 8px; font-size: 15px;
+}
+QPushButton#sectionHeaderBtn {
+  font-size: 11px; font-weight: bold; color: var(--accent-primary); text-align: left; background: transparent; border: none; padding: 4px 0px;
+}
+QGroupBox {
+  background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 12px; font-weight: bold; color: var(--accent-primary);
+}
+QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: var(--accent-primary); }
+QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {
+  background-color: var(--bg-input); alternate-background-color: var(--bg-base); border: 1px solid var(--border-color); gridline-color: var(--border-color); color: var(--text-primary); border-radius: var(--radius-md); font-size: var(--font-size);
+}
+QHeaderView::section {
+  background-color: var(--bg-surface); color: var(--text-primary); font-weight: bold; border: none; border-bottom: 2px solid var(--accent-primary); padding: 6px; font-size: var(--font-size);
+}
+QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
+QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
+QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }
+QFrame#cardWidget, QFrame#hintPanel {
+  background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+}
+QCheckBox, QRadioButton {
+  color: var(--text-primary); font-weight: bold; font-size: var(--font-size);
+}
+QComboBox::drop-down { border: none; width: 26px; }
+QComboBox::down-arrow {
+  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-secondary); margin-right: 8px;
+}
+QComboBox QAbstractItemView {
+  background-color: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); border-radius: var(--radius-md);
+}
+QMenu { background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); }
+QMenu::item { color: var(--text-primary); padding: 6px 22px; }
+QMenu::item:selected { background-color: var(--accent-primary); color: var(--text-on-primary); }
+QMenu::item:disabled { color: var(--text-secondary); }
+QMenu::separator { height: 1px; background-color: var(--border-color); margin: 4px 10px; }
+QMenuBar { background-color: var(--bg-base); color: var(--text-primary); }
+QMenuBar::item:selected { background-color: var(--bg-surface); border-radius: var(--radius-md); }
+)";
+
+    for (auto it = tokenMap.cbegin(); it != tokenMap.cend(); ++it) {
+        qss.replace(QString("var(%1)").arg(it.key()), it.value());
+    }
+    return qss;
+}
+

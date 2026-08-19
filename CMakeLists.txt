@@ -109,15 +109,19 @@ add_executable(openekklesia_tests
     src/database/databasemanager.h
     src/database/datasharing.cpp
     src/database/datasharing.h
+    src/ui/core/thememanager.cpp
+    src/ui/core/thememanager.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
 )
 
 target_link_libraries(openekklesia_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
 )
 
