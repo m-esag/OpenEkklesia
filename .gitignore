@@ -30,3 +30,6 @@ qrc_*.cpp
 *.swp
 .DS_Store
 oe_uicheck
+/tools/
+/dist/
+squashfs-root
