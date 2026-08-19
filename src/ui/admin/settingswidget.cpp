@@ -20,6 +20,7 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QPainter>
+#include <QFileInfo>
 #include <QPixmap>
 #include <QIcon>
 #include <QListView>
@@ -144,6 +145,32 @@ void SettingsWidget::setupUI() {
     formOrg->addRow("Website URL:", m_txtWebsite);
     formOrg->addRow("Tax ID / EIN Number:", m_txtTaxId);
 
+    // Church logo (used on printed documents and statements).
+    m_logoPreview = new QLabel(pageGeneral);
+    m_logoPreview->setFixedSize(96, 96);
+    m_logoPreview->setAlignment(Qt::AlignCenter);
+    m_logoPreview->setText("No logo\nselected");
+    m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: #a6adc8;");
+    m_btnPickLogo = new QPushButton("🖼️ Upload Church Logo", pageGeneral);
+    m_btnPickLogo->setObjectName("primaryBtn");
+    connect(m_btnPickLogo, &QPushButton::clicked, this, &SettingsWidget::onPickLogo);
+
+    QWidget* logoRow = new QWidget(pageGeneral);
+    QHBoxLayout* logoRowLay = new QHBoxLayout(logoRow);
+    logoRowLay->setContentsMargins(0, 0, 0, 0);
+    logoRowLay->setSpacing(12);
+    logoRowLay->addWidget(m_logoPreview);
+    QVBoxLayout* logoBtns = new QVBoxLayout();
+    logoBtns->addWidget(m_btnPickLogo);
+    QLabel* logoHint = new QLabel("PNG/JPG, shown on printed reports, statements, and documents.", pageGeneral);
+    logoHint->setWordWrap(true);
+    logoHint->setStyleSheet("font-size: 11px; opacity: 0.7;");
+    logoBtns->addWidget(logoHint);
+    logoBtns->addStretch();
+    logoRowLay->addLayout(logoBtns);
+    logoRowLay->addStretch();
+    formOrg->addRow("Church Logo:", logoRow);
+
     layGeneral->addWidget(grpChurchProfile);
     layGeneral->addStretch();
     scrollGeneral->setWidget(pageGeneral);
@@ -241,6 +268,7 @@ void SettingsWidget::setupUI() {
     presetForm->addLayout(galleryToolbar);
 
     m_themeGallery = new QListWidget(pageTheme);
+    m_themeGallery->setObjectName("themeGallery");
     m_themeGallery->setViewMode(QListView::IconMode);
     m_themeGallery->setIconSize(QSize(120, 68));
     m_themeGallery->setGridSize(QSize(138, 108));
@@ -261,10 +289,11 @@ void SettingsWidget::setupUI() {
     connect(m_themeGallery, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current, QListWidgetItem*) {
         if (!current) return;
         const QString tId = current->data(Qt::UserRole).toString();
-        if (!tId.isEmpty()) {
+        if (!tId.isEmpty() && tId != ThemeManager::instance().activeThemeId()) {
             ThemeManager::instance().loadTheme(tId);
             updateColorButtonStyles();
             updateLivePreview();
+            onMarkDirty(); // so "Save All Changes" gives feedback
         }
     });
 
@@ -1029,6 +1058,16 @@ void SettingsWidget::loadSettings() {
     m_txtWebsite->setText(s.value("churchWebsite", "https://openekklesia.org").toString());
     m_txtTaxId->setText(s.value("churchTaxId", "XX-XXXXXXX").toString());
 
+    // Restore the church logo preview if one was uploaded.
+    const QString logoPath = s.value("churchLogo").toString();
+    if (!logoPath.isEmpty() && QFile::exists(logoPath)) {
+        QPixmap pix(logoPath);
+        if (!pix.isNull()) {
+            m_logoPreview->setPixmap(pix.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            m_logoPreview->setText("");
+        }
+    }
+
     m_chkAutoCollapseSidebar->setChecked(s.value("autoCollapseSidebar", true).toBool());
 
     // Load Modules & Features (default all to true)
@@ -1157,6 +1196,32 @@ void SettingsWidget::updateColorButtonStyles() {
     applyBtnStyle(m_btnAccentPrimaryColor, t.accentPrimary, "Accent Color");
     applyBtnStyle(m_btnTextPrimaryColor, t.textPrimary, "Text Color");
     m_spnCornerRadius->setValue(t.borderRadiusMd);
+}
+
+void SettingsWidget::onPickLogo() {
+    const QString file = QFileDialog::getOpenFileName(this, "Select Church Logo", QString(),
+                                                      "Images (*.png *.jpg *.jpeg *.bmp *.svg)");
+    if (file.isEmpty()) return;
+
+    // Copy into the app data dir so the logo is stable for document printing
+    // and survives the original file being moved or deleted.
+    const QString suffix = QFileInfo(file).suffix().toLower();
+    QString destDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logos";
+    QDir().mkpath(destDir);
+    const QString dest = destDir + "/church_logo." + suffix;
+    if (QFile::exists(dest)) QFile::remove(dest);
+    if (!QFile::copy(file, dest)) {
+        QMessageBox::critical(this, "Error", "Could not copy the selected logo into the app data folder.");
+        return;
+    }
+    QSettings("OpenEkklesia", "CHMS").setValue("churchLogo", dest);
+
+    QPixmap pix(dest);
+    if (!pix.isNull()) {
+        m_logoPreview->setPixmap(pix.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        m_logoPreview->setText("");
+    }
+    onMarkDirty();
 }
 
 void SettingsWidget::onPickColor() {

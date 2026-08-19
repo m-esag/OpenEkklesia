@@ -40,10 +40,47 @@ void ThemeManager::initialize() {
 #endif
 
     QSettings settings("OpenEkklesia", "CHMS");
+    // Capture BEFORE loadTheme, which clears the custom flag.
+    const bool restoreCustom = settings.value("themeIsCustom", false).toBool();
     QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
     if (!loadTheme(savedTheme)) {
         loadTheme("catppuccin_mocha");
     }
+    // Restore a previous session's interactive color tweaks on top of the
+    // active preset (only at startup — selecting a preset in-session shows the
+    // preset's true colors).
+    if (restoreCustom) {
+        restoreColorCustomization();
+    }
+}
+
+void ThemeManager::restoreColorCustomization() {
+    QSettings s("OpenEkklesia", "CHMS");
+    const QString json = s.value("customThemeJson").toString();
+    if (json.isEmpty()) return;
+    const QJsonObject obj = QJsonDocument::fromJson(json.toUtf8()).object();
+    if (obj.isEmpty()) return;
+
+    m_currentTokens.bgBase = QColor(obj.value("bgBase").toString());
+    m_currentTokens.bgSurface = QColor(obj.value("bgSurface").toString());
+    m_currentTokens.bgOverlay = QColor(obj.value("bgOverlay").toString());
+    m_currentTokens.bgInput = QColor(obj.value("bgInput").toString());
+    m_currentTokens.textPrimary = QColor(obj.value("textPrimary").toString());
+    m_currentTokens.textSecondary = QColor(obj.value("textSecondary").toString());
+    m_currentTokens.textMuted = QColor(obj.value("textMuted").toString());
+    m_currentTokens.accentPrimary = QColor(obj.value("accentPrimary").toString());
+    m_currentTokens.accentSuccess = QColor(obj.value("accentSuccess").toString());
+    m_currentTokens.accentWarning = QColor(obj.value("accentWarning").toString());
+    m_currentTokens.accentDanger = QColor(obj.value("accentDanger").toString());
+    m_currentTokens.borderColor = QColor(obj.value("borderColor").toString());
+    m_currentTokens.borderRadiusMd = obj.value("borderRadiusMd").toInt(m_currentTokens.borderRadiusMd);
+
+    s.setValue("themeIsCustom", true);
+    if (qApp) {
+        qApp->setPalette(generateQPalette());
+        qApp->setStyleSheet(generateGlobalQSS());
+    }
+    emit themeChanged(m_currentTokens);
 }
 
 bool ThemeManager::isSystemDark() const {
@@ -760,28 +797,9 @@ bool ThemeManager::loadTheme(const QString& themeId) {
     // should survive both restarts and theme switches.
     m_currentTokens.fontSizePx = qBound(11, settings.value("fontSizePx", 13).toInt(), 18);
 
-    // Re-apply any saved color/radius customization on top of the chosen preset
-    // so interactive color tweaks survive restarts.
-    const QString overrideJson = settings.value("customThemeJson").toString();
-    if (!overrideJson.isEmpty()) {
-        const QJsonObject obj = QJsonDocument::fromJson(overrideJson.toUtf8()).object();
-        if (!obj.isEmpty()) {
-            m_currentTokens.bgBase = QColor(obj.value("bgBase").toString());
-            m_currentTokens.bgSurface = QColor(obj.value("bgSurface").toString());
-            m_currentTokens.bgOverlay = QColor(obj.value("bgOverlay").toString());
-            m_currentTokens.bgInput = QColor(obj.value("bgInput").toString());
-            m_currentTokens.textPrimary = QColor(obj.value("textPrimary").toString());
-            m_currentTokens.textSecondary = QColor(obj.value("textSecondary").toString());
-            m_currentTokens.textMuted = QColor(obj.value("textMuted").toString());
-            m_currentTokens.accentPrimary = QColor(obj.value("accentPrimary").toString());
-            m_currentTokens.accentSuccess = QColor(obj.value("accentSuccess").toString());
-            m_currentTokens.accentWarning = QColor(obj.value("accentWarning").toString());
-            m_currentTokens.accentDanger = QColor(obj.value("accentDanger").toString());
-            m_currentTokens.borderColor = QColor(obj.value("borderColor").toString());
-            m_currentTokens.borderRadiusMd = obj.value("borderRadiusMd").toInt(m_currentTokens.borderRadiusMd);
-        }
-    }
-
+    // Selecting a preset shows that preset's true colors: abandon any saved
+    // interactive color tweaks (they are only restored at startup).
+    settings.setValue("themeIsCustom", false);
     settings.setValue("activeThemeId", themeId);
     settings.setValue("isDarkMode", m_currentTokens.isDark);
 
@@ -813,8 +831,9 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
     obj["accentDanger"] = m_currentTokens.accentDanger.name();
     obj["borderColor"] = m_currentTokens.borderColor.name();
     obj["borderRadiusMd"] = m_currentTokens.borderRadiusMd;
-    QSettings("OpenEkklesia", "CHMS").setValue("customThemeJson",
-        QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    QSettings s("OpenEkklesia", "CHMS");
+    s.setValue("customThemeJson", QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    s.setValue("themeIsCustom", true);
 
     if (qApp) {
         qApp->setPalette(generateQPalette());
@@ -826,7 +845,9 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
 }
 
 void ThemeManager::clearCustomizationOverride() {
-    QSettings("OpenEkklesia", "CHMS").remove("customThemeJson");
+    QSettings s("OpenEkklesia", "CHMS");
+    s.remove("customThemeJson");
+    s.remove("themeIsCustom");
 }
 
 bool ThemeManager::saveCustomPreset(const QString& presetName, const ThemeTokens& tokens) {

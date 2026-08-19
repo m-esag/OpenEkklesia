@@ -28,6 +28,7 @@ signals:
 
 private slots:
     void onPickColor();
+    void onPickLogo();
     void onRadiusSliderChanged(int value);
     void onFontSizeSliderChanged(int value);
     void onGenerateChurchBrand();
@@ -62,6 +63,8 @@ private:
     QLineEdit* m_txtEmail;
     QLineEdit* m_txtWebsite;
     QLineEdit* m_txtTaxId;
+    QLabel* m_logoPreview;
+    QPushButton* m_btnPickLogo;
 
     // --- Page 2: Appearance & Theme ---
     QComboBox* m_cmbThemeModeFilter;
