@@ -261,7 +261,7 @@ void PeopleWidget::setupUI() {
     // Action Toolbar Row 1
     QHBoxLayout* row1 = new QHBoxLayout();
     row1->setSpacing(6);
-    m_btnAddPerson = new QPushButton("➕ Add Member", this);
+    m_btnAddPerson = new QPushButton("➕ Add Person", this);
     m_btnAddPerson->setObjectName("primaryBtn");
     connect(m_btnAddPerson, &QPushButton::clicked, this, &PeopleWidget::onAddPerson);
 
@@ -640,7 +640,7 @@ void PeopleWidget::setupUI() {
     actionBox->addWidget(sep);
 
     QHBoxLayout* deleteRow = new QHBoxLayout();
-    m_btnDeletePerson = new QPushButton("🗑️ Delete Member Profile", this);
+    m_btnDeletePerson = new QPushButton("🗑️ Delete Person Profile", this);
     m_btnDeletePerson->setObjectName("ghostDangerBtn");
     m_btnDeletePerson->setStyleSheet(
         "QPushButton#ghostDangerBtn { background: transparent; border: none; color: #f38ba8; font-size: 11px; font-weight: bold; }"
@@ -742,9 +742,9 @@ void PeopleWidget::setupModels() {
     m_mapper->addMapping(m_phoneEdit, 4);
     m_mapper->addMapping(m_emailEdit, 5);
     m_mapper->addMapping(m_avatarPathEdit, 7);
-    m_mapper->addMapping(m_giftsEdit, 14);
-    m_mapper->addMapping(m_styleEdit, 15);
-    m_mapper->addMapping(m_tagsEdit, 16);
+    m_mapper->addMapping(m_giftsEdit, 15); // spiritual_gifts
+    m_mapper->addMapping(m_styleEdit, 16); // relational_style
+    m_mapper->addMapping(m_tagsEdit, 17);  // interest_tags
 
     connect(m_peopleTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &PeopleWidget::onSelectionChanged);
 
@@ -937,7 +937,16 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     QSqlRecord rec = m_peopleModel->record(row);
     int personId = rec.value("id").toInt();
     m_currentPersonId = personId;
-    int householdId = rec.value("household_id").toInt();
+    // The relational model returns the family_name display for the household
+    // column regardless of role on this Qt build, so read the foreign key
+    // directly from the row.
+    int householdId = 0;
+    {
+        QSqlQuery hq;
+        hq.prepare("SELECT household_id FROM people WHERE id = ?");
+        hq.addBindValue(personId);
+        if (hq.exec() && hq.next()) householdId = hq.value(0).toInt();
+    }
     QString gender = rec.value("gender").toString();
     QString avatarPath = rec.value("avatar_path").toString();
     QString giftsText = rec.value("spiritual_gifts").toString();
@@ -1039,7 +1048,7 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
 
 void PeopleWidget::onLogCareEntry() {
     if (m_currentPersonId <= 0) {
-        QMessageBox::information(this, "Select a Member", "Select a member profile before logging a care entry.");
+        QMessageBox::information(this, "Select a Person", "Select a person profile before logging a care entry.");
         return;
     }
 
@@ -1178,7 +1187,7 @@ void PeopleWidget::onAddPerson() {
     if (q.exec()) {
         int newId = q.lastInsertId().toInt();
         db.commit();
-        DatabaseManager::logAudit("people", newId, "record", "New Member", "CREATED", "admin");
+        DatabaseManager::logAudit("people", newId, "record", "New Person", "CREATED", "admin");
 
         m_peopleModel->revertAll();
         m_peopleModel->select();
@@ -1250,7 +1259,7 @@ void PeopleWidget::loadAvatar(const QString& path) {
 void PeopleWidget::onSaveProfile() {
     QModelIndex current = m_peopleTable->currentIndex();
     if (!current.isValid()) {
-        QMessageBox::warning(this, "No Selection", "Please select a member profile first.");
+        QMessageBox::warning(this, "No Selection", "Please select a person profile first.");
         return;
     }
 
@@ -1338,7 +1347,7 @@ void PeopleWidget::onSaveProfile() {
 void PeopleWidget::onDeletePerson() {
     QModelIndex current = m_peopleTable->currentIndex();
     if (!current.isValid()) {
-        QMessageBox::warning(this, "No Selection", "Please select a member to delete.");
+        QMessageBox::warning(this, "No Selection", "Please select a person to delete.");
         return;
     }
 
@@ -1368,7 +1377,7 @@ void PeopleWidget::onDeletePerson() {
             QMessageBox::information(this, "Success", "Member profile deleted successfully.");
         } else {
             db.rollback();
-            QMessageBox::critical(this, "Database Error", "Failed to delete member: " + q.lastError().text());
+            QMessageBox::critical(this, "Database Error", "Failed to delete person: " + q.lastError().text());
         }
     }
 }
@@ -1376,7 +1385,7 @@ void PeopleWidget::onDeletePerson() {
 void PeopleWidget::onDeleteSelectedMembers() {
     QModelIndexList selectedRows = m_peopleTable->selectionModel()->selectedRows();
     if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "No Selection", "Please select one or more members to delete.");
+        QMessageBox::warning(this, "No Selection", "Please select one or more people to delete.");
         return;
     }
 
