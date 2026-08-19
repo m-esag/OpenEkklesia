@@ -1365,21 +1365,45 @@ void PeopleWidget::onDeletePerson() {
     if (res == QMessageBox::Yes) {
         QSqlDatabase db = QSqlDatabase::database();
         db.transaction();
-        
+
         QSqlQuery q(db);
-        q.prepare("DELETE FROM people WHERE id = ?");
-        q.addBindValue(personId);
-        if (q.exec()) {
+        if (deletePersonCascade(q, personId)) {
             db.commit();
             DatabaseManager::logAudit("people", personId, "record", fullName, "DELETED", "admin");
             m_peopleModel->select();
             reapplyFilter();
-            QMessageBox::information(this, "Success", "Member profile deleted successfully.");
+            QMessageBox::information(this, "Success", "Person profile deleted successfully.");
         } else {
             db.rollback();
             QMessageBox::critical(this, "Database Error", "Failed to delete person: " + q.lastError().text());
         }
     }
+}
+
+bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
+    // Remove child records first so foreign-key constraints don't block the
+    // person delete (previously the DELETE failed for anyone with
+    // contributions, relationships, care logs, attendance, etc.).
+    const QStringList childTables = {
+        "pastoral_activities", "member_history", "care_logs", "attendance",
+        "member_skills", "service_volunteers", "checkout_logs",
+        "contributions", "splits"
+    };
+    for (const QString& t : childTables) {
+        q.prepare(QString("DELETE FROM %1 WHERE person_id = ?").arg(t));
+        q.addBindValue(personId);
+        if (!q.exec()) return false;
+    }
+    // Polymorphic relationships can reference the person as source or target.
+    q.prepare("DELETE FROM entity_relationships WHERE (source_type = 'Person' AND source_id = ?) "
+              "OR (target_type = 'Person' AND target_id = ?)");
+    q.addBindValue(personId);
+    q.addBindValue(personId);
+    if (!q.exec()) return false;
+
+    q.prepare("DELETE FROM people WHERE id = ?");
+    q.addBindValue(personId);
+    return q.exec();
 }
 
 void PeopleWidget::onDeleteSelectedMembers() {
@@ -1412,16 +1436,19 @@ void PeopleWidget::onDeleteSelectedMembers() {
         db.transaction();
 
         QSqlQuery q(db);
+        int deleted = 0;
         for (int id : ids) {
-            q.prepare("DELETE FROM people WHERE id = ?");
-            q.addBindValue(id);
-            q.exec();
+            if (deletePersonCascade(q, id)) ++deleted;
         }
-        db.commit();
+        if (deleted > 0) {
+            db.commit();
+        } else {
+            db.rollback();
+        }
 
         m_peopleModel->select();
         reapplyFilter();
-        QMessageBox::information(this, "Success", QString("Successfully deleted %1 members.").arg(ids.size()));
+        QMessageBox::information(this, "Success", QString("Successfully deleted %1 people.").arg(deleted));
     }
 }
 

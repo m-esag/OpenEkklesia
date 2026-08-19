@@ -127,6 +127,9 @@ private:
     void refreshHouseholdMembersList(int householdId, int currentPersonId);
     void refreshTagCompleter();
     void updateHistoryTimeline(int personId);
+    // Clears a person's child records then deletes the person (FK-safe).
+    // Caller owns the transaction. Returns true on success.
+    bool deletePersonCascade(QSqlQuery& q, int personId);
 
     // Left Panel (Master)
     QLineEdit* m_searchEdit;
