@@ -11,6 +11,18 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QJsonArray>
+#include <QPair>
+#include <QSqlDatabase>
+
+class QSqlDatabase;
+
+// How often each element appears across saved service run sheets.
+struct ElementUsage {
+    QString name;
+    QString type;
+    int count = 0;
+    QString lastUsedDate;
+};
 
 class ServiceBuilderWidget : public QWidget {
     Q_OBJECT
@@ -26,6 +38,13 @@ public:
     // Tier 2 helpers (no dialogs) exposed for headless tests.
     QStringList collectCoverageIssues() const;
     int markVolunteersAttended();
+
+    // Tier 3 helpers (no dialogs) exposed for headless tests.
+    // One VEVENT per (role, name) on the given date at the given start time.
+    static QString volunteerIcal(const QDate& date, const QTime& startTime,
+                                 const QList<QPair<QString, QString>>& roleNames);
+    // Aggregates element reuse across all saved service run sheets.
+    static QList<ElementUsage> elementUsageStats(const QSqlDatabase& db, int limit = 100);
 
 private slots:
     void onSaveService();
@@ -45,6 +64,8 @@ private slots:
     void onApplyTemplate();
     void onMarkAttended();
     void onCoverageCheck();
+    void onExportIcal();
+    void onElementUsage();
 
 private:
     void setupUI();
@@ -71,6 +92,9 @@ private:
     QPushButton* m_btnApplyTemplate;
     QPushButton* m_btnCoverageCheck;
     QPushButton* m_btnMarkAttended;
+    QPushButton* m_btnExportIcal;
+    QPushButton* m_btnUsageStats;
+    QLabel* m_lblTypeLegend;
 
     // Element library editing
     QPushButton* m_btnAddElement;
