@@ -39,11 +39,24 @@ struct MatchResult {
     QStringList reasons;       // human-readable "why this person"
 };
 
+// What a group declares it is looking for (groups.required_skills / min_age /
+// max_age), with fallback to what its current members actually do.
+struct GroupMatchProfile {
+    QStringList requiredSkills;  // declared, possibly empty
+    int minAge = 0;              // 0 = unconstrained
+    int maxAge = 0;              // 0 = unconstrained (no band declared)
+    bool skillsDeclared = false; // true when required_skills is non-empty
+    bool ageBandSet = false;     // true when maxAge > 0
+};
+
 class MinistryRecommender {
 public:
     // Skill profile of a group, inferred from its current members' skills
     // (most common first). Empty when the group has no members yet.
     static QStringList groupSkillProfile(const QSqlDatabase& db, int groupId, int limit = 6);
+
+    // Full match profile: declared skills/age band win over inference.
+    static GroupMatchProfile groupMatchProfile(const QSqlDatabase& db, int groupId);
 
     // Ranked candidates for one group per criteria. People already in the
     // group (any role) are always excluded. Sorted by score descending.
