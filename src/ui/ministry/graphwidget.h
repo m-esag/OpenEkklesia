@@ -28,6 +28,7 @@
 
 class NodeItem;
 class EdgeItem;
+class GhostEdgeItem;
 class GraphWidget;
 
 class NodeItem : public QGraphicsItem {
@@ -54,8 +55,17 @@ public:
     bool isCriticalBurnout() const { return m_isCriticalBurnout; }
     QString burnoutRolesDetail() const { return m_burnoutRolesDetail; }
 
+    // Relational Broker / Bridge Node
+    void setBridgeBroker(bool isBroker, const QStringList& bridgedGroups) {
+        m_isBridgeBroker = isBroker;
+        m_bridgedGroups = bridgedGroups;
+        QGraphicsItem::update();
+    }
+    bool isBridgeBroker() const { return m_isBridgeBroker; }
+    QStringList bridgedGroups() const { return m_bridgedGroups; }
+
     // Family Concentration
-    void setFamilyConcentration(const QString& msg) { m_familyConcentrationMsg = msg; }
+    void setFamilyConcentration(const QString& msg) { m_familyConcentrationMsg = msg; QGraphicsItem::update(); }
     QString familyConcentration() const { return m_familyConcentrationMsg; }
 
     void setConnectionCount(int count) { m_connectionCount = count; }
@@ -113,6 +123,8 @@ private:
     int m_burnoutGroupCount;
     bool m_isCriticalBurnout;
     QString m_burnoutRolesDetail;
+    bool m_isBridgeBroker = false;
+    QStringList m_bridgedGroups;
     QString m_familyConcentrationMsg;
     int m_connectionCount;
     QString m_careFlag;
@@ -141,7 +153,7 @@ public:
     bool isBurnoutLink() const { return m_isBurnoutLink; }
 
     QRectF boundingRect() const override;
-    QPainterPath shape() const override; // 12px wide hitbox buffer for easy clicking!
+    QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
     void setSelectedState(bool sel) { m_isSelected = sel; update(); }
@@ -162,11 +174,31 @@ private:
     bool m_isSelected;
 };
 
+class GhostEdgeItem : public QGraphicsItem {
+public:
+    GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& matchReason, int matchPct);
+
+    NodeItem* sourceNode() const { return m_source; }
+    NodeItem* targetNode() const { return m_target; }
+    QString matchReason() const { return m_matchReason; }
+    int matchPct() const { return m_matchPct; }
+
+    QRectF boundingRect() const override;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+private:
+    NodeItem* m_source;
+    NodeItem* m_target;
+    QString m_matchReason;
+    int m_matchPct;
+};
+
 class GraphCanvasView : public QGraphicsView {
     Q_OBJECT
 public:
     explicit GraphCanvasView(QGraphicsScene* scene, QWidget* parent = nullptr);
     void setGraphWidget(GraphWidget* gw) { m_graphWidget = gw; }
+    void setSelectMode(bool selectMode);
 
 protected:
     void wheelEvent(QWheelEvent* event) override;
@@ -177,6 +209,7 @@ protected:
 
 private:
     GraphWidget* m_graphWidget = nullptr;
+    bool m_selectMode = false;
 };
 
 class GraphWidget : public QWidget {
@@ -210,10 +243,22 @@ public:
     void spotlightIsolatedNodes();
     void spotlightBurnoutNodes();
     void spotlightHygieneNodes();
+    void spotlightBridgeNodes();
+    void spotlightFamilyDynasties();
 
     bool isHygieneActive() const { return m_filterHygieneActive; }
+    bool isBridgeActive() const { return m_filterBridgeActive; }
+    bool isFamilyActive() const { return m_filterFamilyActive; }
     QGraphicsScene* scene() const { return m_scene; }
     GraphCanvasView* canvasView() const { return m_canvasView; }
+
+    void computeSmartBridge(NodeItem* personNode);
+    void clearGhostEdges();
+
+public slots:
+    void onZoomIn();
+    void onZoomOut();
+    void onZoomReset();
 
 private slots:
     void updatePhysics();
@@ -226,9 +271,6 @@ private slots:
     void onRunAudit();
     void onGraphSearchChanged(const QString& text);
     void onExportJSON();
-    void onZoomIn();
-    void onZoomOut();
-    void onZoomReset();
     void onToggleLegend();
     void onToggleLayoutMode();
     void onSpotlightIsolatedClicked();
@@ -239,9 +281,18 @@ private slots:
     void onRosterItemClicked(QListWidgetItem* item);
     void onCopyContactInfo(NodeItem* node, const QString& type);
     void onQuickAssignGroup(NodeItem* node);
+    void onToggleSelectMode();
+    void onMinistryBranchChanged(int index);
+    void onSceneSelectionChanged();
+    void onBatchCopyEmails();
+    void onBatchCopyPhones();
+    void onBatchExportCSV();
+    void onBatchAssignGroup();
+    void onConnectSmartBridge(int personId, int groupId, const QString& role);
 
 protected:
     void showEvent(QShowEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     void setupUI();
@@ -254,6 +305,8 @@ private:
     void loadNodePositions();
     void styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor);
     void updateDetailsPanelForEmpty();
+    void refreshMinistryBranches();
+    void updateFloatingControlsPosition();
 
     QSplitter* m_splitter;
     GraphCanvasView* m_canvasView;
@@ -261,15 +314,20 @@ private:
     QTimer* m_timer;
     QList<NodeItem*> m_nodes;
     QList<EdgeItem*> m_edges;
+    QList<GhostEdgeItem*> m_ghostEdges;
 
     // Top Controls
     QWidget* m_topBarWidget;
+    QComboBox* m_cmbMinistryBranch;
+    QPushButton* m_btnToggleSelectMode;
     QPushButton* m_btnTogglePeople;
     QPushButton* m_btnToggleHouseholds;
     QPushButton* m_btnToggleGroups;
     QPushButton* m_btnToggleBurnout;
     QPushButton* m_btnToggleIsolation;
     QPushButton* m_btnToggleHygiene;
+    QPushButton* m_btnToggleBridgeNodes;
+    QPushButton* m_btnToggleFamilyDynasty;
     QPushButton* m_btnToggleLayout;
     QPushButton* m_btnIsolatedBanner;
     QPushButton* m_btnLegendToggle;
@@ -281,6 +339,14 @@ private:
     QPushButton* m_btnExportPNG;
     QPushButton* m_btnExportJSON;
 
+    // Prominent Zoom Buttons in Toolbar
+    QPushButton* m_btnZoomIn;
+    QPushButton* m_btnZoomOut;
+    QPushButton* m_btnZoomReset;
+
+    // Floating Glass Canvas Zoom Overlay
+    QWidget* m_floatingZoomBar;
+
     // Filter States
     bool m_filterPeopleActive;
     bool m_filterHouseholdsActive;
@@ -288,12 +354,14 @@ private:
     bool m_filterBurnoutActive;
     bool m_filterIsolationActive;
     bool m_filterHygieneActive;
+    bool m_filterBridgeActive;
+    bool m_filterFamilyActive;
+    bool m_isSelectMode;
     LayoutMode m_layoutMode;
+    int m_selectedMinistryParentId;
 
     // Collapsible Legend & Minimap
     QWidget* m_legendOverlay;
-    QGraphicsView* m_minimapView;
-    void updateMinimap();
 
     // Pathfinder State
     bool m_pathfindActive;
@@ -318,15 +386,19 @@ private:
     QPushButton* m_btnCopyEmail;
     QComboBox* m_cmbCareFlag;
     QLabel* m_lblPersonGroups;
+    QLabel* m_lblPersonBrokerBadge;
     QPlainTextEdit* m_txtAdminNotes;
     QPushButton* m_btnSaveNotes;
     QPushButton* m_btnOpenProfile;
+    QWidget* m_smartBridgeSection;
+    QVBoxLayout* m_smartBridgeLayout;
 
     // Page 1: Group Details
     QWidget* m_pageGroup;
     QLabel* m_lblGroupName;
     QLabel* m_lblGroupCategory;
     QLabel* m_lblGroupHealth;
+    QLabel* m_lblGroupFamilyWarning;
     QLabel* m_lblGroupMemberCount;
     QListWidget* m_lstRoster;
     QPushButton* m_btnGroupAddMember;
@@ -344,7 +416,17 @@ private:
     QLabel* m_lblHygieneMissingPhone;
     QLabel* m_lblHygieneMissingEmail;
     QLabel* m_lblHygieneIsolated;
+    QLabel* m_lblHygieneBridgeCount;
     QPushButton* m_btnSpotlightIncomplete;
+
+    // Page 4: Batch Selection Dashboard (Rubber-Band Multi-Select)
+    QWidget* m_pageBatch;
+    QLabel* m_lblBatchSummary;
+    QListWidget* m_lstBatchMembers;
+    QPushButton* m_btnBatchEmails;
+    QPushButton* m_btnBatchPhones;
+    QPushButton* m_btnBatchCSV;
+    QPushButton* m_btnBatchAssign;
 
     NodeItem* m_selectedNodeForDetails;
     EdgeItem* m_selectedEdgeForDetails;
@@ -352,6 +434,9 @@ private:
 
     // Data Sets
     QSet<int> m_isolatedPersonIds;
+    QSet<int> m_bridgeNodeIds;
+    QMap<int, QStringList> m_bridgeGroupsMap;
+    QMap<int, QString> m_groupFamilyConcentrationMap;
     QMap<int, QString> m_burnoutDetailsMap;
 
     double m_repulsionStrength;
@@ -361,7 +446,7 @@ private:
     bool m_physicsRunning;
 
     int m_burnoutThreshold = 3;
-    int m_familyDominancePercent = 50;
+    int m_familyDominancePercent = 40;
 };
 
 #endif // GRAPHWIDGET_H
