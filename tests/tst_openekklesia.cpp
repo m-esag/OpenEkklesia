@@ -1261,6 +1261,79 @@ bool test_planningWidgetRendersAndRoles() {
     return true;
 }
 
+bool test_planningRelationalLinks() {
+    QSqlDatabase d = db();
+
+    // Linked group + person (post-purge the tables are empty, so these are fresh).
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (name, category) VALUES ('AV Team', 'Serving Team')"));
+    const int gid = q.lastInsertId().toInt();
+    CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Jane', 'Leader', 'Member')"));
+    const int pid = q.lastInsertId().toInt();
+
+    // Task linked by ids but with STALE text (simulates a renamed group/owner).
+    QSqlQuery ins(d);
+    CHECK(ins.exec("DELETE FROM ministry_tasks"));
+    ins.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                "start_month, duration_months, team_id, owner_id) "
+                "VALUES ('Old Team Name', 'Easter Production', 'Old Owner (Leader)', 'In-Progress', 1, 3, 1, 2, ?, ?)");
+    ins.addBindValue(gid);
+    ins.addBindValue(pid);
+    CHECK(ins.exec());
+
+    // Display resolves the CURRENT names through the links.
+    {
+        PlanningWidget pw;
+        QTableWidget* roadmap = pw.findChild<QTableWidget*>("planningRoadmapTable");
+        QTableWidget* gantt = pw.findChild<QTableWidget*>("planningGanttTable");
+        CHECK(roadmap && gantt);
+        if (roadmap && gantt) {
+            CHECK_EQ(roadmap->rowCount(), 1);
+            CHECK_EQ(gantt->rowCount(), 1);
+            if (roadmap->rowCount() == 1 && roadmap->item(0, 0)) {
+                CHECK_EQ(roadmap->item(0, 0)->text().toStdString(), std::string("AV Team"));
+            }
+            if (gantt->rowCount() == 1 && gantt->item(0, 1)) {
+                CHECK(gantt->item(0, 1)->text().contains("Jane Leader"));
+            }
+        }
+    }
+
+    // Rename the group: a fresh view shows the new name, not the stale text.
+    CHECK(q.exec("UPDATE groups SET name = 'AV Renamed' WHERE id = " + QString::number(gid)));
+    {
+        PlanningWidget pw;
+        QTableWidget* roadmap = pw.findChild<QTableWidget*>("planningRoadmapTable");
+        if (roadmap && roadmap->rowCount() == 1 && roadmap->item(0, 0)) {
+            CHECK_EQ(roadmap->item(0, 0)->text().toStdString(), std::string("AV Renamed"));
+        }
+    }
+
+    // Unlinked task (text only) still renders via the stored text.
+    CHECK(ins.exec("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, start_month, duration_months) "
+                   "VALUES ('Legacy Team', 'Legacy Task', 'Legacy Owner', 'Planned', 2, 2, 2, 1)"));
+    {
+        PlanningWidget pw;
+        QTableWidget* roadmap = pw.findChild<QTableWidget*>("planningRoadmapTable");
+        if (roadmap) {
+            bool sawLegacy = false;
+            for (int r = 0; r < roadmap->rowCount(); ++r) {
+                if (roadmap->item(r, 1) && roadmap->item(r, 1)->text() == "Legacy Task") sawLegacy = true;
+            }
+            CHECK(sawLegacy);
+        }
+    }
+
+    // Governance share scope now carries the planning roadmap.
+    CHECK(DataSharing::tablesForScope("governance").contains("ministry_tasks"));
+
+    // Cleanup.
+    CHECK(ins.exec("DELETE FROM ministry_tasks"));
+    CHECK(q.exec("DELETE FROM groups WHERE id = " + QString::number(gid)));
+    CHECK(q.exec("DELETE FROM people WHERE id = " + QString::number(pid)));
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1303,6 +1376,7 @@ int main(int argc, char** argv) {
         {"service_builder_tier2", test_serviceBuilderTier2},
         {"service_builder_tier3", test_serviceBuilderTier3},
         {"planning_widget_renders_and_roles", test_planningWidgetRendersAndRoles},
+        {"planning_relational_links", test_planningRelationalLinks},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
         {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},

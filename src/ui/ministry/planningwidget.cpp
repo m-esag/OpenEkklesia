@@ -131,7 +131,13 @@ int PlanningWidget::selectedTaskId() const {
 void PlanningWidget::refreshRoadmap() {
     QSqlDatabase db = DatabaseManager::instance().database();
     m_roadmapTable->setRowCount(0);
-    QSqlQuery qFetch("SELECT id, team, title, start_month, duration_months, COALESCE(status, 'In-Progress') FROM ministry_tasks ORDER BY team, start_month", db);
+    // Resolve the team's CURRENT name through the group link so renames
+    // survive; fall back to the stored text for unlinked teams.
+    QSqlQuery qFetch(
+        "SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_month, t.duration_months, "
+        "       COALESCE(t.status, 'In-Progress') "
+        "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
+        "ORDER BY COALESCE(g.name, t.team), t.start_month", db);
     int row = 0;
     while (qFetch.next()) {
         int id = qFetch.value(0).toInt();
@@ -164,7 +170,13 @@ void PlanningWidget::refreshRoadmap() {
 
 void PlanningWidget::refreshGanttChart() {
     QSqlDatabase db = DatabaseManager::instance().database();
-    QSqlQuery qFetch("SELECT id, title, owner, start_day, duration_days, COALESCE(status, 'In-Progress') FROM ministry_tasks ORDER BY start_day", db);
+    // Resolve the owner's CURRENT name through the person link; fall back to
+    // the stored text for unlinked owners.
+    QSqlQuery qFetch(
+        "SELECT t.id, t.title, COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
+        "       t.start_day, t.duration_days, COALESCE(t.status, 'In-Progress') "
+        "FROM ministry_tasks t LEFT JOIN people p ON p.id = t.owner_id "
+        "ORDER BY t.start_day", db);
     m_ganttTable->setRowCount(0);
     int row = 0;
     while (qFetch.next()) {
@@ -197,6 +209,13 @@ void PlanningWidget::refreshGanttChart() {
     }
 }
 
+// Owner combos render "Name (Role)"; the stored text keeps only the clean name.
+static QString cleanOwnerName(const QString& text) {
+    const int paren = text.lastIndexOf(" (");
+    if (paren > 0) return text.left(paren);
+    return text;
+}
+
 void PlanningWidget::onAddTask() {
     openTaskDialog(0);
 }
@@ -217,11 +236,12 @@ void PlanningWidget::openTaskDialog(int editId) {
 
     // Existing values for edit mode.
     QString curTeam, curTitle, curOwner, curStatus;
+    int curTeamId = 0, curOwnerId = 0;
     int curSDay = 1, curDDays = 3, curSMonth = 1, curDMonths = 1;
     if (editId > 0) {
         QSqlQuery qLoad(db);
-        qLoad.prepare("SELECT team, title, owner, status, start_day, duration_days, start_month, duration_months "
-                      "FROM ministry_tasks WHERE id = ?");
+        qLoad.prepare("SELECT team, title, owner, status, start_day, duration_days, start_month, duration_months, "
+                      "team_id, owner_id FROM ministry_tasks WHERE id = ?");
         qLoad.addBindValue(editId);
         if (qLoad.exec() && qLoad.next()) {
             curTeam = qLoad.value(0).toString();
@@ -232,6 +252,8 @@ void PlanningWidget::openTaskDialog(int editId) {
             curDDays = qLoad.value(5).toInt();
             curSMonth = qLoad.value(6).toInt();
             curDMonths = qLoad.value(7).toInt();
+            curTeamId = qLoad.value(8).toInt();
+            curOwnerId = qLoad.value(9).toInt();
         }
     }
 
@@ -250,10 +272,12 @@ void PlanningWidget::openTaskDialog(int editId) {
     if (teamCombo->count() == 0) {
         teamCombo->addItems({"Worship & Media Team", "Small Groups & Care", "Nursery & Youth", "Facilities & Operations", "Outreach & Evangelism"});
     }
-    if (editId > 0 && !curTeam.isEmpty()) {
-        int idx = teamCombo->findText(curTeam);
+    if (editId > 0) {
+        // Prefer the group link; fall back to the stored text (renamed/removed group).
+        int idx = curTeamId > 0 ? teamCombo->findData(curTeamId) : -1;
+        if (idx < 0) idx = teamCombo->findText(curTeam);
         if (idx >= 0) teamCombo->setCurrentIndex(idx);
-        else teamCombo->insertItem(0, curTeam, 0); // group renamed/removed: keep the label
+        else if (!curTeam.isEmpty()) teamCombo->insertItem(0, curTeam, 0);
     }
 
     QComboBox* ownerCombo = new QComboBox(&dlg);
@@ -287,13 +311,10 @@ void PlanningWidget::openTaskDialog(int editId) {
     QObject::connect(teamCombo, &QComboBox::currentIndexChanged, &dlg, populateLeadersForGroup);
     populateLeadersForGroup();
     if (editId > 0 && !curOwner.isEmpty()) {
-        int idx = ownerCombo->findText(curOwner);
-        if (idx < 0) {
-            // Older rows stored "Name (Leader)"; strip the suffix to match.
-            const int paren = curOwner.lastIndexOf(" (");
-            const QString bare = paren > 0 ? curOwner.left(paren) : curOwner;
-            idx = ownerCombo->findText(bare);
-        }
+        // Prefer the person link; fall back to text (with legacy "(Role)" suffix handled).
+        int idx = curOwnerId > 0 ? ownerCombo->findData(curOwnerId) : -1;
+        if (idx < 0) idx = ownerCombo->findText(curOwner);
+        if (idx < 0) idx = ownerCombo->findText(cleanOwnerName(curOwner));
         if (idx >= 0) ownerCombo->setCurrentIndex(idx);
         else ownerCombo->insertItem(0, curOwner, 0);
     }
@@ -338,12 +359,14 @@ void PlanningWidget::openTaskDialog(int editId) {
     if (dlg.exec() == QDialog::Accepted) {
         QString team = teamCombo->currentText();
         QString title = titleEdit->text().trimmed();
-        QString owner = ownerCombo->currentText();
+        QString owner = cleanOwnerName(ownerCombo->currentText()); // drop "(Role)" suffix
         QString status = statusCombo->currentText();
         int sDay = startDaySpin->value();
         int dDays = durDaysSpin->value();
         int sMonth = startMonthSpin->value();
         int dMonths = durMonthsSpin->value();
+        int teamId = teamCombo->currentData().toInt();
+        int ownerId = ownerCombo->currentData().toInt();
 
         if (title.isEmpty() || owner.isEmpty()) {
             QMessageBox::warning(this, "Validation Error", "Initiative title and owner name are required.");
@@ -353,10 +376,12 @@ void PlanningWidget::openTaskDialog(int editId) {
         QSqlQuery q(db);
         if (editId > 0) {
             q.prepare("UPDATE ministry_tasks SET team = ?, title = ?, owner = ?, status = ?, "
-                      "start_day = ?, duration_days = ?, start_month = ?, duration_months = ? WHERE id = ?");
+                      "start_day = ?, duration_days = ?, start_month = ?, duration_months = ?, "
+                      "team_id = ?, owner_id = ? WHERE id = ?");
         } else {
-            q.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, start_month, duration_months) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            q.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                      "start_month, duration_months, team_id, owner_id) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         }
         q.addBindValue(team);
         q.addBindValue(title);
@@ -366,6 +391,8 @@ void PlanningWidget::openTaskDialog(int editId) {
         q.addBindValue(dDays);
         q.addBindValue(sMonth);
         q.addBindValue(dMonths);
+        q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant(QMetaType(QMetaType::Int)));
+        q.addBindValue(ownerId > 0 ? QVariant(ownerId) : QVariant(QMetaType(QMetaType::Int)));
         if (editId > 0) q.addBindValue(editId);
 
         if (q.exec()) {

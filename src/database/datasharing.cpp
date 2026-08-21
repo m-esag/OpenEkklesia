@@ -58,8 +58,9 @@ QStringList tablesForScope(const QString& scope) {
                 "account_budgets"};
     }
     if (scope == "governance") {
-        // Board minutes/motions and document vault metadata.
-        return {"board_motions", "vault_documents"};
+        // Board minutes/motions, document vault metadata, and the ministry
+        // planning roadmap (so the pastor's machine sees the same initiatives).
+        return {"board_motions", "vault_documents", "ministry_tasks"};
     }
     return {};
 }

@@ -238,6 +238,7 @@ bool DatabaseManager::createTables() {
         "  required_skills TEXT,"
         "  min_age INTEGER DEFAULT 0,"
         "  max_age INTEGER DEFAULT 0,"
+        "  recruitment_status TEXT DEFAULT 'Open',"
         "  notes TEXT"
         ");";
     if (!query.exec(createGroups)) {
@@ -533,6 +534,9 @@ bool DatabaseManager::createTables() {
     }
 
     // Create ministry_tasks table (planning / initiative roadmap)
+    // team_id/owner_id keep tasks linked to groups/people so renames survive;
+    // the text columns stay as display fallbacks (and for teams/owners with
+    // no group/person match).
     QString createMinistryTasks =
         "CREATE TABLE IF NOT EXISTS ministry_tasks ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -543,7 +547,9 @@ bool DatabaseManager::createTables() {
         "  duration_days INTEGER NOT NULL,"
         "  start_month INTEGER DEFAULT 1,"
         "  duration_months INTEGER DEFAULT 2,"
-        "  status TEXT DEFAULT 'In-Progress'"
+        "  status TEXT DEFAULT 'In-Progress',"
+        "  team_id INTEGER REFERENCES groups(id),"
+        "  owner_id INTEGER REFERENCES people(id)"
         ");";
     if (!query.exec(createMinistryTasks)) {
         qCritical() << "Failed to create ministry_tasks table:" << query.lastError().text();
@@ -1298,6 +1304,105 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 11 applied successfully.";
+    }
+
+    // --- Schema Migration 12: groups.recruitment_status ---
+    // Controls recommendation & assimilation availability:
+    // 'Open' (default), 'Elected' (Board of Directors, Deacons, Elders - closed to general recommendation),
+    // 'Seasonal' (closed/biannual cohort), 'Closed' (invitation only).
+    if (current < 12) {
+        qInfo() << "Applying schema migration 12: groups.recruitment_status";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 12: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(groups)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        if (!cols.contains("recruitment_status")) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec("ALTER TABLE groups ADD COLUMN recruitment_status TEXT DEFAULT 'Open';")) {
+                qCritical() << "Migration 12: add recruitment_status failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            // Automatically flag existing governance bodies (Board, Deacon, Elder, Governance) as 'Elected'
+            migQ.exec("UPDATE groups SET recruitment_status = 'Elected' "
+                      "WHERE name LIKE '%Board%' OR name LIKE '%Director%' OR name LIKE '%Deacon%' "
+                      "   OR name LIKE '%Elder%' OR category LIKE '%Governance%' OR category LIKE '%Board%';");
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 12: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(12)) {
+            return false;
+        }
+        qInfo() << "Schema migration 12 applied successfully.";
+    }
+
+    // --- Schema Migration 13: ministry_tasks relational links ---
+    // team_id -> groups.id, owner_id -> people.id so planning tasks survive
+    // group/person renames and enable team/owner-filtered views. Existing
+    // text rows are backfilled best-effort; the text columns stay as display
+    // fallbacks. Owner text like "John Doe (Leader)" is cleaned to "John Doe".
+    if (current < 13) {
+        qInfo() << "Applying schema migration 13: ministry_tasks team_id/owner_id";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 13: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(ministry_tasks)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        QSqlQuery migQ(m_db);
+        if (!cols.contains("team_id") &&
+            !migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN team_id INTEGER;")) {
+            qCritical() << "Migration 13: add team_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!cols.contains("owner_id") &&
+            !migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN owner_id INTEGER;")) {
+            qCritical() << "Migration 13: add owner_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        // Clean "(Role)" suffixes from stored owner text first so both the
+        // display and the id backfill see plain names.
+        migQ.exec("UPDATE ministry_tasks SET owner = "
+                  "CASE WHEN instr(owner, ' (') > 0 "
+                  "     THEN substr(owner, 1, instr(owner, ' (') - 1) "
+                  "     ELSE owner END "
+                  "WHERE instr(owner, ' (') > 0;");
+
+        // Best-effort backfill from the text columns.
+        migQ.exec("UPDATE ministry_tasks SET team_id = "
+                  "(SELECT g.id FROM groups g WHERE g.name = ministry_tasks.team LIMIT 1) "
+                  "WHERE team_id IS NULL;");
+        migQ.exec("UPDATE ministry_tasks SET owner_id = "
+                  "(SELECT p.id FROM people p "
+                  " WHERE p.first_name || ' ' || p.last_name = ministry_tasks.owner LIMIT 1) "
+                  "WHERE owner_id IS NULL;");
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 13: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(13)) {
+            return false;
+        }
+        qInfo() << "Schema migration 13 applied successfully.";
     }
 
     return true;
