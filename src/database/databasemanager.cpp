@@ -486,6 +486,15 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
+    // Ensure default users exist if table is empty (e.g. existing/upgraded database)
+    QSqlQuery checkUsers("SELECT COUNT(*) FROM users", m_db);
+    if (checkUsers.next() && checkUsers.value(0).toInt() == 0) {
+        query.exec("INSERT INTO users (username, role, pin) VALUES ('Admin', 'admin', '1234')");
+        query.exec("INSERT INTO users (username, role, pin) VALUES ('Pastor', 'pastor', '5555')");
+        query.exec("INSERT INTO users (username, role, pin) VALUES ('Finance', 'finance', '7777')");
+        query.exec("INSERT INTO users (username, role, pin) VALUES ('Guest', 'readonly', '0000')");
+    }
+
     // Create member_skills table
     QString createSkills = 
         "CREATE TABLE IF NOT EXISTS member_skills ("
