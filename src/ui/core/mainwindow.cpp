@@ -877,10 +877,18 @@ void MainWindow::populatePages() {
     m_groupRosterTable = new QTableWidget(m_groupDetailCard);
     m_groupRosterTable->setColumnCount(4);
     m_groupRosterTable->setHorizontalHeaderLabels({"Member", "Role", "Status", "Action"});
+    // Interactive so users can drag column borders; the Member column stretches
+    // to fill, and the rest auto-fit their content but stay adjustable. A
+    // minimum section size stops columns from being squished unreadably.
+    m_groupRosterTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_groupRosterTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_groupRosterTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_groupRosterTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_groupRosterTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_groupRosterTable->horizontalHeader()->setMinimumSectionSize(70);
+    m_groupRosterTable->horizontalHeader()->setDefaultSectionSize(100);
+    m_groupRosterTable->horizontalHeader()->setStretchLastSection(false);
+    m_groupRosterTable->setWordWrap(false);
     m_groupRosterTable->verticalHeader()->setVisible(false);
     m_groupRosterTable->setAlternatingRowColors(true);
     detailLayout->addWidget(m_groupRosterTable);

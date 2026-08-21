@@ -761,6 +761,7 @@ void PeopleWidget::setupModels() {
 void PeopleWidget::populateHouseholdCombo() {
     m_householdCombo->blockSignals(true);
     m_householdCombo->clear();
+    m_householdCombo->addItem("— None (No Household) —", 0);
 
     QSqlQuery q("SELECT id, family_name FROM households ORDER BY family_name ASC");
     while (q.next()) {
@@ -936,36 +937,59 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
 
     QSqlRecord rec = m_peopleModel->record(row);
     int personId = rec.value("id").toInt();
-    m_currentPersonId = personId;
-    // The relational model returns the family_name display for the household
-    // column regardless of role on this Qt build, so read the foreign key
-    // directly from the row.
-    int householdId = 0;
-    {
-        QSqlQuery hq;
-        hq.prepare("SELECT household_id FROM people WHERE id = ?");
-        hq.addBindValue(personId);
-        if (hq.exec() && hq.next()) householdId = hq.value(0).toInt();
+    if (personId <= 0) {
+        personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
     }
-    QString gender = rec.value("gender").toString();
+    m_currentPersonId = personId;
+
+    int householdId = 0;
+    QString gender = "Unspecified";
     QString avatarPath = rec.value("avatar_path").toString();
     QString giftsText = rec.value("spiritual_gifts").toString();
     QString styleText = rec.value("relational_style").toString();
     QString notes = rec.value("admin_notes").toString();
     QString careFlag = rec.value("care_flag").toString();
     QString status = rec.value("membership_status").toString();
+    QString dobStr = rec.value("date_of_birth").toString();
+    QString fvStr = rec.value("first_visit_date").toString();
+    QString jdStr = rec.value("join_date").toString();
+
+    // Query directly from database to guarantee 100% fidelity without relational model column-shift bugs
+    {
+        QSqlQuery hq;
+        hq.prepare("SELECT household_id, gender, first_name, last_name, phone_number, email, "
+                   "date_of_birth, avatar_path, care_flag, admin_notes, membership_status, "
+                   "first_visit_date, join_date, spiritual_gifts, relational_style, interest_tags "
+                   "FROM people WHERE id = ?");
+        hq.addBindValue(personId);
+        if (hq.exec() && hq.next()) {
+            householdId = hq.value(0).toInt();
+            gender = hq.value(1).toString();
+            m_firstNameEdit->setText(hq.value(2).toString());
+            m_lastNameEdit->setText(hq.value(3).toString());
+            m_phoneEdit->setText(hq.value(4).toString());
+            m_emailEdit->setText(hq.value(5).toString());
+            dobStr = hq.value(6).toString();
+            avatarPath = hq.value(7).toString();
+            careFlag = hq.value(8).toString();
+            notes = hq.value(9).toString();
+            status = hq.value(10).toString();
+            fvStr = hq.value(11).toString();
+            jdStr = hq.value(12).toString();
+            giftsText = hq.value(13).toString();
+            styleText = hq.value(14).toString();
+            m_tagsEdit->setText(hq.value(15).toString());
+        }
+    }
 
     const QDate nullDate(1900, 1, 1);
 
-    QString dobStr = rec.value("date_of_birth").toString();
     if (!dobStr.isEmpty()) m_birthDateEdit->setDate(QDate::fromString(dobStr, "yyyy-MM-dd"));
     else m_birthDateEdit->setDate(nullDate);
 
-    QString fvStr = rec.value("first_visit_date").toString();
     if (!fvStr.isEmpty()) m_firstVisitEdit->setDate(QDate::fromString(fvStr, "yyyy-MM-dd"));
     else m_firstVisitEdit->setDate(nullDate);
 
-    QString jdStr = rec.value("join_date").toString();
     if (!jdStr.isEmpty()) m_joinDateEdit->setDate(QDate::fromString(jdStr, "yyyy-MM-dd"));
     else m_joinDateEdit->setDate(nullDate);
 
@@ -1111,14 +1135,15 @@ void PeopleWidget::selectPerson(int personId) {
 
 void PeopleWidget::applyRole(const QString& role) {
     // Roles only gate full-access vs read-only (Guest); modules gate features.
-    bool isAdmin = (role != "readonly");
-    m_btnSave->setEnabled(isAdmin);
-    m_btnDeletePerson->setEnabled(isAdmin);
-    m_btnAddPerson->setEnabled(isAdmin);
-    m_btnAddHousehold->setEnabled(isAdmin);
-    m_btnManageHouseholds->setEnabled(isAdmin);
-    m_btnDeleteSelected->setEnabled(isAdmin);
-    m_btnBatchStatus->setEnabled(isAdmin);
+    bool isReadOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 || role.compare("guest", Qt::CaseInsensitive) == 0);
+    bool canEdit = !isReadOnly;
+    m_btnSave->setEnabled(canEdit);
+    m_btnDeletePerson->setEnabled(canEdit);
+    m_btnAddPerson->setEnabled(canEdit);
+    m_btnAddHousehold->setEnabled(canEdit);
+    m_btnManageHouseholds->setEnabled(canEdit);
+    m_btnDeleteSelected->setEnabled(canEdit);
+    m_btnBatchStatus->setEnabled(canEdit);
 }
 
 void PeopleWidget::onSearchTextChanged(const QString& text) {
@@ -1257,16 +1282,19 @@ void PeopleWidget::loadAvatar(const QString& path) {
 }
 
 void PeopleWidget::onSaveProfile() {
-    QModelIndex current = m_peopleTable->currentIndex();
-    if (!current.isValid()) {
-        QMessageBox::warning(this, "No Selection", "Please select a person profile first.");
-        return;
+    int personId = m_currentPersonId;
+    if (personId <= 0) {
+        QModelIndex current = m_peopleTable->currentIndex();
+        if (current.isValid()) {
+            QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
+            personId = m_peopleModel->record(sourceIndex.row()).value("id").toInt();
+        }
     }
 
-    QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
-    int row = sourceIndex.row();
-    int personId = m_peopleModel->record(row).value("id").toInt();
-    if (personId <= 0) return;
+    if (personId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a person profile from the roster list first.");
+        return;
+    }
 
     QString fn = m_firstNameEdit->text().trimmed();
     QString ln = m_lastNameEdit->text().trimmed();
@@ -1345,19 +1373,32 @@ void PeopleWidget::onSaveProfile() {
 }
 
 void PeopleWidget::onDeletePerson() {
+    int personId = m_currentPersonId;
+    QString fullName;
     QModelIndex current = m_peopleTable->currentIndex();
-    if (!current.isValid()) {
+    if (current.isValid()) {
+        QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
+        int row = sourceIndex.row();
+        if (personId <= 0) personId = m_peopleModel->record(row).value("id").toInt();
+        fullName = QString("%1 %2").arg(
+            m_peopleModel->record(row).value("first_name").toString(),
+            m_peopleModel->record(row).value("last_name").toString()
+        );
+    }
+
+    if (personId <= 0) {
         QMessageBox::warning(this, "No Selection", "Please select a person to delete.");
         return;
     }
 
-    QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
-    int row = sourceIndex.row();
-    int personId = m_peopleModel->record(row).value("id").toInt();
-    QString fullName = QString("%1 %2").arg(
-        m_peopleModel->record(row).value("first_name").toString(),
-        m_peopleModel->record(row).value("last_name").toString()
-    );
+    if (fullName.trimmed().isEmpty()) {
+        QSqlQuery qName;
+        qName.prepare("SELECT first_name, last_name FROM people WHERE id = ?");
+        qName.addBindValue(personId);
+        if (qName.exec() && qName.next()) {
+            fullName = QString("%1 %2").arg(qName.value(0).toString(), qName.value(1).toString());
+        }
+    }
 
     auto res = QMessageBox::question(this, "Confirm Member Deletion", 
                                      QString("Are you sure you want to permanently delete '%1' and all care/attendance history?").arg(fullName),
@@ -1392,36 +1433,81 @@ bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
     for (const QString& t : childTables) {
         q.prepare(QString("DELETE FROM %1 WHERE person_id = ?").arg(t));
         q.addBindValue(personId);
-        if (!q.exec()) return false;
+        if (!q.exec()) {
+            qWarning() << "deletePersonCascade failed on" << t << ":" << q.lastError().text();
+            return false;
+        }
     }
     // Polymorphic relationships can reference the person as source or target.
     q.prepare("DELETE FROM entity_relationships WHERE (source_type = 'Person' AND source_id = ?) "
               "OR (target_type = 'Person' AND target_id = ?)");
     q.addBindValue(personId);
     q.addBindValue(personId);
-    if (!q.exec()) return false;
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on entity_relationships:" << q.lastError().text();
+        return false;
+    }
+
+    // Clear group contact person reference
+    q.prepare("UPDATE groups SET contact_person_id = NULL WHERE contact_person_id = ?");
+    q.addBindValue(personId);
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on groups contact_person_id:" << q.lastError().text();
+        return false;
+    }
+
+    // Clear graph layout cache
+    q.prepare("DELETE FROM graph_layout WHERE entity_type = 'Person' AND entity_id = ?");
+    q.addBindValue(personId);
+    q.exec();
 
     q.prepare("DELETE FROM people WHERE id = ?");
     q.addBindValue(personId);
-    return q.exec();
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on people:" << q.lastError().text();
+        return false;
+    }
+    return true;
 }
 
 void PeopleWidget::onDeleteSelectedMembers() {
-    QModelIndexList selectedRows = m_peopleTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "No Selection", "Please select one or more people to delete.");
+    QModelIndexList selectedIndexes = m_peopleTable->selectionModel()->selectedIndexes();
+    QSet<int> rowSet;
+    for (const QModelIndex& idx : selectedIndexes) {
+        rowSet.insert(idx.row());
+    }
+    if (rowSet.isEmpty() && m_peopleTable->currentIndex().isValid()) {
+        rowSet.insert(m_peopleTable->currentIndex().row());
+    }
+
+    if (rowSet.isEmpty() && m_currentPersonId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select one or more people from the roster table first.");
         return;
     }
 
     QStringList names;
     QList<int> ids;
-    for (const QModelIndex& idx : selectedRows) {
-        QModelIndex srcIdx = m_proxyModel->mapToSource(idx);
+    for (int r : rowSet) {
+        QModelIndex proxyIdx = m_proxyModel->index(r, 0);
+        QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
         int id = m_peopleModel->record(srcIdx.row()).value("id").toInt();
-        QString fn = m_peopleModel->record(srcIdx.row()).value("first_name").toString();
-        QString ln = m_peopleModel->record(srcIdx.row()).value("last_name").toString();
+        if (id <= 0) id = m_peopleModel->data(m_peopleModel->index(srcIdx.row(), 0)).toInt();
+        if (id <= 0) continue;
+
+        QString fn = m_peopleModel->data(m_peopleModel->index(srcIdx.row(), 2)).toString();
+        QString ln = m_peopleModel->data(m_peopleModel->index(srcIdx.row(), 3)).toString();
         ids << id;
         names << QString("• %1 %2").arg(fn, ln);
+    }
+
+    if (ids.isEmpty() && m_currentPersonId > 0) {
+        ids << m_currentPersonId;
+        names << QString("• %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text());
+    }
+
+    if (ids.isEmpty()) {
+        QMessageBox::warning(this, "No Selection", "Please select one or more people from the roster table first.");
+        return;
     }
 
     auto res = QMessageBox::question(
@@ -1438,7 +1524,10 @@ void PeopleWidget::onDeleteSelectedMembers() {
         QSqlQuery q(db);
         int deleted = 0;
         for (int id : ids) {
-            if (deletePersonCascade(q, id)) ++deleted;
+            if (deletePersonCascade(q, id)) {
+                ++deleted;
+                DatabaseManager::logAudit("people", id, "record", "Batch Delete", "DELETED", "admin");
+            }
         }
         if (deleted > 0) {
             db.commit();
@@ -1446,11 +1535,19 @@ void PeopleWidget::onDeleteSelectedMembers() {
             db.rollback();
         }
 
+        m_peopleModel->revertAll();
         m_peopleModel->select();
         reapplyFilter();
+        if (m_proxyModel->rowCount() > 0) {
+            m_peopleTable->selectRow(0);
+        } else {
+            m_currentPersonId = 0;
+            loadAvatar("");
+        }
         QMessageBox::information(this, "Success", QString("Successfully deleted %1 people.").arg(deleted));
     }
 }
+
 
 void PeopleWidget::onBatchSetStatus() {
     QModelIndexList selectedRows = m_peopleTable->selectionModel()->selectedRows();

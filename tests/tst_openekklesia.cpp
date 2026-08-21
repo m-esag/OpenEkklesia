@@ -411,6 +411,36 @@ bool test_themeContrastGuardian() {
     return true;
 }
 
+bool test_personGenderAndHouseholdSave() {
+    QSqlQuery q(db());
+    // Create new person
+    CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status, gender, household_id) VALUES ('Gender', 'Test', 'Member', 'Male', 1)"));
+    int newId = q.lastInsertId().toInt();
+    CHECK(newId > 0);
+
+    // Update gender to Female and reassign to household 2
+    q.prepare("UPDATE people SET gender = :gender, household_id = :hid WHERE id = :id");
+    q.bindValue(":gender", "Female");
+    q.bindValue(":hid", 2);
+    q.bindValue(":id", newId);
+    CHECK(q.exec());
+
+    // Verify persisted correctly in DB
+    QSqlQuery qVerify(db());
+    qVerify.prepare("SELECT gender, household_id FROM people WHERE id = ?");
+    qVerify.addBindValue(newId);
+    CHECK(qVerify.exec() && qVerify.next());
+    CHECK_EQ(qVerify.value(0).toString().toStdString(), std::string("Female"));
+    CHECK_EQ(qVerify.value(1).toInt(), 2);
+
+    // Clean up
+    QSqlQuery qClean(db());
+    qClean.prepare("DELETE FROM people WHERE id = ?");
+    qClean.addBindValue(newId);
+    CHECK(qClean.exec());
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -439,6 +469,7 @@ int main(int argc, char** argv) {
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"pastoral_queue", test_pastoralQueue},
+        {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
