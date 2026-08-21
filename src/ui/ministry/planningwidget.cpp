@@ -20,9 +20,26 @@ PlanningWidget::PlanningWidget(QWidget *parent)
     setupUI();
     refreshRoadmap();
     refreshGanttChart();
+    applyRole("admin"); // default: full access until MainWindow applies the real role
 }
 
 PlanningWidget::~PlanningWidget() {}
+
+void PlanningWidget::applyRole(const QString& role) {
+    m_readOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 ||
+                  role.compare("guest", Qt::CaseInsensitive) == 0);
+    const bool canEdit = !m_readOnly;
+    m_btnAddTask->setEnabled(canEdit);
+    m_btnEditTask->setEnabled(canEdit);
+    m_btnDeleteTask->setEnabled(canEdit);
+
+    const QString tip = m_readOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : "";
+    for (QPushButton* b : {m_btnAddTask, m_btnEditTask, m_btnDeleteTask}) {
+        b->setToolTip(tip);
+    }
+}
 
 void PlanningWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -40,6 +57,12 @@ void PlanningWidget::setupUI() {
     connect(m_btnAddTask, &QPushButton::clicked, this, &PlanningWidget::onAddTask);
     headerLayout->addWidget(m_btnAddTask);
 
+    m_btnEditTask = new QPushButton("✏️ Edit Selected", this);
+    m_btnEditTask->setObjectName("secondaryBtn");
+    m_btnEditTask->setToolTip("Edit the selected task — including its status (Planned → In-Progress → Completed)");
+    connect(m_btnEditTask, &QPushButton::clicked, this, &PlanningWidget::onEditTask);
+    headerLayout->addWidget(m_btnEditTask);
+
     m_btnDeleteTask = new QPushButton("🗑️ Remove Selected", this);
     m_btnDeleteTask->setObjectName("dangerBtn");
     connect(m_btnDeleteTask, &QPushButton::clicked, this, &PlanningWidget::onDeleteTask);
@@ -54,6 +77,7 @@ void PlanningWidget::setupUI() {
     QWidget* roadmapTab = new QWidget(this);
     QVBoxLayout* roadLayout = new QVBoxLayout(roadmapTab);
     m_roadmapTable = new QTableWidget(this);
+    m_roadmapTable->setObjectName("planningRoadmapTable");
     m_roadmapTable->setColumnCount(7);
     m_roadmapTable->setHorizontalHeaderLabels({"Ministry / Team", "Initiative Name", "JAN", "FEB", "MAR", "APR", "MAY/JUN"});
     m_roadmapTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -65,6 +89,7 @@ void PlanningWidget::setupUI() {
     QWidget* ganttTab = new QWidget(this);
     QVBoxLayout* ganttLayout = new QVBoxLayout(ganttTab);
     m_ganttTable = new QTableWidget(this);
+    m_ganttTable->setObjectName("planningGanttTable");
     m_ganttTable->setColumnCount(22);
     QStringList ganttHeaders = {"Activity / Task", "Owner / Leader"};
     for (int i = 1; i <= 20; ++i) {
@@ -87,8 +112,20 @@ void PlanningWidget::setupUI() {
 }
 
 void PlanningWidget::onTabChanged(int index) {
+    m_activeTab = index;
     if (index == 0) refreshRoadmap();
     else refreshGanttChart();
+}
+
+// Task id from the row selected in the ACTIVE tab — never from a stale
+// selection in the hidden table (which previously caused wrong deletions).
+int PlanningWidget::selectedTaskId() const {
+    const QTableWidget* table = (m_activeTab == 0) ? m_roadmapTable : m_ganttTable;
+    const int row = table->currentRow();
+    if (row >= 0 && table->item(row, 0)) {
+        return table->item(row, 0)->data(Qt::UserRole).toInt();
+    }
+    return 0;
 }
 
 void PlanningWidget::refreshRoadmap() {
@@ -161,21 +198,62 @@ void PlanningWidget::refreshGanttChart() {
 }
 
 void PlanningWidget::onAddTask() {
+    openTaskDialog(0);
+}
+
+void PlanningWidget::onEditTask() {
+    const int id = selectedTaskId();
+    if (id <= 0) {
+        QMessageBox::warning(this, "Selection Required", "Please select a task row to edit.");
+        return;
+    }
+    openTaskDialog(id);
+}
+
+// Shared add/edit dialog. editId > 0 loads the existing row and updates it
+// on accept (the only way to move a task's status forward).
+void PlanningWidget::openTaskDialog(int editId) {
+    QSqlDatabase db = DatabaseManager::instance().database();
+
+    // Existing values for edit mode.
+    QString curTeam, curTitle, curOwner, curStatus;
+    int curSDay = 1, curDDays = 3, curSMonth = 1, curDMonths = 1;
+    if (editId > 0) {
+        QSqlQuery qLoad(db);
+        qLoad.prepare("SELECT team, title, owner, status, start_day, duration_days, start_month, duration_months "
+                      "FROM ministry_tasks WHERE id = ?");
+        qLoad.addBindValue(editId);
+        if (qLoad.exec() && qLoad.next()) {
+            curTeam = qLoad.value(0).toString();
+            curTitle = qLoad.value(1).toString();
+            curOwner = qLoad.value(2).toString();
+            curStatus = qLoad.value(3).toString();
+            curSDay = qLoad.value(4).toInt();
+            curDDays = qLoad.value(5).toInt();
+            curSMonth = qLoad.value(6).toInt();
+            curDMonths = qLoad.value(7).toInt();
+        }
+    }
+
     QDialog dlg(this);
-    dlg.setWindowTitle("Add Ministry Task / Initiative");
+    dlg.setWindowTitle(editId > 0 ? "Edit Ministry Task / Initiative" : "Add Ministry Task / Initiative");
     dlg.resize(360, 260);
 
     QFormLayout* form = new QFormLayout(&dlg);
     form->setSpacing(12);
 
     QComboBox* teamCombo = new QComboBox(&dlg);
-    QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery qGroups("SELECT id, name FROM groups ORDER BY name", db);
     while (qGroups.next()) {
         teamCombo->addItem(qGroups.value(1).toString(), qGroups.value(0).toInt());
     }
     if (teamCombo->count() == 0) {
         teamCombo->addItems({"Worship & Media Team", "Small Groups & Care", "Nursery & Youth", "Facilities & Operations", "Outreach & Evangelism"});
+    }
+    if (editId > 0 && !curTeam.isEmpty()) {
+        int idx = teamCombo->findText(curTeam);
+        if (idx >= 0) teamCombo->setCurrentIndex(idx);
+        else teamCombo->insertItem(0, curTeam, 0); // group renamed/removed: keep the label
     }
 
     QComboBox* ownerCombo = new QComboBox(&dlg);
@@ -208,29 +286,40 @@ void PlanningWidget::onAddTask() {
     };
     QObject::connect(teamCombo, &QComboBox::currentIndexChanged, &dlg, populateLeadersForGroup);
     populateLeadersForGroup();
+    if (editId > 0 && !curOwner.isEmpty()) {
+        int idx = ownerCombo->findText(curOwner);
+        if (idx < 0) {
+            // Older rows stored "Name (Leader)"; strip the suffix to match.
+            const int paren = curOwner.lastIndexOf(" (");
+            const QString bare = paren > 0 ? curOwner.left(paren) : curOwner;
+            idx = ownerCombo->findText(bare);
+        }
+        if (idx >= 0) ownerCombo->setCurrentIndex(idx);
+        else ownerCombo->insertItem(0, curOwner, 0);
+    }
 
-    QLineEdit* titleEdit = new QLineEdit(&dlg);
+    QLineEdit* titleEdit = new QLineEdit(curTitle, &dlg);
     titleEdit->setPlaceholderText("e.g. Easter Production, AV Upgrade");
 
     QSpinBox* startDaySpin = new QSpinBox(&dlg);
     startDaySpin->setRange(1, 20);
-    startDaySpin->setValue(1);
+    startDaySpin->setValue(curSDay);
 
     QSpinBox* durDaysSpin = new QSpinBox(&dlg);
     durDaysSpin->setRange(1, 10);
-    durDaysSpin->setValue(3);
+    durDaysSpin->setValue(curDDays);
 
     QSpinBox* startMonthSpin = new QSpinBox(&dlg);
     startMonthSpin->setRange(1, 5);
-    startMonthSpin->setValue(1);
+    startMonthSpin->setValue(curSMonth);
 
     QSpinBox* durMonthsSpin = new QSpinBox(&dlg);
     durMonthsSpin->setRange(1, 3);
-    durMonthsSpin->setValue(1);
+    durMonthsSpin->setValue(curDMonths);
 
     QComboBox* statusCombo = new QComboBox(&dlg);
     statusCombo->addItems({"Planned", "In-Progress", "Completed"});
-    statusCombo->setCurrentText("In-Progress");
+    statusCombo->setCurrentText(curStatus.isEmpty() ? "In-Progress" : curStatus);
 
     form->addRow("Select Ministry / Group:", teamCombo);
     form->addRow("Select Leader / Owner:", ownerCombo);
@@ -262,39 +351,37 @@ void PlanningWidget::onAddTask() {
         }
 
         QSqlQuery q(db);
-        q.prepare("INSERT INTO ministry_tasks (team, title, owner, start_day, duration_days, start_month, duration_months, status) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        if (editId > 0) {
+            q.prepare("UPDATE ministry_tasks SET team = ?, title = ?, owner = ?, status = ?, "
+                      "start_day = ?, duration_days = ?, start_month = ?, duration_months = ? WHERE id = ?");
+        } else {
+            q.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, start_month, duration_months) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        }
         q.addBindValue(team);
         q.addBindValue(title);
         q.addBindValue(owner);
+        q.addBindValue(status);
         q.addBindValue(sDay);
         q.addBindValue(dDays);
         q.addBindValue(sMonth);
         q.addBindValue(dMonths);
-        q.addBindValue(status);
+        if (editId > 0) q.addBindValue(editId);
 
         if (q.exec()) {
             refreshRoadmap();
             refreshGanttChart();
-            QMessageBox::information(this, "Task Added", "Ministry task added to Roadmap & Gantt Timeline!");
+            QMessageBox::information(this, editId > 0 ? "Task Updated" : "Task Added",
+                                     editId > 0 ? "Ministry task updated (status and timeline changes saved)."
+                                                : "Ministry task added to Roadmap & Gantt Timeline!");
         } else {
-            QMessageBox::critical(this, "Error", "Failed to add task: " + q.lastError().text());
+            QMessageBox::critical(this, "Error", "Failed to save task: " + q.lastError().text());
         }
     }
 }
 
 void PlanningWidget::onDeleteTask() {
-    int row = m_ganttTable->currentRow();
-    int taskId = 0;
-    if (row >= 0 && m_ganttTable->item(row, 0)) {
-        taskId = m_ganttTable->item(row, 0)->data(Qt::UserRole).toInt();
-    } else {
-        int rRow = m_roadmapTable->currentRow();
-        if (rRow >= 0 && m_roadmapTable->item(rRow, 0)) {
-            taskId = m_roadmapTable->item(rRow, 0)->data(Qt::UserRole).toInt();
-        }
-    }
-
+    int taskId = selectedTaskId();
     if (taskId <= 0) {
         QMessageBox::warning(this, "Selection Required", "Please select a task row to delete.");
         return;

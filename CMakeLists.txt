@@ -122,6 +122,8 @@ add_executable(openekklesia_tests
     src/ui/ministry/shepherdwidget.h
     src/ui/ministry/servicebuilderwidget.cpp
     src/ui/ministry/servicebuilderwidget.h
+    src/ui/ministry/planningwidget.cpp
+    src/ui/ministry/planningwidget.h
     src/ui/people/pastoralanalyticswidget.cpp
     src/ui/people/pastoralanalyticswidget.h
     src/ui/people/peoplewidget.cpp
