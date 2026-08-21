@@ -101,3 +101,39 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 - `-Wconversion` warnings under strict audit flags (cosmetic).
 - No CI or git history hygiene review; consider adding GitHub Actions build +
   test once the repo is pushed.
+
+## 7. Smart features roadmap (agreed 2025 direction)
+
+### 7.1 "Ministry Match" — recommendation engine (next build)
+Prompt-driven person→group recommendations. All criteria below already exist
+in the schema; no new tables required for v1.
+
+- Age band from `people.date_of_birth` (e.g. Youth 13–25, Seniors 60+).
+- `people.gender`, `membership_status`, `care_flag` filters.
+- Skills from `member_skills` mapped per-group (e.g. "music"→Worship Team,
+  "teaching"→Sunday School); a group can declare required skills.
+- Serving history: Person→Group `entity_relationships` roles + `service_volunteers`
+  (last served, count) → burnout guard reusing graph burnout threshold
+  (QSettings `burnoutThreshold`), plus not-already-in-group exclusion.
+- `groups.max_capacity` vs current roster → skip full groups.
+- Engagement: `attendance` count over last 90 days as a match booster.
+- Scoring: weighted sum → match %, with human-readable "why" reasons.
+- UI: "Suggest People" button on the group detail panel → dialog with
+  criterion sliders/checkboxes → ranked table + reasons → one-click
+  "Add selected" (bulk INSERT Person→Group Member rows).
+
+### 7.2 Other smart features (priority order)
+- T1 (SQL-only, cheap): engagement drop-off alerts; follow-up-due list
+  (`pastoral_activities.follow_up_date`); birthday/anniversary feed;
+  per-group "who's missing" (roster vs attendance); fuzzy duplicate detection.
+- T2 (moderate): volunteer-gap matching (roles needed vs skills); composite
+  group health score (burnout + family dominance + capacity + attendance);
+  Visitor→Attender→Member pathway nudges; giving year-over-year deltas.
+- T3 (heavier, later): churn-risk flags from attendance decline; external
+  SMS/email (out of scope for offline builds).
+
+### 7.3 Built this round (commit 5237262)
+- Cycle-safe group parent selector + drag-drop reparenting (groups page).
+- Graph: Group→Group "Parent of" dashed edges; category-colored group nodes;
+  larger group hubs scaling with member count; clustered layout nests
+  subgroups around their parent.
