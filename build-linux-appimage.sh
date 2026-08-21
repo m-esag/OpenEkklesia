@@ -25,7 +25,15 @@ fi
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export PATH="$PWD/tools:$PATH"
-export QMAKE="$(command -v qmake6 || command -v qmake || true)"
+# qmake is often not on PATH (e.g. Fedora installs it under /usr/lib64/qt6/bin
+# with only a qmake-qt6 symlink in /usr/bin); probe the common locations.
+export QMAKE="$(command -v qmake-qt6 || command -v qmake6 || command -v qmake || true)"
+if [ -z "$QMAKE" ]; then
+  for cand in /usr/lib64/qt6/bin/qmake /usr/lib/qt6/bin/qmake /usr/lib/qt/bin/qmake; do
+    [ -x "$cand" ] && QMAKE="$cand" && break
+  done
+fi
+[ -n "$QMAKE" ] || { echo "ERROR: could not locate qmake for linuxdeploy-plugin-qt" >&2; exit 1; }
 
 # 3. Assemble the AppDir with the Qt plugin (bundles libs + plugins)
 rm -rf dist/OpenEkklesia.AppDir
@@ -59,9 +67,10 @@ RUN
 chmod +x dist/OpenEkklesia.AppDir/AppRun
 
 # Include the offscreen platform plugin so the app also runs headless
-# (real desktops use the bundled xcb plugin).
+# (real desktops use the bundled xcb plugin). -print -quit avoids the
+# `find | head` SIGPIPE race that trips set -euo pipefail.
 if [ ! -f dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqoffscreen.so ]; then
-  OFFSCREEN="$(find /usr -name libqoffscreen.so 2>/dev/null | head -1)"
+  OFFSCREEN="$(find /usr -name libqoffscreen.so -print -quit 2>/dev/null || true)"
   [ -n "$OFFSCREEN" ] && cp "$OFFSCREEN" dist/OpenEkklesia.AppDir/usr/plugins/platforms/ || true
 fi
 
