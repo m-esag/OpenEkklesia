@@ -33,6 +33,12 @@
 #include <QFont>
 #include <QFrame>
 #include <QSpacerItem>
+#include <QStackedWidget>
+#include <QShortcut>
+#include <QKeySequence>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include "../common/appcurrency.h"
 
 // ============================================================================
 // ClickableAvatarLabel Implementation
@@ -117,13 +123,24 @@ QVariant PeopleProxyModel::data(const QModelIndex& index, int role) const {
         QModelIndex srcRowIndex = mapToSource(index.sibling(index.row(), 0));
         int srcRow = srcRowIndex.row();
 
-        if (col == 0) { // Merged Name: "Last Name, First Name"
+        if (col == 0) { // Merged Name: "Last Name, First Name" with Care Flag dot
             QString firstName = sourceModel()->data(sourceModel()->index(srcRow, 2)).toString();
             QString lastName = sourceModel()->data(sourceModel()->index(srcRow, 3)).toString();
-            if (lastName.isEmpty() && firstName.isEmpty()) return "—";
-            if (lastName.isEmpty()) return firstName;
-            if (firstName.isEmpty()) return lastName;
-            return QString("%1, %2").arg(lastName, firstName);
+            QString careFlag = sourceModel()->data(sourceModel()->index(srcRow, 9)).toString();
+            QString prefix;
+            if (careFlag == "Needs Contact" || careFlag == "At-Risk" || careFlag == "At Risk") {
+                prefix = "🔴 ";
+            } else if (careFlag == "Follow-up" || careFlag == "Grief Support") {
+                prefix = "🟡 ";
+            } else if (careFlag == "Leader") {
+                prefix = "⭐ ";
+            }
+            QString name;
+            if (lastName.isEmpty() && firstName.isEmpty()) name = "—";
+            else if (lastName.isEmpty()) name = firstName;
+            else if (firstName.isEmpty()) name = lastName;
+            else name = QString("%1, %2").arg(lastName, firstName);
+            return prefix + name;
         } else if (col == 1) { // Household / Family
             return sourceModel()->data(sourceModel()->index(srcRow, 1));
         } else if (col == 2) { // Phone
@@ -190,20 +207,37 @@ void PeopleWidget::setupUI() {
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(15);
 
+    // Keyboard shortcuts
+    QShortcut* scSearch = new QShortcut(QKeySequence("Ctrl+F"), this);
+    connect(scSearch, &QShortcut::activated, this, [this]() {
+        if (m_searchEdit) { m_searchEdit->setFocus(); m_searchEdit->selectAll(); }
+    });
+    QShortcut* scNew = new QShortcut(QKeySequence("Ctrl+N"), this);
+    connect(scNew, &QShortcut::activated, this, &PeopleWidget::onAddPerson);
+    QShortcut* scSave = new QShortcut(QKeySequence("Ctrl+S"), this);
+    connect(scSave, &QShortcut::activated, this, &PeopleWidget::onSaveProfile);
+    QShortcut* scEsc = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    connect(scEsc, &QShortcut::activated, this, [this]() {
+        if (m_searchEdit) m_searchEdit->clear();
+        if (m_statusFilterGroup && m_statusFilterGroup->button(0)) m_statusFilterGroup->button(0)->setChecked(true);
+        reapplyFilter();
+    });
+
     // ----------------------------------------------------
     // LEFT PANEL: Master Directory Table
     // ----------------------------------------------------
     QWidget* leftPanel = new QWidget(this);
     QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(12);
+    leftLayout->setSpacing(10);
 
     QHBoxLayout* searchSortRow = new QHBoxLayout();
     searchSortRow->setSpacing(8);
 
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("🔍 Search members by name, email, phone, status...");
+    m_searchEdit->setPlaceholderText("🔍 Search members (Ctrl+F)...");
     m_searchEdit->setObjectName("searchEdit");
+    m_searchEdit->setClearButtonEnabled(true);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &PeopleWidget::onSearchTextChanged);
 
     m_cmbSortBy = new QComboBox(this);
@@ -211,17 +245,17 @@ void PeopleWidget::setupUI() {
     m_cmbSortBy->addItem("🔤 Last Name (Z - A)");
     m_cmbSortBy->addItem("👤 First Name (A - Z)");
     m_cmbSortBy->addItem("👤 First Name (Z - A)");
-    m_cmbSortBy->addItem("🏠 Household / Family (A - Z)");
+    m_cmbSortBy->addItem("🏠 Family Name (A - Z)");
     m_cmbSortBy->addItem("🏷️ Membership Status");
-    m_cmbSortBy->addItem("📅 Join Date (Newest First)");
-    m_cmbSortBy->addItem("📅 Join Date (Oldest First)");
-    m_cmbSortBy->addItem("🎂 Birth Date / Age");
+    m_cmbSortBy->addItem("📅 Join Date (Newest)");
+    m_cmbSortBy->addItem("📅 Join Date (Oldest)");
+    m_cmbSortBy->addItem("🎂 Birth Date");
     m_cmbSortBy->addItem("♂️♀️ Gender");
     connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PeopleWidget::onSortByChanged);
 
     searchSortRow->addWidget(m_searchEdit, 3);
-    QLabel* lblSort = new QLabel("Sort By:", this);
-    lblSort->setStyleSheet("font-weight: bold;");
+    QLabel* lblSort = new QLabel("Sort:", this);
+    lblSort->setStyleSheet("font-weight: bold; font-size: 11px;");
     searchSortRow->addWidget(lblSort);
     searchSortRow->addWidget(m_cmbSortBy, 2);
 
@@ -229,18 +263,18 @@ void PeopleWidget::setupUI() {
 
     // Membership-status filter row
     QHBoxLayout* statusFilterRow = new QHBoxLayout();
-    statusFilterRow->setSpacing(6);
+    statusFilterRow->setSpacing(4);
     m_statusFilterGroup = new QButtonGroup(this);
     m_statusFilterGroup->setExclusive(true);
 
     static const QHash<int, QString> filters = {
-        {0, "All"}, {1, "Visitors"}, {2, "Attenders"},
-        {3, "Members"}, {4, "Inactive"}
+        {0, "All"}, {1, "Active"}, {2, "Visitors"}, {3, "Attenders"},
+        {4, "Members"}, {5, "Inactive"}
     };
     for (auto it = filters.constBegin(); it != filters.constEnd(); ++it) {
         QRadioButton* btn = new QRadioButton(it.value(), this);
-        btn->setStyleSheet("QRadioButton { color: #cdd6f4; padding: 2px 6px; }"
-                           "QRadioButton::indicator { width: 12px; height: 12px; }");
+        btn->setStyleSheet("QRadioButton { color: #cdd6f4; padding: 2px 4px; font-size: 11px; }"
+                           "QRadioButton::indicator { width: 11px; height: 11px; }");
         btn->setChecked(it.key() == 0);
         m_statusFilterGroup->addButton(btn, it.key());
         statusFilterRow->addWidget(btn);
@@ -253,7 +287,7 @@ void PeopleWidget::setupUI() {
     m_peopleTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_peopleTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_peopleTable->verticalHeader()->setVisible(false);
-    m_peopleTable->verticalHeader()->setDefaultSectionSize(36);
+    m_peopleTable->verticalHeader()->setDefaultSectionSize(34);
     m_peopleTable->setAlternatingRowColors(true);
     m_peopleTable->setSortingEnabled(true);
     leftLayout->addWidget(m_peopleTable);
@@ -261,7 +295,7 @@ void PeopleWidget::setupUI() {
     // Action Toolbar Row 1
     QHBoxLayout* row1 = new QHBoxLayout();
     row1->setSpacing(6);
-    m_btnAddPerson = new QPushButton("➕ Add Person", this);
+    m_btnAddPerson = new QPushButton("➕ Add Person (Ctrl+N)", this);
     m_btnAddPerson->setObjectName("primaryBtn");
     connect(m_btnAddPerson, &QPushButton::clicked, this, &PeopleWidget::onAddPerson);
 
@@ -269,8 +303,8 @@ void PeopleWidget::setupUI() {
     m_btnAddHousehold->setObjectName("accentBtnPink");
     connect(m_btnAddHousehold, &QPushButton::clicked, this, &PeopleWidget::onAddHousehold);
 
-    m_btnManageHouseholds = new QPushButton(" Purge/Manage Families", this);
-    m_btnManageHouseholds->setObjectName("dangerBtn");
+    m_btnManageHouseholds = new QPushButton("Purge/Manage Families", this);
+    m_btnManageHouseholds->setObjectName("secondaryBtn");
     connect(m_btnManageHouseholds, &QPushButton::clicked, this, &PeopleWidget::onDeleteHousehold);
 
     row1->addWidget(m_btnAddPerson);
@@ -284,12 +318,12 @@ void PeopleWidget::setupUI() {
     m_btnDeleteSelected = new QPushButton("🗑️ Delete Selected", this);
     m_btnDeleteSelected->setObjectName("dangerGhostBtn");
     m_btnDeleteSelected->setStyleSheet(
-        "QPushButton#dangerGhostBtn { background-color: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 6px 12px; font-weight: bold; }"
+        "QPushButton#dangerGhostBtn { background-color: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 10px; font-weight: bold; font-size: 11px; }"
         "QPushButton#dangerGhostBtn:hover { background-color: rgba(243, 139, 168, 0.15); }"
     );
     connect(m_btnDeleteSelected, &QPushButton::clicked, this, &PeopleWidget::onDeleteSelectedMembers);
 
-    m_btnBatchStatus = new QPushButton("🏷️ Batch Set Status", this);
+    m_btnBatchStatus = new QPushButton("🏷️ Batch Status", this);
     m_btnBatchStatus->setObjectName("secondaryBtn");
     connect(m_btnBatchStatus, &QPushButton::clicked, this, &PeopleWidget::onBatchSetStatus);
 
@@ -300,9 +334,7 @@ void PeopleWidget::setupUI() {
         for (int r = 0; r < m_proxyModel->rowCount(); ++r) {
             QModelIndex idx = m_proxyModel->index(r, 2); // Phone
             QString phone = idx.data().toString().trimmed();
-            if (!phone.isEmpty()) {
-                phoneNumbers << phone;
-            }
+            if (!phone.isEmpty()) phoneNumbers << phone;
         }
         if (!phoneNumbers.isEmpty()) {
             QGuiApplication::clipboard()->setText(phoneNumbers.join(", "));
@@ -313,7 +345,7 @@ void PeopleWidget::setupUI() {
         }
     });
 
-    QPushButton* btnPrintDirectory = new QPushButton("🖨️ Print Directory", this);
+    QPushButton* btnPrintDirectory = new QPushButton("🖨️ Print", this);
     btnPrintDirectory->setObjectName("secondaryBtn");
     connect(btnPrintDirectory, &QPushButton::clicked, this, &PeopleWidget::onPrintDirectory);
 
@@ -331,150 +363,449 @@ void PeopleWidget::setupUI() {
     leftLayout->addLayout(row2);
 
     // ----------------------------------------------------
-    // RIGHT PANEL: Profile Detail View (5 Structured Section Cards)
+    // RIGHT PANEL: 360° Member Dossier Detail View
     // ----------------------------------------------------
-    QWidget* rightPanel = new QWidget(this);
-    rightPanel->setObjectName("detailPanel");
-    
-    QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
-    rightLayout->setContentsMargins(15, 15, 15, 15);
-    rightLayout->setSpacing(15);
+    QWidget* rightContainer = new QWidget(this);
+    QVBoxLayout* rightMainLayout = new QVBoxLayout(rightContainer);
+    rightMainLayout->setContentsMargins(0, 0, 0, 0);
+    rightMainLayout->setSpacing(0);
 
-    QLabel* detailHeader = new QLabel("Person Profile Detail", this);
-    detailHeader->setObjectName("detailHeader");
-    rightLayout->addWidget(detailHeader);
+    // Empty state container
+    m_emptyStateWidget = new QWidget(rightContainer);
+    QVBoxLayout* layEmpty = new QVBoxLayout(m_emptyStateWidget);
+    layEmpty->setAlignment(Qt::AlignCenter);
+    layEmpty->setSpacing(14);
+    QLabel* icoEmpty = new QLabel("👤", m_emptyStateWidget);
+    icoEmpty->setStyleSheet("font-size: 64px; opacity: 0.35;");
+    icoEmpty->setAlignment(Qt::AlignCenter);
+    QLabel* lblEmptyTitle = new QLabel("No Member Profile Selected", m_emptyStateWidget);
+    lblEmptyTitle->setStyleSheet("font-size: 17px; font-weight: bold; color: #cdd6f4;");
+    lblEmptyTitle->setAlignment(Qt::AlignCenter);
+    QLabel* lblEmptySub = new QLabel("Select a member from the directory on the left or click '➕ Add Person' to manage profiles.", m_emptyStateWidget);
+    lblEmptySub->setStyleSheet("font-size: 12px; color: #a6adc8; max-width: 320px; text-align: center;");
+    lblEmptySub->setWordWrap(true);
+    lblEmptySub->setAlignment(Qt::AlignCenter);
+    layEmpty->addWidget(icoEmpty);
+    layEmpty->addWidget(lblEmptyTitle);
+    layEmpty->addWidget(lblEmptySub);
+    rightMainLayout->addWidget(m_emptyStateWidget);
 
-    // --- CARD 1: IDENTITY SECTION ---
-    QFrame* cardIdentity = new QFrame(this);
-    cardIdentity->setObjectName("cardWidget");
-    QVBoxLayout* layIdent = new QVBoxLayout(cardIdentity);
-    layIdent->setContentsMargins(14, 12, 14, 12);
-    layIdent->setSpacing(10);
+    // Dossier container (Header + Navigation Rail + Stack + Sticky Footer)
+    m_dossierContainer = new QWidget(rightContainer);
+    QVBoxLayout* dossierLayout = new QVBoxLayout(m_dossierContainer);
+    dossierLayout->setContentsMargins(0, 0, 0, 0);
+    dossierLayout->setSpacing(8);
 
-    QLabel* lblTitleIdent = new QLabel("🆔 IDENTITY", cardIdentity);
-    lblTitleIdent->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa; text-transform: uppercase;");
-    layIdent->addWidget(lblTitleIdent);
+    // 1. PINNED DYNAMIC HEADER
+    m_headerWidget = new QFrame(m_dossierContainer);
+    m_headerWidget->setObjectName("cardWidget");
+    m_headerWidget->setStyleSheet("QFrame#cardWidget { background-color: #181825; border: 1px solid #313244; border-radius: 10px; }");
+    QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
+    headerLayout->setContentsMargins(14, 10, 14, 10);
+    headerLayout->setSpacing(14);
 
-    QHBoxLayout* avatarRow = new QHBoxLayout();
-    m_avatarLabel = new ClickableAvatarLabel(cardIdentity);
-    m_avatarLabel->setFixedSize(100, 100);
+    m_avatarLabel = new ClickableAvatarLabel(m_headerWidget);
+    m_avatarLabel->setFixedSize(64, 64);
     m_avatarLabel->setObjectName("avatarLabel");
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     connect(m_avatarLabel, &ClickableAvatarLabel::clicked, this, &PeopleWidget::onChangeAvatar);
+    headerLayout->addWidget(m_avatarLabel);
+
+    QVBoxLayout* headerInfo = new QVBoxLayout();
+    headerInfo->setSpacing(3);
+
+    m_lblHeaderName = new QLabel("Member Profile", m_headerWidget);
+    m_lblHeaderName->setStyleSheet("font-size: 17px; font-weight: bold; color: #cdd6f4;");
+    headerInfo->addWidget(m_lblHeaderName);
+
+    m_lblHeaderSub = new QLabel("Select a member", m_headerWidget);
+    m_lblHeaderSub->setStyleSheet("font-size: 11px; color: #a6adc8;");
+    headerInfo->addWidget(m_lblHeaderSub);
+
+    QHBoxLayout* badgesRow = new QHBoxLayout();
+    badgesRow->setSpacing(8);
+
+    m_lblHeaderStatusBadge = new QLabel("Member", m_headerWidget);
+    m_lblHeaderStatusBadge->setStyleSheet("color: #2ef098; background-color: rgba(46, 240, 152, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+    badgesRow->addWidget(m_lblHeaderStatusBadge);
+
+    m_lblHeaderCareBadge = new QLabel("🔴 Care Alert", m_headerWidget);
+    m_lblHeaderCareBadge->setStyleSheet("color: #f38ba8; background-color: rgba(243, 139, 168, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+    m_lblHeaderCareBadge->setVisible(false);
+    badgesRow->addWidget(m_lblHeaderCareBadge);
+
+    badgesRow->addStretch();
+    headerInfo->addLayout(badgesRow);
+    headerLayout->addLayout(headerInfo, 1);
+    dossierLayout->addWidget(m_headerWidget);
+
+    // 2. CONTEXTUAL NAVIGATION RAIL
+    m_navRail = new QWidget(m_dossierContainer);
+    QHBoxLayout* navLayout = new QHBoxLayout(m_navRail);
+    navLayout->setContentsMargins(0, 0, 0, 0);
+    navLayout->setSpacing(4);
+
+    auto makeNavBtn = [this](const QString& text, int pageIdx) {
+        QPushButton* btn = new QPushButton(text, m_navRail);
+        btn->setCheckable(true);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QPushButton { background-color: #181825; border: 1px solid #313244; border-radius: 6px; color: #a6adc8; padding: 5px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #313244; color: #cdd6f4; border-color: #45475a; }"
+            "QPushButton:checked { background-color: #313244; color: #89b4fa; border: 1px solid #89b4fa; }"
+        );
+        connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
+            m_detailStack->setCurrentIndex(pageIdx);
+            m_btnNavIdentity->setChecked(pageIdx == 0);
+            m_btnNavPastoral->setChecked(pageIdx == 1);
+            m_btnNavGroups->setChecked(pageIdx == 2);
+            m_btnNavGiving->setChecked(pageIdx == 3);
+            m_btnNavMinistry->setChecked(pageIdx == 4);
+        });
+        return btn;
+    };
+
+    m_btnNavIdentity = makeNavBtn("👤 Identity", 0);
+    m_btnNavPastoral = makeNavBtn("🕊️ Pastoral", 1);
+    m_btnNavGroups = makeNavBtn("👥 Groups", 2);
+    m_btnNavGiving = makeNavBtn("💰 Giving", 3);
+    m_btnNavMinistry = makeNavBtn("✨ Gifts & Tags", 4);
+    m_btnNavIdentity->setChecked(true);
+
+    navLayout->addWidget(m_btnNavIdentity);
+    navLayout->addWidget(m_btnNavPastoral);
+    navLayout->addWidget(m_btnNavGroups);
+    navLayout->addWidget(m_btnNavGiving);
+    navLayout->addWidget(m_btnNavMinistry);
+    navLayout->addStretch();
+    dossierLayout->addWidget(m_navRail);
+
+    // 3. STACKED WIDGET (5 Focused Pages)
+    m_detailStack = new QStackedWidget(m_dossierContainer);
+
+    // --- TAB 0: IDENTITY & FAMILY ---
+    QWidget* pageIdentity = new QWidget();
+    QVBoxLayout* layPageIdent = new QVBoxLayout(pageIdentity);
+    layPageIdent->setContentsMargins(0, 0, 0, 0);
+    layPageIdent->setSpacing(10);
+
+    QFrame* cardIdent = new QFrame(pageIdentity);
+    cardIdent->setObjectName("cardWidget");
+    QVBoxLayout* layCardIdent = new QVBoxLayout(cardIdent);
+    layCardIdent->setContentsMargins(12, 10, 12, 10);
+    layCardIdent->setSpacing(8);
+
+    QLabel* lblIdentTitle = new QLabel("👤 PERSONAL & CONTACT DETAILS", cardIdent);
+    lblIdentTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardIdent->addWidget(lblIdentTitle);
 
     QFormLayout* formIdent = new QFormLayout();
-    formIdent->setSpacing(8);
-    formIdent->setLabelAlignment(Qt::AlignRight);
+    formIdent->setSpacing(6);
 
-    m_firstNameEdit = new QLineEdit(cardIdentity);
-    m_lastNameEdit = new QLineEdit(cardIdentity);
-    m_genderCombo = new QComboBox(cardIdentity);
+    m_firstNameEdit = new QLineEdit(cardIdent);
+    m_lastNameEdit = new QLineEdit(cardIdent);
+    m_genderCombo = new QComboBox(cardIdent);
     m_genderCombo->addItems({"Male", "Female", "Unspecified"});
-    m_birthDateEdit = new QDateEdit(QDate(1900, 1, 1), cardIdentity);
+    m_birthDateEdit = new QDateEdit(QDate(1900, 1, 1), cardIdent);
     m_birthDateEdit->setCalendarPopup(true);
     m_birthDateEdit->setDisplayFormat("yyyy-MM-dd");
     m_birthDateEdit->setMinimumDate(QDate(1900, 1, 1));
     m_birthDateEdit->setSpecialValueText("—");
+    m_phoneEdit = new QLineEdit(cardIdent);
+    m_emailEdit = new QLineEdit(cardIdent);
+
+    // Real-time input validation
+    QRegularExpression rxEmail("^[\\w\\.+-]+@[\\w\\.-]+\\.\\w+$");
+    m_emailEdit->setValidator(new QRegularExpressionValidator(rxEmail, this));
+
+    connect(m_firstNameEdit, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
+    connect(m_lastNameEdit, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
+    connect(m_genderCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { setDirty(true); });
+    connect(m_birthDateEdit, &QDateEdit::dateChanged, this, [this]() { setDirty(true); });
+    connect(m_phoneEdit, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
+    connect(m_emailEdit, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
 
     formIdent->addRow("First Name:", m_firstNameEdit);
     formIdent->addRow("Last Name:", m_lastNameEdit);
     formIdent->addRow("Gender:", m_genderCombo);
     formIdent->addRow("Birth Date:", m_birthDateEdit);
+    formIdent->addRow("Phone Number:", m_phoneEdit);
+    formIdent->addRow("Email Address:", m_emailEdit);
+    layCardIdent->addLayout(formIdent);
+    layPageIdent->addWidget(cardIdent);
 
-    avatarRow->addWidget(m_avatarLabel);
-    avatarRow->addSpacing(15);
-    avatarRow->addLayout(formIdent, 1);
-    layIdent->addLayout(avatarRow);
+    // Household Card
+    QFrame* cardHouse = new QFrame(pageIdentity);
+    cardHouse->setObjectName("cardWidget");
+    QVBoxLayout* layCardHouse = new QVBoxLayout(cardHouse);
+    layCardHouse->setContentsMargins(12, 10, 12, 10);
+    layCardHouse->setSpacing(8);
 
-    m_avatarPathEdit = new QLineEdit(cardIdentity);
-    m_avatarPathEdit->setVisible(false);
+    QLabel* lblHouseTitle = new QLabel("🏠 HOUSEHOLD & FAMILY ASSIGNMENT", cardHouse);
+    lblHouseTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardHouse->addWidget(lblHouseTitle);
 
-    rightLayout->addWidget(cardIdentity);
+    QFormLayout* formHouse = new QFormLayout();
+    formHouse->setSpacing(6);
 
-    // --- CARD 2: CONTACT SECTION ---
-    QFrame* cardContact = new QFrame(this);
-    cardContact->setObjectName("cardWidget");
-    QVBoxLayout* layContact = new QVBoxLayout(cardContact);
-    layContact->setContentsMargins(14, 12, 14, 12);
-    layContact->setSpacing(10);
-
-    QLabel* lblTitleContact = new QLabel("📞 CONTACT INFORMATION", cardContact);
-    lblTitleContact->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa; text-transform: uppercase;");
-    layContact->addWidget(lblTitleContact);
-
-    QFormLayout* formContact = new QFormLayout();
-    formContact->setSpacing(8);
-    formContact->setLabelAlignment(Qt::AlignRight);
-
-    m_phoneEdit = new QLineEdit(cardContact);
-    m_emailEdit = new QLineEdit(cardContact);
-
-    formContact->addRow("Phone Number:", m_phoneEdit);
-    formContact->addRow("Email Address:", m_emailEdit);
-    layContact->addLayout(formContact);
-
-    rightLayout->addWidget(cardContact);
-
-    // --- CARD 3: HOUSEHOLD & FAMILY SECTION ---
-    QFrame* cardHousehold = new QFrame(this);
-    cardHousehold->setObjectName("cardWidget");
-    QVBoxLayout* layHousehold = new QVBoxLayout(cardHousehold);
-    layHousehold->setContentsMargins(14, 12, 14, 12);
-    layHousehold->setSpacing(10);
-
-    QLabel* lblTitleHousehold = new QLabel("🏠 HOUSEHOLD & FAMILY", cardHousehold);
-    lblTitleHousehold->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa; text-transform: uppercase;");
-    layHousehold->addWidget(lblTitleHousehold);
-
-    QFormLayout* formHousehold = new QFormLayout();
-    formHousehold->setSpacing(8);
-    formHousehold->setLabelAlignment(Qt::AlignRight);
-
-    m_householdCombo = new QComboBox(cardHousehold);
-    connect(m_householdCombo, &QComboBox::currentIndexChanged, this, [this]() {
+    m_householdCombo = new QComboBox(cardHouse);
+    connect(m_householdCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        setDirty(true);
         int hId = m_householdCombo->currentData().toInt();
-        QModelIndex current = m_peopleTable->currentIndex();
-        int pId = 0;
-        if (current.isValid()) {
-            QModelIndex srcIdx = m_proxyModel->mapToSource(current);
-            pId = m_peopleModel->record(srcIdx.row()).value("id").toInt();
-        }
-        refreshHouseholdMembersList(hId, pId);
+        refreshHouseholdMembersList(hId, m_currentPersonId);
     });
-    formHousehold->addRow("Family Assignment:", m_householdCombo);
-    layHousehold->addLayout(formHousehold);
+    formHouse->addRow("Family Assignment:", m_householdCombo);
+    layCardHouse->addLayout(formHouse);
 
-    QLabel* lblMembersInHouse = new QLabel("Family Members in Household:", cardHousehold);
-    lblMembersInHouse->setStyleSheet("font-size: 11px; font-weight: bold; opacity: 0.8;");
-    layHousehold->addWidget(lblMembersInHouse);
-
-    m_lstHouseholdMembers = new QListWidget(cardHousehold);
-    m_lstHouseholdMembers->setMaximumHeight(90);
+    m_lstHouseholdMembers = new QListWidget(cardHouse);
+    m_lstHouseholdMembers->setMaximumHeight(85);
     connect(m_lstHouseholdMembers, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         int pId = item->data(Qt::UserRole).toInt();
         if (pId > 0) selectPerson(pId);
     });
-    layHousehold->addWidget(m_lstHouseholdMembers);
+    layCardHouse->addWidget(m_lstHouseholdMembers);
+    layPageIdent->addWidget(cardHouse);
 
-    rightLayout->addWidget(cardHousehold);
+    // Membership Card
+    QFrame* cardMember = new QFrame(pageIdentity);
+    cardMember->setObjectName("cardWidget");
+    QVBoxLayout* layCardMember = new QVBoxLayout(cardMember);
+    layCardMember->setContentsMargins(12, 10, 12, 10);
+    layCardMember->setSpacing(8);
 
-    // --- CARD 4: MINISTRY PROFILE & TALENTS ---
-    QFrame* cardMinistry = new QFrame(this);
-    cardMinistry->setObjectName("cardWidget");
-    QVBoxLayout* layMin = new QVBoxLayout(cardMinistry);
-    layMin->setContentsMargins(14, 12, 14, 12);
-    layMin->setSpacing(10);
+    QLabel* lblMemberTitle = new QLabel("🏷️ MEMBERSHIP & MILESTONES", cardMember);
+    lblMemberTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardMember->addWidget(lblMemberTitle);
 
-    QLabel* lblTitleMin = new QLabel("🕊️ MINISTRY PROFILE & TALENTS", cardMinistry);
-    lblTitleMin->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa; text-transform: uppercase;");
-    layMin->addWidget(lblTitleMin);
+    QFormLayout* formMember = new QFormLayout();
+    formMember->setSpacing(6);
 
-    // A. Spiritual Gifts Chips
-    QLabel* lblGiftsHeader = new QLabel("Spiritual Gifts (Biblical Taxonomy):", cardMinistry);
-    lblGiftsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4;");
-    layMin->addWidget(lblGiftsHeader);
+    m_statusCombo = new QComboBox(cardMember);
+    m_statusCombo->addItems({"Visitor", "Regular Attender", "Member", "Inactive"});
+    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { setDirty(true); });
 
-    m_giftsEdit = new QLineEdit(cardMinistry);
+    QDate nullDate(1900, 1, 1);
+    m_firstVisitEdit = new QDateEdit(nullDate, cardMember);
+    m_firstVisitEdit->setCalendarPopup(true);
+    m_firstVisitEdit->setDisplayFormat("yyyy-MM-dd");
+    m_firstVisitEdit->setMinimumDate(nullDate);
+    m_firstVisitEdit->setSpecialValueText("—");
+    connect(m_firstVisitEdit, &QDateEdit::dateChanged, this, [this]() { setDirty(true); });
+
+    m_joinDateEdit = new QDateEdit(nullDate, cardMember);
+    m_joinDateEdit->setCalendarPopup(true);
+    m_joinDateEdit->setDisplayFormat("yyyy-MM-dd");
+    m_joinDateEdit->setMinimumDate(nullDate);
+    m_joinDateEdit->setSpecialValueText("—");
+    connect(m_joinDateEdit, &QDateEdit::dateChanged, this, [this]() { setDirty(true); });
+
+    formMember->addRow("Membership Status:", m_statusCombo);
+    formMember->addRow("First Visit:", m_firstVisitEdit);
+    formMember->addRow("Join Date:", m_joinDateEdit);
+    layCardMember->addLayout(formMember);
+    layPageIdent->addWidget(cardMember);
+    layPageIdent->addStretch();
+
+    QScrollArea* scrollIdent = new QScrollArea();
+    scrollIdent->setWidgetResizable(true);
+    scrollIdent->setFrameShape(QFrame::NoFrame);
+    scrollIdent->setWidget(pageIdentity);
+    m_detailStack->addWidget(scrollIdent);
+
+    // --- TAB 1: PASTORAL CARE & HISTORY ---
+    QWidget* pagePastoral = new QWidget();
+    QVBoxLayout* layPagePastoral = new QVBoxLayout(pagePastoral);
+    layPagePastoral->setContentsMargins(0, 0, 0, 0);
+    layPagePastoral->setSpacing(10);
+
+    QFrame* cardPastoral = new QFrame(pagePastoral);
+    cardPastoral->setObjectName("cardWidget");
+    QVBoxLayout* layCardPastoral = new QVBoxLayout(cardPastoral);
+    layCardPastoral->setContentsMargins(12, 10, 12, 10);
+    layCardPastoral->setSpacing(8);
+
+    QHBoxLayout* pastHeaderRow = new QHBoxLayout();
+    QLabel* lblPastTitle = new QLabel("🕊️ PASTORAL CARE & TRIAGE", cardPastoral);
+    lblPastTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    pastHeaderRow->addWidget(lblPastTitle);
+    pastHeaderRow->addStretch();
+
+    m_btnLogCare = new QPushButton("➕ Log Care Entry", cardPastoral);
+    m_btnLogCare->setObjectName("primaryBtn");
+    m_btnLogCare->setFixedHeight(26);
+    connect(m_btnLogCare, &QPushButton::clicked, this, &PeopleWidget::onLogCareEntry);
+    pastHeaderRow->addWidget(m_btnLogCare);
+    layCardPastoral->addLayout(pastHeaderRow);
+
+    QFormLayout* formPastoral = new QFormLayout();
+    formPastoral->setSpacing(6);
+
+    m_careFlagCombo = new QComboBox(cardPastoral);
+    m_careFlagCombo->addItems({"Normal", "Needs Contact", "At-Risk", "Follow-up", "Grief Support", "Leader"});
+    connect(m_careFlagCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { setDirty(true); });
+
+    m_adminNotesText = new QTextEdit(cardPastoral);
+    m_adminNotesText->setMaximumHeight(80);
+    m_adminNotesText->setPlaceholderText("Confidential pastoral notes, prayer needs, or counseling context...");
+    connect(m_adminNotesText, &QTextEdit::textChanged, this, [this]() { setDirty(true); });
+
+    formPastoral->addRow("Care Flag:", m_careFlagCombo);
+    formPastoral->addRow("Admin Notes:", m_adminNotesText);
+    layCardPastoral->addLayout(formPastoral);
+    layPagePastoral->addWidget(cardPastoral);
+
+    // History Timeline Card
+    QFrame* cardTimeline = new QFrame(pagePastoral);
+    cardTimeline->setObjectName("cardWidget");
+    QVBoxLayout* layCardTimeline = new QVBoxLayout(cardTimeline);
+    layCardTimeline->setContentsMargins(12, 10, 12, 10);
+    layCardTimeline->setSpacing(8);
+
+    QLabel* lblTimelineTitle = new QLabel("📅 PASTORAL CARE & ACTIVITY TIMELINE", cardTimeline);
+    lblTimelineTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardTimeline->addWidget(lblTimelineTitle);
+
+    m_historyList = new QListWidget(cardTimeline);
+    m_historyList->setObjectName("historyList");
+    m_historyList->setMinimumHeight(140);
+    layCardTimeline->addWidget(m_historyList);
+    layPagePastoral->addWidget(cardTimeline);
+    layPagePastoral->addStretch();
+
+    QScrollArea* scrollPastoral = new QScrollArea();
+    scrollPastoral->setWidgetResizable(true);
+    scrollPastoral->setFrameShape(QFrame::NoFrame);
+    scrollPastoral->setWidget(pagePastoral);
+    m_detailStack->addWidget(scrollPastoral);
+
+    // --- TAB 2: GROUPS & CONNECTIONS ---
+    QWidget* pageGroups = new QWidget();
+    QVBoxLayout* layPageGroups = new QVBoxLayout(pageGroups);
+    layPageGroups->setContentsMargins(0, 0, 0, 0);
+    layPageGroups->setSpacing(10);
+
+    QFrame* cardGroups = new QFrame(pageGroups);
+    cardGroups->setObjectName("cardWidget");
+    QVBoxLayout* layCardGroups = new QVBoxLayout(cardGroups);
+    layCardGroups->setContentsMargins(12, 10, 12, 10);
+    layCardGroups->setSpacing(8);
+
+    QLabel* lblGroupsTitle = new QLabel("👥 ACTIVE MINISTRY GROUPS & SERVING TEAMS", cardGroups);
+    lblGroupsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardGroups->addWidget(lblGroupsTitle);
+
+    m_connectionsList = new QListWidget(cardGroups);
+    m_connectionsList->setObjectName("historyList");
+    m_connectionsList->setMinimumHeight(160);
+    layCardGroups->addWidget(m_connectionsList);
+    layPageGroups->addWidget(cardGroups);
+    layPageGroups->addStretch();
+
+    QScrollArea* scrollGroups = new QScrollArea();
+    scrollGroups->setWidgetResizable(true);
+    scrollGroups->setFrameShape(QFrame::NoFrame);
+    scrollGroups->setWidget(pageGroups);
+    m_detailStack->addWidget(scrollGroups);
+
+    // --- TAB 3: GIVING & STEWARDSHIP ---
+    QWidget* pageGiving = new QWidget();
+    QVBoxLayout* layPageGiving = new QVBoxLayout(pageGiving);
+    layPageGiving->setContentsMargins(0, 0, 0, 0);
+    layPageGiving->setSpacing(10);
+
+    QFrame* cardGiving = new QFrame(pageGiving);
+    cardGiving->setObjectName("cardWidget");
+    QVBoxLayout* layCardGiving = new QVBoxLayout(cardGiving);
+    layCardGiving->setContentsMargins(12, 10, 12, 10);
+    layCardGiving->setSpacing(10);
+
+    QLabel* lblGivingTitle = new QLabel("💰 STEWARDSHIP & GIVING OVERVIEW", cardGiving);
+    lblGivingTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardGiving->addWidget(lblGivingTitle);
+
+    QHBoxLayout* givingMetricsRow = new QHBoxLayout();
+    givingMetricsRow->setSpacing(10);
+
+    auto makeMetric = [](const QString& title, QLabel** outLabel, const QString& defVal) {
+        QFrame* mBox = new QFrame();
+        mBox->setStyleSheet("QFrame { background-color: #11111b; border: 1px solid #313244; border-radius: 8px; padding: 6px; }");
+        QVBoxLayout* v = new QVBoxLayout(mBox);
+        v->setContentsMargins(6, 6, 6, 6);
+        v->setSpacing(2);
+        QLabel* t = new QLabel(title);
+        t->setStyleSheet("font-size: 10px; color: #a6adc8; font-weight: bold;");
+        QLabel* val = new QLabel(defVal);
+        val->setStyleSheet("font-size: 15px; font-weight: bold; color: #2ef098;");
+        *outLabel = val;
+        v->addWidget(t);
+        v->addWidget(val);
+        return mBox;
+    };
+
+    givingMetricsRow->addWidget(makeMetric("YTD Total Giving", &m_lblGivingYTD, "$0.00"));
+    givingMetricsRow->addWidget(makeMetric("Total Gifts", &m_lblGivingCount, "0"));
+    givingMetricsRow->addWidget(makeMetric("Last Contribution", &m_lblGivingLastDate, "—"));
+    layCardGiving->addLayout(givingMetricsRow);
+
+    QLabel* lblRecentGifts = new QLabel("Recent Contribution Records:", cardGiving);
+    lblRecentGifts->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    layCardGiving->addWidget(lblRecentGifts);
+
+    m_lstRecentGiving = new QListWidget(cardGiving);
+    m_lstRecentGiving->setObjectName("historyList");
+    m_lstRecentGiving->setMinimumHeight(120);
+    layCardGiving->addWidget(m_lstRecentGiving);
+
+    m_btnGenerateStatement = new QPushButton("📄 Generate End-of-Year Giving Tax Statement (PDF)", cardGiving);
+    m_btnGenerateStatement->setObjectName("secondaryBtn");
+    connect(m_btnGenerateStatement, &QPushButton::clicked, this, [this]() {
+        if (m_currentPersonId <= 0) return;
+        QString fileName = QFileDialog::getSaveFileName(this, "Save Giving Tax Statement", 
+            QString("Giving_Statement_%1_%2.pdf").arg(m_firstNameEdit->text(), m_lastNameEdit->text()), "PDF Files (*.pdf)");
+        if (!fileName.isEmpty()) {
+            QPdfWriter writer(fileName);
+            writer.setPageSize(QPageSize(QPageSize::Letter));
+            QPainter painter(&writer);
+            painter.setPen(Qt::black);
+            QFont fHeader("Helvetica", 16, QFont::Bold);
+            painter.setFont(fHeader);
+            painter.drawText(500, 500, "Official Giving Tax Statement");
+            QFont fSub("Helvetica", 10);
+            painter.setFont(fSub);
+            painter.drawText(500, 750, QString("Donor: %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
+            painter.drawText(500, 950, QString("Total Giving Recorded: %1").arg(m_lblGivingYTD->text()));
+            painter.drawText(500, 1150, "OpenEkklesia Church Management System — 501(c)(3) Compliant");
+            painter.end();
+            QMessageBox::information(this, "Statement Generated", QString("Giving tax statement exported successfully to:\n%1").arg(fileName));
+        }
+    });
+    layCardGiving->addWidget(m_btnGenerateStatement);
+    layPageGiving->addWidget(cardGiving);
+    layPageGiving->addStretch();
+
+    QScrollArea* scrollGiving = new QScrollArea();
+    scrollGiving->setWidgetResizable(true);
+    scrollGiving->setFrameShape(QFrame::NoFrame);
+    scrollGiving->setWidget(pageGiving);
+    m_detailStack->addWidget(scrollGiving);
+
+    // --- TAB 4: GIFTS & TAGS ---
+    QWidget* pageMinistry = new QWidget();
+    QVBoxLayout* layPageMinistry = new QVBoxLayout(pageMinistry);
+    layPageMinistry->setContentsMargins(0, 0, 0, 0);
+    layPageMinistry->setSpacing(10);
+
+    QFrame* cardMin = new QFrame(pageMinistry);
+    cardMin->setObjectName("cardWidget");
+    QVBoxLayout* layCardMin = new QVBoxLayout(cardMin);
+    layCardMin->setContentsMargins(12, 10, 12, 10);
+    layCardMin->setSpacing(8);
+
+    QLabel* lblMinTitle = new QLabel("✨ SPIRITUAL GIFTS & TALENTS", cardMin);
+    lblMinTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardMin->addWidget(lblMinTitle);
+
+    m_giftsEdit = new QLineEdit(cardMin);
     m_giftsEdit->setVisible(false);
 
     static const QStringList kSpiritualGifts = {
@@ -483,17 +814,17 @@ void PeopleWidget::setupUI() {
     };
 
     QVBoxLayout* giftsChipBox = new QVBoxLayout();
-    giftsChipBox->setSpacing(6);
-    QHBoxLayout* giftsRow1 = new QHBoxLayout(); giftsRow1->setSpacing(6);
-    QHBoxLayout* giftsRow2 = new QHBoxLayout(); giftsRow2->setSpacing(6);
+    giftsChipBox->setSpacing(4);
+    QHBoxLayout* giftsRow1 = new QHBoxLayout(); giftsRow1->setSpacing(4);
+    QHBoxLayout* giftsRow2 = new QHBoxLayout(); giftsRow2->setSpacing(4);
 
     for (int i = 0; i < kSpiritualGifts.size(); ++i) {
         QString g = kSpiritualGifts.at(i);
-        QPushButton* chip = new QPushButton(g, cardMinistry);
+        QPushButton* chip = new QPushButton(g, cardMin);
         chip->setCheckable(true);
         chip->setProperty("rawName", g);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 12px; color: #cdd6f4; padding: 4px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: #cdd6f4; padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #89b4fa; color: #89b4fa; }"
             "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 1px solid #89b4fa; color: #89b4fa; }"
         );
@@ -501,6 +832,7 @@ void PeopleWidget::setupUI() {
             QString raw = chip->property("rawName").toString();
             chip->setText(checked ? QString("✓ %1").arg(raw) : raw);
             updateGiftsFromChips();
+            setDirty(true);
         });
         m_giftChips.append(chip);
 
@@ -511,14 +843,14 @@ void PeopleWidget::setupUI() {
     giftsRow2->addStretch();
     giftsChipBox->addLayout(giftsRow1);
     giftsChipBox->addLayout(giftsRow2);
-    layMin->addLayout(giftsChipBox);
+    layCardMin->addLayout(giftsChipBox);
 
-    // B. Relational Style Chips
-    QLabel* lblStyleHeader = new QLabel("Relational Style — Team Role Dynamics (Belbin / Ministry Taxonomy):", cardMinistry);
-    lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 6px;");
-    layMin->addWidget(lblStyleHeader);
+    // Relational Styles
+    QLabel* lblStyleHeader = new QLabel("Relational Style Dynamics:", cardMin);
+    lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    layCardMin->addWidget(lblStyleHeader);
 
-    m_styleEdit = new QLineEdit(cardMinistry);
+    m_styleEdit = new QLineEdit(cardMin);
     m_styleEdit->setVisible(false);
 
     static const QStringList kRelationalStyles = {
@@ -526,13 +858,13 @@ void PeopleWidget::setupUI() {
     };
 
     QHBoxLayout* styleRow = new QHBoxLayout();
-    styleRow->setSpacing(6);
+    styleRow->setSpacing(4);
     for (const QString& s : kRelationalStyles) {
-        QPushButton* chip = new QPushButton(s, cardMinistry);
+        QPushButton* chip = new QPushButton(s, cardMin);
         chip->setCheckable(true);
         chip->setProperty("rawName", s);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 12px; color: #cdd6f4; padding: 4px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: #cdd6f4; padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #a6e3a1; color: #a6e3a1; }"
             "QPushButton:checked { background-color: rgba(166, 227, 161, 0.25); border: 1px solid #a6e3a1; color: #a6e3a1; }"
         );
@@ -540,162 +872,98 @@ void PeopleWidget::setupUI() {
             QString raw = chip->property("rawName").toString();
             chip->setText(checked ? QString("✓ %1").arg(raw) : raw);
             updateStylesFromChips();
+            setDirty(true);
         });
         m_styleChips.append(chip);
         styleRow->addWidget(chip);
     }
     styleRow->addStretch();
-    layMin->addLayout(styleRow);
+    layCardMin->addLayout(styleRow);
 
-    // C. Interest Tags Widget
-    QLabel* lblTagsHeader = new QLabel("Interest Tags:", cardMinistry);
-    lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 6px;");
-    layMin->addWidget(lblTagsHeader);
+    // Interest Tags
+    QLabel* lblTagsHeader = new QLabel("Interest Tags:", cardMin);
+    lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    layCardMin->addWidget(lblTagsHeader);
 
-    m_tagsEdit = new QLineEdit(cardMinistry);
+    m_tagsEdit = new QLineEdit(cardMin);
     m_tagsEdit->setVisible(false);
 
-    m_tagsChipsContainer = new QWidget(cardMinistry);
-    layMin->addWidget(m_tagsChipsContainer);
+    m_tagsChipsContainer = new QWidget(cardMin);
+    layCardMin->addWidget(m_tagsChipsContainer);
 
     QHBoxLayout* tagInputRow = new QHBoxLayout();
     tagInputRow->setSpacing(6);
-    m_tagInputField = new QLineEdit(cardMinistry);
-    m_tagInputField->setPlaceholderText("Type a tag (e.g. Young Families, Tech/AV) & press Enter...");
-    QPushButton* btnAddTag = new QPushButton("+ Add Tag", cardMinistry);
+    m_tagInputField = new QLineEdit(cardMin);
+    m_tagInputField->setPlaceholderText("Type a tag (e.g. Young Families, AV/Tech) & press Enter...");
+    QPushButton* btnAddTag = new QPushButton("+ Add Tag", cardMin);
     btnAddTag->setObjectName("secondaryBtn");
 
     auto triggerAddTag = [this]() {
         addInterestTag(m_tagInputField->text());
+        setDirty(true);
     };
     connect(m_tagInputField, &QLineEdit::returnPressed, this, triggerAddTag);
     connect(btnAddTag, &QPushButton::clicked, this, triggerAddTag);
 
     tagInputRow->addWidget(m_tagInputField, 1);
     tagInputRow->addWidget(btnAddTag);
-    layMin->addLayout(tagInputRow);
+    layCardMin->addLayout(tagInputRow);
+    layPageMinistry->addWidget(cardMin);
+    layPageMinistry->addStretch();
 
-    rightLayout->addWidget(cardMinistry);
+    QScrollArea* scrollMinistry = new QScrollArea();
+    scrollMinistry->setWidgetResizable(true);
+    scrollMinistry->setFrameShape(QFrame::NoFrame);
+    scrollMinistry->setWidget(pageMinistry);
+    m_detailStack->addWidget(scrollMinistry);
 
-    // --- CARD 5: PASTORAL & ADMIN CARE SECTION ---
-    QFrame* cardPastoral = new QFrame(this);
-    cardPastoral->setObjectName("cardWidget");
-    QVBoxLayout* layPastoral = new QVBoxLayout(cardPastoral);
-    layPastoral->setContentsMargins(14, 12, 14, 12);
-    layPastoral->setSpacing(10);
+    dossierLayout->addWidget(m_detailStack, 1);
 
-    QLabel* lblTitlePastoral = new QLabel("📋 PASTORAL & ADMIN CARE", cardPastoral);
-    lblTitlePastoral->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa; text-transform: uppercase;");
-    layPastoral->addWidget(lblTitlePastoral);
+    // 4. STICKY ACTION FOOTER BAR
+    m_footerFrame = new QFrame(m_dossierContainer);
+    m_footerFrame->setObjectName("footerFrame");
+    m_footerFrame->setStyleSheet("QFrame#footerFrame { background-color: #181825; border-top: 1px solid #313244; border-radius: 8px; }");
+    QHBoxLayout* footerLayout = new QHBoxLayout(m_footerFrame);
+    footerLayout->setContentsMargins(12, 8, 12, 8);
+    footerLayout->setSpacing(10);
 
-    QFormLayout* formPastoral = new QFormLayout();
-    formPastoral->setSpacing(8);
-    formPastoral->setLabelAlignment(Qt::AlignRight);
+    m_lblDirtyIndicator = new QLabel("● Unsaved Changes", m_footerFrame);
+    m_lblDirtyIndicator->setStyleSheet("color: #fab387; font-weight: bold; font-size: 11px;");
+    m_lblDirtyIndicator->setVisible(false);
+    footerLayout->addWidget(m_lblDirtyIndicator);
+    footerLayout->addStretch();
 
-    m_statusCombo = new QComboBox(cardPastoral);
-    m_statusCombo->addItems({"Visitor", "Regular Attender", "Member", "Inactive"});
-
-    QDate nullDate(1900, 1, 1);
-    m_firstVisitEdit = new QDateEdit(nullDate, cardPastoral);
-    m_firstVisitEdit->setCalendarPopup(true);
-    m_firstVisitEdit->setDisplayFormat("yyyy-MM-dd");
-    m_firstVisitEdit->setMinimumDate(nullDate);
-    m_firstVisitEdit->setSpecialValueText("—");
-
-    m_joinDateEdit = new QDateEdit(nullDate, cardPastoral);
-    m_joinDateEdit->setCalendarPopup(true);
-    m_joinDateEdit->setDisplayFormat("yyyy-MM-dd");
-    m_joinDateEdit->setMinimumDate(nullDate);
-    m_joinDateEdit->setSpecialValueText("—");
-
-    m_careFlagCombo = new QComboBox(cardPastoral);
-    m_careFlagCombo->addItems({"Normal", "At-Risk", "Follow-up", "Leader"});
-
-    m_adminNotesText = new QTextEdit(cardPastoral);
-    m_adminNotesText->setMaximumHeight(70);
-    m_adminNotesText->setPlaceholderText("Pastoral notes, counseling logs, or internal comments...");
-
-    formPastoral->addRow("Membership Status:", m_statusCombo);
-    formPastoral->addRow("First Visit:", m_firstVisitEdit);
-    formPastoral->addRow("Join Date:", m_joinDateEdit);
-    formPastoral->addRow("Care Flag:", m_careFlagCombo);
-    formPastoral->addRow("Admin Notes:", m_adminNotesText);
-
-    layPastoral->addLayout(formPastoral);
-    rightLayout->addWidget(cardPastoral);
-
-    // --- PROFILE ACTIONS & DELETION BAR ---
-    QVBoxLayout* actionBox = new QVBoxLayout();
-    actionBox->setSpacing(12);
-
-    m_btnSave = new QPushButton("Save Profile Modifications", this);
+    m_btnSave = new QPushButton("💾 Save Profile (Ctrl+S)", m_footerFrame);
     m_btnSave->setObjectName("primaryBtn");
-    m_btnSave->setFixedHeight(38);
+    m_btnSave->setFixedHeight(34);
     connect(m_btnSave, &QPushButton::clicked, this, &PeopleWidget::onSaveProfile);
-    actionBox->addWidget(m_btnSave);
+    footerLayout->addWidget(m_btnSave);
 
-    QFrame* sep = new QFrame(this);
-    sep->setFrameShape(QFrame::HLine);
-    sep->setStyleSheet("color: #313244;");
-    actionBox->addWidget(sep);
-
-    QHBoxLayout* deleteRow = new QHBoxLayout();
-    m_btnDeletePerson = new QPushButton("🗑️ Delete Person Profile", this);
+    m_btnDeletePerson = new QPushButton("🗑️ Delete Profile", m_footerFrame);
     m_btnDeletePerson->setObjectName("ghostDangerBtn");
     m_btnDeletePerson->setStyleSheet(
-        "QPushButton#ghostDangerBtn { background: transparent; border: none; color: #f38ba8; font-size: 11px; font-weight: bold; }"
-        "QPushButton#ghostDangerBtn:hover { text-decoration: underline; color: #ff5555; }"
+        "QPushButton#ghostDangerBtn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: bold; }"
+        "QPushButton#ghostDangerBtn:hover { background-color: rgba(243, 139, 168, 0.2); color: #ff5555; }"
     );
     connect(m_btnDeletePerson, &QPushButton::clicked, this, &PeopleWidget::onDeletePerson);
-    deleteRow->addStretch();
-    deleteRow->addWidget(m_btnDeletePerson);
-    deleteRow->addStretch();
-    actionBox->addLayout(deleteRow);
+    footerLayout->addWidget(m_btnDeletePerson);
 
-    rightLayout->addLayout(actionBox);
+    dossierLayout->addWidget(m_footerFrame);
 
-    QLabel* connLabel = new QLabel("Active Ministry Connections & Serving Teams", this);
-    connLabel->setObjectName("detailSubHeader");
-    rightLayout->addWidget(connLabel);
+    m_avatarPathEdit = new QLineEdit(this);
+    m_avatarPathEdit->setVisible(false);
 
-    m_connectionsList = new QListWidget(this);
-    m_connectionsList->setObjectName("historyList");
-    m_connectionsList->setMaximumHeight(100);
-    rightLayout->addWidget(m_connectionsList);
+    rightMainLayout->addWidget(m_dossierContainer);
 
-    QHBoxLayout* historyHeaderRow = new QHBoxLayout();
-    QLabel* historyLabel = new QLabel("Activity & Pastoral Care Timeline", this);
-    historyLabel->setObjectName("detailSubHeader");
-    historyHeaderRow->addWidget(historyLabel);
-    historyHeaderRow->addStretch();
-    m_btnLogCare = new QPushButton("➕ Log Care Entry", this);
-    m_btnLogCare->setObjectName("secondaryBtn");
-    m_btnLogCare->setFixedHeight(26);
-    connect(m_btnLogCare, &QPushButton::clicked, this, &PeopleWidget::onLogCareEntry);
-    historyHeaderRow->addWidget(m_btnLogCare);
-    rightLayout->addLayout(historyHeaderRow);
-
-    m_historyList = new QListWidget(this);
-    m_historyList->setObjectName("historyList");
-    m_historyList->setMaximumHeight(110);
-    rightLayout->addWidget(m_historyList);
-
-    rightLayout->addStretch();
-
-    QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setWidget(rightPanel);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; }");
-
+    // Initial Splitter Setup
     QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
     mainSplitter->addWidget(leftPanel);
-    mainSplitter->addWidget(scrollArea);
+    mainSplitter->addWidget(rightContainer);
     mainSplitter->setStretchFactor(0, 3);
     mainSplitter->setStretchFactor(1, 2);
     mainLayout->addWidget(mainSplitter);
 }
+
 
 void PeopleWidget::setupModels() {
     QSqlDatabase db = QSqlDatabase::database();
@@ -926,9 +1194,126 @@ void PeopleWidget::refreshTagCompleter() {
     m_tagInputField->setCompleter(m_tagCompleter);
 }
 
+void PeopleWidget::setDirty(bool dirty) {
+    m_isDirty = dirty;
+    if (m_lblDirtyIndicator) {
+        m_lblDirtyIndicator->setVisible(dirty);
+    }
+    if (m_btnSave) {
+        if (dirty) {
+            m_btnSave->setStyleSheet("QPushButton#primaryBtn { background-color: #a6e3a1; color: #11111b; font-weight: bold; border: 2px solid #94e2d5; }");
+        } else {
+            m_btnSave->setStyleSheet("");
+        }
+    }
+}
+
+void PeopleWidget::updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate) {
+    if (m_lblHeaderName) m_lblHeaderName->setText(name.isEmpty() ? "—" : name);
+
+    QString sub;
+    if (!household.isEmpty() && household != "— None (No Household) —") {
+        sub += household;
+    }
+    if (!joinDate.isEmpty() && joinDate != "1900-01-01") {
+        if (!sub.isEmpty()) sub += " • ";
+        sub += QString("Joined %1").arg(joinDate);
+    }
+    if (sub.isEmpty()) sub = "No household assigned";
+    if (m_lblHeaderSub) m_lblHeaderSub->setText(sub);
+
+    if (m_lblHeaderStatusBadge) {
+        m_lblHeaderStatusBadge->setText(status.isEmpty() ? "Member" : status);
+        QString statusColor = "#a6adc8";
+        QString statusBg = "rgba(166, 173, 200, 0.2)";
+        if (status == "Member") {
+            statusColor = "#2ef098";
+            statusBg = "rgba(46, 240, 152, 0.2)";
+        } else if (status == "Regular Attender") {
+            statusColor = "#b4befe";
+            statusBg = "rgba(180, 190, 254, 0.2)";
+        } else if (status == "Visitor") {
+            statusColor = "#f9e2af";
+            statusBg = "rgba(249, 226, 175, 0.2)";
+        }
+        m_lblHeaderStatusBadge->setStyleSheet(QString("color: %1; background-color: %2; border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;").arg(statusColor, statusBg));
+    }
+
+    if (m_lblHeaderCareBadge) {
+        if (careFlag == "Needs Contact" || careFlag == "At-Risk" || careFlag == "At Risk") {
+            m_lblHeaderCareBadge->setText("🔴 " + careFlag);
+            m_lblHeaderCareBadge->setStyleSheet("color: #f38ba8; background-color: rgba(243, 139, 168, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setVisible(true);
+        } else if (careFlag == "Follow-up" || careFlag == "Grief Support") {
+            m_lblHeaderCareBadge->setText("🟡 " + careFlag);
+            m_lblHeaderCareBadge->setStyleSheet("color: #f9e2af; background-color: rgba(249, 226, 175, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setVisible(true);
+        } else if (careFlag == "Leader") {
+            m_lblHeaderCareBadge->setText("⭐ Leader");
+            m_lblHeaderCareBadge->setStyleSheet("color: #89b4fa; background-color: rgba(137, 180, 250, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setVisible(true);
+        } else {
+            m_lblHeaderCareBadge->setVisible(false);
+        }
+    }
+}
+
+void PeopleWidget::updateGivingSummary(int personId) {
+    if (!m_lblGivingYTD) return;
+
+    double ytdTotal = 0.0;
+    int count = 0;
+    QString lastDate = "—";
+
+    QSqlQuery q;
+    q.prepare("SELECT COALESCE(SUM(amount), 0), COUNT(id), MAX(contribution_date) FROM contributions WHERE person_id = ?");
+    q.addBindValue(personId);
+    if (q.exec() && q.next()) {
+        ytdTotal = q.value(0).toDouble() / 100.0;
+        count = q.value(1).toInt();
+        lastDate = q.value(2).toString();
+        if (lastDate.isEmpty()) lastDate = "None recorded";
+    }
+
+    m_lblGivingYTD->setText(QString("%1 %2").arg(appCurrencySymbol(), QString::number(ytdTotal, 'f', 2)));
+    m_lblGivingCount->setText(QString::number(count));
+    m_lblGivingLastDate->setText(lastDate);
+
+    if (m_lstRecentGiving) {
+        m_lstRecentGiving->clear();
+        QSqlQuery qGifts;
+        qGifts.prepare("SELECT c.contribution_date, f.fund_name, c.amount, c.payment_method "
+                       "FROM contributions c JOIN funds f ON c.fund_id = f.id "
+                       "WHERE c.person_id = ? ORDER BY c.contribution_date DESC LIMIT 10");
+        qGifts.addBindValue(personId);
+        if (qGifts.exec()) {
+            while (qGifts.next()) {
+                QString dt = qGifts.value(0).toString();
+                QString fund = qGifts.value(1).toString();
+                double amt = qGifts.value(2).toDouble() / 100.0;
+                QString pay = qGifts.value(3).toString();
+
+                m_lstRecentGiving->addItem(QString("💰 %1 — %2 %3 (%4, %5)")
+                    .arg(dt, appCurrencySymbol(), QString::number(amt, 'f', 2), fund, pay));
+            }
+        }
+        if (m_lstRecentGiving->count() == 0) {
+            m_lstRecentGiving->addItem("No contribution records found for this member.");
+        }
+    }
+}
+
 void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIndex& previous) {
     Q_UNUSED(previous);
-    if (!current.isValid()) return;
+    if (!current.isValid()) {
+        m_currentPersonId = 0;
+        if (m_emptyStateWidget) m_emptyStateWidget->setVisible(true);
+        if (m_dossierContainer) m_dossierContainer->setVisible(false);
+        return;
+    }
+
+    if (m_emptyStateWidget) m_emptyStateWidget->setVisible(false);
+    if (m_dossierContainer) m_dossierContainer->setVisible(true);
 
     QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
     int row = sourceIndex.row();
@@ -1023,6 +1408,14 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     refreshHouseholdMembersList(householdId, personId);
     loadAvatar(avatarPath);
 
+    // Update Pinned Header
+    QString householdName = m_householdCombo->currentText();
+    QString fullName = QString("%1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()).trimmed();
+    updateHeader(fullName, status, careFlag, householdName, jdStr);
+
+    // Update Giving Summary
+    updateGivingSummary(personId);
+
     // Fetch Connections
     m_connectionsList->clear();
     QSqlQuery qConn;
@@ -1038,6 +1431,7 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     }
 
     updateHistoryTimeline(personId);
+    setDirty(false);
 }
 
 void PeopleWidget::updateHistoryTimeline(int personId) {
@@ -1052,7 +1446,7 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
         "  UNION ALL "
         "  SELECT timestamp, care_type AS type, notes AS text, follow_up "
         "  FROM care_logs WHERE person_id = ?"
-        ") ORDER BY timestamp DESC LIMIT 15");
+        ") ORDER BY timestamp DESC LIMIT 20");
     qHist.addBindValue(personId);
     qHist.addBindValue(personId);
     if (qHist.exec()) {
@@ -1061,12 +1455,25 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
             QString type = qHist.value(1).toString();
             QString text = qHist.value(2).toString();
             bool followUp = qHist.value(3).toInt() != 0;
-            QString prefix = followUp ? "🔔 " : "📅 ";
-            m_historyList->addItem(QString("%1[%2] %3 — %4").arg(prefix, ts, type, text));
+
+            QString badge = "🕊️ " + type;
+            if (type == "Counseling") badge = "💬 " + type;
+            else if (type == "Visitation" || type == "Hospital Visit") badge = "🏥 " + type;
+            else if (type == "Prayer") badge = "🙏 " + type;
+            else if (type == "Follow-up Call") badge = "📞 " + type;
+            else if (type == "Benevolence") badge = "🤝 " + type;
+
+            QString itemStr = QString("%1  [%2]%3\n%4")
+                .arg(badge, ts, (followUp ? "  [🔔 Follow-up Needed]" : ""), text);
+
+            QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
+            if (followUp) {
+                item->setForeground(QColor("#fab387"));
+            }
         }
     }
     if (m_historyList->count() == 0) {
-        m_historyList->addItem("No pastoral care entries logged.");
+        m_historyList->addItem("No pastoral care entries logged yet.");
     }
 }
 
@@ -1177,10 +1584,11 @@ void PeopleWidget::reapplyFilter() {
     }
 
     switch (statusId) {
-        case 1: conditions << "membership_status = 'Visitor'"; break;
-        case 2: conditions << "membership_status = 'Regular Attender'"; break;
-        case 3: conditions << "membership_status = 'Member'"; break;
-        case 4: conditions << "membership_status = 'Inactive'"; break;
+        case 1: conditions << "(membership_status = 'Member' OR membership_status = 'Regular Attender')"; break;
+        case 2: conditions << "membership_status = 'Visitor'"; break;
+        case 3: conditions << "membership_status = 'Regular Attender'"; break;
+        case 4: conditions << "membership_status = 'Member'"; break;
+        case 5: conditions << "membership_status = 'Inactive'"; break;
         default: break;
     }
 
@@ -1259,6 +1667,7 @@ void PeopleWidget::onChangeAvatar() {
         m_selectedAvatarPath = fileName;
         m_avatarPathEdit->setText(fileName);
         loadAvatar(fileName);
+        setDirty(true);
     }
 }
 
@@ -1266,18 +1675,19 @@ void PeopleWidget::loadAvatar(const QString& path) {
     if (!path.isEmpty() && QFile::exists(path)) {
         QPixmap pix(path);
         if (!pix.isNull()) {
-            QPixmap scaled = pix.scaled(100, 100, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            QPixmap rounded(100, 100);
+            QPixmap scaled = pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            QPixmap rounded(64, 64);
             rounded.fill(Qt::transparent);
             QPainter p(&rounded);
             p.setRenderHint(QPainter::Antialiasing);
             QPainterPath clipPath;
-            clipPath.addRoundedRect(0, 0, 100, 100, 50, 50);
+            clipPath.addRoundedRect(0, 0, 64, 64, 32, 32);
             p.setClipPath(clipPath);
             p.drawPixmap(0, 0, scaled);
             p.end();
 
             m_avatarLabel->setPixmap(rounded);
+            m_avatarLabel->setStyleSheet("border: 2px solid #89b4fa; border-radius: 32px;");
             return;
         }
     }
@@ -1286,7 +1696,7 @@ void PeopleWidget::loadAvatar(const QString& path) {
     m_avatarLabel->setText("👤");
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
     m_avatarLabel->setStyleSheet(
-        QString("border: 2px dashed %1; border-radius: 50px; background-color: %2; font-size: 32px; color: %3;")
+        QString("border: 2px dashed %1; border-radius: 32px; background-color: %2; font-size: 24px; color: %3;")
             .arg(tok.borderColor.name(), tok.bgInput.name(), tok.accentPrimary.name()));
 }
 
@@ -1374,6 +1784,8 @@ void PeopleWidget::onSaveProfile() {
         reapplyFilter();
         selectPerson(personId);
         refreshTagCompleter();
+        setDirty(false);
+        updateHeader(QString("%1 %2").arg(fn, ln), status, careFlag, m_householdCombo->currentText(), joinDate);
         DatabaseManager::logAudit("people", personId, "profile", "Profile Modifications", "UPDATED", "admin");
         QMessageBox::information(this, "Success", QString("Profile for '%1 %2' saved successfully.").arg(fn, ln));
     } else {
