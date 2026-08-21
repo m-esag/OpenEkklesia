@@ -703,7 +703,7 @@ bool test_serviceBuilderRoleAndDuration() {
     // Default (admin) role: mutating controls are enabled.
     bool saveEnabled = false, exportEnabled = false;
     for (QPushButton* b : sb.findChildren<QPushButton*>()) {
-        if (b->text() == "Save Layout") saveEnabled = b->isEnabled();
+        if (b->text().contains("Save Layout File")) saveEnabled = b->isEnabled();
         if (b->text().contains("Export Run Sheet PDF")) exportEnabled = b->isEnabled();
     }
     CHECK(saveEnabled);
@@ -712,11 +712,13 @@ bool test_serviceBuilderRoleAndDuration() {
     // Guest (read-only): writes disabled, read-only actions stay enabled.
     sb.applyRole("readonly");
     for (QPushButton* b : sb.findChildren<QPushButton*>()) {
-        if (b->text() == "Save Layout" || b->text() == "Assign Volunteer"
-            || b->text() == "Unassign" || b->text().contains("Save Service Details")) {
+        if (b->text().contains("Save Layout File") || b->text() == "Assign Volunteer"
+            || b->text() == "Unassign" || b->text().contains("Save as Template")
+            || b->text().contains("Mark Volunteers Attended")) {
             CHECK(!b->isEnabled());
         }
-        if (b->text().contains("Export Run Sheet PDF") || b->text() == "Load Layout") {
+        if (b->text().contains("Export Run Sheet PDF") || b->text().contains("Load Layout File")
+            || b->text().contains("Coverage Check") || b->text().contains("Export Volunteer iCal")) {
             CHECK(b->isEnabled());
         }
     }
@@ -724,7 +726,7 @@ bool test_serviceBuilderRoleAndDuration() {
     // Restore admin: controls re-enable.
     sb.applyRole("admin");
     for (QPushButton* b : sb.findChildren<QPushButton*>()) {
-        if (b->text() == "Save Layout") CHECK(b->isEnabled());
+        if (b->text().contains("Save Layout File")) CHECK(b->isEnabled());
     }
 
     // Duration calculator: library items carry real durations; dropping one
@@ -744,6 +746,69 @@ bool test_serviceBuilderRoleAndDuration() {
             CHECK(dur->text().contains("4 mins"));
         }
     }
+    return true;
+}
+
+bool test_serviceBuilderLibraryFilterAndAutosave() {
+    ServiceBuilderWidget sb;
+    QSqlDatabase d = db();
+
+    // 1. Library type filter hides non-matching elements.
+    QComboBox* filter = sb.findChild<QComboBox*>("serviceLibraryFilter");
+    QLineEdit* search = sb.findChild<QLineEdit*>("serviceLibrarySearch");
+    QListWidget* library = sb.findChild<QListWidget*>("serviceLibraryList");
+    CHECK(filter && search && library);
+    if (!filter || !search || !library) return true;
+
+    auto visibleCount = [&]() {
+        int n = 0;
+        for (int i = 0; i < library->count(); ++i) {
+            if (!library->item(i)->isHidden()) n++;
+        }
+        return n;
+    };
+    CHECK_EQ(visibleCount(), 15); // default: everything visible
+
+    filter->setCurrentIndex(filter->findText("🎵 Songs"));
+    CHECK_EQ(visibleCount(), 4); // four seeded songs
+    filter->setCurrentIndex(0);  // back to All
+    CHECK_EQ(visibleCount(), 15);
+
+    search->setText("Amazing");
+    CHECK_EQ(visibleCount(), 1);
+    search->clear();
+    CHECK_EQ(visibleCount(), 15);
+
+    // 2. Title/leader auto-save (editingFinished is a signal, so call the
+    //    underlying save path the widget wires to it).
+    QLineEdit* title = sb.findChild<QLineEdit*>("serviceTitleEdit");
+    QComboBox* leader = sb.findChild<QComboBox*>("serviceLeaderEdit");
+    CHECK(title && leader);
+    if (title && leader) {
+        title->setText("Test Service");
+        leader->setEditText("Test Leader");
+        sb.saveServiceDetails();
+        const QString dateStr = sb.findChild<QDateEdit*>("serviceDateEdit")->date().toString("yyyy-MM-dd");
+        QSqlQuery q(d);
+        q.prepare("SELECT title, leader FROM services WHERE date = ?");
+        q.addBindValue(dateStr);
+        CHECK(q.exec() && q.next());
+        CHECK_EQ(q.value(0).toString().toStdString(), std::string("Test Service"));
+        CHECK_EQ(q.value(1).toString().toStdString(), std::string("Test Leader"));
+        QSqlQuery clean(d);
+        clean.prepare("DELETE FROM services WHERE date = ?");
+        clean.addBindValue(dateStr);
+        CHECK(clean.exec());
+    }
+
+    // 3. Volunteer panel is a table with role columns.
+    QTableWidget* vols = sb.findChild<QTableWidget*>("serviceVolunteerList");
+    CHECK(vols);
+    if (vols) CHECK_EQ(vols->columnCount(), 3);
+
+    // 4. Auto-save status label exists.
+    QLabel* status = sb.findChild<QLabel*>("serviceAutoSaveLabel");
+    CHECK(status);
     return true;
 }
 
@@ -1414,6 +1479,7 @@ int main(int argc, char** argv) {
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
         {"ministry_match_rank_by_role", test_ministryMatchRankByRole},
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
+        {"service_builder_library_filter_and_autosave", test_serviceBuilderLibraryFilterAndAutosave},
         {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
         {"service_builder_tier2", test_serviceBuilderTier2},
         {"service_builder_tier3", test_serviceBuilderTier3},

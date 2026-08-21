@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QListWidget>
+#include <QTableWidget>
 #include <QPushButton>
 #include <QDateEdit>
 #include <QTimeEdit>
@@ -10,6 +11,7 @@
 #include <QTime>
 #include <QLabel>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QJsonArray>
 #include <QPair>
 #include <QSqlDatabase>
@@ -56,7 +58,6 @@ private slots:
     void onServiceDateChanged(const QDate& date);
     void onExportRunSheet();
     void updateDurationCalculator();
-    void onSaveServiceDetails();
     void onAddElement();
     void onEditElement(QListWidgetItem* item);
     void onRemoveElement();
@@ -67,9 +68,15 @@ private slots:
     void onExportIcal();
     void onElementUsage();
 
+public:
+    // Test hooks (no dialogs).
+    void saveServiceDetails();
+    void addLibraryItemToRunSheet(QListWidgetItem* item);
+
 private:
     void setupUI();
     void loadLibrary();
+    void applyLibraryFilter();
     void loadVolunteers();
     void loadServiceDetails();
     void persistRunSheet();
@@ -92,6 +99,7 @@ private:
     QPushButton* m_btnApplyTemplate;
     QPushButton* m_btnCoverageCheck;
     QPushButton* m_btnMarkAttended;
+    QLabel* m_lblAutoSaveStatus;
     QPushButton* m_btnExportIcal;
     QPushButton* m_btnUsageStats;
     QLabel* m_lblTypeLegend;
@@ -103,14 +111,17 @@ private:
     // Volunteer Scheduling
     QDateEdit* m_serviceDateEdit;
     QTimeEdit* m_serviceTimeEdit;
-    QListWidget* m_volunteerList;
+    QTableWidget* m_volunteerList;
     QPushButton* m_btnSchedule;
     QPushButton* m_btnUnschedule;
 
-    // Service Plan Details (persisted to the services table)
+    // Service Plan Details (persisted to the services table; auto-saved)
     QLineEdit* m_serviceTitleEdit;
-    QLineEdit* m_leaderEdit;
-    QPushButton* m_btnSaveServiceDetails;
+    QComboBox* m_leaderEdit; // editable people picker
+
+    // Library filtering
+    QComboBox* m_libraryFilter;
+    QLineEdit* m_librarySearch;
 
     bool m_readOnly = false;
 };
