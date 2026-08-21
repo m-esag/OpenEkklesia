@@ -24,9 +24,42 @@ ServiceBuilderWidget::ServiceBuilderWidget(QWidget *parent)
     seedLibrary();
     loadVolunteers();
     loadServiceDetails();
+    applyRole("admin"); // default: full access until MainWindow applies the real role
 }
 
 ServiceBuilderWidget::~ServiceBuilderWidget() {}
+
+// Pastel type tint used by both the library and the run sheet, blended at low
+// alpha so it reads on light and dark themes alike.
+static QColor tintForType(const QString& type) {
+    if (type == "Song") return QColor("#f9e2af");
+    if (type == "Scripture") return QColor("#a6e3a1");
+    if (type == "Media") return QColor("#89b4fa");
+    return QColor("#cba6f7"); // Text / liturgy
+}
+
+void ServiceBuilderWidget::applyRole(const QString& role) {
+    m_readOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 ||
+                  role.compare("guest", Qt::CaseInsensitive) == 0);
+    const bool canEdit = !m_readOnly;
+
+    m_btnRemove->setEnabled(canEdit);
+    m_btnClear->setEnabled(canEdit);
+    m_btnSave->setEnabled(canEdit);
+    m_btnSchedule->setEnabled(canEdit);
+    m_btnUnschedule->setEnabled(canEdit);
+    m_btnSaveServiceDetails->setEnabled(canEdit);
+    m_playlist->setAcceptDrops(canEdit);
+    m_playlist->setDragEnabled(canEdit);
+    m_libraryList->setDragEnabled(canEdit);
+
+    const QString tip = m_readOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : "";
+    for (QPushButton* b : {m_btnRemove, m_btnClear, m_btnSave, m_btnSchedule, m_btnUnschedule, m_btnSaveServiceDetails}) {
+        b->setToolTip(tip);
+    }
+}
 
 void ServiceBuilderWidget::setupUI() {
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
@@ -44,6 +77,7 @@ void ServiceBuilderWidget::setupUI() {
     libraryLayout->addWidget(libLabel);
 
     m_libraryList = new QListWidget(this);
+    m_libraryList->setObjectName("serviceLibraryList");
     m_libraryList->setDragEnabled(true);
     m_libraryList->setDragDropMode(QAbstractItemView::DragOnly);
     m_libraryList->setAlternatingRowColors(true);
@@ -65,6 +99,7 @@ void ServiceBuilderWidget::setupUI() {
     QLabel* playlistLabel = new QLabel("Sunday Service Run Sheet", this);
     playlistLabel->setObjectName("detailHeader");
     m_lblTotalDuration = new QLabel("⏱️ Total Service Duration: 0 mins", this);
+    m_lblTotalDuration->setObjectName("serviceDurationLabel");
     m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #a6e3a1;");
     headerRow->addWidget(playlistLabel);
     headerRow->addStretch();
@@ -72,6 +107,7 @@ void ServiceBuilderWidget::setupUI() {
     playlistLayout->addLayout(headerRow);
 
     m_playlist = new QListWidget(this);
+    m_playlist->setObjectName("servicePlaylist");
     m_playlist->setAcceptDrops(true);
     m_playlist->setDragEnabled(true);
     m_playlist->setDragDropMode(QAbstractItemView::DragDrop);
@@ -158,6 +194,7 @@ void ServiceBuilderWidget::setupUI() {
     volunteerLayout->addWidget(m_btnSaveServiceDetails);
 
     m_volunteerList = new QListWidget(this);
+    m_volunteerList->setObjectName("serviceVolunteerList");
     m_volunteerList->setAlternatingRowColors(true);
     volunteerLayout->addWidget(m_volunteerList);
 
@@ -183,35 +220,40 @@ void ServiceBuilderWidget::seedLibrary() {
     struct SeedItem {
         QString title;
         QString type; // Song, Scripture, Media, Text
+        int durationMins;
         QString colorHex;
     };
 
     QList<SeedItem> seeds = {
         // Songs
-        {"🎵 Song: Amazing Grace", "Song", "#f9e2af"},
-        {"🎵 Song: How Great Thou Art", "Song", "#f9e2af"},
-        {"🎵 Song: 10,000 Reasons", "Song", "#f9e2af"},
-        {"🎵 Song: Cornerstone", "Song", "#f9e2af"},
+        {"🎵 Song: Amazing Grace (4m)", "Song", 4, "#f9e2af"},
+        {"🎵 Song: How Great Thou Art (5m)", "Song", 5, "#f9e2af"},
+        {"🎵 Song: 10,000 Reasons (4m)", "Song", 4, "#f9e2af"},
+        {"🎵 Song: Cornerstone (5m)", "Song", 5, "#f9e2af"},
         // Scriptures
-        {"📖 Scripture: Psalm 23", "Scripture", "#a6e3a1"},
-        {"📖 Scripture: John 3:16", "Scripture", "#a6e3a1"},
-        {"📖 Scripture: Romans 8:28", "Scripture", "#a6e3a1"},
+        {"📖 Scripture: Psalm 23 (2m)", "Scripture", 2, "#a6e3a1"},
+        {"📖 Scripture: John 3:16 (2m)", "Scripture", 2, "#a6e3a1"},
+        {"📖 Scripture: Romans 8:28 (2m)", "Scripture", 2, "#a6e3a1"},
         // Media / Slides
-        {"🎬 Media: Welcome & Announcements", "Media", "#89b4fa"},
-        {"🎬 Media: Kids Dismissal Slide", "Media", "#89b4fa"},
-        {"🎬 Media: Sermon Presentation", "Media", "#89b4fa"},
-        {"🎬 Media: Closing Slideshow", "Media", "#89b4fa"},
+        {"🎬 Media: Welcome & Announcements (1m)", "Media", 1, "#89b4fa"},
+        {"🎬 Media: Kids Dismissal Slide (1m)", "Media", 1, "#89b4fa"},
+        {"🎬 Media: Sermon Presentation (1m)", "Media", 1, "#89b4fa"},
+        {"🎬 Media: Closing Slideshow (1m)", "Media", 1, "#89b4fa"},
         // Liturgy
-        {"💬 Prayer: Opening Thanksgiving", "Text", "#cba6f7"},
-        {"💬 Prayer: Pastoral Intercession", "Text", "#cba6f7"},
-        {"💬 Message: Sunday Sermon", "Text", "#cba6f7"},
-        {"💬 Liturgy: Benediction", "Text", "#cba6f7"}
+        {"💬 Prayer: Opening Thanksgiving (3m)", "Text", 3, "#cba6f7"},
+        {"💬 Prayer: Pastoral Intercession (3m)", "Text", 3, "#cba6f7"},
+        {"💬 Message: Sunday Sermon (30m)", "Text", 30, "#cba6f7"},
+        {"💬 Liturgy: Benediction (2m)", "Text", 2, "#cba6f7"}
     };
 
     for (const auto& seed : seeds) {
         QListWidgetItem* item = new QListWidgetItem(seed.title, m_libraryList);
         item->setData(Qt::UserRole, seed.type);
-        item->setData(Qt::ToolTipRole, QString("Type: %1").arg(seed.type));
+        item->setData(Qt::UserRole + 1, seed.durationMins);
+        item->setData(Qt::ToolTipRole, QString("Type: %1 · %2 min").arg(seed.type).arg(seed.durationMins));
+        QColor tint(seed.colorHex);
+        tint.setAlpha(60);
+        item->setBackground(tint);
     }
 }
 
@@ -248,6 +290,7 @@ void ServiceBuilderWidget::onSaveService() {
         QJsonObject obj;
         obj["title"] = item->text();
         obj["type"] = item->data(Qt::UserRole).toString();
+        obj["durationMins"] = item->data(Qt::UserRole + 1).toInt();
         array.append(obj);
     }
 
@@ -290,7 +333,9 @@ void ServiceBuilderWidget::onLoadService() {
 
         QListWidgetItem* item = new QListWidgetItem(title, m_playlist);
         item->setData(Qt::UserRole, type);
+        item->setData(Qt::UserRole + 1, obj["durationMins"].toInt());
     }
+    updateDurationCalculator(); // apply tints + totals from the loaded file
 }
 
 void ServiceBuilderWidget::loadVolunteers() {
@@ -492,15 +537,27 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
 void ServiceBuilderWidget::updateDurationCalculator() {
     int totalMins = 0;
     for (int i = 0; i < m_playlist->count(); ++i) {
-        QString text = m_playlist->item(i)->text();
-        // Parse format e.g. "Song Name (4m)" or "Sermon (30m)"
-        int openParen = text.lastIndexOf('(');
-        int closeParen = text.lastIndexOf('m');
-        if (openParen >= 0 && closeParen > openParen) {
-            bool ok = false;
-            int mins = text.mid(openParen + 1, closeParen - openParen - 1).toInt(&ok);
-            if (ok) totalMins += mins;
+        QListWidgetItem* item = m_playlist->item(i);
+
+        // Re-apply the type tint (drop-in items inherit the library color).
+        QColor tint = tintForType(item->data(Qt::UserRole).toString());
+        tint.setAlpha(60);
+        item->setBackground(tint);
+
+        // Prefer the explicit duration carried on the item; fall back to
+        // parsing "(Nm)" out of the title for items from older save files.
+        int mins = item->data(Qt::UserRole + 1).toInt();
+        if (mins <= 0) {
+            const QString text = item->text();
+            const int openParen = text.lastIndexOf('(');
+            const int closeParen = text.lastIndexOf('m');
+            if (openParen >= 0 && closeParen > openParen) {
+                bool ok = false;
+                mins = text.mid(openParen + 1, closeParen - openParen - 1).toInt(&ok);
+                if (!ok) mins = 0;
+            }
         }
+        totalMins += qMax(0, mins);
     }
     m_lblTotalDuration->setText(QString("⏱️ Total Service Duration: %1 mins").arg(totalMins));
 }

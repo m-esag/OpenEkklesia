@@ -118,12 +118,19 @@ add_executable(openekklesia_tests
     src/ui/core/thememanager.h
     src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/ministrymatch.h
+    src/ui/ministry/shepherdwidget.cpp
+    src/ui/ministry/shepherdwidget.h
+    src/ui/ministry/servicebuilderwidget.cpp
+    src/ui/ministry/servicebuilderwidget.h
+    src/ui/people/pastoralanalyticswidget.cpp
+    src/ui/people/pastoralanalyticswidget.h
     src/ui/people/peoplewidget.cpp
     src/ui/people/peoplewidget.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
