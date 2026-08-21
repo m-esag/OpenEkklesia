@@ -917,6 +917,188 @@ bool test_serviceBuilderRunSheetPersistence() {
     return true;
 }
 
+bool test_graphDualPanelAndDataHygiene() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Test relationship deletion / edge severing
+    QSqlQuery qAdd(d);
+    qAdd.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 999, 'Group', 888, 'Volunteer')");
+    CHECK(qAdd.exec());
+    int relId = qAdd.lastInsertId().toInt();
+    CHECK(relId > 0);
+
+    QSqlQuery qUpdate(d);
+    qUpdate.prepare("UPDATE entity_relationships SET relationship_type = 'Leader' WHERE id = ?");
+    qUpdate.addBindValue(relId);
+    CHECK(qUpdate.exec());
+
+    QSqlQuery qCheck(d);
+    qCheck.prepare("SELECT relationship_type FROM entity_relationships WHERE id = ?");
+    qCheck.addBindValue(relId);
+    CHECK(qCheck.exec() && qCheck.next());
+    CHECK_EQ(qCheck.value(0).toString().toStdString(), std::string("Leader"));
+
+    QSqlQuery qDel(d);
+    qDel.prepare("DELETE FROM entity_relationships WHERE id = ?");
+    qDel.addBindValue(relId);
+    CHECK(qDel.exec());
+
+    // 2. Test Data Hygiene classification queries
+    QSqlQuery qHygiene(d);
+    CHECK(qHygiene.exec("SELECT SUM(CASE WHEN phone_number IS NULL OR phone_number = '' THEN 1 ELSE 0 END), "
+                        "       SUM(CASE WHEN email IS NULL OR email = '' THEN 1 ELSE 0 END) FROM people"));
+    CHECK(qHygiene.next());
+
+    d.rollback();
+    return true;
+}
+
+bool test_serviceBuilderTier2() {
+    QSqlDatabase d = db();
+
+    // Volunteers for the widget's default date (next Sunday) — inserted before
+    // the widget is constructed so its constructor loads them.
+    QDate nextSun = QDate::currentDate();
+    while (nextSun.dayOfWeek() != 7) nextSun = nextSun.addDays(1);
+    const QString dateStr = nextSun.toString("yyyy-MM-dd");
+
+    QSqlQuery ins(d);
+    CHECK(ins.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Vol', 'One', 'Member')"));
+    const int p1 = ins.lastInsertId().toInt();
+    CHECK(ins.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Vol', 'Two', 'Member')"));
+    const int p2 = ins.lastInsertId().toInt();
+    QSqlQuery sv(d);
+    sv.prepare("INSERT INTO service_volunteers (service_date, person_id, role) VALUES (?, ?, 'Preacher')");
+    sv.addBindValue(dateStr);
+    sv.addBindValue(p1);
+    CHECK(sv.exec());
+    sv.prepare("INSERT INTO service_volunteers (service_date, person_id, role) VALUES (?, ?, 'Worship Leader')");
+    sv.addBindValue(dateStr);
+    sv.addBindValue(p2);
+    CHECK(sv.exec());
+
+    ServiceBuilderWidget sb;
+    QListWidget* library = sb.findChild<QListWidget*>("serviceLibraryList");
+    QListWidget* playlist = sb.findChild<QListWidget*>("servicePlaylist");
+    QDateEdit* dateEdit = sb.findChild<QDateEdit*>("serviceDateEdit");
+    QTimeEdit* timeEdit = sb.findChild<QTimeEdit*>("serviceTimeEdit");
+    QLabel* timeline = sb.findChild<QLabel*>("serviceTimelineLabel");
+    CHECK(library && playlist && dateEdit && timeEdit && timeline);
+    if (!library || !playlist || !dateEdit || !timeEdit || !timeline) return true;
+
+    // 1. Start time persists with the run sheet.
+    timeEdit->setTime(QTime(13, 30));
+    playlist->clear();
+    playlist->addItem(library->item(0)->clone()); // autosave
+    {
+        QSqlQuery q(d);
+        q.prepare("SELECT start_time FROM services WHERE date = ?");
+        q.addBindValue(dateStr);
+        CHECK(q.exec() && q.next());
+        CHECK_EQ(q.value(0).toString().toStdString(), std::string("13:30"));
+    }
+
+    // 2. Timeline label shows the computed start time.
+    CHECK(timeline->text().contains("1:30 PM"));
+
+    // 3. Coverage: sermon missing (only the 4-min song so far).
+    QStringList issues = sb.collectCoverageIssues();
+    bool noSermon = false, noPreacher = false;
+    for (const QString& s : issues) {
+        if (s.contains("sermon", Qt::CaseInsensitive)) noSermon = true;
+        if (s.contains("Preacher")) noPreacher = true;
+    }
+    CHECK(noSermon);
+    CHECK(!noPreacher); // Preacher + Worship Leader are assigned
+
+    // 4. Adding the sermon element clears the sermon issue.
+    QListWidgetItem* sermon = nullptr;
+    for (int i = 0; i < library->count(); ++i) {
+        if (library->item(i)->text().contains("Sermon")) { sermon = library->item(i); break; }
+    }
+    CHECK(sermon);
+    if (sermon) {
+        playlist->addItem(sermon->clone());
+        issues = sb.collectCoverageIssues();
+        bool stillNoSermon = false;
+        for (const QString& s : issues) {
+            if (s.contains("sermon", Qt::CaseInsensitive)) stillNoSermon = true;
+        }
+        CHECK(!stillNoSermon);
+    }
+
+    // 5. Post-service attendance: both volunteers marked, dedup on re-run.
+    CHECK_EQ(sb.markVolunteersAttended(), 2);
+    {
+        QSqlQuery q(d);
+        q.prepare("SELECT COUNT(*) FROM attendance "
+                  "WHERE service_id = (SELECT id FROM services WHERE date = ?)");
+        q.addBindValue(dateStr);
+        CHECK(q.exec() && q.next());
+        CHECK_EQ(q.value(0).toInt(), 2);
+    }
+    CHECK_EQ(sb.markVolunteersAttended(), 0);
+
+    // 6. Date switch restores start time + run sheet.
+    dateEdit->setDate(nextSun.addDays(-7));
+    dateEdit->setDate(nextSun);
+    CHECK_EQ(timeEdit->time().toString("HH:mm").toStdString(), std::string("13:30"));
+    CHECK_EQ(playlist->count(), 2);
+
+    // Cleanup.
+    QSqlQuery clean(d);
+    clean.prepare("DELETE FROM services WHERE date = ?");
+    clean.addBindValue(dateStr);
+    CHECK(clean.exec());
+    CHECK(clean.exec("DELETE FROM service_volunteers"));
+    CHECK(clean.exec("DELETE FROM attendance"));
+    clean.prepare("DELETE FROM people WHERE id IN (?, ?)");
+    clean.addBindValue(p1);
+    clean.addBindValue(p2);
+    CHECK(clean.exec());
+    return true;
+}
+
+bool test_graphBatchOperationsAndSmartBridge() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Test batch assign to group
+    QList<int> personIds = {1, 2, 3};
+    int targetGroupId = 1;
+    for (int pid : personIds) {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', ?, 'Group', ?, 'Volunteer')");
+        ins.addBindValue(pid);
+        ins.addBindValue(targetGroupId);
+        CHECK(ins.exec());
+    }
+
+    QSqlQuery qCount(d);
+    qCount.prepare("SELECT COUNT(*) FROM entity_relationships WHERE target_id = ? AND relationship_type = 'Volunteer'");
+    qCount.addBindValue(targetGroupId);
+    CHECK(qCount.exec() && qCount.next());
+    CHECK(qCount.value(0).toInt() >= 3);
+
+    // 2. Test Smart Bridge shared household query
+    QSqlQuery hq(d);
+    hq.prepare("SELECT er.target_id FROM entity_relationships er "
+               "WHERE er.source_id IN (SELECT id FROM people WHERE household_id = (SELECT household_id FROM people WHERE id = ?)) "
+               "  AND er.source_type = 'Person' AND er.target_type = 'Group'");
+    hq.addBindValue(1);
+    CHECK(hq.exec());
+
+    // 3. Test Ministry Branch Subgroup query
+    QSqlQuery branchQ(d);
+    branchQ.prepare("SELECT id FROM groups WHERE parent_id = ?");
+    branchQ.addBindValue(1);
+    CHECK(branchQ.exec());
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -956,9 +1138,12 @@ int main(int argc, char** argv) {
         {"ministry_match_rank_by_role", test_ministryMatchRankByRole},
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
         {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
+        {"service_builder_tier2", test_serviceBuilderTier2},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
         {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},
+        {"graph_dual_panel_and_data_hygiene", test_graphDualPanelAndDataHygiene},
+        {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
     };
 
     for (const Test& t : tests) {
