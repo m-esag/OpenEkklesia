@@ -176,12 +176,28 @@ private:
     QLabel* m_lblAssetBalance;
     QLabel* m_lblTotalCheckins;
 
+    struct KpiCardInfo {
+        QString id;
+        QString title;
+        QString icon;
+        QString subtext;
+        QWidget* widget = nullptr;
+        QLabel* valLabel = nullptr;
+    };
+    QHBoxLayout* m_cardsLayout;
+    QMap<QString, KpiCardInfo> m_kpiRegistry;
+    QStringList m_activeKpis;
+    void rebuildKpiCards();
+    void onConfigureKpiCards();
+    void onLogQuickPastoralNote(int prefillPersonId = -1);
+
     QChartView* m_chartView;
     QListWidget* m_lstPastoralAlerts;
     QListWidget* m_lstVisitorFollowup;
     QListWidget* m_lstUpcomingServices;
     QLabel* m_lblBudgetProgress;
     QProgressBar* m_progressBudget;
+    QWidget* m_budgetCard = nullptr; // hidden when ledger module is off (GnuCash workflow)
 
     bool m_hintsEnabled;
     QWidget* m_hintPanel;

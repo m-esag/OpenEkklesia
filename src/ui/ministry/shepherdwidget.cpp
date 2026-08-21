@@ -13,7 +13,12 @@
 #include <QCheckBox>
 #include <QDateEdit>
 #include <QDate>
+#include <QDateTime>
 #include <QMessageBox>
+#include <QMenu>
+#include <QFileDialog>
+#include <QFile>
+#include <QTextStream>
 #include <QSqlQuery>
 #include <QSqlError>
 
@@ -83,17 +88,33 @@ void ShepherdWidget::setupUI() {
     m_queueTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_queueTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_queueTable->verticalHeader()->setVisible(false);
+    m_queueTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_queueTable, &QTableWidget::customContextMenuRequested, this, &ShepherdWidget::onQueueContextMenu);
     connect(m_queueTable, &QTableWidget::cellDoubleClicked, this, &ShepherdWidget::onQueueActivated);
     queueLay->addWidget(m_queueTable);
 
     QHBoxLayout* queueBtns = new QHBoxLayout();
-    m_btnMarkDone = new QPushButton("✅ Mark Selected Follow-up Done", tabQueue);
+    queueBtns->setSpacing(8);
+
+    m_btnMarkDone = new QPushButton("✅ Mark Done", tabQueue);
     m_btnMarkDone->setObjectName("primaryBtn");
     connect(m_btnMarkDone, &QPushButton::clicked, this, &ShepherdWidget::onMarkFollowUpDone);
-    m_btnLogFollowUp = new QPushButton("➕ Log a Pastoral Activity", tabQueue);
+
+    m_btnReschedule = new QPushButton("🗓️ Reschedule / Snooze", tabQueue);
+    m_btnReschedule->setObjectName("secondaryBtn");
+    connect(m_btnReschedule, &QPushButton::clicked, this, &ShepherdWidget::onRescheduleFollowUp);
+
+    m_btnCalendar = new QPushButton("📅 Export Calendar (.ics)", tabQueue);
+    m_btnCalendar->setObjectName("secondaryBtn");
+    connect(m_btnCalendar, &QPushButton::clicked, this, &ShepherdWidget::onExportCalendarEvent);
+
+    m_btnLogFollowUp = new QPushButton("➕ Log Activity", tabQueue);
     m_btnLogFollowUp->setObjectName("secondaryBtn");
     connect(m_btnLogFollowUp, &QPushButton::clicked, this, &ShepherdWidget::onLogFollowUp);
+
     queueBtns->addWidget(m_btnMarkDone);
+    queueBtns->addWidget(m_btnReschedule);
+    queueBtns->addWidget(m_btnCalendar);
     queueBtns->addWidget(m_btnLogFollowUp);
     queueBtns->addStretch();
     queueLay->addLayout(queueBtns);
@@ -324,6 +345,152 @@ void ShepherdWidget::onMarkFollowUpDone() {
         refreshAll();
     } else {
         QMessageBox::critical(this, "Database Error", "Failed to update follow-up: " + q.lastError().text());
+    }
+}
+
+void ShepherdWidget::onRescheduleFollowUp() {
+    int row = m_queueTable->currentRow();
+    if (row < 0 || !m_queueTable->item(row, 0)) {
+        QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
+        return;
+    }
+    int id = m_queueTable->item(row, 0)->data(Qt::UserRole).toInt();
+    QString memberName = m_queueTable->item(row, 1)->text();
+    QString currentDue = m_queueTable->item(row, 0)->text();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Reschedule Follow-up — " + memberName);
+    dlg.resize(380, 220);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->setSpacing(12);
+
+    QLabel* lbl = new QLabel(QString("Select a new follow-up date for <b>%1</b> (currently due %2):").arg(memberName, currentDue), &dlg);
+    lbl->setWordWrap(true);
+    lay->addWidget(lbl);
+
+    QDateEdit* dateEdit = new QDateEdit(QDate::currentDate().addDays(7), &dlg);
+    dateEdit->setCalendarPopup(true);
+    dateEdit->setDisplayFormat("yyyy-MM-dd");
+    lay->addWidget(dateEdit);
+
+    QHBoxLayout* presets = new QHBoxLayout();
+    presets->setSpacing(6);
+    auto makePreset = [&dateEdit](const QString& text, int days) {
+        QPushButton* b = new QPushButton(text);
+        b->setObjectName("secondaryBtn");
+        b->setStyleSheet("font-size: 11px; padding: 4px 8px;");
+        QObject::connect(b, &QPushButton::clicked, [dateEdit, days]() {
+            dateEdit->setDate(QDate::currentDate().addDays(days));
+        });
+        return b;
+    };
+    presets->addWidget(makePreset("+3 Days", 3));
+    presets->addWidget(makePreset("+1 Week", 7));
+    presets->addWidget(makePreset("+2 Weeks", 14));
+    presets->addWidget(makePreset("+1 Month", 30));
+    lay->addLayout(presets);
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    lay->addWidget(buttons);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        QString newDate = dateEdit->date().toString("yyyy-MM-dd");
+        QSqlQuery q;
+        q.prepare("UPDATE pastoral_activities SET follow_up_date = ?, follow_up_done = 0 WHERE id = ?");
+        q.addBindValue(newDate);
+        q.addBindValue(id);
+        if (q.exec()) {
+            refreshAll();
+            QMessageBox::information(this, "Success", QString("Follow-up rescheduled to %1.").arg(newDate));
+        } else {
+            QMessageBox::critical(this, "Database Error", "Failed to reschedule: " + q.lastError().text());
+        }
+    }
+}
+
+void ShepherdWidget::onExportCalendarEvent() {
+    int row = m_queueTable->currentRow();
+    if (row < 0 || !m_queueTable->item(row, 0)) {
+        QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
+        return;
+    }
+    int id = m_queueTable->item(row, 0)->data(Qt::UserRole).toInt();
+    QString memberName = m_queueTable->item(row, 1)->text();
+    QString type = m_queueTable->item(row, 2)->text();
+    QString notes = m_queueTable->item(row, 3)->text();
+    QString dueDate = m_queueTable->item(row, 0)->text();
+
+    QString cleanName = memberName;
+    cleanName.replace(" ", "_");
+    QString cleanDate = dueDate;
+    cleanDate.replace("-", "");
+    QString defaultFile = QString("Pastoral_FollowUp_%1_%2.ics").arg(cleanName, cleanDate);
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Reminder (.ics)", defaultFile, "iCalendar Files (*.ics)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "File Error", "Could not create calendar file: " + file.errorString());
+        return;
+    }
+
+    QString dateStamp = QDateTime::currentDateTimeUtc().toString("yyyyMMddThhmmssZ");
+    QString startDate = cleanDate;
+
+    QTextStream out(&file);
+    out << "BEGIN:VCALENDAR\n";
+    out << "VERSION:2.0\n";
+    out << "PRODID:-//OpenEkklesia//Shepherd Workbench//EN\n";
+    out << "CALSCALE:GREGORIAN\n";
+    out << "BEGIN:VEVENT\n";
+    out << QString("UID:oe-pastoral-%1@openekklesia.local\n").arg(id);
+    out << QString("DTSTAMP:%1\n").arg(dateStamp);
+    out << QString("DTSTART;VALUE=DATE:%1\n").arg(startDate);
+    out << QString("SUMMARY:Pastoral Care: %1 (%2)\n").arg(memberName, type);
+    out << QString("DESCRIPTION:Pastoral Follow-up with %1.\\nType: %2\\nNotes: %3\n").arg(memberName, type, notes);
+    out << "STATUS:CONFIRMED\n";
+    out << "BEGIN:VALARM\n";
+    out << "TRIGGER:-PT15M\n";
+    out << "ACTION:DISPLAY\n";
+    out << QString("DESCRIPTION:Reminder: Pastoral follow-up with %1\n").arg(memberName);
+    out << "END:VALARM\n";
+    out << "END:VEVENT\n";
+    out << "END:VCALENDAR\n";
+    file.close();
+
+    QMessageBox::information(this, "Calendar Event Exported",
+        QString("Calendar reminder exported successfully!\n\nYou can open this file in Outlook, Apple Calendar, Google Calendar, or Thunderbird:\n%1").arg(fileName));
+}
+
+void ShepherdWidget::onQueueContextMenu(const QPoint& pos) {
+    int row = m_queueTable->rowAt(pos.y());
+    if (row < 0 || !m_queueTable->item(row, 0)) return;
+
+    m_queueTable->selectRow(row);
+    int personId = m_queueTable->item(row, 1)->data(Qt::UserRole + 1).toInt();
+    QString memberName = m_queueTable->item(row, 1)->text();
+
+    QMenu menu(this);
+    QAction* actDone = menu.addAction("✅ Mark Follow-up Done");
+    QAction* actReschedule = menu.addAction("🗓️ Reschedule / Snooze...");
+    QAction* actCalendar = menu.addAction("📅 Export Calendar Reminder (.ics)...");
+    menu.addSeparator();
+    QAction* actProfile = menu.addAction(QString("👤 View %1 in Directory").arg(memberName));
+
+    QAction* selected = menu.exec(m_queueTable->viewport()->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actDone) {
+        onMarkFollowUpDone();
+    } else if (selected == actReschedule) {
+        onRescheduleFollowUp();
+    } else if (selected == actCalendar) {
+        onExportCalendarEvent();
+    } else if (selected == actProfile) {
+        if (personId > 0) emit navigateToMember(personId);
     }
 }
 

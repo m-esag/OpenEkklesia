@@ -1,0 +1,1076 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+CMake Warning at /usr/lib64/qt6/lib/cmake/Qt6Gui/Qt6QGtk3ThemePluginTargets.cmake:108 (message):
+  The imported target "Qt6::QGtk3ThemePlugin" references the file
+
+     "/usr/lib64/qt6/plugins/platformthemes/libqgtk3.so"
+
+  but this file does not exist.  Possible reasons include:
+
+  * The file was deleted, renamed, or moved to another location.
+
+  * An install or uninstall procedure did not complete successfully.
+
+  * The installation package was faulty and contained
+
+     "/usr/lib64/qt6/lib/cmake/Qt6Gui/Qt6QGtk3ThemePluginTargets.cmake"
+
+  but not all the files it references.
+
+  * The installation package was intentionally split into smaller
+
+    components, and "/usr/lib64/qt6/plugins/platformthemes/libqgtk3.so"
+    is part of an optional subpackage. This is generally harmless
+    and known to happen on e.g. the static libraries when only
+    shared libraries are being used - but if you see an actual
+    error after seeing this message, you might want to make sure
+    the optional file is installed by running
+    sudo dnf --refresh install "/usr/lib64/qt6/plugins/platformthemes/libqgtk3.so"
+
+Call Stack (most recent call first):
+  /usr/lib64/qt6/lib/cmake/Qt6Gui/Qt6QGtk3ThemePluginConfig.cmake:68 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicPluginHelpers.cmake:515 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6Gui/Qt6GuiPlugins.cmake:13 (__qt_internal_include_plugin_packages)
+  /usr/lib64/qt6/lib/cmake/Qt6Gui/Qt6GuiConfig.cmake:202 (include)
+  /usr/share/cmake/Modules/CMakeFindDependencyMacro.cmake:93 (find_package)
+  /usr/share/cmake/Modules/CMakeFindDependencyMacro.cmake:125 (__find_dependency_common)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake:142 (find_dependency)
+  /usr/lib64/qt6/lib/cmake/Qt6Widgets/Qt6WidgetsDependencies.cmake:50 (_qt_internal_find_qt_dependencies)
+  /usr/lib64/qt6/lib/cmake/Qt6Widgets/Qt6WidgetsConfig.cmake:50 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/Qt6Config.cmake:251 (find_package)
+  CMakeLists.txt:17 (find_package)
+
+
+CMake Warning at /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QIBaseDriverPluginTargets.cmake:108 (message):
+  The imported target "Qt6::QIBaseDriverPlugin" references the file
+
+     "/usr/lib64/qt6/plugins/sqldrivers/libqsqlibase.so"
+
+  but this file does not exist.  Possible reasons include:
+
+  * The file was deleted, renamed, or moved to another location.
+
+  * An install or uninstall procedure did not complete successfully.
+
+  * The installation package was faulty and contained
+
+     "/usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QIBaseDriverPluginTargets.cmake"
+
+  but not all the files it references.
+
+  * The installation package was intentionally split into smaller
+
+    components, and "/usr/lib64/qt6/plugins/sqldrivers/libqsqlibase.so"
+    is part of an optional subpackage. This is generally harmless
+    and known to happen on e.g. the static libraries when only
+    shared libraries are being used - but if you see an actual
+    error after seeing this message, you might want to make sure
+    the optional file is installed by running
+    sudo dnf --refresh install "/usr/lib64/qt6/plugins/sqldrivers/libqsqlibase.so"
+
+Call Stack (most recent call first):
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QIBaseDriverPluginConfig.cmake:68 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicPluginHelpers.cmake:515 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlPlugins.cmake:13 (__qt_internal_include_plugin_packages)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlConfig.cmake:202 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/Qt6Config.cmake:251 (find_package)
+  CMakeLists.txt:17 (find_package)
+
+
+CMake Warning at /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QMYSQLDriverPluginTargets.cmake:108 (message):
+  The imported target "Qt6::QMYSQLDriverPlugin" references the file
+
+     "/usr/lib64/qt6/plugins/sqldrivers/libqsqlmysql.so"
+
+  but this file does not exist.  Possible reasons include:
+
+  * The file was deleted, renamed, or moved to another location.
+
+  * An install or uninstall procedure did not complete successfully.
+
+  * The installation package was faulty and contained
+
+     "/usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QMYSQLDriverPluginTargets.cmake"
+
+  but not all the files it references.
+
+  * The installation package was intentionally split into smaller
+
+    components, and "/usr/lib64/qt6/plugins/sqldrivers/libqsqlmysql.so"
+    is part of an optional subpackage. This is generally harmless
+    and known to happen on e.g. the static libraries when only
+    shared libraries are being used - but if you see an actual
+    error after seeing this message, you might want to make sure
+    the optional file is installed by running
+    sudo dnf --refresh install "/usr/lib64/qt6/plugins/sqldrivers/libqsqlmysql.so"
+
+Call Stack (most recent call first):
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QMYSQLDriverPluginConfig.cmake:68 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicPluginHelpers.cmake:515 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlPlugins.cmake:13 (__qt_internal_include_plugin_packages)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlConfig.cmake:202 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/Qt6Config.cmake:251 (find_package)
+  CMakeLists.txt:17 (find_package)
+
+
+CMake Warning at /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QODBCDriverPluginTargets.cmake:108 (message):
+  The imported target "Qt6::QODBCDriverPlugin" references the file
+
+     "/usr/lib64/qt6/plugins/sqldrivers/libqsqlodbc.so"
+
+  but this file does not exist.  Possible reasons include:
+
+  * The file was deleted, renamed, or moved to another location.
+
+  * An install or uninstall procedure did not complete successfully.
+
+  * The installation package was faulty and contained
+
+     "/usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QODBCDriverPluginTargets.cmake"
+
+  but not all the files it references.
+
+  * The installation package was intentionally split into smaller
+
+    components, and "/usr/lib64/qt6/plugins/sqldrivers/libqsqlodbc.so"
+    is part of an optional subpackage. This is generally harmless
+    and known to happen on e.g. the static libraries when only
+    shared libraries are being used - but if you see an actual
+    error after seeing this message, you might want to make sure
+    the optional file is installed by running
+    sudo dnf --refresh install "/usr/lib64/qt6/plugins/sqldrivers/libqsqlodbc.so"
+
+Call Stack (most recent call first):
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QODBCDriverPluginConfig.cmake:68 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicPluginHelpers.cmake:515 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlPlugins.cmake:13 (__qt_internal_include_plugin_packages)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlConfig.cmake:202 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/Qt6Config.cmake:251 (find_package)
+  CMakeLists.txt:17 (find_package)
+
+
+CMake Warning at /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QPSQLDriverPluginTargets.cmake:108 (message):
+  The imported target "Qt6::QPSQLDriverPlugin" references the file
+
+     "/usr/lib64/qt6/plugins/sqldrivers/libqsqlpsql.so"
+
+  but this file does not exist.  Possible reasons include:
+
+  * The file was deleted, renamed, or moved to another location.
+
+  * An install or uninstall procedure did not complete successfully.
+
+  * The installation package was faulty and contained
+
+     "/usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QPSQLDriverPluginTargets.cmake"
+
+  but not all the files it references.
+
+  * The installation package was intentionally split into smaller
+
+    components, and "/usr/lib64/qt6/plugins/sqldrivers/libqsqlpsql.so"
+    is part of an optional subpackage. This is generally harmless
+    and known to happen on e.g. the static libraries when only
+    shared libraries are being used - but if you see an actual
+    error after seeing this message, you might want to make sure
+    the optional file is installed by running
+    sudo dnf --refresh install "/usr/lib64/qt6/plugins/sqldrivers/libqsqlpsql.so"
+
+Call Stack (most recent call first):
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6QPSQLDriverPluginConfig.cmake:68 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/QtPublicPluginHelpers.cmake:515 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlPlugins.cmake:13 (__qt_internal_include_plugin_packages)
+  /usr/lib64/qt6/lib/cmake/Qt6Sql/Qt6SqlConfig.cmake:202 (include)
+  /usr/lib64/qt6/lib/cmake/Qt6/Qt6Config.cmake:251 (find_package)
+  CMakeLists.txt:17 (find_package)
+
+
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Found Qt Version: 6.10
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/manuel/Documents/OpenEkklesia/build
+[  0%] Built target openekklesia_tests_autogen_timestamp_deps
+[  0%] Built target OpenEkklesia_autogen_timestamp_deps
+[  2%] Built target openekklesia_tests_autogen
+[  5%] Built target OpenEkklesia_autogen
+[ 35%] Built target openekklesia_tests
+[100%] Built target OpenEkklesia
+linuxdeploy version 1-alpha (git commit ID 07333c6), GitHub actions build 367 built on 2026-08-01 02:49:32 UTC
+
+-- Creating basic AppDir structure -- 
+Creating directory dist/OpenEkklesia.AppDir/usr/bin/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/lib/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/applications/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/pixmaps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/16x16/apps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/32x32/apps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/64x64/apps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/128x128/apps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/256x256/apps/ 
+Creating directory dist/OpenEkklesia.AppDir/usr/share/icons/hicolor/scalable/apps/ 
+
+-- Deploying dependencies for existing files in AppDir -- 
+
+-- Deploying executables -- 
+Deploying executable build/OpenEkklesia 
+Deploying dependencies for ELF file build/OpenEkklesia 
+Deploying shared library /usr/lib64/qt6/lib/libQt6Sql.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6Charts.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6PrintSupport.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6OpenGLWidgets.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6OpenGL.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6Widgets.so.6
+Deploying shared library /usr/lib64/qt6/lib/libQt6Gui.so.6
+Skipping deployment of blacklisted library /lib64/libGLX.so.0 
+Skipping deployment of blacklisted library /lib64/libOpenGL.so.0 
+Deploying shared library /usr/lib64/qt6/lib/libQt6Core.so.6
+Skipping deployment of blacklisted library /lib64/libstdc++.so.6 
+Skipping deployment of blacklisted library /lib64/libm.so.6 
+Skipping deployment of blacklisted library /lib64/libgcc_s.so.1 
+Skipping deployment of blacklisted library /lib64/libc.so.6 
+Skipping deployment of blacklisted library /lib64/libEGL.so.1 
+Skipping deployment of blacklisted library /lib64/libfontconfig.so.1 
+Skipping deployment of blacklisted library /lib64/libX11.so.6 
+Deploying shared library /lib64/libglib-2.0.so.0
+Deploying shared library /usr/lib64/qt6/lib/libQt6DBus.so.6
+Deploying shared library /lib64/libxkbcommon.so.0
+Deploying shared library /lib64/libpng16.so.16
+Skipping deployment of blacklisted library /lib64/libharfbuzz.so.0 
+Skipping deployment of blacklisted library /lib64/libfreetype.so.6 
+Skipping deployment of blacklisted library /lib64/libz.so.1 
+Skipping deployment of blacklisted library /lib64/libGLdispatch.so.0 
+Deploying shared library /lib64/libicui18n.so.78
+Deploying shared library /lib64/libicuuc.so.78
+Deploying shared library /lib64/libsystemd.so.0
+Deploying shared library /lib64/libdouble-conversion.so.3
+Deploying shared library /lib64/libpcre2-16.so.0
+Deploying shared library /lib64/libzstd.so.1
+Skipping deployment of blacklisted library /lib64/libexpat.so.1 
+Skipping deployment of blacklisted library /lib64/libxcb.so.1 
+Deploying shared library /lib64/libpcre2-8.so.0
+Deploying shared library /lib64/libdbus-1.so.3
+Deploying shared library /lib64/libgraphite2.so.3
+Deploying shared library /lib64/libbz2.so.1
+Deploying shared library /lib64/libbrotlidec.so.1
+Deploying shared library /lib64/libicudata.so.78
+Deploying shared library /lib64/libXau.so.6
+Deploying shared library /lib64/libXdmcp.so.6
+Deploying shared library /lib64/libbrotlicommon.so.1
+
+-- Copying files into AppDir -- 
+Copying file build/OpenEkklesia to dist/OpenEkklesia.AppDir/usr/bin/OpenEkklesia 
+Copying file /lib64/libXau.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6 
+Copying file /lib64/libXdmcp.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6 
+Copying file /lib64/libbrotlicommon.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1 
+Copying file /lib64/libbrotlidec.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1 
+Copying file /lib64/libbz2.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1 
+Copying file /lib64/libdbus-1.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3 
+Copying file /lib64/libdouble-conversion.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3 
+Copying file /lib64/libglib-2.0.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0 
+Copying file /lib64/libgraphite2.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3 
+Copying file /lib64/libicudata.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78 
+Copying file /lib64/libicui18n.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78 
+Copying file /lib64/libicuuc.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78 
+Copying file /lib64/libpcre2-16.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0 
+Copying file /lib64/libpcre2-8.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0 
+Copying file /lib64/libpng16.so.16 to dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16 
+Copying file /lib64/libsystemd.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0 
+Copying file /lib64/libxkbcommon.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0 
+Copying file /lib64/libzstd.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1 
+Copying file /usr/lib64/qt6/lib/libQt6Charts.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Charts.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6Core.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6DBus.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6Gui.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6OpenGL.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6OpenGLWidgets.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGLWidgets.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6PrintSupport.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6Sql.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6 
+Copying file /usr/lib64/qt6/lib/libQt6Widgets.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/bin/OpenEkklesia 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Charts.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGLWidgets.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0 
+Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/bin/OpenEkklesia to $ORIGIN/../lib 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Charts.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGLWidgets.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0 to $ORIGIN 
+Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1 to $ORIGIN 
+
+-- Running input plugin: qt -- 
+[qt/stdout] Using user specified qmake: /usr/bin/qmake-qt6 
+[qt/stdout] Using qmake: /usr/bin/qmake-qt6 
+[qt/stderr] linuxdeploy-plugin-qt version 1-alpha (git commit ID 409307d), GitHub actions build 250 built on 2026-05-16 19:05:46 UTC
+[qt/stdout] 
+[qt/stdout] Using Qt version:  6.10.2  ( 6 ) 
+[qt/stdout]   libEGL.so.1  libGLX.so.0  libGLdispatch.so.0  libOpenGL.so.0  libQt6Charts.so.6  libQt6Core.so.6  libQt6DBus.so.6  libQt6Gui.so.6  libQt6OpenGL.so.6  libQt6OpenGLWidgets.so.6  libQt6PrintSupport.so.6  libQt6Sql.so.6  libQt6Widgets.so.6  libX11.so.6  libXau.so.6  libXdmcp.so.6  libbrotlicommon.so.1  libbrotlidec.so.1  libbz2.so.1  libc.so.6  libdbus-1.so.3  libdouble-conversion.so.3  libexpat.so.1  libfontconfig.so.1  libfreetype.so.6  libgcc_s.so.1  libglib-2.0.so.0  libgraphite2.so.3  libharfbuzz.so.0  libicudata.so.78  libicui18n.so.78  libicuuc.so.78  libm.so.6  libpcre2-16.so.0  libpcre2-8.so.0  libpng16.so.16  libstdc++.so.6  libsystemd.so.0  libxcb.so.1  libxkbcommon.so.0  libz.so.1  libzstd.so.1
+[qt/stdout] Found Qt modules: core dbus gui opengl openglwidgets printsupport sql widgets 
+[qt/stdout] Extra Qt modules:  
+[qt/stdout] 
+[qt/stdout] QT_INSTALL_LIBS: /usr/lib64/qt6/lib 
+[qt/stdout] Prepending QT_INSTALL_LIBS path to $LD_LIBRARY_PATH, new $LD_LIBRARY_PATH: /usr/lib64/qt6/lib: 
+[qt/stdout] Prepending QT_INSTALL_BINS and QT_INSTALL_LIBEXECS paths to $PATH, new $PATH: /usr/lib64/qt6/bin:/usr/lib64/qt6/libexec:/home/manuel/Documents/OpenEkklesia/tools:/home/manuel/.npm/_npx/1e7f6d9597241db0/node_modules/.bin:/home/manuel/Documents/Tulare Local Website/backend/node_modules/.bin:/home/manuel/Documents/Tulare Local Website/node_modules/.bin:/home/manuel/Documents/node_modules/.bin:/home/manuel/node_modules/.bin:/home/node_modules/.bin:/node_modules/.bin:/home/manuel/.nvm/versions/node/v24.17.0/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/home/manuel/.nvm/versions/node/v24.17.0/bin:/usr/local/bin:/usr/bin:/usr/games:/usr/local/games:/home/manuel/.local/bin:/home/manuel/bin 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: core -- 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: dbus -- 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: gui -- 
+[qt/stdout] Deploying platform plugins 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/platforms/libqxcb.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/platforms/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/platforms/libqxcb.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6XcbQpa.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Gui.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Core.so.6
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libstdc++.so.6 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libc.so.6 
+[qt/stdout] Deploying shared library /lib64/libxcb-cursor.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-icccm.so.4
+[qt/stdout] Deploying shared library /lib64/libxcb-image.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-keysyms.so.1
+[qt/stdout] Deploying shared library /lib64/libxcb-randr.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-render.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-render-util.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-shape.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-shm.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-sync.so.1
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libxcb.so.1 
+[qt/stdout] Deploying shared library /lib64/libxcb-xfixes.so.0
+[qt/stdout] Deploying shared library /lib64/libxcb-xkb.so.1
+[qt/stdout] Deploying shared library /lib64/libxkbcommon.so.0
+[qt/stdout] Deploying shared library /lib64/libglib-2.0.so.0
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libX11-xcb.so.1 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libX11.so.6 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libSM.so.6 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libICE.so.6 
+[qt/stdout] Deploying shared library /lib64/libxcb-xinput.so.0
+[qt/stdout] Deploying shared library /lib64/libxkbcommon-x11.so.0
+[qt/stdout] Deploying shared library /lib64/libXrender.so.1
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libm.so.6 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libEGL.so.1 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libfontconfig.so.1 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6DBus.so.6
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libGLX.so.0 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libOpenGL.so.0 
+[qt/stdout] Deploying shared library /lib64/libpng16.so.16
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libharfbuzz.so.0 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libfreetype.so.6 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libz.so.1 
+[qt/stdout] Deploying shared library /lib64/libicui18n.so.78
+[qt/stdout] Deploying shared library /lib64/libicuuc.so.78
+[qt/stdout] Deploying shared library /lib64/libsystemd.so.0
+[qt/stdout] Deploying shared library /lib64/libdouble-conversion.so.3
+[qt/stdout] Deploying shared library /lib64/libpcre2-16.so.0
+[qt/stdout] Deploying shared library /lib64/libzstd.so.1
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libgcc_s.so.1 
+[qt/stdout] Deploying shared library /lib64/libxcb-util.so.1
+[qt/stdout] Deploying shared library /lib64/libXau.so.6
+[qt/stdout] Deploying shared library /lib64/libXdmcp.so.6
+[qt/stdout] Deploying shared library /lib64/libpcre2-8.so.0
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libuuid.so.1 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libGLdispatch.so.0 
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libexpat.so.1 
+[qt/stdout] Deploying shared library /lib64/libdbus-1.so.3
+[qt/stdout] Deploying shared library /lib64/libgraphite2.so.3
+[qt/stdout] Deploying shared library /lib64/libbz2.so.1
+[qt/stdout] Deploying shared library /lib64/libbrotlidec.so.1
+[qt/stdout] Deploying shared library /lib64/libicudata.so.78
+[qt/stdout] Deploying shared library /lib64/libbrotlicommon.so.1
+[qt/stdout] Deploying Qt platforminputcontexts plugins 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6VirtualKeyboard.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Quick.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Qml.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6QmlMeta.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6QmlModels.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Network.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6OpenGL.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6QmlWorkerScript.so.6
+[qt/stdout] Deploying shared library /lib64/libgssapi_krb5.so.2
+[qt/stdout] Deploying shared library /lib64/libproxy.so.1
+[qt/stdout] Deploying shared library /lib64/libcrypto.so.3
+[qt/stdout] Deploying shared library /lib64/libkrb5.so.3
+[qt/stdout] Deploying shared library /lib64/libk5crypto.so.3
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libcom_err.so.2 
+[qt/stdout] Deploying shared library /lib64/libkrb5support.so.0
+[qt/stdout] Deploying shared library /lib64/libkeyutils.so.1
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libresolv.so.2 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so 
+[qt/stdout] Deploying Qt imageformats plugins 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqico.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqico.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqgif.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqgif.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqtga.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqtga.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqsvg.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqsvg.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Svg.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqjp2.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqjp2.so 
+[qt/stdout] Deploying shared library /lib64/libjasper.so.7
+[qt/stdout] Deploying shared library /lib64/libjpeg.so.8
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqwebp.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqwebp.so 
+[qt/stdout] Deploying shared library /lib64/libwebpdemux.so.2
+[qt/stdout] Deploying shared library /lib64/libwebpmux.so.3
+[qt/stdout] Deploying shared library /lib64/libwebp.so.7
+[qt/stdout] Deploying shared library /lib64/libsharpyuv.so.0
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqwbmp.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqwbmp.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqtiff.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqtiff.so 
+[qt/stdout] Deploying shared library /lib64/libtiff.so.6
+[qt/stdout] Deploying shared library /lib64/liblzma.so.5
+[qt/stdout] Deploying shared library /lib64/libjbig.so.2.1
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqicns.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqicns.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/kimg_heif.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/kimg_heif.so 
+[qt/stdout] Deploying shared library /lib64/libheif.so.1
+[qt/stdout] Deploying shared library /lib64/libx265.so.215
+[qt/stdout] Deploying shared library /lib64/libde265.so.0
+[qt/stdout] Deploying shared library /lib64/libaom.so.3
+[qt/stdout] Deploying shared library /lib64/libkvazaar.so.7
+[qt/stdout] Deploying shared library /lib64/libavcodec.so.62
+[qt/stdout] Deploying shared library /lib64/libavutil.so.60
+[qt/stdout] Deploying shared library /lib64/libuvg266.so
+[qt/stdout] Deploying shared library /lib64/libvvdec.so.3
+[qt/stdout] Deploying shared library /lib64/libvvenc.so.1.12
+[qt/stdout] Deploying shared library /lib64/libx264.so.165
+[qt/stdout] Deploying shared library /lib64/libnuma.so.1
+[qt/stdout] Deploying shared library /lib64/libswresample.so.6
+[qt/stdout] Deploying shared library /lib64/libvpx.so.11
+[qt/stdout] Deploying shared library /lib64/libcelt0.so.2
+[qt/stdout] Deploying shared library /lib64/libdav1d.so.7
+[qt/stdout] Deploying shared library /lib64/libuavs3d.so.0
+[qt/stdout] Deploying shared library /lib64/libzvbi.so.0
+[qt/stdout] Deploying shared library /lib64/libgsm.so.1
+[qt/stdout] Deploying shared library /lib64/libilbc.so.2
+[qt/stdout] Deploying shared library /lib64/libjxl.so.0.11
+[qt/stdout] Deploying shared library /lib64/libjxl_threads.so.0.11
+[qt/stdout] Deploying shared library /lib64/libmp3lame.so.0
+[qt/stdout] Deploying shared library /lib64/libopenjp2.so.7
+[qt/stdout] Deploying shared library /lib64/libopus.so.0
+[qt/stdout] Deploying shared library /lib64/librav1e.so.0
+[qt/stdout] Deploying shared library /lib64/libspeex.so.1
+[qt/stdout] Deploying shared library /lib64/libSvtAv1Enc.so.2
+[qt/stdout] Deploying shared library /lib64/libtheoraenc.so.2
+[qt/stdout] Deploying shared library /lib64/libtheoradec.so.2
+[qt/stdout] Deploying shared library /lib64/libtwolame.so.0
+[qt/stdout] Deploying shared library /lib64/libvorbis.so.0
+[qt/stdout] Deploying shared library /lib64/libvorbisenc.so.2
+[qt/stdout] Deploying shared library /lib64/libSvtVp9Enc.so.1
+[qt/stdout] Deploying shared library /lib64/libxavs.so.1
+[qt/stdout] Deploying shared library /lib64/libva.so.2
+[qt/stdout] Deploying shared library /lib64/libvpl.so.2
+[qt/stdout] Deploying shared library /lib64/libva-drm.so.2
+[qt/stdout] Deploying shared library /lib64/libva-x11.so.2
+[qt/stdout] Deploying shared library /lib64/libvdpau.so.1
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libdrm.so.2 
+[qt/stdout] Deploying shared library /lib64/libOpenCL.so.1
+[qt/stdout] Deploying shared library /lib64/libjxl_cms.so.0.11
+[qt/stdout] Deploying shared library /lib64/libhwy.so.1
+[qt/stdout] Deploying shared library /lib64/libbrotlienc.so.1
+[qt/stdout] Deploying shared library /lib64/libogg.so.0
+[qt/stdout] Deploying shared library /lib64/libXext.so.6
+[qt/stdout] Deploying shared library /lib64/libXfixes.so.3
+[qt/stdout] Skipping deployment of blacklisted library /lib64/libxcb-dri3.so.0 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqavif6.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqavif6.so 
+[qt/stdout] Deploying shared library /lib64/libavif.so.16
+[qt/stdout] Deploying shared library /lib64/libyuv.so.0
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqjpeg.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqjpeg.so 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqmng.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqmng.so 
+[qt/stdout] Deploying shared library /lib64/libmng.so.2
+[qt/stdout] Deploying shared library /lib64/liblcms2.so.2
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/imageformats/libqjpegxl6.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/imageformats/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/imageformats/libqjpegxl6.so 
+[qt/stdout] Trying to deploy platform themes and style 
+[qt/stdout] Attempting to deploy libqxdgdesktopportal.so found at path /usr/lib64/qt6/plugins/platformthemes 
+[qt/stdout] Deploying file /usr/lib64/qt6/plugins/platformthemes/libqxdgdesktopportal.so to dist/OpenEkklesia.AppDir/usr/plugins/platformthemes/libqxdgdesktopportal.so 
+[qt/stdout] Deploying xcb-gl integrations 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-glx-integration.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-glx-integration.so 
+[qt/stdout] Deploying shared library /lib64/libxcb-glx.so.0
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-egl-integration.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-egl-integration.so 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: opengl -- 
+[qt/stdout] Deploying xcb-gl integrations 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: openglwidgets -- 
+[qt/stdout] 
+[qt/stdout] -- Deploying module: printsupport -- 
+[qt/stdout] Deploying Qt printsupport plugins 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/printsupport/libcupsprintersupport.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/printsupport/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/printsupport/libcupsprintersupport.so 
+[qt/stdout] Deploying shared library /lib64/libcups.so.2
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6PrintSupport.so.6
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Widgets.so.6
+[qt/stdout] Deploying shared library /lib64/libavahi-common.so.3
+[qt/stdout] Deploying shared library /lib64/libavahi-client.so.3
+[qt/stdout] Deploying shared library /lib64/libssl.so.3
+[qt/stdout] 
+[qt/stdout] -- Deploying module: sql -- 
+[qt/stdout] Deploying Qt sqldrivers plugins 
+[qt/stdout] Deploying shared library /usr/lib64/qt6/plugins/sqldrivers/libqsqlite.so (destination: dist/OpenEkklesia.AppDir/usr/plugins/sqldrivers/)
+[qt/stdout] Deploying dependencies for ELF file /usr/lib64/qt6/plugins/sqldrivers/libqsqlite.so 
+[qt/stdout] Deploying shared library /lib64/libsqlite3.so.0
+[qt/stdout] Deploying shared library /usr/lib64/qt6/lib/libQt6Sql.so.6
+[qt/stdout] 
+[qt/stdout] -- Deploying module: widgets -- 
+[qt/stdout] 
+[qt/stdout] -- Deploying translations -- 
+[qt/stdout] Qt translations directory: /usr/lib64/qt6/translations 
+[qt/stdout] 
+[qt/stdout] -- Executing deferred operations -- 
+[qt/stdout] Copying file /lib64/libOpenCL.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libOpenCL.so.1 
+[qt/stdout] Copying file /lib64/libSvtAv1Enc.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libSvtAv1Enc.so.2 
+[qt/stdout] Copying file /lib64/libSvtVp9Enc.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libSvtVp9Enc.so.1 
+[qt/stdout] Copying file /lib64/libXau.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6 
+[qt/stdout] Copying file /lib64/libXdmcp.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6 
+[qt/stdout] Copying file /lib64/libXext.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libXext.so.6 
+[qt/stdout] Copying file /lib64/libXfixes.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libXfixes.so.3 
+[qt/stdout] Copying file /lib64/libXrender.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libXrender.so.1 
+[qt/stdout] Copying file /lib64/libaom.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libaom.so.3 
+[qt/stdout] Copying file /lib64/libavahi-client.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libavahi-client.so.3 
+[qt/stdout] Copying file /lib64/libavahi-common.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libavahi-common.so.3 
+[qt/stdout] Copying file /lib64/libavcodec.so.62 to dist/OpenEkklesia.AppDir/usr/lib/libavcodec.so.62 
+[qt/stdout] Copying file /lib64/libavif.so.16 to dist/OpenEkklesia.AppDir/usr/lib/libavif.so.16 
+[qt/stdout] Copying file /lib64/libavutil.so.60 to dist/OpenEkklesia.AppDir/usr/lib/libavutil.so.60 
+[qt/stdout] Copying file /lib64/libbrotlicommon.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1 
+[qt/stdout] Copying file /lib64/libbrotlidec.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1 
+[qt/stdout] Copying file /lib64/libbrotlienc.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbrotlienc.so.1 
+[qt/stdout] Copying file /lib64/libbz2.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1 
+[qt/stdout] Copying file /lib64/libcelt0.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libcelt0.so.2 
+[qt/stdout] Copying file /lib64/libcrypto.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libcrypto.so.3 
+[qt/stdout] Copying file /lib64/libcups.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libcups.so.2 
+[qt/stdout] Copying file /lib64/libdav1d.so.7 to dist/OpenEkklesia.AppDir/usr/lib/libdav1d.so.7 
+[qt/stdout] Copying file /lib64/libdbus-1.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3 
+[qt/stdout] Copying file /lib64/libde265.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libde265.so.0 
+[qt/stdout] Copying file /lib64/libdouble-conversion.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3 
+[qt/stdout] Copying file /lib64/libglib-2.0.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0 
+[qt/stdout] Copying file /lib64/libgraphite2.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3 
+[qt/stdout] Copying file /lib64/libgsm.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libgsm.so.1 
+[qt/stdout] Copying file /lib64/libgssapi_krb5.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libgssapi_krb5.so.2 
+[qt/stdout] Copying file /lib64/libheif.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libheif.so.1 
+[qt/stdout] Copying file /lib64/libhwy.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libhwy.so.1 
+[qt/stdout] Copying file /lib64/libicudata.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78 
+[qt/stdout] Copying file /lib64/libicui18n.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78 
+[qt/stdout] Copying file /lib64/libicuuc.so.78 to dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78 
+[qt/stdout] Copying file /lib64/libilbc.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libilbc.so.2 
+[qt/stdout] Copying file /lib64/libjasper.so.7 to dist/OpenEkklesia.AppDir/usr/lib/libjasper.so.7 
+[qt/stdout] Copying file /lib64/libjbig.so.2.1 to dist/OpenEkklesia.AppDir/usr/lib/libjbig.so.2.1 
+[qt/stdout] Copying file /lib64/libjpeg.so.8 to dist/OpenEkklesia.AppDir/usr/lib/libjpeg.so.8 
+[qt/stdout] Copying file /lib64/libjxl.so.0.11 to dist/OpenEkklesia.AppDir/usr/lib/libjxl.so.0.11 
+[qt/stdout] Copying file /lib64/libjxl_cms.so.0.11 to dist/OpenEkklesia.AppDir/usr/lib/libjxl_cms.so.0.11 
+[qt/stdout] Copying file /lib64/libjxl_threads.so.0.11 to dist/OpenEkklesia.AppDir/usr/lib/libjxl_threads.so.0.11 
+[qt/stdout] Copying file /lib64/libk5crypto.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libk5crypto.so.3 
+[qt/stdout] Copying file /lib64/libkeyutils.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libkeyutils.so.1 
+[qt/stdout] Copying file /lib64/libkrb5.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libkrb5.so.3 
+[qt/stdout] Copying file /lib64/libkrb5support.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libkrb5support.so.0 
+[qt/stdout] Copying file /lib64/libkvazaar.so.7 to dist/OpenEkklesia.AppDir/usr/lib/libkvazaar.so.7 
+[qt/stdout] Copying file /lib64/liblcms2.so.2 to dist/OpenEkklesia.AppDir/usr/lib/liblcms2.so.2 
+[qt/stdout] Copying file /lib64/liblzma.so.5 to dist/OpenEkklesia.AppDir/usr/lib/liblzma.so.5 
+[qt/stdout] Copying file /lib64/libmng.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libmng.so.2 
+[qt/stdout] Copying file /lib64/libmp3lame.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libmp3lame.so.0 
+[qt/stdout] Copying file /lib64/libnuma.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libnuma.so.1 
+[qt/stdout] Copying file /lib64/libogg.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libogg.so.0 
+[qt/stdout] Copying file /lib64/libopenjp2.so.7 to dist/OpenEkklesia.AppDir/usr/lib/libopenjp2.so.7 
+[qt/stdout] Copying file /lib64/libopus.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libopus.so.0 
+[qt/stdout] Copying file /lib64/libpcre2-16.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0 
+[qt/stdout] Copying file /lib64/libpcre2-8.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0 
+[qt/stdout] Copying file /lib64/libpng16.so.16 to dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16 
+[qt/stdout] Copying file /lib64/libproxy.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libproxy.so.1 
+[qt/stdout] Copying file /lib64/librav1e.so.0 to dist/OpenEkklesia.AppDir/usr/lib/librav1e.so.0 
+[qt/stdout] Copying file /lib64/libsharpyuv.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libsharpyuv.so.0 
+[qt/stdout] Copying file /lib64/libspeex.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libspeex.so.1 
+[qt/stdout] Copying file /lib64/libsqlite3.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libsqlite3.so.0 
+[qt/stdout] Copying file /lib64/libssl.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libssl.so.3 
+[qt/stdout] Copying file /lib64/libswresample.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libswresample.so.6 
+[qt/stdout] Copying file /lib64/libsystemd.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0 
+[qt/stdout] Copying file /lib64/libtheoradec.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libtheoradec.so.2 
+[qt/stdout] Copying file /lib64/libtheoraenc.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libtheoraenc.so.2 
+[qt/stdout] Copying file /lib64/libtiff.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libtiff.so.6 
+[qt/stdout] Copying file /lib64/libtwolame.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libtwolame.so.0 
+[qt/stdout] Copying file /lib64/libuavs3d.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libuavs3d.so.0 
+[qt/stdout] Copying file /lib64/libuvg266.so to dist/OpenEkklesia.AppDir/usr/lib/libuvg266.so 
+[qt/stdout] Copying file /lib64/libva-drm.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libva-drm.so.2 
+[qt/stdout] Copying file /lib64/libva-x11.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libva-x11.so.2 
+[qt/stdout] Copying file /lib64/libva.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libva.so.2 
+[qt/stdout] Copying file /lib64/libvdpau.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libvdpau.so.1 
+[qt/stdout] Copying file /lib64/libvorbis.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libvorbis.so.0 
+[qt/stdout] Copying file /lib64/libvorbisenc.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libvorbisenc.so.2 
+[qt/stdout] Copying file /lib64/libvpl.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libvpl.so.2 
+[qt/stdout] Copying file /lib64/libvpx.so.11 to dist/OpenEkklesia.AppDir/usr/lib/libvpx.so.11 
+[qt/stdout] Copying file /lib64/libvvdec.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libvvdec.so.3 
+[qt/stdout] Copying file /lib64/libvvenc.so.1.12 to dist/OpenEkklesia.AppDir/usr/lib/libvvenc.so.1.12 
+[qt/stdout] Copying file /lib64/libwebp.so.7 to dist/OpenEkklesia.AppDir/usr/lib/libwebp.so.7 
+[qt/stdout] Copying file /lib64/libwebpdemux.so.2 to dist/OpenEkklesia.AppDir/usr/lib/libwebpdemux.so.2 
+[qt/stdout] Copying file /lib64/libwebpmux.so.3 to dist/OpenEkklesia.AppDir/usr/lib/libwebpmux.so.3 
+[qt/stdout] Copying file /lib64/libx264.so.165 to dist/OpenEkklesia.AppDir/usr/lib/libx264.so.165 
+[qt/stdout] Copying file /lib64/libx265.so.215 to dist/OpenEkklesia.AppDir/usr/lib/libx265.so.215 
+[qt/stdout] Copying file /lib64/libxavs.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libxavs.so.1 
+[qt/stdout] Copying file /lib64/libxcb-cursor.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-cursor.so.0 
+[qt/stdout] Copying file /lib64/libxcb-glx.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-glx.so.0 
+[qt/stdout] Copying file /lib64/libxcb-icccm.so.4 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-icccm.so.4 
+[qt/stdout] Copying file /lib64/libxcb-image.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-image.so.0 
+[qt/stdout] Copying file /lib64/libxcb-keysyms.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-keysyms.so.1 
+[qt/stdout] Copying file /lib64/libxcb-randr.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-randr.so.0 
+[qt/stdout] Copying file /lib64/libxcb-render-util.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-render-util.so.0 
+[qt/stdout] Copying file /lib64/libxcb-render.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-render.so.0 
+[qt/stdout] Copying file /lib64/libxcb-shape.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-shape.so.0 
+[qt/stdout] Copying file /lib64/libxcb-shm.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-shm.so.0 
+[qt/stdout] Copying file /lib64/libxcb-sync.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-sync.so.1 
+[qt/stdout] Copying file /lib64/libxcb-util.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-util.so.1 
+[qt/stdout] Copying file /lib64/libxcb-xfixes.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-xfixes.so.0 
+[qt/stdout] Copying file /lib64/libxcb-xinput.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-xinput.so.0 
+[qt/stdout] Copying file /lib64/libxcb-xkb.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libxcb-xkb.so.1 
+[qt/stdout] Copying file /lib64/libxkbcommon-x11.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon-x11.so.0 
+[qt/stdout] Copying file /lib64/libxkbcommon.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0 
+[qt/stdout] Copying file /lib64/libyuv.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libyuv.so.0 
+[qt/stdout] Copying file /lib64/libzstd.so.1 to dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1 
+[qt/stdout] Copying file /lib64/libzvbi.so.0 to dist/OpenEkklesia.AppDir/usr/lib/libzvbi.so.0 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Core.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6DBus.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Gui.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Network.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Network.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6OpenGL.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6PrintSupport.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Qml.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Qml.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6QmlMeta.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlMeta.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6QmlModels.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlModels.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6QmlWorkerScript.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlWorkerScript.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Quick.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Quick.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Sql.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Svg.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Svg.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6VirtualKeyboard.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6VirtualKeyboard.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6Widgets.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/lib/libQt6XcbQpa.so.6 to dist/OpenEkklesia.AppDir/usr/lib/libQt6XcbQpa.so.6 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/kimg_heif.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/kimg_heif.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqavif6.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqavif6.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqgif.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqgif.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqicns.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqicns.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqico.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqico.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqjp2.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjp2.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqjpeg.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpeg.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqjpegxl6.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpegxl6.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqmng.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqmng.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqsvg.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqsvg.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqtga.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtga.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqtiff.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtiff.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqwbmp.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwbmp.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/imageformats/libqwebp.so to dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwebp.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so to dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so to dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so to dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/platforms/libqxcb.so to dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqxcb.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/platformthemes/libqxdgdesktopportal.so to dist/OpenEkklesia.AppDir/usr/plugins/platformthemes/libqxdgdesktopportal.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/printsupport/libcupsprintersupport.so to dist/OpenEkklesia.AppDir/usr/plugins/printsupport/libcupsprintersupport.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/sqldrivers/libqsqlite.so to dist/OpenEkklesia.AppDir/usr/plugins/sqldrivers/libqsqlite.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-egl-integration.so to dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-egl-integration.so 
+[qt/stdout] Copying file /usr/lib64/qt6/plugins/xcbglintegrations/libqxcb-glx-integration.so to dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-glx-integration.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libOpenCL.so.1 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Network.so.6 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Qml.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlMeta.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlModels.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlWorkerScript.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Quick.so.6 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6Svg.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6VirtualKeyboard.so.6 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libQt6XcbQpa.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libSvtAv1Enc.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libSvtVp9Enc.so.1 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libXext.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libXfixes.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libXrender.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libaom.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libavahi-client.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libavahi-common.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libavcodec.so.62 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libavif.so.16 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libavutil.so.60 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libbrotlienc.so.1 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libcelt0.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libcrypto.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libcups.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libdav1d.so.7 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libde265.so.0 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libgsm.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libgssapi_krb5.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libheif.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libhwy.so.1 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libilbc.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjasper.so.7 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjbig.so.2.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjpeg.so.8 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjxl.so.0.11 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjxl_cms.so.0.11 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libjxl_threads.so.0.11 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libk5crypto.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libkeyutils.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libkrb5.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libkrb5support.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libkvazaar.so.7 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/liblcms2.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/liblzma.so.5 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libmng.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libmp3lame.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libnuma.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libogg.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libopenjp2.so.7 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libopus.so.0 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0: rpath starts with $ 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libproxy.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/librav1e.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libsharpyuv.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libspeex.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libsqlite3.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libssl.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libswresample.so.6 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libtheoradec.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libtheoraenc.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libtiff.so.6 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libtwolame.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libuavs3d.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libuvg266.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libva-drm.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libva-x11.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libva.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvdpau.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvorbis.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvorbisenc.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvpl.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvpx.so.11 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvvdec.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libvvenc.so.1.12 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libwebp.so.7 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libwebpdemux.so.2 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libwebpmux.so.3 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libx264.so.165 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libx265.so.215 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxavs.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-cursor.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-glx.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-icccm.so.4 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-image.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-keysyms.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-randr.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-render-util.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-render.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-shape.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-shm.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-sync.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-util.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-xfixes.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-xinput.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxcb-xkb.so.1 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon-x11.so.0 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libyuv.so.0 
+[qt/stdout] WARNING: Not calling strip on binary dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1: rpath starts with $ 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/lib/libzvbi.so.0 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/kimg_heif.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqavif6.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqgif.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqicns.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqico.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjp2.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpeg.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpegxl6.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqmng.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqsvg.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtga.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtiff.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwbmp.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwebp.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqxcb.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/printsupport/libcupsprintersupport.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/sqldrivers/libqsqlite.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-egl-integration.so 
+[qt/stdout] Calling strip on library dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-glx-integration.so 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libOpenCL.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Core.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6DBus.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Gui.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Network.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6OpenGL.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6PrintSupport.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Qml.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlMeta.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlModels.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6QmlWorkerScript.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Quick.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Sql.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Svg.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6VirtualKeyboard.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6Widgets.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libQt6XcbQpa.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libSvtAv1Enc.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libSvtVp9Enc.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXau.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXdmcp.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXext.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXfixes.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libXrender.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libaom.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libavahi-client.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libavahi-common.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libavcodec.so.62 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libavif.so.16 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libavutil.so.60 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbrotlicommon.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbrotlidec.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbrotlienc.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libbz2.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libcelt0.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libcrypto.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libcups.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libdav1d.so.7 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libdbus-1.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libde265.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libdouble-conversion.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libglib-2.0.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libgraphite2.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libgsm.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libgssapi_krb5.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libheif.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libhwy.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicudata.so.78 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicui18n.so.78 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libicuuc.so.78 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libilbc.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjasper.so.7 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjbig.so.2.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjpeg.so.8 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjxl.so.0.11 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjxl_cms.so.0.11 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libjxl_threads.so.0.11 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libk5crypto.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libkeyutils.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libkrb5.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libkrb5support.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libkvazaar.so.7 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/liblcms2.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/liblzma.so.5 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libmng.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libmp3lame.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libnuma.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libogg.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libopenjp2.so.7 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libopus.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpcre2-16.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpcre2-8.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libpng16.so.16 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libproxy.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/librav1e.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libsharpyuv.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libspeex.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libsqlite3.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libssl.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libswresample.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libsystemd.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libtheoradec.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libtheoraenc.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libtiff.so.6 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libtwolame.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libuavs3d.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libuvg266.so to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libva-drm.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libva-x11.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libva.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvdpau.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvorbis.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvorbisenc.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvpl.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvpx.so.11 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvvdec.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libvvenc.so.1.12 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libwebp.so.7 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libwebpdemux.so.2 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libwebpmux.so.3 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libx264.so.165 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libx265.so.215 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxavs.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-cursor.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-glx.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-icccm.so.4 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-image.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-keysyms.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-randr.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-render-util.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-render.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-shape.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-shm.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-sync.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-util.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-xfixes.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-xinput.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxcb-xkb.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon-x11.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libxkbcommon.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libyuv.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libzstd.so.1 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/lib/libzvbi.so.0 to $ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/kimg_heif.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqavif6.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqgif.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqicns.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqico.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjp2.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpeg.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqjpegxl6.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqmng.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqsvg.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtga.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqtiff.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwbmp.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/imageformats/libqwebp.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqxcb.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/printsupport/libcupsprintersupport.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/sqldrivers/libqsqlite.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-egl-integration.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] Setting rpath in ELF file dist/OpenEkklesia.AppDir/usr/plugins/xcbglintegrations/libqxcb-glx-integration.so to $ORIGIN/../../lib:$ORIGIN 
+[qt/stdout] 
+[qt/stdout] -- Creating qt.conf in AppDir -- 
+[qt/stdout] Creating Qt conf file: dist/OpenEkklesia.AppDir/usr/bin/qt.conf 
+[qt/stdout] 
+[qt/stdout] -- Note: skipping AppRun hook creation on Qt  6  -- 
+[qt/stdout] 
+[qt/stdout] Done! 
+
+-- Copying files into AppDir -- 
+
+-- Deploying files into AppDir root directory -- 
+WARNING: Could not find desktop file in AppDir, cannot create links for AppRun, desktop file and icon in AppDir root 
+appimagetool, continuous build (commit 5735cc5), build <local dev build> built on 2023-03-08 22:52:04 UTC
+WARNING: appstreamcli command is missing, please install it if you want to use AppStream metadata
+Using architecture x86_64
+Deleting pre-existing .DirIcon
+Creating .DirIcon symlink based on information from desktop file
+WARNING: AppStream upstream metadata is missing, please consider creating it
+         in usr/share/metainfo/OpenEkklesia.appdata.xml
+         Please see https://www.freedesktop.org/software/appstream/docs/chap-Quickstart.html#sect-Quickstart-DesktopApps
+         for more information or use the generator at http://output.jsbin.com/qoqukof.
+Generating squashfs...
+Parallel mksquashfs: Using 16 processors
+Creating 4.0 filesystem on dist/OpenEkklesia-x86_64.AppImage, block size 131072.
+[=============================================================\] 1299/1299 100%
+
+Exportable Squashfs 4.0 filesystem, gzip compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 58114.90 Kbytes (56.75 Mbytes)
+	37.50% of uncompressed filesystem size (154984.94 Kbytes)
+Inode table size 5652 bytes (5.52 Kbytes)
+	52.26% of uncompressed inode table size (10816 bytes)
+Directory table size 2121 bytes (2.07 Kbytes)
+	48.85% of uncompressed directory table size (4342 bytes)
+Number of duplicate files found 0
+Number of inodes 184
+Number of files 154
+Number of fragments 32
+Number of symbolic links  1
+Number of device nodes 0
+Number of fifo nodes 0
+Number of socket nodes 0
+Number of directories 29
+Number of ids (unique uids + gids) 1
+Number of uids 1
+	root (0)
+Number of gids 1
+	root (0)
+Embedding ELF...
+Marking the AppImage as executable...
+Embedding MD5 digest
+Success
+
+Please consider submitting your AppImage to AppImageHub, the crowd-sourced
+central directory of available AppImages, by opening a pull request
+at https://github.com/AppImage/appimage.github.io
+/home/manuel/Documents/OpenEkklesia/dist/OpenEkklesia.AppDir should be packaged as dist/OpenEkklesia-x86_64.AppImage
+✅ Built: dist/OpenEkklesia-x86_64.AppImage

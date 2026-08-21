@@ -1,0 +1,44 @@
+[  0%] Built target openekklesia_tests_autogen_timestamp_deps
+[  0%] Built target OpenEkklesia_autogen_timestamp_deps
+[  2%] Automatic MOC and UIC for target openekklesia_tests
+[  5%] Automatic MOC and UIC for target OpenEkklesia
+[  5%] Built target openekklesia_tests_autogen
+[ 15%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o
+[ 15%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.cpp.o
+[ 15%] Building CXX object CMakeFiles/openekklesia_tests.dir/tests/tst_openekklesia.cpp.o
+[ 15%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/database/datasharing.cpp.o
+[ 17%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/database/databasemanager.cpp.o
+[ 20%] Building CXX object CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cpp.o
+[ 22%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/ministry/shepherdwidget.cpp.o
+[ 25%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o
+[ 27%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o
+[ 30%] Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.o
+[ 30%] Built target OpenEkklesia_autogen
+[ 35%] Building CXX object CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o
+[ 35%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/main.cpp.o
+[ 37%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/database/datasharing.cpp.o
+[ 40%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/database/databasemanager.cpp.o
+[ 42%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/integrations/planningcenterclient.cpp.o
+[ 45%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/core/mainwindow.cpp.o
+[ 47%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/core/commandpalette.cpp.o
+[ 50%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/core/kioskwindow.cpp.o
+[ 52%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/core/thememanager.cpp.o
+[ 55%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/people/peoplewidget.cpp.o
+[ 57%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/people/pastoralanalyticswidget.cpp.o
+[ 60%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/finance/contributionswidget.cpp.o
+[ 62%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/finance/inventorywidget.cpp.o
+[ 65%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/finance/transactiondialog.cpp.o
+[ 67%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/planningwidget.cpp.o
+[ 70%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o
+[ 72%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/shepherdwidget.cpp.o
+[ 75%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/facilitieswidget.cpp.o
+[ 77%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o
+[ 80%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/ministrymatch.cpp.o
+[ 82%] Linking CXX executable openekklesia_tests
+[ 85%] Built target openekklesia_tests
+[ 87%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/ministry/matchdialog.cpp.o
+[ 90%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/admin/settingswidget.cpp.o
+[ 92%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/ui/admin/vaultwidget.cpp.o
+[ 95%] Building CXX object CMakeFiles/OpenEkklesia.dir/src/integrations/planningcenterdialog.cpp.o
+[ 97%] Linking CXX executable OpenEkklesia
+[100%] Built target OpenEkklesia

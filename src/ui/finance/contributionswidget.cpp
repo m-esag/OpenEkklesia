@@ -19,6 +19,12 @@
 #include <QDebug>
 #include <QInputDialog>
 #include <QMenu>
+#include <QListWidget>
+#include <QCheckBox>
+#include <QDialogButtonBox>
+#include <QTextStream>
+#include <QColor>
+#include <QFileDialog>
 
 ContributionsWidget::ContributionsWidget(QWidget *parent)
     : QWidget(parent)
@@ -102,6 +108,25 @@ void ContributionsWidget::setupUI() {
     m_btnExportPDF->setObjectName("accentBtnPink");
     connect(m_btnExportPDF, &QPushButton::clicked, this, &ContributionsWidget::onExportTaxStatements);
     formLayout->addWidget(m_btnExportPDF);
+
+    formLayout->addSpacing(10);
+
+    // Fund administration — funds are the organizing concept for giving, so
+    // they can be added/renamed/deactivated without leaving this page.
+    QLabel* fundsLabel = new QLabel("Funds & Accounting Export", this);
+    fundsLabel->setObjectName("detailSubHeader");
+    formLayout->addWidget(fundsLabel);
+
+    m_btnManageFunds = new QPushButton("Manage Funds", this);
+    m_btnManageFunds->setObjectName("secondaryBtn");
+    connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
+    formLayout->addWidget(m_btnManageFunds);
+
+    m_btnGnuCashExport = new QPushButton("Export for GnuCash (CSV)", this);
+    m_btnGnuCashExport->setObjectName("accentBtnCyan");
+    m_btnGnuCashExport->setToolTip("Export recorded giving for a date range as CSV, ready to import into GnuCash as income transactions.");
+    connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
+    formLayout->addWidget(m_btnGnuCashExport);
 
     m_progressBar = new QProgressBar(this);
     m_progressBar->setVisible(false);
@@ -271,7 +296,14 @@ void ContributionsWidget::onSaveContribution() {
 
     if (query.exec()) {
         db.commit();
-        DatabaseManager::logMemberHistory(personId, "Contribution", QString("Contributed $%1 to Fund ID %2").arg(QString::number(amountCents / 100.0, 'f', 2), QString::number(fundId)));
+        QString fundName;
+        for (const auto& f : m_fundsList) {
+            if (f.first == fundId) { fundName = f.second; break; }
+        }
+        DatabaseManager::logMemberHistory(personId, "Contribution",
+            QString("Contributed %1%2 to %3").arg(appCurrencySymbol(),
+                QString::number(amountCents / 100.0, 'f', 2),
+                fundName.isEmpty() ? QString("Fund #%1").arg(fundId) : fundName));
         DatabaseManager::logAudit("contributions", query.lastInsertId().toInt(), "amount", "", QString::number(amountCents), "finance");
         refreshHistoryModel();
         
@@ -509,6 +541,216 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
             }
         }
     }
+}
+
+void ContributionsWidget::refreshFundCombo() {
+    m_fundCombo->blockSignals(true);
+    m_fundCombo->clear();
+    m_fundsList.clear();
+    QSqlQuery q;
+    if (q.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
+        while (q.next()) {
+            int id = q.value(0).toInt();
+            QString name = q.value(1).toString();
+            m_fundsList.append({id, name});
+            m_fundCombo->addItem(name, id);
+        }
+    }
+    m_fundCombo->blockSignals(false);
+}
+
+void ContributionsWidget::onManageFunds() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Manage Giving Funds");
+    dlg.resize(420, 360);
+
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->setSpacing(10);
+
+    QListWidget* list = new QListWidget(&dlg);
+    lay->addWidget(list, 1);
+
+    auto refreshList = [list]() {
+        list->clear();
+        QSqlQuery q;
+        q.exec("SELECT id, fund_name, is_active FROM funds ORDER BY fund_name");
+        while (q.next()) {
+            int id = q.value(0).toInt();
+            QString name = q.value(1).toString();
+            bool active = q.value(2).toBool();
+            QListWidgetItem* item = new QListWidgetItem(
+                active ? name : QString("%1 (inactive)").arg(name), list);
+            item->setData(Qt::UserRole, id);
+            if (!active) item->setForeground(QColor("#a6adc8"));
+        }
+    };
+    refreshList();
+
+    QDialogButtonBox* btns = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    QPushButton* btnAdd = btns->addButton("➕ Add Fund", QDialogButtonBox::ActionRole);
+    QPushButton* btnRename = btns->addButton("✏️ Rename", QDialogButtonBox::ActionRole);
+    QPushButton* btnToggle = btns->addButton("Deactivate / Reactivate", QDialogButtonBox::ActionRole);
+    lay->addWidget(btns);
+
+    // Funds are referenced by existing contributions, so they are never
+    // hard-deleted — deactivation removes them from the entry form while
+    // preserving historical giving and tax statements.
+    connect(btnAdd, &QPushButton::clicked, this, [this, &refreshList]() {
+        bool ok;
+        QString name = QInputDialog::getText(this, "New Fund", "Fund name:", QLineEdit::Normal, "", &ok).trimmed();
+        if (!ok || name.isEmpty()) return;
+        QSqlQuery q;
+        q.prepare("INSERT INTO funds (fund_name, is_active) VALUES (?, 1)");
+        q.addBindValue(name);
+        if (q.exec()) {
+            refreshList();
+            refreshFundCombo();
+        } else {
+            QMessageBox::warning(this, "Error", "Could not add fund (duplicate name?): " + q.lastError().text());
+        }
+    });
+
+    connect(btnRename, &QPushButton::clicked, this, [this, list, &refreshList]() {
+        QListWidgetItem* sel = list->currentItem();
+        if (!sel) return;
+        int id = sel->data(Qt::UserRole).toInt();
+        bool ok;
+        QString name = QInputDialog::getText(this, "Rename Fund", "New name:", QLineEdit::Normal,
+                                             sel->text().replace(" (inactive)", ""), &ok).trimmed();
+        if (!ok || name.isEmpty()) return;
+        QSqlQuery q;
+        q.prepare("UPDATE funds SET fund_name = ? WHERE id = ?");
+        q.addBindValue(name);
+        q.addBindValue(id);
+        if (q.exec()) {
+            refreshList();
+            refreshFundCombo();
+            refreshHistoryModel();
+        }
+    });
+
+    connect(btnToggle, &QPushButton::clicked, this, [this, list, &refreshList]() {
+        QListWidgetItem* sel = list->currentItem();
+        if (!sel) return;
+        int id = sel->data(Qt::UserRole).toInt();
+        QSqlQuery q;
+        q.prepare("UPDATE funds SET is_active = 1 - is_active WHERE id = ?");
+        q.addBindValue(id);
+        if (q.exec()) {
+            refreshList();
+            refreshFundCombo();
+        }
+    });
+
+    dlg.exec();
+}
+
+void ContributionsWidget::onExportGnuCashCsv() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Export Giving for GnuCash");
+    dlg.resize(360, 190);
+
+    QFormLayout* form = new QFormLayout(&dlg);
+    QDateEdit* from = new QDateEdit(QDate::currentDate().addMonths(-1), &dlg);
+    QDateEdit* to = new QDateEdit(QDate::currentDate(), &dlg);
+    for (auto* d : {from, to}) {
+        d->setCalendarPopup(true);
+        d->setDisplayFormat("yyyy-MM-dd");
+    }
+    QCheckBox* chkSummary = new QCheckBox("One row per fund (summary) instead of per-gift", &dlg);
+    chkSummary->setChecked(false);
+    form->addRow("From:", from);
+    form->addRow("To:", to);
+    form->addRow(chkSummary);
+
+    QDialogButtonBox* btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    form->addRow(btns);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    QString suggested = QString("OpenEkklesia_Giving_%1_%2.csv")
+                            .arg(from->date().toString("yyyyMMdd"), to->date().toString("yyyyMMdd"));
+    QString fileName = QFileDialog::getSaveFileName(this, "Export GnuCash CSV",
+                       QDir::homePath() + "/" + suggested, "CSV Files (*.csv)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Error", "Could not open file for writing: " + file.errorString());
+        return;
+    }
+
+    // Proper CSV quoting: wrap fields containing commas/quotes/newlines and
+    // double embedded quotes (RFC 4180), since fund and donor names are free
+    // text. GnuCash's CSV import maps these columns to a transaction.
+    auto csv = [](const QString& s) {
+        QString v = s;
+        if (v.contains(',') || v.contains('"') || v.contains('\n'))
+            v = '"' + v.replace('"', "\"\"") + '"';
+        return v;
+    };
+
+    QTextStream out(&file);
+    int rowCount = 0;
+    double totalCents = 0.0;
+
+    if (chkSummary->isChecked()) {
+        out << "Date,Description,Deposit\n";
+        QSqlQuery q;
+        q.prepare("SELECT f.fund_name, SUM(c.amount) FROM contributions c "
+                  "JOIN funds f ON c.fund_id = f.id "
+                  "WHERE c.contribution_date >= ? AND c.contribution_date <= ? "
+                  "GROUP BY f.id ORDER BY f.fund_name");
+        q.addBindValue(from->date().toString("yyyy-MM-dd"));
+        q.addBindValue(to->date().toString("yyyy-MM-dd"));
+        if (q.exec()) {
+            while (q.next()) {
+                QString fund = q.value(0).toString();
+                double cents = q.value(1).toDouble();
+                out << to->date().toString("yyyy-MM-dd") << ','
+                    << csv(QString("Giving — %1 (%2 to %3)")
+                               .arg(fund, from->date().toString("yyyy-MM-dd"), to->date().toString("yyyy-MM-dd")))
+                    << ',' << QString::number(cents / 100.0, 'f', 2) << '\n';
+                totalCents += cents;
+                rowCount++;
+            }
+        }
+    } else {
+        out << "Date,Description,Deposit\n";
+        QSqlQuery q;
+        q.prepare("SELECT c.contribution_date, f.fund_name, "
+                  "(p.first_name || ' ' || p.last_name), c.payment_method, c.amount "
+                  "FROM contributions c "
+                  "JOIN funds f ON c.fund_id = f.id "
+                  "LEFT JOIN people p ON c.person_id = p.id "
+                  "WHERE c.contribution_date >= ? AND c.contribution_date <= ? "
+                  "ORDER BY c.contribution_date, c.id");
+        q.addBindValue(from->date().toString("yyyy-MM-dd"));
+        q.addBindValue(to->date().toString("yyyy-MM-dd"));
+        if (q.exec()) {
+            while (q.next()) {
+                QString date = q.value(0).toString();
+                QString fund = q.value(1).toString();
+                QString donor = q.value(2).toString();
+                QString method = q.value(3).toString();
+                double cents = q.value(4).toDouble();
+                QString donorLabel = donor.isEmpty() ? "Unattributed" : donor;
+                out << date << ','
+                    << csv(QString("Giving — %1 — %2 (%3)").arg(fund, donorLabel, method))
+                    << ',' << QString::number(cents / 100.0, 'f', 2) << '\n';
+                totalCents += cents;
+                rowCount++;
+            }
+        }
+    }
+    file.close();
+
+    QMessageBox::information(this, "Export Complete",
+        QString("Exported %1 rows totaling %2%3.\n\nIn GnuCash: File → Import → Import CSV... and map "
+                "the Deposit column to your income account splits.")
+            .arg(QString::number(rowCount), appCurrencySymbol(), QString::number(totalCents / 100.0, 'f', 2)));
 }
 
 void ContributionsWidget::applyRole(const QString& role) {

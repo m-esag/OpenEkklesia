@@ -1,0 +1,5 @@
+# Hashes of file build rules.
+d4db79284d3fe86436e22fd54076b5a4 CMakeFiles/OpenEkklesia_autogen
+d4db79284d3fe86436e22fd54076b5a4 CMakeFiles/openekklesia_tests_autogen
+851e8bc889cc6a953694597ba4312464 OpenEkklesia_autogen/timestamp
+3b407afda1f296baa446ce42b541da8d openekklesia_tests_autogen/timestamp

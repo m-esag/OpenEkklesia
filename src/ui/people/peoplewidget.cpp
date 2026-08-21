@@ -1519,13 +1519,21 @@ void PeopleWidget::onLogCareEntry() {
     q.addBindValue(m_currentPersonId);
     q.addBindValue(type);
     q.addBindValue(notes);
-    q.addBindValue(followUpCheck->isChecked() ? 1 : 0);
-    if (!q.exec()) {
+    if (q.exec()) {
+        if (followUpCheck->isChecked()) {
+            QSqlQuery qPastoral(db);
+            qPastoral.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, outcome, follow_up_date, follow_up_done) "
+                              "VALUES (?, ?, date('now', 'localtime'), ?, 'Logged from People Module', date('now', '+7 days', 'localtime'), 0)");
+            qPastoral.addBindValue(m_currentPersonId);
+            qPastoral.addBindValue(type);
+            qPastoral.addBindValue(notes);
+            qPastoral.exec();
+        }
+        updateHistoryTimeline(m_currentPersonId);
+    } else {
         QMessageBox::critical(this, "Database Error", "Failed to save care entry: " + q.lastError().text());
         return;
     }
-
-    updateHistoryTimeline(m_currentPersonId);
 }
 
 void PeopleWidget::selectPerson(int personId) {

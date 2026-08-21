@@ -30,11 +30,14 @@ private slots:
     void onPaymentMethodChanged(int index);
     void onExportTaxStatements();
     void onHistoryContextMenu(const QPoint& pos);
+    void onManageFunds();
+    void onExportGnuCashCsv();
 
 private:
     void setupUI();
     void setupModels();
     void refreshHistoryModel();
+    void refreshFundCombo();
 
     // Inputs (Left Panel)
     QDateEdit* m_dateEdit;
@@ -45,6 +48,8 @@ private:
     QLineEdit* m_checkNumberEdit;
     QPushButton* m_btnSave;
     QPushButton* m_btnExportPDF;
+    QPushButton* m_btnManageFunds;
+    QPushButton* m_btnGnuCashExport;
     QString m_userRole;
     
     // History Table (Right Panel)

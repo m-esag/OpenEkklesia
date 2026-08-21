@@ -103,7 +103,8 @@ private:
     // --- Page 3: Modules & Features ---
     QCheckBox* m_chkModPeople;
     QCheckBox* m_chkModGroups;
-    QCheckBox* m_chkModFinance;
+    QCheckBox* m_chkModGiving;
+    QCheckBox* m_chkModLedger;
     QCheckBox* m_chkModService;
     QCheckBox* m_chkModGraph;
     QCheckBox* m_chkModInventory;
