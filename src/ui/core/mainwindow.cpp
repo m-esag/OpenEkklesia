@@ -2048,6 +2048,7 @@ void MainWindow::onPlanningClicked() {
     if (!isModuleEnabled("planning")) return;
     if (!m_planningWidget) {
         m_planningWidget = new PlanningWidget(this);
+        m_planningWidget->applyRole(m_userRole);
         ensurePageLoaded(13, [this]() { return m_planningWidget; });
     }
     switchPage(13);
@@ -2204,6 +2205,7 @@ void MainWindow::applyRolePermissions() {
     if (m_inventoryWidget) m_inventoryWidget->applyRole(m_userRole);
     if (m_vaultWidget) m_vaultWidget->applyRole(m_userRole);
     if (m_serviceWidget) m_serviceWidget->applyRole(m_userRole);
+    if (m_planningWidget) m_planningWidget->applyRole(m_userRole);
 
     if (statusBar()) {
         statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
@@ -2492,7 +2494,8 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     QSqlDatabase db = QSqlDatabase::database();
     QSqlQuery qGrp(db);
     qGrp.prepare("SELECT g.name, g.category, g.description, g.meeting_day, g.meeting_time, g.location, "
-                 "p.first_name || ' ' || p.last_name AS contact_name, g.max_capacity, g.notes, g.is_archived "
+                 "p.first_name || ' ' || p.last_name AS contact_name, g.max_capacity, g.notes, g.is_archived, "
+                 "g.recruitment_status "
                  "FROM groups g "
                  "LEFT JOIN people p ON g.contact_person_id = p.id "
                  "WHERE g.id = ?");
@@ -2516,12 +2519,23 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     int capacity = qGrp.value(7).toInt();
     QString notes = qGrp.value(8).toString();
     bool isArchived = qGrp.value(9).toInt() == 1;
+    QString recruitStatus = qGrp.value(10).toString().trimmed();
+    if (recruitStatus.isEmpty()) recruitStatus = "Open";
 
     m_lblGroupDetailTitle->setText(QString("🏛️ %1 %2").arg(name, isArchived ? QString("<span style='color: %1;'>(Archived)</span>").arg(tok.accentDanger.name()) : ""));
     m_lblGroupDetailTitle->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(tok.accentPrimary.name()));
 
     QStringList metaParts;
     metaParts << QString("<b>Category:</b> %1").arg(cat);
+    if (recruitStatus == "Elected") {
+        metaParts << "<span style='background-color: #382418; color: #fab387; border: 1px solid #fab387; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🗳️ Elected Governance Body (Annual Vote)</span>";
+    } else if (recruitStatus == "Seasonal") {
+        metaParts << "<span style='background-color: #1e1e2e; color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>📅 Seasonal Cohort (Closed Enrollment)</span>";
+    } else if (recruitStatus == "Closed") {
+        metaParts << "<span style='background-color: #313244; color: #a6adc8; border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🔒 Closed (Invite Only)</span>";
+    } else {
+        metaParts << "<span style='background-color: #18332b; color: #a6e3a1; border: 1px solid #a6e3a1; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🟢 Open for Recruitment</span>";
+    }
     if (!day.isEmpty() || !time.isEmpty()) metaParts << QString("<b>Schedule:</b> %1 %2").arg(day, time).trimmed();
     if (!loc.isEmpty()) metaParts << QString("<b>Location:</b> %1").arg(loc);
     if (!contact.isEmpty()) metaParts << QString("<b>Primary Contact:</b> %1").arg(contact);
@@ -2682,24 +2696,12 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
 void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     QSqlDatabase db = QSqlDatabase::database();
     ThemeTokens tok = ThemeManager::instance().currentTokens();
-
-    QString currentName = "";
-    QString currentCat = "Ministry Team";
-    QString currentDesc = "";
-    int currentParentId = 0;
-    QString currentDay = "Flexible / None";
-    QString currentTime = "";
-    QString currentLoc = "";
-    int currentContactId = 0;
-    int currentCap = 0;
-    QString currentNotes = "";
-    QString currentSkills = "";
-    int currentMinAge = 0;
-    int currentMaxAge = 0;
+    QString currentName, currentCat, currentDesc, currentDay, currentTime, currentLoc, currentNotes, currentSkills, currentRecruitStatus = "Open";
+    int currentParentId = 0, currentContactId = 0, currentCap = 0, currentMinAge = 0, currentMaxAge = 0;
 
     if (groupId > 0) {
         QSqlQuery q(db);
-        q.prepare("SELECT name, category, description, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, notes, required_skills, min_age, max_age FROM groups WHERE id = ?");
+        q.prepare("SELECT name, category, description, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, notes, required_skills, min_age, max_age, recruitment_status FROM groups WHERE id = ?");
         q.addBindValue(groupId);
         if (q.exec() && q.next()) {
             currentName = q.value(0).toString();
@@ -2715,6 +2717,8 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             currentSkills = q.value(10).toString();
             currentMinAge = q.value(11).toInt();
             currentMaxAge = q.value(12).toInt();
+            currentRecruitStatus = q.value(13).toString().trimmed();
+            if (currentRecruitStatus.isEmpty()) currentRecruitStatus = "Open";
         }
     }
 
@@ -2811,6 +2815,14 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
 
     QLineEdit* descEdit = new QLineEdit(currentDesc, &dlg);
 
+    QComboBox* recruitCombo = new QComboBox(&dlg);
+    recruitCombo->addItem("🟢 Open — Continuous Enrollment / Recommendations Active", "Open");
+    recruitCombo->addItem("🗳️ Elected — Governance / Annual Vote (Board, Deacons, Elders)", "Elected");
+    recruitCombo->addItem("📅 Seasonal — Biannual Cohort (Closed Enrollment)", "Seasonal");
+    recruitCombo->addItem("🔒 Closed — Invitation Only", "Closed");
+    int rIdx = recruitCombo->findData(currentRecruitStatus);
+    if (rIdx >= 0) recruitCombo->setCurrentIndex(rIdx);
+
     QTextEdit* notesEdit = new QTextEdit(&dlg);
     notesEdit->setMaximumHeight(60);
     notesEdit->setText(currentNotes);
@@ -2824,6 +2836,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     form->addRow("Group Name:", nameEdit);
     form->addRow("Category:", catCombo);
     form->addRow("Parent Group:", parentCombo);
+    form->addRow("Recruitment:", recruitCombo);
     form->addRow("Meeting Day:", dayCombo);
     form->addRow("Meeting Time:", timeEdit);
     form->addRow("Location / Room:", locationEdit);
@@ -2867,12 +2880,13 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
         int minAge = minAgeSpin->value();
         int maxAge = maxAgeSpin->value();
         if (minAge > 0 && maxAge > 0 && minAge > maxAge) std::swap(minAge, maxAge);
+        QString recruitStatus = recruitCombo->currentData().toString();
 
         if (groupId > 0 && !isDuplicate) {
             QSqlQuery update(db);
             update.prepare("UPDATE groups SET name = ?, category = ?, parent_id = ?, meeting_day = ?, meeting_time = ?, "
                            "location = ?, contact_person_id = ?, max_capacity = ?, description = ?, notes = ?, "
-                           "required_skills = ?, min_age = ?, max_age = ? WHERE id = ?");
+                           "required_skills = ?, min_age = ?, max_age = ?, recruitment_status = ? WHERE id = ?");
             update.addBindValue(name);
             update.addBindValue(cat);
             update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
@@ -2886,6 +2900,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             update.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
             update.addBindValue(minAge);
             update.addBindValue(maxAge);
+            update.addBindValue(recruitStatus);
             update.addBindValue(groupId);
 
             if (update.exec()) {
@@ -2899,8 +2914,8 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
         } else {
             db.transaction();
             QSqlQuery ins(db);
-            ins.prepare("INSERT INTO groups (name, category, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, description, notes, required_skills, min_age, max_age, is_archived) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+            ins.prepare("INSERT INTO groups (name, category, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, description, notes, required_skills, min_age, max_age, recruitment_status, is_archived) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
             ins.addBindValue(name);
             ins.addBindValue(cat);
             ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
@@ -2914,6 +2929,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             ins.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
             ins.addBindValue(minAge);
             ins.addBindValue(maxAge);
+            ins.addBindValue(recruitStatus);
 
             if (ins.exec()) {
                 int newId = ins.lastInsertId().toInt();

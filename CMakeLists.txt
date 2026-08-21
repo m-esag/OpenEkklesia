@@ -86,6 +86,16 @@ set(SOURCES
 
 add_executable(OpenEkklesia ${SOURCES})
 
+if(APPLE)
+    set_target_properties(OpenEkklesia PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "OpenEkklesia"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.openekklesia.OpenEkklesia"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.5.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.5.0"
+    )
+endif()
+
 target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
