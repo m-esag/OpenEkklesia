@@ -25,8 +25,11 @@ private slots:
     void onLogActivity();
     void onLogFollowUp();
     void onMarkFollowUpDone();
+    void onRescheduleFollowUp();
+    void onExportCalendarEvent();
     void onPersonChanged(int index);
     void onQueueActivated(int row, int column);
+    void onQueueContextMenu(const QPoint& pos);
 
 private:
     void setupUI();
@@ -46,6 +49,8 @@ private:
     // Today's Queue tab
     QTableWidget* m_queueTable;
     QPushButton* m_btnMarkDone;
+    QPushButton* m_btnReschedule;
+    QPushButton* m_btnCalendar;
     QPushButton* m_btnLogFollowUp;
 
     // Member Activity tab

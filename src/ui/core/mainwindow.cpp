@@ -1186,46 +1186,23 @@ QWidget* MainWindow::createDashboardPage() {
 
     layout->addLayout(headerRow);
 
-    // --- Top KPI Summary Cards Row ---
-    QHBoxLayout* cardsLayout = new QHBoxLayout();
-    cardsLayout->setSpacing(15);
+    // --- Top KPI Section: Dynamic Summary Cards & Config Button ---
+    QHBoxLayout* kpiHeaderRow = new QHBoxLayout();
+    QLabel* lblKpiSection = new QLabel("Key Performance Indicators", page);
+    lblKpiSection->setStyleSheet("font-size: 13px; font-weight: bold; opacity: 0.85;");
+    QPushButton* btnConfigKpi = new QPushButton("⚙️ Configure KPIs", page);
+    btnConfigKpi->setObjectName("secondaryBtn");
+    btnConfigKpi->setStyleSheet("padding: 3px 8px; font-size: 11px;");
+    connect(btnConfigKpi, &QPushButton::clicked, this, &MainWindow::onConfigureKpiCards);
+    kpiHeaderRow->addWidget(lblKpiSection);
+    kpiHeaderRow->addStretch();
+    kpiHeaderRow->addWidget(btnConfigKpi);
+    layout->addLayout(kpiHeaderRow);
 
-    auto makeKpiCard = [page](const QString& title, QLabel** valueLabel, const QString& iconStr, const QString& subtext) -> QWidget* {
-        QWidget* card = new QWidget(page);
-        card->setObjectName("cardWidget");
-        QVBoxLayout* v = new QVBoxLayout(card);
-        v->setContentsMargins(16, 14, 16, 14);
-        v->setSpacing(6);
-
-        QHBoxLayout* top = new QHBoxLayout();
-        QLabel* lblTitle = new QLabel(title, card);
-        lblTitle->setStyleSheet("font-size: 12px; font-weight: bold; opacity: 0.8; text-transform: uppercase;");
-        QLabel* lblIcon = new QLabel(iconStr, card);
-        lblIcon->setStyleSheet("font-size: 18px;");
-        top->addWidget(lblTitle);
-        top->addStretch();
-        top->addWidget(lblIcon);
-        v->addLayout(top);
-
-        *valueLabel = new QLabel("0", card);
-        (*valueLabel)->setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 2px;");
-        v->addWidget(*valueLabel);
-
-        QLabel* lblSub = new QLabel(subtext, card);
-        lblSub->setStyleSheet("font-size: 11px; opacity: 0.6;");
-        v->addWidget(lblSub);
-
-        return card;
-    };
-
-    cardsLayout->addWidget(makeKpiCard("Members", &m_lblTotalMembers, "👥", "Active Congregation"));
-    cardsLayout->addWidget(makeKpiCard("Visitors / Attenders", &m_lblTotalVisitors, "🤝", "Growth Pipeline"));
-    cardsLayout->addWidget(makeKpiCard("Active Groups", &m_lblTotalGroups, "🏠", "Small Groups & Ministries"));
-    cardsLayout->addWidget(makeKpiCard("Check-ins", &m_lblTotalCheckins, "📌", "Kiosk Attendance Logged"));
-    cardsLayout->addWidget(makeKpiCard("Total Assets", &m_lblAssetBalance, "💰", "Asset Account Balance"));
-    cardsLayout->addWidget(makeKpiCard("YTD Income", &m_lblTotalContributions, "📈", "This Year's Tithes & Offerings"));
-
-    layout->addLayout(cardsLayout);
+    m_cardsLayout = new QHBoxLayout();
+    m_cardsLayout->setSpacing(15);
+    layout->addLayout(m_cardsLayout);
+    rebuildKpiCards();
 
     // --- Bottom Layout: Financial Chart on Left, Budget & Alerts & Upcoming Services on Right ---
     QHBoxLayout* bottomLayout = new QHBoxLayout();
@@ -1255,6 +1232,7 @@ QWidget* MainWindow::createDashboardPage() {
     // Budget Progress Card with Styled QProgressBar
     QWidget* budgetCard = new QWidget(rightCol);
     budgetCard->setObjectName("cardWidget");
+    m_budgetCard = budgetCard; // gated by the ledger module in applyModuleVisibility()
     QVBoxLayout* budgetCardLayout = new QVBoxLayout(budgetCard);
     budgetCardLayout->setContentsMargins(16, 14, 16, 14);
     budgetCardLayout->setSpacing(8);
@@ -1289,21 +1267,59 @@ QWidget* MainWindow::createDashboardPage() {
     alertsCardLayout->setContentsMargins(16, 14, 16, 14);
     alertsCardLayout->setSpacing(10);
 
+    QHBoxLayout* alertsTitleRow = new QHBoxLayout();
     QLabel* alertsCardTitle = new QLabel("⚠️ Member Inactivity & Care Alerts", alertsCard);
     alertsCardTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #f38ba8;");
+    QPushButton* btnQuickNote = new QPushButton("✍️ Quick Note", alertsCard);
+    btnQuickNote->setObjectName("primaryBtn");
+    btnQuickNote->setStyleSheet("padding: 2px 8px; font-size: 11px;");
+    connect(btnQuickNote, &QPushButton::clicked, this, [this]() {
+        int pid = -1;
+        if (m_lstPastoralAlerts->currentItem()) pid = m_lstPastoralAlerts->currentItem()->data(Qt::UserRole).toInt();
+        else if (m_lstVisitorFollowup->currentItem()) pid = m_lstVisitorFollowup->currentItem()->data(Qt::UserRole).toInt();
+        onLogQuickPastoralNote(pid);
+    });
+    alertsTitleRow->addWidget(alertsCardTitle);
+    alertsTitleRow->addStretch();
+    alertsTitleRow->addWidget(btnQuickNote);
+    alertsCardLayout->addLayout(alertsTitleRow);
+
     m_lstPastoralAlerts = new QListWidget(alertsCard);
     m_lstPastoralAlerts->setMaximumHeight(100);
+    m_lstPastoralAlerts->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_lstPastoralAlerts, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* it = m_lstPastoralAlerts->itemAt(pos);
+        if (!it) return;
+        int pid = it->data(Qt::UserRole).toInt();
+        QMenu m(this);
+        QAction* aNote = m.addAction("✍️ Log Quick Pastoral Note...");
+        QAction* aProf = m.addAction("👤 View Member Dossier");
+        QAction* sel = m.exec(m_lstPastoralAlerts->mapToGlobal(pos));
+        if (sel == aNote) onLogQuickPastoralNote(pid);
+        else if (sel == aProf) selectPerson(pid);
+    });
     connect(m_lstPastoralAlerts, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         int personId = item->data(Qt::UserRole).toInt();
         if (personId > 0) selectPerson(personId);
     });
-    alertsCardLayout->addWidget(alertsCardTitle);
     alertsCardLayout->addWidget(m_lstPastoralAlerts);
 
     QLabel* followupTitle = new QLabel("🤝 Recent Visitors — Follow-up", alertsCard);
     followupTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #f9e2af;");
     m_lstVisitorFollowup = new QListWidget(alertsCard);
     m_lstVisitorFollowup->setMaximumHeight(100);
+    m_lstVisitorFollowup->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_lstVisitorFollowup, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* it = m_lstVisitorFollowup->itemAt(pos);
+        if (!it) return;
+        int pid = it->data(Qt::UserRole).toInt();
+        QMenu m(this);
+        QAction* aNote = m.addAction("✍️ Log Quick Pastoral Note...");
+        QAction* aProf = m.addAction("👤 View Member Dossier");
+        QAction* sel = m.exec(m_lstVisitorFollowup->mapToGlobal(pos));
+        if (sel == aNote) onLogQuickPastoralNote(pid);
+        else if (sel == aProf) selectPerson(pid);
+    });
     connect(m_lstVisitorFollowup, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         int personId = item->data(Qt::UserRole).toInt();
         if (personId > 0) selectPerson(personId);
@@ -1380,6 +1396,218 @@ void MainWindow::refreshLedgerModel() {
     m_ledgerModel->setQuery(queryStr);
 }
 
+void MainWindow::rebuildKpiCards() {
+    if (!m_cardsLayout) return;
+
+    while (QLayoutItem* item = m_cardsLayout->takeAt(0)) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+    m_kpiRegistry.clear();
+
+    QSettings s("OpenEkklesia", "CHMS");
+    QStringList defaultKpis = {"members", "visitors", "groups", "shepherd_due", "giving_month", "giving_ytd"};
+    m_activeKpis = s.value("dashboardKpis", defaultKpis).toStringList();
+    if (m_activeKpis.isEmpty()) m_activeKpis = defaultKpis;
+
+    auto makeCard = [this](const QString& id, const QString& title, const QString& iconStr, const QString& subtext) {
+        QWidget* card = new QWidget(this);
+        card->setObjectName("cardWidget");
+        QVBoxLayout* v = new QVBoxLayout(card);
+        v->setContentsMargins(16, 14, 16, 14);
+        v->setSpacing(6);
+
+        QHBoxLayout* top = new QHBoxLayout();
+        QLabel* lblTitle = new QLabel(title, card);
+        lblTitle->setStyleSheet("font-size: 12px; font-weight: bold; opacity: 0.8; text-transform: uppercase;");
+        QLabel* lblIcon = new QLabel(iconStr, card);
+        lblIcon->setStyleSheet("font-size: 18px;");
+        top->addWidget(lblTitle);
+        top->addStretch();
+        top->addWidget(lblIcon);
+        v->addLayout(top);
+
+        QLabel* valLabel = new QLabel("0", card);
+        valLabel->setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 2px;");
+        v->addWidget(valLabel);
+
+        QLabel* lblSub = new QLabel(subtext, card);
+        lblSub->setStyleSheet("font-size: 11px; opacity: 0.6;");
+        v->addWidget(lblSub);
+
+        KpiCardInfo info;
+        info.id = id;
+        info.title = title;
+        info.icon = iconStr;
+        info.subtext = subtext;
+        info.widget = card;
+        info.valLabel = valLabel;
+        m_kpiRegistry.insert(id, info);
+
+        m_cardsLayout->addWidget(card);
+    };
+
+    for (const QString& kpiId : m_activeKpis) {
+        if (kpiId == "members") makeCard("members", "Members", "👥", "Active Congregation");
+        else if (kpiId == "visitors") makeCard("visitors", "Visitors / Attenders", "🤝", "Growth Pipeline");
+        else if (kpiId == "groups") makeCard("groups", "Active Groups", "🏠", "Small Groups & Ministries");
+        else if (kpiId == "shepherd_due") makeCard("shepherd_due", "Follow-ups Due", "📌", "Pastoral Queue (Today)");
+        else if (kpiId == "at_risk") makeCard("at_risk", "At-Risk Members", "⚠️", "Pastoral Care Flags");
+        else if (kpiId == "unconnected") makeCard("unconnected", "Unconnected", "👥", "Not in Small Group");
+        else if (kpiId == "giving_month") makeCard("giving_month", "Giving (This Month)", "💰", "Offerings Recorded");
+        else if (kpiId == "giving_ytd") makeCard("giving_ytd", "Giving (YTD)", "📈", "Annual Tithes");
+        else if (kpiId == "checkins") makeCard("checkins", "Check-ins", "📌", "Kiosk Attendance");
+        else if (kpiId == "total_assets") makeCard("total_assets", "Total Assets", "🏦", "Account Balances");
+    }
+
+    updateDashboardStats();
+}
+
+void MainWindow::onConfigureKpiCards() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Configure Dashboard KPI Cards");
+    dlg.resize(480, 400);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->setSpacing(12);
+
+    QLabel* info = new QLabel("Select between 2 and 8 Key Performance Indicator cards to display on your main dashboard:", &dlg);
+    info->setWordWrap(true);
+    lay->addWidget(info);
+
+    QList<QPair<QString, QString>> available = {
+        {"members", "👥 Church Members (Formal Membership)"},
+        {"visitors", "🤝 Growth Pipeline (Visitors & Regular Attenders)"},
+        {"groups", "🏠 Active Ministries & Small Groups"},
+        {"shepherd_due", "📌 Follow-ups Due Today (Shepherd's Workbench)"},
+        {"at_risk", "⚠️ At-Risk Members & Care Flags"},
+        {"unconnected", "👥 Unconnected Members (No Small Group)"},
+        {"giving_month", "💰 Giving Recorded This Month"},
+        {"giving_ytd", "📈 Giving Year-to-Date"},
+        {"checkins", "📌 Kiosk Check-ins (Attendance)"},
+        {"total_assets", "🏦 Total Assets / Account Balances"}
+    };
+
+    QMap<QString, QCheckBox*> checkBoxes;
+    QGridLayout* grid = new QGridLayout();
+    grid->setSpacing(10);
+    int row = 0;
+    for (const auto& pair : available) {
+        QCheckBox* chk = new QCheckBox(pair.second, &dlg);
+        chk->setChecked(m_activeKpis.contains(pair.first));
+        checkBoxes.insert(pair.first, chk);
+        grid->addWidget(chk, row / 2, row % 2);
+        ++row;
+    }
+    lay->addLayout(grid);
+
+    QHBoxLayout* btnRow = new QHBoxLayout();
+    QPushButton* btnSave = new QPushButton("Save Dashboard Layout", &dlg);
+    btnSave->setObjectName("primaryBtn");
+    QPushButton* btnCancel = new QPushButton("Cancel", &dlg);
+    btnCancel->setObjectName("secondaryBtn");
+    btnRow->addStretch();
+    btnRow->addWidget(btnCancel);
+    btnRow->addWidget(btnSave);
+    lay->addLayout(btnRow);
+
+    connect(btnCancel, &QPushButton::clicked, &dlg, &QDialog::reject);
+    connect(btnSave, &QPushButton::clicked, &dlg, [this, &dlg, checkBoxes, available]() {
+        QStringList selected;
+        for (const auto& pair : available) {
+            if (checkBoxes.value(pair.first)->isChecked()) {
+                selected << pair.first;
+            }
+        }
+        if (selected.size() < 2 || selected.size() > 8) {
+            QMessageBox::warning(&dlg, "Selection Limit", "Please select between 2 and 8 KPI cards for optimal layout.");
+            return;
+        }
+        QSettings s("OpenEkklesia", "CHMS");
+        s.setValue("dashboardKpis", selected);
+        m_activeKpis = selected;
+        rebuildKpiCards();
+        dlg.accept();
+    });
+
+    dlg.exec();
+}
+
+void MainWindow::onLogQuickPastoralNote(int prefillPersonId) {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Log Quick Pastoral Note");
+    dlg.resize(440, 380);
+    QFormLayout* form = new QFormLayout(&dlg);
+    form->setSpacing(12);
+
+    QComboBox* personCombo = new QComboBox(&dlg);
+    personCombo->setMinimumWidth(260);
+    QSqlQuery pq;
+    pq.exec("SELECT id, first_name || ' ' || last_name || ' (' || membership_status || ')' FROM people ORDER BY first_name");
+    while (pq.next()) {
+        personCombo->addItem(pq.value(1).toString(), pq.value(0).toInt());
+    }
+    if (prefillPersonId > 0) {
+        int idx = personCombo->findData(prefillPersonId);
+        if (idx >= 0) personCombo->setCurrentIndex(idx);
+    }
+    form->addRow("Member:", personCombo);
+
+    QComboBox* typeCombo = new QComboBox(&dlg);
+    typeCombo->addItems({"Phone Call", "Visitation", "Counseling", "Prayer", "Hospital Visit", "Follow-up Call", "Benevolence", "Discipleship", "Other"});
+    form->addRow("Care Type:", typeCombo);
+
+    QTextEdit* notesEdit = new QTextEdit(&dlg);
+    notesEdit->setPlaceholderText("Enter brief conversation notes, pastoral observations, prayer requests...");
+    form->addRow("Notes:", notesEdit);
+
+    QCheckBox* followUpCheck = new QCheckBox("Schedule 7-day follow-up in Shepherd's Queue", &dlg);
+    followUpCheck->setChecked(true);
+    form->addRow("", followUpCheck);
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    form->addRow(buttons);
+
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    int personId = personCombo->currentData().toInt();
+    if (personId <= 0) return;
+
+    QString notes = notesEdit->toPlainText().trimmed();
+    if (notes.isEmpty()) {
+        QMessageBox::warning(this, "Missing Details", "Please enter a short note describing the care interaction.");
+        return;
+    }
+
+    QString careType = typeCombo->currentText();
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO care_logs (person_id, care_type, notes, follow_up) VALUES (?, ?, ?, ?)");
+    q.addBindValue(personId);
+    q.addBindValue(careType);
+    q.addBindValue(notes);
+    q.addBindValue(followUpCheck->isChecked() ? 1 : 0);
+    q.exec();
+
+    if (followUpCheck->isChecked()) {
+        QSqlQuery qPastoral(db);
+        qPastoral.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, outcome, follow_up_date, follow_up_done) "
+                          "VALUES (?, ?, date('now', 'localtime'), ?, 'Logged via Dashboard Quick Note', date('now', '+7 days', 'localtime'), 0)");
+        qPastoral.addBindValue(personId);
+        qPastoral.addBindValue(careType);
+        qPastoral.addBindValue(notes);
+        qPastoral.exec();
+    }
+
+    updateDashboardStats();
+    if (m_shepherdWidget) m_shepherdWidget->refreshAll();
+
+    QMessageBox::information(this, "Note Logged", QString("Pastoral care note logged for %1.").arg(personCombo->currentText()));
+}
+
 void MainWindow::updatePieChart() {
     QChart* chart = m_chartView->chart();
     chart->removeAllSeries();
@@ -1413,6 +1641,11 @@ void MainWindow::updatePieChart() {
 }
 
 void MainWindow::updateDashboardStats() {
+    // Guard: rebuildKpiCards() calls us while createDashboardPage() is still
+    // building the dashboard (alerts/upcoming/budget widgets not yet created).
+    // The real refresh happens once the page is complete (e.g. ctor line 176).
+    if (!m_lstPastoralAlerts) return;
+
     // 1. Dynamic Time-of-Day Welcome Greeting Banner
     int hour = QTime::currentTime().hour();
     QString greeting = (hour < 12) ? "Good Morning" : (hour < 17) ? "Good Afternoon" : "Good Evening";
@@ -1428,52 +1661,74 @@ void MainWindow::updateDashboardStats() {
 
     QSqlQuery query;
 
-    // Count Members (formal membership status)
-    if (query.exec("SELECT COUNT(*) FROM people WHERE membership_status = 'Member'")) {
-        if (query.next()) m_lblTotalMembers->setText(QString::number(query.value(0).toInt()));
+    // 2. Compute Active KPI Card Values
+    if (m_kpiRegistry.contains("members") && m_kpiRegistry["members"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM people WHERE membership_status = 'Member'") && query.next()) {
+            m_kpiRegistry["members"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
     }
-
-    // Count Visitors + Regular Attenders (people moving toward membership)
-    if (query.exec("SELECT COUNT(*) FROM people WHERE membership_status IN ('Visitor', 'Regular Attender')")) {
-        if (query.next()) m_lblTotalVisitors->setText(QString::number(query.value(0).toInt()));
+    if (m_kpiRegistry.contains("visitors") && m_kpiRegistry["visitors"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM people WHERE membership_status IN ('Visitor', 'Regular Attender')") && query.next()) {
+            m_kpiRegistry["visitors"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
     }
-
-    // Count Groups
-    if (query.exec("SELECT COUNT(*) FROM groups")) {
-        query.next();
-        m_lblTotalGroups->setText(QString::number(query.value(0).toInt()));
+    if (m_kpiRegistry.contains("groups") && m_kpiRegistry["groups"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM groups") && query.next()) {
+            m_kpiRegistry["groups"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
     }
-
-    // Count Kiosk Check-ins (attendance ledger)
-    if (query.exec("SELECT COUNT(*) FROM attendance WHERE attended = 1")) {
-        if (query.next()) m_lblTotalCheckins->setText(QString::number(query.value(0).toInt()));
+    if (m_kpiRegistry.contains("shepherd_due") && m_kpiRegistry["shepherd_due"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM pastoral_activities WHERE follow_up_date IS NOT NULL AND follow_up_date <= date('now', 'localtime') AND follow_up_done = 0") && query.next()) {
+            m_kpiRegistry["shepherd_due"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
     }
-
-    // Checking Account/Assets Balance
-    if (query.exec("SELECT SUM(s.amount) FROM splits s JOIN accounts a ON s.account_id = a.id WHERE a.type = 'ASSET'")) {
-        query.next();
-        double assets = query.value(0).toDouble();
-        m_lblAssetBalance->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(assets, 'f', 2)));
+    if (m_kpiRegistry.contains("at_risk") && m_kpiRegistry["at_risk"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM people WHERE care_flag IN ('At-Risk', 'Needs Contact')") && query.next()) {
+            m_kpiRegistry["at_risk"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
     }
-
-    // Fiscal year used for YTD income and budget-vs-actual comparisons. The
-    // ledger stores dates as "yyyy-MM-dd", so the calendar year is derived
-    // from the transaction date prefix to stay consistent with tax statements.
+    if (m_kpiRegistry.contains("unconnected") && m_kpiRegistry["unconnected"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM people WHERE id NOT IN (SELECT DISTINCT source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group')") && query.next()) {
+            m_kpiRegistry["unconnected"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
+    }
+    if (m_kpiRegistry.contains("checkins") && m_kpiRegistry["checkins"].valLabel) {
+        if (query.exec("SELECT COUNT(*) FROM attendance WHERE attended = 1") && query.next()) {
+            m_kpiRegistry["checkins"].valLabel->setText(QString::number(query.value(0).toInt()));
+        }
+    }
+    if (m_kpiRegistry.contains("giving_month") && m_kpiRegistry["giving_month"].valLabel) {
+        QSqlQuery m;
+        m.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE strftime('%Y-%m', contribution_date) = ?");
+        m.addBindValue(QDate::currentDate().toString("yyyy-MM"));
+        if (m.exec() && m.next()) {
+            double monthGiving = m.value(0).toDouble() / 100.0;
+            m_kpiRegistry["giving_month"].valLabel->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(monthGiving, 'f', 2)));
+        }
+    }
     int fiscalYear = QDate::currentDate().year();
     QString fiscalYearStr = QString::number(fiscalYear);
-
-    // YTD Income (credits on income accounts are stored negative)
-    QSqlQuery incomeQuery;
-    incomeQuery.prepare(
-        "SELECT -SUM(s.amount) FROM splits s "
-        "JOIN transactions t ON s.transaction_id = t.id "
-        "JOIN accounts a ON s.account_id = a.id "
-        "WHERE a.type = 'INCOME' AND substr(t.date, 1, 4) = ?");
-    incomeQuery.addBindValue(fiscalYearStr);
-    if (incomeQuery.exec() && incomeQuery.next()) {
-        double income = incomeQuery.value(0).toDouble();
-        m_lblTotalContributions->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(income, 'f', 2)));
+    if (m_kpiRegistry.contains("giving_ytd") && m_kpiRegistry["giving_ytd"].valLabel) {
+        QSqlQuery y;
+        y.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE substr(contribution_date, 1, 4) = ?");
+        y.addBindValue(fiscalYearStr);
+        if (y.exec() && y.next()) {
+            double ytd = y.value(0).toDouble() / 100.0;
+            m_kpiRegistry["giving_ytd"].valLabel->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(ytd, 'f', 2)));
+        }
     }
+    if (m_kpiRegistry.contains("total_assets") && m_kpiRegistry["total_assets"].valLabel) {
+        QSqlQuery a;
+        if (a.exec("SELECT COALESCE(SUM(s.amount), 0) FROM splits s JOIN accounts a ON s.account_id = a.id WHERE a.type = 'ASSET'") && a.next()) {
+            double assets = a.value(0).toDouble();
+            m_kpiRegistry["total_assets"].valLabel->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(assets, 'f', 2)));
+        }
+    }
+
+    // Budget-vs-actual is ledger-only. Skip the splits/budget queries when
+    // the ledger module is off (the GnuCash workflow) — the dashboard card
+    // is hidden anyway.
+    if (isModuleEnabled("ledger", false)) {
 
     // YTD Expenses for budget-vs-actual comparison
     double totalExpenses = 0.0;
@@ -1532,6 +1787,8 @@ void MainWindow::updateDashboardStats() {
                                           QString::number(fiscalYear)));
         m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.textSecondary.name()));
     }
+
+    } // end ledger-gated budget block
 
     // ---- Member Inactivity, Care & Lapsed Giving Alerts ----
     m_lstPastoralAlerts->clear();
@@ -1621,7 +1878,7 @@ void MainWindow::updateDashboardStats() {
     // ---- Upcoming Worship Services ----
     if (m_lstUpcomingServices) {
         m_lstUpcomingServices->clear();
-        QSqlQuery qServices("SELECT date, title, leader FROM services WHERE date >= date('now') ORDER BY date ASC LIMIT 3");
+        QSqlQuery qServices("SELECT date, title, leader FROM services WHERE date >= date('now') AND title IS NOT NULL AND title != '' ORDER BY date ASC LIMIT 3");
         if (qServices.exec()) {
             while (qServices.next()) {
                 QString sDate = qServices.value(0).toString();
@@ -1664,7 +1921,7 @@ void MainWindow::onGroupsClicked() {
 }
 
 void MainWindow::onContributionsClicked() {
-    if (!isModuleEnabled("finance")) return;
+    if (!isModuleEnabled("giving")) return;
     if (!m_contributionsWidget) {
         m_contributionsWidget = new ContributionsWidget(this);
         m_contributionsWidget->applyRole(m_userRole);
@@ -1679,6 +1936,7 @@ void MainWindow::onServiceClicked() {
     if (!isModuleEnabled("service")) return;
     if (!m_serviceWidget) {
         m_serviceWidget = new ServiceBuilderWidget(this);
+        m_serviceWidget->applyRole(m_userRole);
         ensurePageLoaded(4, [this]() { return m_serviceWidget; });
     }
     switchPage(4);
@@ -1686,14 +1944,14 @@ void MainWindow::onServiceClicked() {
 }
 
 void MainWindow::onAccountsClicked() {
-    if (!isModuleEnabled("finance")) return;
+    if (!isModuleEnabled("ledger", false)) return;
     refreshAccountsModel();
     switchPage(5);
     setActiveNav(m_btnAccounts);
 }
 
 void MainWindow::onLedgerClicked() {
-    if (!isModuleEnabled("finance")) return;
+    if (!isModuleEnabled("ledger", false)) return;
     refreshLedgerModel();
     switchPage(6);
     setActiveNav(m_btnLedger);
@@ -1945,6 +2203,7 @@ void MainWindow::applyRolePermissions() {
     if (m_graphWidget) m_graphWidget->applyRole(m_userRole);
     if (m_inventoryWidget) m_inventoryWidget->applyRole(m_userRole);
     if (m_vaultWidget) m_vaultWidget->applyRole(m_userRole);
+    if (m_serviceWidget) m_serviceWidget->applyRole(m_userRole);
 
     if (statusBar()) {
         statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
@@ -1991,6 +2250,10 @@ void MainWindow::applyModuleVisibility() {
     if (m_btnVault) m_btnVault->setVisible(modVault);
 
     if (m_btnKiosk) m_btnKiosk->setVisible(modKiosk);
+
+    // Budget tracking belongs to the double-entry ledger; hide the dashboard
+    // card when that module is off (GnuCash owns budgets in that workflow).
+    if (m_budgetCard) m_budgetCard->setVisible(modLedger);
 
     // 2. Hide Section Header and Container if all children are disabled
     bool anyCongregation = (modPeople || modGraph || modAnalytics || modShepherd);
@@ -2430,10 +2693,13 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     int currentContactId = 0;
     int currentCap = 0;
     QString currentNotes = "";
+    QString currentSkills = "";
+    int currentMinAge = 0;
+    int currentMaxAge = 0;
 
     if (groupId > 0) {
         QSqlQuery q(db);
-        q.prepare("SELECT name, category, description, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, notes FROM groups WHERE id = ?");
+        q.prepare("SELECT name, category, description, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, notes, required_skills, min_age, max_age FROM groups WHERE id = ?");
         q.addBindValue(groupId);
         if (q.exec() && q.next()) {
             currentName = q.value(0).toString();
@@ -2446,6 +2712,9 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             currentContactId = q.value(7).toInt();
             currentCap = q.value(8).toInt();
             currentNotes = q.value(9).toString();
+            currentSkills = q.value(10).toString();
+            currentMinAge = q.value(11).toInt();
+            currentMaxAge = q.value(12).toInt();
         }
     }
 
@@ -2458,7 +2727,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
         dlg.setWindowTitle("Create New Group");
     }
 
-    dlg.resize(420, 480);
+    dlg.resize(440, 560);
     dlg.setStyleSheet(QString("QDialog { background-color: %1; color: %2; } QLabel { color: %2; } QLineEdit, QComboBox, QSpinBox, QTextEdit { background-color: %3; color: %2; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }")
                       .arg(tok.bgSurface.name(), tok.textPrimary.name(), tok.bgBase.name()));
 
@@ -2518,6 +2787,28 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     capacitySpin->setSuffix(" members (0 = Unlimited)");
     capacitySpin->setValue(currentCap);
 
+    // Ministry Match profile: what this group is looking for. Used by
+    // "Suggest People" (declared skills win over inferred ones).
+    QLineEdit* skillsEdit = new QLineEdit(currentSkills, &dlg);
+    skillsEdit->setPlaceholderText("e.g. guitar, vocals, teaching — comma separated");
+
+    QSpinBox* minAgeSpin = new QSpinBox(&dlg);
+    minAgeSpin->setRange(0, 120);
+    minAgeSpin->setSpecialValueText("Any");
+    minAgeSpin->setValue(currentMinAge);
+    minAgeSpin->setToolTip("Preferred minimum age for match suggestions (0 = Any)");
+
+    QSpinBox* maxAgeSpin = new QSpinBox(&dlg);
+    maxAgeSpin->setRange(0, 120);
+    maxAgeSpin->setSpecialValueText("Any");
+    maxAgeSpin->setValue(currentMaxAge);
+    maxAgeSpin->setToolTip("Preferred maximum age for match suggestions (0 = Any)");
+    QHBoxLayout* ageBandRow = new QHBoxLayout();
+    ageBandRow->addWidget(minAgeSpin);
+    ageBandRow->addWidget(new QLabel("–", &dlg));
+    ageBandRow->addWidget(maxAgeSpin);
+    ageBandRow->addStretch();
+
     QLineEdit* descEdit = new QLineEdit(currentDesc, &dlg);
 
     QTextEdit* notesEdit = new QTextEdit(&dlg);
@@ -2538,6 +2829,8 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     form->addRow("Location / Room:", locationEdit);
     form->addRow("Primary Contact:", contactCombo);
     form->addRow("Max Capacity:", capacitySpin);
+    form->addRow("Match Skills:", skillsEdit);
+    form->addRow("Preferred Age:", ageBandRow);
     form->addRow("Description:", descEdit);
     form->addRow("Pastoral Notes:", notesEdit);
     if (chkCopyMembers) form->addRow("", chkCopyMembers);
@@ -2569,10 +2862,17 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
         QString desc = descEdit->text().trimmed();
         QString notes = notesEdit->toPlainText().trimmed();
 
+        // Match profile (declared skills + preferred age band).
+        QString skills = skillsEdit->text().trimmed();
+        int minAge = minAgeSpin->value();
+        int maxAge = maxAgeSpin->value();
+        if (minAge > 0 && maxAge > 0 && minAge > maxAge) std::swap(minAge, maxAge);
+
         if (groupId > 0 && !isDuplicate) {
             QSqlQuery update(db);
             update.prepare("UPDATE groups SET name = ?, category = ?, parent_id = ?, meeting_day = ?, meeting_time = ?, "
-                           "location = ?, contact_person_id = ?, max_capacity = ?, description = ?, notes = ? WHERE id = ?");
+                           "location = ?, contact_person_id = ?, max_capacity = ?, description = ?, notes = ?, "
+                           "required_skills = ?, min_age = ?, max_age = ? WHERE id = ?");
             update.addBindValue(name);
             update.addBindValue(cat);
             update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
@@ -2583,6 +2883,9 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             update.addBindValue(cap);
             update.addBindValue(desc);
             update.addBindValue(notes);
+            update.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
+            update.addBindValue(minAge);
+            update.addBindValue(maxAge);
             update.addBindValue(groupId);
 
             if (update.exec()) {
@@ -2596,8 +2899,8 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
         } else {
             db.transaction();
             QSqlQuery ins(db);
-            ins.prepare("INSERT INTO groups (name, category, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, description, notes, is_archived) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+            ins.prepare("INSERT INTO groups (name, category, parent_id, meeting_day, meeting_time, location, contact_person_id, max_capacity, description, notes, required_skills, min_age, max_age, is_archived) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
             ins.addBindValue(name);
             ins.addBindValue(cat);
             ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
@@ -2608,6 +2911,9 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
             ins.addBindValue(cap);
             ins.addBindValue(desc);
             ins.addBindValue(notes);
+            ins.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
+            ins.addBindValue(minAge);
+            ins.addBindValue(maxAge);
 
             if (ins.exec()) {
                 int newId = ins.lastInsertId().toInt();

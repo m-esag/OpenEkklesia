@@ -357,30 +357,53 @@ void PastoralAnalyticsWidget::refreshAnalytics() {
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
 
+    int scopeIdx = m_cmbScopeSelector ? m_cmbScopeSelector->currentIndex() : 0;
+    QDate now = QDate::currentDate();
+    QString dateCondition;
+    if (scopeIdx == 1) { // Q3 2026 Snapshot
+        dateCondition = " AND (join_date BETWEEN '2026-07-01' AND '2026-09-30' OR first_visit_date BETWEEN '2026-07-01' AND '2026-09-30')";
+    } else if (scopeIdx == 2) { // Year-to-Date 2026
+        QString startOfYear = QString("%1-01-01").arg(now.year());
+        dateCondition = QString(" AND (join_date >= '%1' OR first_visit_date >= '%1')").arg(startOfYear);
+    } else if (scopeIdx == 3) { // Trailing 12 Months
+        QString start12m = now.addMonths(-12).toString("yyyy-MM-dd");
+        dateCondition = QString(" AND (join_date >= '%1' OR first_visit_date >= '%1')").arg(start12m);
+    }
+
     int visitors = 0, attenders = 0, members = 0, leaders = 0, atRisk = 0, totalPeople = 1;
 
-    if (q.exec("SELECT COUNT(*) FROM people")) {
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE 1=1%1").arg(dateCondition))) {
         if (q.next()) totalPeople = qMax(1, q.value(0).toInt());
     }
 
-    if (q.exec("SELECT COUNT(*) FROM people WHERE membership_status = 'Visitor'")) {
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Visitor'%1").arg(dateCondition))) {
         if (q.next()) visitors = q.value(0).toInt();
     }
-    if (q.exec("SELECT COUNT(*) FROM people WHERE membership_status = 'Regular Attender'")) {
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Regular Attender'%1").arg(dateCondition))) {
         if (q.next()) attenders = q.value(0).toInt();
     }
-    if (q.exec("SELECT COUNT(*) FROM people WHERE membership_status = 'Member'")) {
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Member'%1").arg(dateCondition))) {
         if (q.next()) members = q.value(0).toInt();
     }
-    if (q.exec("SELECT COUNT(*) FROM people WHERE care_flag = 'At-Risk'")) {
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE care_flag IN ('At-Risk', 'Needs Contact')%1").arg(dateCondition))) {
         if (q.next()) atRisk = q.value(0).toInt();
     }
     if (q.exec("SELECT COUNT(DISTINCT source_id) FROM entity_relationships WHERE source_type = 'Person' AND relationship_type LIKE '%Leader%'")) {
         if (q.next()) leaders = q.value(0).toInt();
     }
 
+    // Dynamic New Visitors This Month
+    QString thisMonthStart = QDate(now.year(), now.month(), 1).toString("yyyy-MM-dd");
+    int visitorsThisMonth = 0;
+    QSqlQuery qVM;
+    qVM.prepare("SELECT COUNT(*) FROM people WHERE (membership_status = 'Visitor' OR first_visit_date >= ?)");
+    qVM.addBindValue(thisMonthStart);
+    if (qVM.exec() && qVM.next()) {
+        visitorsThisMonth = qVM.value(0).toInt();
+    }
+
     // Update Top Metric Cards
-    m_lblVisitorsVal->setText(QString::number(visitors));
+    m_lblVisitorsVal->setText(QString::number(visitorsThisMonth));
     m_lblAtRiskVal->setText(QString::number(atRisk));
 
     int smallGroupConnected = 0;
@@ -416,7 +439,7 @@ void PastoralAnalyticsWidget::refreshAnalytics() {
     // Populate Pastoral Actions Needed List
     m_lstPastoralActions->clear();
 
-    QListWidgetItem* item1 = new QListWidgetItem(QString("⚠️ %1 Members flagged At-Risk with no care log in 30+ days (Click to view)").arg(qMax(1, atRisk)), m_lstPastoralActions);
+    QListWidgetItem* item1 = new QListWidgetItem(QString("⚠️ %1 Members flagged At-Risk with pastoral follow-up pending (Click to view)").arg(qMax(1, atRisk)), m_lstPastoralActions);
     item1->setData(Qt::UserRole, "care_flag");
     item1->setData(Qt::UserRole + 1, "At-Risk");
 
@@ -424,11 +447,11 @@ void PastoralAnalyticsWidget::refreshAnalytics() {
     item2->setData(Qt::UserRole, "unconnected");
     item2->setData(Qt::UserRole + 1, "");
 
-    QListWidgetItem* item3 = new QListWidgetItem(QString("🤝 %1 New Visitors this month awaiting welcome team follow-up").arg(qMax(1, visitors)), m_lstPastoralActions);
+    QListWidgetItem* item3 = new QListWidgetItem(QString("🤝 %1 New Visitors this month awaiting welcome team follow-up").arg(qMax(1, visitorsThisMonth)), m_lstPastoralActions);
     item3->setData(Qt::UserRole, "status");
     item3->setData(Qt::UserRole + 1, "Visitor");
 
-    QListWidgetItem* item4 = new QListWidgetItem("💸 2 Regular giving households inactive this month — shepherd outreach suggested", m_lstPastoralActions);
+    QListWidgetItem* item4 = new QListWidgetItem("💸 Stewardship review: Inactive contributor households flagged for pastoral outreach", m_lstPastoralActions);
     item4->setData(Qt::UserRole, "status");
     item4->setData(Qt::UserRole + 1, "Regular Attender");
 }

@@ -1,35 +1,12 @@
-# Build directories
-/build/
-/build_warn/
-/build_release/
-/AppDir/
-
-# CMake generated files
-/CMakeCache.txt
-/CMakeFiles/
-/cmake_install.cmake
-/Makefile
-/compile_commands.json
-/OpenEkklesia_autogen/
-
-# Qt build artifacts
-*.o
-*.moc
-moc_*.cpp
-ui_*.h
-qrc_*.cpp
-
-# User databases (generated at runtime; seed data lives in code)
+build/
+build_release/
+AppDir/
+deb_package/
 *.db
 *.db-wal
 *.db-shm
-/backups/
-
-# Editor / OS
-*.user
-*.swp
-.DS_Store
-oe_uicheck
-/tools/
-/dist/
-squashfs-root
+*.deb
+linuxdeploy-*.AppImage
+linuxdeploy-plugin-qt
+linuxdeploy-plugin-appimage
+openekklesia.png
