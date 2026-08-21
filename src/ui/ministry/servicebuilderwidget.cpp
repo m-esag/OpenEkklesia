@@ -17,6 +17,10 @@
 #include <QInputDialog>
 #include <QPdfWriter>
 #include <QTextDocument>
+#include <QTextStream>
+#include <QDateTime>
+#include <QTableWidget>
+#include <QHeaderView>
 #include "../database/databasemanager.h"
 #include "ministrymatch.h"
 
@@ -117,12 +121,26 @@ void ServiceBuilderWidget::setupUI() {
     connect(m_btnAddElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onAddElement);
     libActions->addWidget(m_btnAddElement);
 
+    m_btnUsageStats = new QPushButton("📊 Usage Stats", this);
+    m_btnUsageStats->setObjectName("secondaryBtn");
+    m_btnUsageStats->setToolTip("Which elements get reused most across saved run sheets");
+    connect(m_btnUsageStats, &QPushButton::clicked, this, &ServiceBuilderWidget::onElementUsage);
+    libActions->addWidget(m_btnUsageStats);
+
     m_btnRemoveElement = new QPushButton("✖ Remove Element", this);
     m_btnRemoveElement->setObjectName("ghostDangerBtn");
     m_btnRemoveElement->setToolTip("Remove the selected library element");
     connect(m_btnRemoveElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveElement);
     libActions->addWidget(m_btnRemoveElement);
     libraryLayout->addLayout(libActions);
+
+    // Color-blind-safe legend: icons (not color) identify the type; the tint
+    // is only a hint, so the run sheet stays readable in grayscale.
+    m_lblTypeLegend = new QLabel("Legend: 🎵 Song · 📖 Scripture · 🎬 Media · 💬 Text — icons identify the type, color is only a hint (color-blind safe)", this);
+    m_lblTypeLegend->setObjectName("serviceTypeLegend");
+    m_lblTypeLegend->setWordWrap(true);
+    m_lblTypeLegend->setStyleSheet("font-size: 11px; color: #a6adc8;");
+    libraryLayout->addWidget(m_lblTypeLegend);
 
     mainLayout->addWidget(libraryPanel, 2);
 
@@ -293,6 +311,12 @@ void ServiceBuilderWidget::setupUI() {
     m_btnMarkAttended->setToolTip("Record all scheduled volunteers as attended for this service date");
     connect(m_btnMarkAttended, &QPushButton::clicked, this, &ServiceBuilderWidget::onMarkAttended);
     volunteerLayout->addWidget(m_btnMarkAttended);
+
+    m_btnExportIcal = new QPushButton("📅 Export Volunteer iCal", this);
+    m_btnExportIcal->setObjectName("secondaryBtn");
+    m_btnExportIcal->setToolTip("Export this date's volunteer roster as calendar events (.ics)");
+    connect(m_btnExportIcal, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportIcal);
+    volunteerLayout->addWidget(m_btnExportIcal);
 
     mainLayout->addWidget(volunteerPanel, 2);
 
@@ -1055,6 +1079,169 @@ void ServiceBuilderWidget::onMarkAttended() {
                              QString("Marked %1 volunteer(s) as attended for %2.")
                                  .arg(marked)
                                  .arg(m_serviceDateEdit->date().toString("yyyy-MM-dd")));
+}
+
+// Mirrors Shepherd's iCal export: one VEVENT per volunteer with a reminder
+// alarm, using datetime (not all-day) events at the service start time.
+QString ServiceBuilderWidget::volunteerIcal(const QDate& date, const QTime& startTime,
+                                            const QList<QPair<QString, QString>>& roleNames) {
+    auto esc = [](QString s) {
+        return s.replace(',', "\\,").replace(';', "\\;").replace('\n', "\\n");
+    };
+
+    QString out;
+    out += "BEGIN:VCALENDAR\n";
+    out += "VERSION:2.0\n";
+    out += "PRODID:-//OpenEkklesia//Service Builder//EN\n";
+    out += "CALSCALE:GREGORIAN\n";
+
+    const QString dtStart = date.toString("yyyyMMdd") + "T" + startTime.toString("HHmmss");
+    QTime endTime = startTime.addSecs(2 * 3600); // 2-hour service block
+    if (endTime < startTime) endTime = QTime(23, 59); // overnight edge: clamp
+    const QString dtEnd = date.toString("yyyyMMdd") + "T" + endTime.toString("HHmmss");
+    const QString stamp = QDateTime::currentDateTimeUtc().toString("yyyyMMddThhmmssZ");
+
+    int idx = 0;
+    for (const auto& rn : roleNames) {
+        ++idx;
+        out += "BEGIN:VEVENT\n";
+        out += QString("UID:oe-vol-%1-%2@openekklesia.local\n").arg(idx).arg(date.toString("yyyyMMdd"));
+        out += QString("DTSTAMP:%1\n").arg(stamp);
+        out += QString("DTSTART:%1\n").arg(dtStart);
+        out += QString("DTEND:%1\n").arg(dtEnd);
+        out += QString("SUMMARY:Serve as %1 (%2)\n").arg(esc(rn.first), esc(rn.second));
+        out += QString("DESCRIPTION:Volunteer schedule for %1 — %2\\nRole: %3\n")
+                   .arg(date.toString("MMMM d, yyyy"), esc(rn.second), esc(rn.first));
+        out += "STATUS:CONFIRMED\n";
+        out += "BEGIN:VALARM\n";
+        out += "TRIGGER:-PT60M\n";
+        out += "ACTION:DISPLAY\n";
+        out += QString("DESCRIPTION:Reminder: %1 serves as %2\n").arg(esc(rn.second), esc(rn.first));
+        out += "END:VALARM\n";
+        out += "END:VEVENT\n";
+    }
+    out += "END:VCALENDAR\n";
+    return out;
+}
+
+void ServiceBuilderWidget::onExportIcal() {
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QList<QPair<QString, QString>> roleNames;
+    QSqlQuery q(db);
+    q.prepare("SELECT sv.role, p.first_name || ' ' || p.last_name "
+              "FROM service_volunteers sv "
+              "JOIN people p ON p.id = sv.person_id "
+              "WHERE sv.service_date = ? ORDER BY sv.role");
+    q.addBindValue(m_serviceDateEdit->date().toString("yyyy-MM-dd"));
+    if (q.exec()) {
+        while (q.next()) roleNames.append({q.value(0).toString(), q.value(1).toString()});
+    }
+    if (roleNames.isEmpty()) {
+        QMessageBox::information(this, "No Volunteers",
+                                 "No volunteers are scheduled for this date to export.");
+        return;
+    }
+
+    const QString defaultFile = QString("Volunteer_Schedule_%1.ics")
+                                    .arg(m_serviceDateEdit->date().toString("yyyy-MM-dd"));
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Volunteer Schedule (.ics)",
+                                                    defaultFile, "iCalendar Files (*.ics)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "File Error", "Could not create calendar file: " + file.errorString());
+        return;
+    }
+    QTextStream out(&file);
+    out << volunteerIcal(m_serviceDateEdit->date(), m_serviceTimeEdit->time(), roleNames);
+    file.close();
+
+    QMessageBox::information(this, "Calendar Exported",
+                             QString("Exported %1 volunteer event(s).\n\nOpen in Google Calendar, Apple Calendar, Outlook, or Thunderbird:\n%2")
+                                 .arg(roleNames.size()).arg(fileName));
+}
+
+// Aggregates element reuse across every saved service run sheet.
+QList<ElementUsage> ServiceBuilderWidget::elementUsageStats(const QSqlDatabase& db, int limit) {
+    QMap<QString, ElementUsage> byKey;
+    QSqlQuery q(db);
+    if (!q.exec("SELECT date, run_sheet FROM services "
+                "WHERE run_sheet IS NOT NULL AND run_sheet != ''")) {
+        return {};
+    }
+    while (q.next()) {
+        const QString date = q.value(0).toString();
+        const QJsonDocument doc = QJsonDocument::fromJson(q.value(1).toString().toUtf8());
+        if (!doc.isArray()) continue;
+        const QJsonArray arr = doc.array();
+        for (const QJsonValue& v : arr) {
+            const QJsonObject obj = v.toObject();
+            const QString title = obj["title"].toString();
+            const QString type = obj["type"].toString();
+            if (title.isEmpty()) continue;
+            ElementUsage& u = byKey[title.toLower()];
+            u.name = title;
+            u.type = type;
+            u.count++;
+            if (date > u.lastUsedDate) u.lastUsedDate = date;
+        }
+    }
+
+    QList<ElementUsage> out = byKey.values();
+    std::sort(out.begin(), out.end(), [](const ElementUsage& a, const ElementUsage& b) {
+        if (a.count != b.count) return a.count > b.count;
+        return a.name < b.name;
+    });
+    if (out.size() > qMax(0, limit)) out.resize(qMax(0, limit));
+    return out;
+}
+
+void ServiceBuilderWidget::onElementUsage() {
+    const QList<ElementUsage> stats = elementUsageStats(DatabaseManager::instance().database(), 100);
+    if (stats.isEmpty()) {
+        QMessageBox::information(this, "Element Usage",
+                                 "No run sheets saved yet. Build and save a service arrangement first.");
+        return;
+    }
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("📊 Element Usage Stats");
+    dlg.resize(620, 440);
+    auto* lay = new QVBoxLayout(&dlg);
+
+    QLabel* note = new QLabel("How often each element appears across saved service run sheets — "
+                              "use the most-reused items to guide worship planning.", &dlg);
+    note->setWordWrap(true);
+    lay->addWidget(note);
+
+    auto* table = new QTableWidget(stats.size(), 5, &dlg);
+    table->setHorizontalHeaderLabels({"#", "Element", "Type", "Times Used", "Last Used"});
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    for (int i = 0; i < stats.size(); ++i) {
+        table->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
+        table->setItem(i, 1, new QTableWidgetItem(stats[i].name));
+        table->setItem(i, 2, new QTableWidgetItem(stats[i].type));
+        table->setItem(i, 3, new QTableWidgetItem(QString::number(stats[i].count)));
+        table->setItem(i, 4, new QTableWidgetItem(stats[i].lastUsedDate));
+    }
+    lay->addWidget(table, 1);
+
+    QPushButton* btnClose = new QPushButton("Close", &dlg);
+    btnClose->setObjectName("secondaryBtn");
+    connect(btnClose, &QPushButton::clicked, &dlg, &QDialog::reject);
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    btnRow->addWidget(btnClose);
+    lay->addLayout(btnRow);
+
+    dlg.exec();
 }
 
 void ServiceBuilderWidget::onExportRunSheet() {

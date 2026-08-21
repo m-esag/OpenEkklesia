@@ -1099,6 +1099,83 @@ bool test_graphBatchOperationsAndSmartBridge() {
     return true;
 }
 
+bool test_graphTier3BridgeNodesAndFamilyDynasties() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Test Bridge Node query (person with multiple groups)
+    QSqlQuery bq(d);
+    CHECK(bq.exec("SELECT er.source_id, COUNT(DISTINCT er.target_id) "
+                  "FROM entity_relationships er "
+                  "WHERE er.source_type = 'Person' AND er.target_type = 'Group' "
+                  "GROUP BY er.source_id HAVING COUNT(DISTINCT er.target_id) >= 2"));
+
+    // 2. Test Family Dynasty Concentration query
+    QSqlQuery fq(d);
+    CHECK(fq.exec("SELECT g.id, g.name, p.household_id, h.family_name, COUNT(*) "
+                  "FROM entity_relationships er "
+                  "JOIN people p ON er.source_id = p.id "
+                  "JOIN households h ON p.household_id = h.id "
+                  "JOIN groups g ON er.target_id = g.id "
+                  "WHERE er.source_type = 'Person' AND er.target_type = 'Group' AND p.household_id IS NOT NULL "
+                  "GROUP BY g.id, p.household_id"));
+
+    d.rollback();
+    return true;
+}
+
+bool test_serviceBuilderTier3() {
+    // 1. iCal export: one datetime VEVENT per volunteer, mirrored from
+    //    Shepherd's calendar export convention.
+    const QList<QPair<QString, QString>> roster = {
+        {"Preacher", "John Doe"},
+        {"Audio Engineer", "Jane Roe"},
+    };
+    const QString ics = ServiceBuilderWidget::volunteerIcal(QDate(2026, 8, 23), QTime(10, 0), roster);
+    CHECK(ics.contains("BEGIN:VCALENDAR"));
+    CHECK(ics.contains("END:VCALENDAR"));
+    CHECK(ics.contains("SUMMARY:Serve as Preacher (John Doe)"));
+    CHECK(ics.contains("DTSTART:20260823T100000"));
+    CHECK(ics.contains("UID:oe-vol-1-20260823"));
+    CHECK_EQ(ics.count("BEGIN:VEVENT"), 2);
+    CHECK(ics.contains("TRIGGER:-PT60M")); // reminder alarm
+
+    // 2. Element usage stats across saved run sheets. Start from a clean
+    //    services table so earlier tests' leftovers cannot skew the counts.
+    QSqlDatabase d = db();
+    QSqlQuery ins(d);
+    CHECK(ins.exec("DELETE FROM services"));
+    ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
+    ins.addBindValue(QString("2030-01-05"));
+    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]"));
+    CHECK(ins.exec());
+    ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
+    ins.addBindValue(QString("2030-01-12"));
+    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4},"
+                             "{\"title\":\"📖 Scripture: Psalm 23 (2m)\",\"type\":\"Scripture\",\"durationMins\":2}]"));
+    CHECK(ins.exec());
+
+    const QList<ElementUsage> stats = ServiceBuilderWidget::elementUsageStats(d, 100);
+    CHECK_EQ(stats.size(), 2);
+    if (stats.size() == 2) {
+        CHECK(stats[0].name.contains("Amazing Grace"));
+        CHECK_EQ(stats[0].count, 2);
+        CHECK_EQ(stats[0].lastUsedDate.toStdString(), std::string("2030-01-12"));
+        CHECK(stats[1].name.contains("Psalm 23"));
+        CHECK_EQ(stats[1].count, 1);
+    }
+
+    // 3. Color-blind-safe legend is present in the UI.
+    ServiceBuilderWidget sb;
+    QLabel* legend = sb.findChild<QLabel*>("serviceTypeLegend");
+    CHECK(legend);
+    if (legend) CHECK(legend->text().contains("Legend"));
+
+    // Cleanup.
+    CHECK(ins.exec("DELETE FROM services WHERE date IN ('2030-01-05', '2030-01-12')"));
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1139,11 +1216,13 @@ int main(int argc, char** argv) {
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
         {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
         {"service_builder_tier2", test_serviceBuilderTier2},
+        {"service_builder_tier3", test_serviceBuilderTier3},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
         {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},
         {"graph_dual_panel_and_data_hygiene", test_graphDualPanelAndDataHygiene},
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
+        {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
     };
 
     for (const Test& t : tests) {
