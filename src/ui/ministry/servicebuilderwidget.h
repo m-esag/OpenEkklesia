@@ -8,6 +8,7 @@
 #include <QDate>
 #include <QLabel>
 #include <QLineEdit>
+#include <QJsonArray>
 
 class ServiceBuilderWidget : public QWidget {
     Q_OBJECT
@@ -31,12 +32,21 @@ private slots:
     void onExportRunSheet();
     void updateDurationCalculator();
     void onSaveServiceDetails();
+    void onAddElement();
+    void onEditElement(QListWidgetItem* item);
+    void onRemoveElement();
+    void onSaveTemplate();
+    void onApplyTemplate();
 
 private:
     void setupUI();
-    void seedLibrary();
+    void loadLibrary();
     void loadVolunteers();
     void loadServiceDetails();
+    void persistRunSheet();
+    void loadRunSheetFromDb(const QDate& date);
+    QJsonArray playlistToJson() const;
+    void loadPlaylistFromJson(const QJsonArray& array);
 
     QListWidget* m_libraryList;
     QListWidget* m_playlist;
@@ -47,6 +57,12 @@ private:
     QPushButton* m_btnClear;
     QPushButton* m_btnRemove;
     QPushButton* m_btnExportPDF;
+    QPushButton* m_btnSaveTemplate;
+    QPushButton* m_btnApplyTemplate;
+
+    // Element library editing
+    QPushButton* m_btnAddElement;
+    QPushButton* m_btnRemoveElement;
 
     // Volunteer Scheduling
     QDateEdit* m_serviceDateEdit;

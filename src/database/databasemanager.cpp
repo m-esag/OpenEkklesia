@@ -600,12 +600,40 @@ bool DatabaseManager::createTables() {
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  date TEXT NOT NULL UNIQUE,"
         "  title TEXT,"
-        "  leader TEXT"
+        "  leader TEXT,"
+        "  run_sheet TEXT"
         ");";
     if (!query.exec(createServices)) {
         qCritical() << "Failed to create services table:" << query.lastError().text();
         return false;
     }
+
+    // Service Builder support tables: persistent element library and named
+    // run-sheet templates. The library is seeded with the classic elements
+    // when empty (see seedServiceLibrary()).
+    QString createLib =
+        "CREATE TABLE IF NOT EXISTS service_library ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  name TEXT NOT NULL,"
+        "  type TEXT NOT NULL,"
+        "  duration_mins INTEGER DEFAULT 0,"
+        "  is_custom INTEGER DEFAULT 0"
+        ");";
+    if (!query.exec(createLib)) {
+        qCritical() << "Failed to create service_library table:" << query.lastError().text();
+        return false;
+    }
+    QString createTpl =
+        "CREATE TABLE IF NOT EXISTS service_templates ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  name TEXT NOT NULL UNIQUE,"
+        "  run_sheet TEXT NOT NULL"
+        ");";
+    if (!query.exec(createTpl)) {
+        qCritical() << "Failed to create service_templates table:" << query.lastError().text();
+        return false;
+    }
+    seedServiceLibrary();
 
     // Create schema_version table (tracks which migrations have been applied)
     QString createSchemaVersion =
@@ -1084,7 +1112,99 @@ bool DatabaseManager::migrateSchema() {
         qInfo() << "Schema migration 8 applied successfully.";
     }
 
+    // --- Schema Migration 9: Service Builder Tier 1 ---
+    // services.run_sheet holds the JSON run sheet for a dated service;
+    // service_library is a persistent (user-editable) element library seeded
+    // with the classic elements; service_templates stores named run sheets.
+    if (current < 9) {
+        qInfo() << "Applying schema migration 9: run_sheet + service library/templates";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 9: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(services)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        QSqlQuery migQ(m_db);
+        if (!cols.contains("run_sheet") &&
+            !migQ.exec("ALTER TABLE services ADD COLUMN run_sheet TEXT;")) {
+            qCritical() << "Migration 9: add run_sheet failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!migQ.exec("CREATE TABLE IF NOT EXISTS service_library ("
+                       "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                       "  name TEXT NOT NULL,"
+                       "  type TEXT NOT NULL,"
+                       "  duration_mins INTEGER DEFAULT 0,"
+                       "  is_custom INTEGER DEFAULT 0"
+                       ");")) {
+            qCritical() << "Migration 9: create service_library failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!migQ.exec("CREATE TABLE IF NOT EXISTS service_templates ("
+                       "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                       "  name TEXT NOT NULL UNIQUE,"
+                       "  run_sheet TEXT NOT NULL"
+                       ");")) {
+            qCritical() << "Migration 9: create service_templates failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 9: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        seedServiceLibrary(); // no-op when already populated
+
+        if (!recordSchemaVersion(9)) {
+            return false;
+        }
+        qInfo() << "Schema migration 9 applied successfully.";
+    }
+
     return true;
+}
+
+void DatabaseManager::seedServiceLibrary() {
+    QSqlQuery cnt("SELECT COUNT(*) FROM service_library", m_db);
+    if (cnt.next() && cnt.value(0).toInt() > 0) return;
+
+    struct LibItem { const char* name; const char* type; int mins; };
+    const LibItem items[] = {
+        {"Amazing Grace", "Song", 4},
+        {"How Great Thou Art", "Song", 5},
+        {"10,000 Reasons", "Song", 4},
+        {"Cornerstone", "Song", 5},
+        {"Psalm 23", "Scripture", 2},
+        {"John 3:16", "Scripture", 2},
+        {"Romans 8:28", "Scripture", 2},
+        {"Welcome & Announcements", "Media", 1},
+        {"Kids Dismissal Slide", "Media", 1},
+        {"Sermon Presentation", "Media", 1},
+        {"Closing Slideshow", "Media", 1},
+        {"Opening Thanksgiving", "Text", 3},
+        {"Pastoral Intercession", "Text", 3},
+        {"Sunday Sermon", "Text", 30},
+        {"Benediction", "Text", 2},
+    };
+    for (const LibItem& it : items) {
+        QSqlQuery q(m_db);
+        q.prepare("INSERT INTO service_library (name, type, duration_mins, is_custom) VALUES (?, ?, ?, 0)");
+        q.addBindValue(QString::fromUtf8(it.name));
+        q.addBindValue(QString::fromUtf8(it.type));
+        q.addBindValue(it.mins);
+        if (!q.exec()) {
+            qWarning() << "Failed to seed service_library item" << it.name << ":" << q.lastError().text();
+        }
+    }
+    qInfo() << "Seeded service element library with" << (sizeof(items) / sizeof(items[0])) << "items.";
 }
 
 void DatabaseManager::seedInitialData() {
