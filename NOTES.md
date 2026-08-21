@@ -104,7 +104,7 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 
 ## 7. Smart features roadmap (agreed 2025 direction)
 
-### 7.1 "Ministry Match" — recommendation engine (next build)
+### 7.1 "Ministry Match" — recommendation engine (BUILT, commit 7b3dc6e)
 Prompt-driven person→group recommendations. All criteria below already exist
 in the schema; no new tables required for v1.
 
@@ -118,9 +118,11 @@ in the schema; no new tables required for v1.
 - `groups.max_capacity` vs current roster → skip full groups.
 - Engagement: `attendance` count over last 90 days as a match booster.
 - Scoring: weighted sum → match %, with human-readable "why" reasons.
-- UI: "Suggest People" button on the group detail panel → dialog with
-  criterion sliders/checkboxes → ranked table + reasons → one-click
-  "Add selected" (bulk INSERT Person→Group Member rows).
+- UI: "✨ Suggest People" button on the group detail panel → dialog with
+  criterion knobs → ranked table (match %, color-coded, reasons) → one-click
+  "Add selected" (dedup-safe bulk insert). Implemented in
+  src/ui/ministry/ministrymatch.{h,cpp} + matchdialog.{h,cpp}; headless
+  scoring is unit-tested (+33 checks).
 
 ### 7.2 Other smart features (priority order)
 - T1 (SQL-only, cheap): engagement drop-off alerts; follow-up-due list
