@@ -536,7 +536,9 @@ bool DatabaseManager::createTables() {
     // Create ministry_tasks table (planning / initiative roadmap)
     // team_id/owner_id keep tasks linked to groups/people so renames survive;
     // the text columns stay as display fallbacks (and for teams/owners with
-    // no group/person match).
+    // no group/person match). start_date/end_date anchor tasks to real
+    // calendar dates (the legacy start_day/start_month grid is retained for
+    // migration only — new rows are driven by the real dates).
     QString createMinistryTasks =
         "CREATE TABLE IF NOT EXISTS ministry_tasks ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -549,7 +551,10 @@ bool DatabaseManager::createTables() {
         "  duration_months INTEGER DEFAULT 2,"
         "  status TEXT DEFAULT 'In-Progress',"
         "  team_id INTEGER REFERENCES groups(id),"
-        "  owner_id INTEGER REFERENCES people(id)"
+        "  owner_id INTEGER REFERENCES people(id),"
+        "  start_date TEXT,"
+        "  end_date TEXT,"
+        "  anchor_event_id INTEGER REFERENCES services(id)"
         ");";
     if (!query.exec(createMinistryTasks)) {
         qCritical() << "Failed to create ministry_tasks table:" << query.lastError().text();
@@ -1403,6 +1408,66 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 13 applied successfully.";
+    }
+
+    // --- Schema Migration 14: ministry_tasks real calendar dates ---
+    // start_date/end_date anchor tasks to real dates so dashboard "slipping"
+    // queries and Service Builder integration become possible. Existing rows
+    // are backfilled from the legacy grid (start_month 1-5 -> Jan-May of the
+    // current year, start_day 1-20 -> day offset, duration_days -> span).
+    // anchor_event_id optionally links a task to a dated service.
+    if (current < 14) {
+        qInfo() << "Applying schema migration 14: ministry_tasks real dates";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 14: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(ministry_tasks)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        QSqlQuery migQ(m_db);
+        if (!cols.contains("start_date") &&
+            !migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN start_date TEXT;")) {
+            qCritical() << "Migration 14: add start_date failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!cols.contains("end_date") &&
+            !migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN end_date TEXT;")) {
+            qCritical() << "Migration 14: add end_date failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!cols.contains("anchor_event_id") &&
+            !migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN anchor_event_id INTEGER;")) {
+            qCritical() << "Migration 14: add anchor_event_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        // Best-effort backfill from the legacy abstract grid to real dates.
+        migQ.exec(
+            "UPDATE ministry_tasks SET "
+            "  start_date = date('now', 'start of year', "
+            "                     printf('%+d months', MIN(MAX(COALESCE(start_month, 1), 1), 12) - 1), "
+            "                     printf('%+d days', MAX(COALESCE(start_day, 1), 1) - 1)), "
+            "  end_date = date('now', 'start of year', "
+            "                   printf('%+d months', MIN(MAX(COALESCE(start_month, 1), 1), 12) - 1), "
+            "                   printf('%+d days', MAX(COALESCE(start_day, 1), 1) - 1 + COALESCE(duration_days, 1))) "
+            "WHERE start_date IS NULL;");
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 14: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(14)) {
+            return false;
+        }
+        qInfo() << "Schema migration 14 applied successfully.";
     }
 
     return true;

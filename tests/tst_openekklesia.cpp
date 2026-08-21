@@ -1210,11 +1210,18 @@ bool test_groupRecommendationDisablers() {
 bool test_planningWidgetRendersAndRoles() {
     QSqlDatabase d = db();
 
-    // Seed a task before constructing the widget so both tables populate.
+    // Seed a task with REAL dates before constructing the widget.
+    const int year = QDate::currentDate().year();
+    const QString start = QDate(year, 2, 10).toString(Qt::ISODate); // Feb 10
+    const QString end = QDate(year, 3, 20).toString(Qt::ISODate);   // Mar 20
     QSqlQuery ins(d);
     CHECK(ins.exec("DELETE FROM ministry_tasks"));
-    CHECK(ins.exec("INSERT INTO ministry_tasks (team, title, owner, start_day, duration_days, start_month, duration_months, status) "
-                   "VALUES ('Worship & Media Team', 'Easter Production', 'John Doe', 3, 5, 2, 2, 'In-Progress')"));
+    ins.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                "start_month, duration_months, start_date, end_date) "
+                "VALUES ('Worship & Media Team', 'Easter Production', 'John Doe', 'In-Progress', 1, 1, 1, 1, ?, ?)");
+    ins.addBindValue(start);
+    ins.addBindValue(end);
+    CHECK(ins.exec());
 
     PlanningWidget pw;
 
@@ -1225,16 +1232,26 @@ bool test_planningWidgetRendersAndRoles() {
     if (roadmap && gantt) {
         CHECK_EQ(roadmap->rowCount(), 1);
         CHECK_EQ(gantt->rowCount(), 1);
-        // Roadmap: JAN..MAY/JUN columns — FEB (start_month 2) should show the badge.
-        if (roadmap->rowCount() == 1 && roadmap->item(0, 3)) {
-            CHECK(!roadmap->item(0, 3)->text().isEmpty());
+        if (roadmap->rowCount() == 1) {
+            // Roadmap: 12 real calendar months — FEB (col 3) and MAR (col 4)
+            // covered by the span; JAN (col 2) and APR (col 5) empty.
             CHECK_EQ(roadmap->item(0, 1)->text().toStdString(), std::string("Easter Production"));
+            CHECK(roadmap->item(0, 2) && roadmap->item(0, 2)->text().isEmpty()); // JAN
+            CHECK(roadmap->item(0, 3) && !roadmap->item(0, 3)->text().isEmpty()); // FEB
+            CHECK(roadmap->item(0, 4) && !roadmap->item(0, 4)->text().isEmpty()); // MAR
+            CHECK(roadmap->item(0, 5) && roadmap->item(0, 5)->text().isEmpty()); // APR
         }
-        // Gantt: D3..D7 filled (start_day 3, duration 5).
-        if (gantt->rowCount() == 1) {
-            CHECK(gantt->item(0, 0) && gantt->item(0, 0)->data(Qt::UserRole).toInt() > 0);
-            CHECK(gantt->item(0, 2 + 3) && !gantt->item(0, 2 + 3)->text().isEmpty()); // D3
-            CHECK(gantt->item(0, 2 + 7) && gantt->item(0, 2 + 7)->text().isEmpty());   // D8 out of range
+        // Gantt: rolling window anchored at the task's start date.
+        QDateEdit* anchor = pw.findChild<QDateEdit*>("planningAnchorDate");
+        CHECK(anchor);
+        if (anchor) {
+            anchor->setDate(QDate(year, 2, 10));
+            CHECK_EQ(gantt->rowCount(), 1);
+            if (gantt->rowCount() == 1) {
+                CHECK(gantt->item(0, 0) && gantt->item(0, 0)->data(Qt::UserRole).toInt() > 0);
+                CHECK(gantt->item(0, 2) && !gantt->item(0, 2)->text().isEmpty());     // day 0 = Feb 10
+                CHECK(gantt->item(0, 2 + 19) && !gantt->item(0, 2 + 19)->text().isEmpty()); // within span
+            }
         }
     }
 
@@ -1257,6 +1274,24 @@ bool test_planningWidgetRendersAndRoles() {
         if (b->text().contains("Add Initiative")) CHECK(b->isEnabled());
     }
 
+    // The Q1 win: "what's slipping" is now a plain SQL query.
+    QSqlQuery slip(d);
+    slip.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                 "start_month, duration_months, start_date, end_date) "
+                 "VALUES ('Worship & Media Team', 'Slipping Task', 'John Doe', 'In-Progress', 1, 1, 1, 1, ?, ?)");
+    slip.addBindValue(QDate(year, 1, 1).toString(Qt::ISODate));
+    slip.addBindValue(QDate(year, 1, 2).toString(Qt::ISODate)); // long past
+    CHECK(slip.exec());
+    QSqlQuery slipQ(d);
+    slipQ.prepare("SELECT title FROM ministry_tasks "
+                  "WHERE end_date < date('now') AND status != 'Completed'");
+    CHECK(slipQ.exec());
+    bool foundSlipping = false;
+    while (slipQ.next()) {
+        if (slipQ.value(0).toString() == "Slipping Task") foundSlipping = true;
+    }
+    CHECK(foundSlipping); // the Q1 win: slipped tasks are queryable by real date
+
     CHECK(ins.exec("DELETE FROM ministry_tasks"));
     return true;
 }
@@ -1272,13 +1307,16 @@ bool test_planningRelationalLinks() {
     const int pid = q.lastInsertId().toInt();
 
     // Task linked by ids but with STALE text (simulates a renamed group/owner).
+    const int year = QDate::currentDate().year();
     QSqlQuery ins(d);
     CHECK(ins.exec("DELETE FROM ministry_tasks"));
     ins.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
-                "start_month, duration_months, team_id, owner_id) "
-                "VALUES ('Old Team Name', 'Easter Production', 'Old Owner (Leader)', 'In-Progress', 1, 3, 1, 2, ?, ?)");
+                "start_month, duration_months, team_id, owner_id, start_date, end_date) "
+                "VALUES ('Old Team Name', 'Easter Production', 'Old Owner (Leader)', 'In-Progress', 1, 3, 1, 2, ?, ?, ?, ?)");
     ins.addBindValue(gid);
     ins.addBindValue(pid);
+    ins.addBindValue(QDate(year, 3, 1).toString(Qt::ISODate));
+    ins.addBindValue(QDate(year, 3, 15).toString(Qt::ISODate));
     CHECK(ins.exec());
 
     // Display resolves the CURRENT names through the links.
@@ -1310,8 +1348,12 @@ bool test_planningRelationalLinks() {
     }
 
     // Unlinked task (text only) still renders via the stored text.
-    CHECK(ins.exec("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, start_month, duration_months) "
-                   "VALUES ('Legacy Team', 'Legacy Task', 'Legacy Owner', 'Planned', 2, 2, 2, 1)"));
+    ins.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                "start_month, duration_months, start_date, end_date) "
+                "VALUES ('Legacy Team', 'Legacy Task', 'Legacy Owner', 'Planned', 2, 2, 2, 1, ?, ?)");
+    ins.addBindValue(QDate(year, 5, 1).toString(Qt::ISODate));
+    ins.addBindValue(QDate(year, 5, 20).toString(Qt::ISODate));
+    CHECK(ins.exec());
     {
         PlanningWidget pw;
         QTableWidget* roadmap = pw.findChild<QTableWidget*>("planningRoadmapTable");

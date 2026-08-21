@@ -12,6 +12,7 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QSpinBox>
+#include <QLocale>
 #include "../database/databasemanager.h"
 
 PlanningWidget::PlanningWidget(QWidget *parent)
@@ -85,22 +86,30 @@ void PlanningWidget::setupUI() {
     roadLayout->addWidget(m_roadmapTable);
     tabs->addTab(roadmapTab, "🗺️ Ministry Product Roadmap");
 
-    // 2. Gantt Chart View (20-Day Detailed Task Timeline Matrix)
+    // 2. Gantt Chart View (20-day rolling window anchored to a real date)
     QWidget* ganttTab = new QWidget(this);
     QVBoxLayout* ganttLayout = new QVBoxLayout(ganttTab);
+    QHBoxLayout* ganttHeader = new QHBoxLayout();
+    QLabel* ganttHint = new QLabel("20-day window starting:", ganttTab);
+    m_anchorDate = new QDateEdit(QDate::currentDate(), ganttTab);
+    m_anchorDate->setObjectName("planningAnchorDate");
+    m_anchorDate->setCalendarPopup(true);
+    m_anchorDate->setDisplayFormat("yyyy-MM-dd");
+    connect(m_anchorDate, &QDateEdit::dateChanged, this, [this](const QDate&) { refreshGanttChart(); });
+    ganttHeader->addWidget(ganttHint);
+    ganttHeader->addWidget(m_anchorDate);
+    ganttHeader->addStretch();
+    ganttLayout->addLayout(ganttHeader);
+
     m_ganttTable = new QTableWidget(this);
     m_ganttTable->setObjectName("planningGanttTable");
     m_ganttTable->setColumnCount(22);
-    QStringList ganttHeaders = {"Activity / Task", "Owner / Leader"};
-    for (int i = 1; i <= 20; ++i) {
-        ganttHeaders.append(QString("D%1").arg(i));
-    }
-    m_ganttTable->setHorizontalHeaderLabels(ganttHeaders);
+    m_ganttTable->setHorizontalHeaderLabels({"Activity / Task", "Owner / Leader"});
     m_ganttTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_ganttTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_ganttTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     for (int i = 2; i < 22; ++i) {
-        m_ganttTable->setColumnWidth(i, 35);
+        m_ganttTable->setColumnWidth(i, 42);
     }
     m_ganttTable->setAlternatingRowColors(true);
     ganttLayout->addWidget(m_ganttTable);
@@ -131,21 +140,28 @@ int PlanningWidget::selectedTaskId() const {
 void PlanningWidget::refreshRoadmap() {
     QSqlDatabase db = DatabaseManager::instance().database();
     m_roadmapTable->setRowCount(0);
-    // Resolve the team's CURRENT name through the group link so renames
-    // survive; fall back to the stored text for unlinked teams.
+
+    // Real calendar months of the current year (JAN..DEC). A task fills every
+    // month its [start_date, end_date] span intersects.
+    const int year = QDate::currentDate().year();
+    QStringList headers = {"Ministry / Team", "Initiative Name"};
+    for (int m = 1; m <= 12; ++m) headers << QLocale::c().monthName(m).left(3).toUpper();
+    m_roadmapTable->setColumnCount(14);
+    m_roadmapTable->setHorizontalHeaderLabels(headers);
+
     QSqlQuery qFetch(
-        "SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_month, t.duration_months, "
+        "SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_date, t.end_date, "
         "       COALESCE(t.status, 'In-Progress') "
         "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
-        "ORDER BY COALESCE(g.name, t.team), t.start_month", db);
+        "ORDER BY COALESCE(g.name, t.team), t.start_date", db);
     int row = 0;
     while (qFetch.next()) {
-        int id = qFetch.value(0).toInt();
-        QString team = qFetch.value(1).toString();
-        QString title = qFetch.value(2).toString();
-        int startM = qFetch.value(3).toInt();
-        int durM = qFetch.value(4).toInt();
-        QString status = qFetch.value(5).toString();
+        const int id = qFetch.value(0).toInt();
+        const QString team = qFetch.value(1).toString();
+        const QString title = qFetch.value(2).toString();
+        const QDate start = QDate::fromString(qFetch.value(3).toString(), Qt::ISODate);
+        const QDate end = QDate::fromString(qFetch.value(4).toString(), Qt::ISODate);
+        const QString status = qFetch.value(5).toString();
 
         m_roadmapTable->insertRow(row);
         QTableWidgetItem* teamItem = new QTableWidgetItem(team);
@@ -153,14 +169,19 @@ void PlanningWidget::refreshRoadmap() {
         m_roadmapTable->setItem(row, 0, teamItem);
         m_roadmapTable->setItem(row, 1, new QTableWidgetItem(title));
 
-        for (int m = 1; m <= 5; ++m) {
+        for (int m = 1; m <= 12; ++m) {
             QTableWidgetItem* cell = new QTableWidgetItem();
-            if (m >= startM && m < startM + durM) {
-                QString badge = (status == "Completed") ? " ✅ " : ((status == "Planned") ? " 📌 " : " ⚡ ");
-                cell->setText(badge + title);
-                QColor bg = (status == "Completed") ? QColor(166, 227, 161) : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
-                cell->setBackground(bg);
-                cell->setForeground(QColor(17, 17, 27));
+            if (start.isValid() && end.isValid()) {
+                const QDate monthStart(year, m, 1);
+                const QDate monthEnd = monthStart.addMonths(1).addDays(-1);
+                if (start <= monthEnd && end >= monthStart) {
+                    QString badge = (status == "Completed") ? " ✅ " : ((status == "Planned") ? " 📌 " : " ⚡ ");
+                    cell->setText(badge + title);
+                    QColor bg = (status == "Completed") ? QColor(166, 227, 161)
+                              : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
+                    cell->setBackground(bg);
+                    cell->setForeground(QColor(17, 17, 27));
+                }
             }
             m_roadmapTable->setItem(row, m + 1, cell);
         }
@@ -170,22 +191,27 @@ void PlanningWidget::refreshRoadmap() {
 
 void PlanningWidget::refreshGanttChart() {
     QSqlDatabase db = DatabaseManager::instance().database();
-    // Resolve the owner's CURRENT name through the person link; fall back to
-    // the stored text for unlinked owners.
+
+    // Column headers are real dates in the rolling window: anchor..anchor+19.
+    const QDate anchor = m_anchorDate->date();
+    QStringList ganttHeaders = {"Activity / Task", "Owner / Leader"};
+    for (int i = 0; i < 20; ++i) ganttHeaders << anchor.addDays(i).toString("M/d");
+    m_ganttTable->setHorizontalHeaderLabels(ganttHeaders);
+
     QSqlQuery qFetch(
         "SELECT t.id, t.title, COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
-        "       t.start_day, t.duration_days, COALESCE(t.status, 'In-Progress') "
+        "       t.start_date, t.end_date, COALESCE(t.status, 'In-Progress') "
         "FROM ministry_tasks t LEFT JOIN people p ON p.id = t.owner_id "
-        "ORDER BY t.start_day", db);
+        "ORDER BY t.start_date", db);
     m_ganttTable->setRowCount(0);
     int row = 0;
     while (qFetch.next()) {
-        int id = qFetch.value(0).toInt();
-        QString title = qFetch.value(1).toString();
-        QString owner = qFetch.value(2).toString();
-        int startD = qFetch.value(3).toInt();
-        int durD = qFetch.value(4).toInt();
-        QString status = qFetch.value(5).toString();
+        const int id = qFetch.value(0).toInt();
+        const QString title = qFetch.value(1).toString();
+        const QString owner = qFetch.value(2).toString();
+        const QDate start = QDate::fromString(qFetch.value(3).toString(), Qt::ISODate);
+        const QDate end = QDate::fromString(qFetch.value(4).toString(), Qt::ISODate);
+        const QString status = qFetch.value(5).toString();
 
         m_ganttTable->insertRow(row);
         QTableWidgetItem* titleItem = new QTableWidgetItem(title);
@@ -193,17 +219,20 @@ void PlanningWidget::refreshGanttChart() {
         m_ganttTable->setItem(row, 0, titleItem);
         m_ganttTable->setItem(row, 1, new QTableWidgetItem(QString("%1 [%2]").arg(owner, status)));
 
-        for (int d = 1; d <= 20; ++d) {
-            QTableWidgetItem* cell = new QTableWidgetItem();
-            if (d >= startD && d < startD + durD) {
+        if (start.isValid() && end.isValid() && end >= anchor) {
+            int firstDay = qMax(0, anchor.daysTo(start));       // clamp to window
+            int lastDay = qMin(19, anchor.daysTo(end));          // clamp to window
+            for (int d = firstDay; d <= lastDay; ++d) {
+                QTableWidgetItem* cell = new QTableWidgetItem();
                 QString mark = (status == "Completed") ? " ✔ " : ((status == "Planned") ? " • " : " ⚡ ");
                 cell->setText(mark);
                 cell->setTextAlignment(Qt::AlignCenter);
-                QColor bg = (status == "Completed") ? QColor(166, 227, 161) : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
+                QColor bg = (status == "Completed") ? QColor(166, 227, 161)
+                          : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
                 cell->setBackground(bg);
                 cell->setForeground(QColor(17, 17, 27));
+                m_ganttTable->setItem(row, d + 2, cell);
             }
-            m_ganttTable->setItem(row, d + 1, cell);
         }
         row++;
     }
@@ -236,24 +265,23 @@ void PlanningWidget::openTaskDialog(int editId) {
 
     // Existing values for edit mode.
     QString curTeam, curTitle, curOwner, curStatus;
-    int curTeamId = 0, curOwnerId = 0;
-    int curSDay = 1, curDDays = 3, curSMonth = 1, curDMonths = 1;
+    QString curStartDate, curEndDate;
+    int curTeamId = 0, curOwnerId = 0, curAnchorId = 0;
     if (editId > 0) {
         QSqlQuery qLoad(db);
-        qLoad.prepare("SELECT team, title, owner, status, start_day, duration_days, start_month, duration_months, "
-                      "team_id, owner_id FROM ministry_tasks WHERE id = ?");
+        qLoad.prepare("SELECT team, title, owner, status, team_id, owner_id, "
+                      "start_date, end_date, anchor_event_id FROM ministry_tasks WHERE id = ?");
         qLoad.addBindValue(editId);
         if (qLoad.exec() && qLoad.next()) {
             curTeam = qLoad.value(0).toString();
             curTitle = qLoad.value(1).toString();
             curOwner = qLoad.value(2).toString();
             curStatus = qLoad.value(3).toString();
-            curSDay = qLoad.value(4).toInt();
-            curDDays = qLoad.value(5).toInt();
-            curSMonth = qLoad.value(6).toInt();
-            curDMonths = qLoad.value(7).toInt();
-            curTeamId = qLoad.value(8).toInt();
-            curOwnerId = qLoad.value(9).toInt();
+            curTeamId = qLoad.value(4).toInt();
+            curOwnerId = qLoad.value(5).toInt();
+            curStartDate = qLoad.value(6).toString();
+            curEndDate = qLoad.value(7).toString();
+            curAnchorId = qLoad.value(8).toInt();
         }
     }
 
@@ -322,21 +350,31 @@ void PlanningWidget::openTaskDialog(int editId) {
     QLineEdit* titleEdit = new QLineEdit(curTitle, &dlg);
     titleEdit->setPlaceholderText("e.g. Easter Production, AV Upgrade");
 
-    QSpinBox* startDaySpin = new QSpinBox(&dlg);
-    startDaySpin->setRange(1, 20);
-    startDaySpin->setValue(curSDay);
+    // Real calendar dates (the source of truth for both views).
+    QDate startDate = QDate::fromString(curStartDate, Qt::ISODate);
+    if (!startDate.isValid()) startDate = QDate::currentDate();
+    QDate endDate = QDate::fromString(curEndDate, Qt::ISODate);
+    if (!endDate.isValid() || endDate < startDate) endDate = startDate.addDays(7);
 
-    QSpinBox* durDaysSpin = new QSpinBox(&dlg);
-    durDaysSpin->setRange(1, 10);
-    durDaysSpin->setValue(curDDays);
+    QDateEdit* startDateEdit = new QDateEdit(startDate, &dlg);
+    startDateEdit->setCalendarPopup(true);
+    startDateEdit->setDisplayFormat("yyyy-MM-dd");
+    QDateEdit* endDateEdit = new QDateEdit(endDate, &dlg);
+    endDateEdit->setCalendarPopup(true);
+    endDateEdit->setDisplayFormat("yyyy-MM-dd");
 
-    QSpinBox* startMonthSpin = new QSpinBox(&dlg);
-    startMonthSpin->setRange(1, 5);
-    startMonthSpin->setValue(curSMonth);
-
-    QSpinBox* durMonthsSpin = new QSpinBox(&dlg);
-    durMonthsSpin->setRange(1, 3);
-    durMonthsSpin->setValue(curDMonths);
+    // Optional anchor: link the task to a dated service (Service Builder
+    // integration: prep tasks surface next to the service they prepare for).
+    QComboBox* anchorCombo = new QComboBox(&dlg);
+    anchorCombo->addItem("-- None --", 0);
+    QSqlQuery qServices(
+        "SELECT id, date || ' — ' || COALESCE(NULLIF(title, ''), 'Untitled Service') "
+        "FROM services ORDER BY date", db);
+    while (qServices.next()) {
+        anchorCombo->addItem(qServices.value(1).toString(), qServices.value(0).toInt());
+    }
+    int anchorIdx = anchorCombo->findData(curAnchorId);
+    if (anchorIdx >= 0) anchorCombo->setCurrentIndex(anchorIdx);
 
     QComboBox* statusCombo = new QComboBox(&dlg);
     statusCombo->addItems({"Planned", "In-Progress", "Completed"});
@@ -346,10 +384,9 @@ void PlanningWidget::openTaskDialog(int editId) {
     form->addRow("Select Leader / Owner:", ownerCombo);
     form->addRow("Initiative / Task Title:", titleEdit);
     form->addRow("Initiative Status:", statusCombo);
-    form->addRow("Gantt Start Day (1-20):", startDaySpin);
-    form->addRow("Gantt Duration (Days):", durDaysSpin);
-    form->addRow("Roadmap Start Month (1-5):", startMonthSpin);
-    form->addRow("Roadmap Duration (Months):", durMonthsSpin);
+    form->addRow("Start Date:", startDateEdit);
+    form->addRow("End Date:", endDateEdit);
+    form->addRow("Anchor Event (optional):", anchorCombo);
 
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -361,27 +398,36 @@ void PlanningWidget::openTaskDialog(int editId) {
         QString title = titleEdit->text().trimmed();
         QString owner = cleanOwnerName(ownerCombo->currentText()); // drop "(Role)" suffix
         QString status = statusCombo->currentText();
-        int sDay = startDaySpin->value();
-        int dDays = durDaysSpin->value();
-        int sMonth = startMonthSpin->value();
-        int dMonths = durMonthsSpin->value();
         int teamId = teamCombo->currentData().toInt();
         int ownerId = ownerCombo->currentData().toInt();
+        int anchorId = anchorCombo->currentData().toInt();
+
+        QDate startDate = startDateEdit->date();
+        QDate endDate = endDateEdit->date();
+        if (endDate < startDate) std::swap(startDate, endDate);
 
         if (title.isEmpty() || owner.isEmpty()) {
             QMessageBox::warning(this, "Validation Error", "Initiative title and owner name are required.");
             return;
         }
 
+        // Legacy grid columns are NOT NULL; write derived values (the views
+        // are driven by the real dates now).
+        const int sDay = startDate.day();
+        const int sMonth = startDate.month();
+        const int dDays = qMax(1, startDate.daysTo(endDate));
+        const int dMonths = 1;
+
         QSqlQuery q(db);
         if (editId > 0) {
             q.prepare("UPDATE ministry_tasks SET team = ?, title = ?, owner = ?, status = ?, "
                       "start_day = ?, duration_days = ?, start_month = ?, duration_months = ?, "
-                      "team_id = ?, owner_id = ? WHERE id = ?");
+                      "team_id = ?, owner_id = ?, start_date = ?, end_date = ?, anchor_event_id = ? "
+                      "WHERE id = ?");
         } else {
             q.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
-                      "start_month, duration_months, team_id, owner_id) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                      "start_month, duration_months, team_id, owner_id, start_date, end_date, anchor_event_id) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         }
         q.addBindValue(team);
         q.addBindValue(title);
@@ -393,6 +439,9 @@ void PlanningWidget::openTaskDialog(int editId) {
         q.addBindValue(dMonths);
         q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant(QMetaType(QMetaType::Int)));
         q.addBindValue(ownerId > 0 ? QVariant(ownerId) : QVariant(QMetaType(QMetaType::Int)));
+        q.addBindValue(startDate.toString(Qt::ISODate));
+        q.addBindValue(endDate.toString(Qt::ISODate));
+        q.addBindValue(anchorId > 0 ? QVariant(anchorId) : QVariant(QMetaType(QMetaType::Int)));
         if (editId > 0) q.addBindValue(editId);
 
         if (q.exec()) {
