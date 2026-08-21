@@ -365,20 +365,6 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         }
     }
 
-    // Default Fund ID fallback
-    int defaultFundId = 1;
-    QSqlQuery qDef("SELECT id FROM funds ORDER BY id ASC LIMIT 1");
-    if (qDef.next()) {
-        defaultFundId = qDef.value(0).toInt();
-    }
-
-    // Default Person ID fallback
-    int defaultPersonId = 1;
-    QSqlQuery qPerson("SELECT id FROM people ORDER BY id ASC LIMIT 1");
-    if (qPerson.next()) {
-        defaultPersonId = qPerson.value(0).toInt();
-    }
-
     // 2. Build map of PCO Person ID -> Local Person ID (via barcode "PCO-<id>")
     QMap<QString, int> pcoPersonIdToLocalId;
     QSqlQuery qPcoPeople("SELECT id, barcode FROM people WHERE barcode LIKE 'PCO-%'");
@@ -390,25 +376,67 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
     }
 
     // 3. Import Donations & Contributions
+    // Donations are deduplicated on external_id ("PCO-<id>") so re-running
+    // the import is safe. Donations whose donor cannot be matched to a local
+    // person are SKIPPED and reported — never silently attributed to an
+    // arbitrary person, which would corrupt giving records and tax statements.
     for (const QJsonValue& dVal : donations) {
         QJsonObject dObj = dVal.toObject();
         QJsonObject attrs = dObj.value("attributes").toObject();
         QJsonObject relationships = dObj.value("relationships").toObject();
 
-        // Match donor Person ID
-        int personId = defaultPersonId;
-        QJsonObject personRel = relationships.value("person").toObject().value("data").toObject();
-        QString pcoPersonId = personRel.value("id").toString();
-        if (!pcoPersonId.isEmpty() && pcoPersonIdToLocalId.contains(pcoPersonId)) {
-            personId = pcoPersonIdToLocalId.value(pcoPersonId);
+        QString externalId = QString("PCO-%1").arg(dObj.value("id").toString());
+        if (externalId == "PCO-") {
+            summary.donationsSkipped++;
+            continue;
         }
 
-        // Match Fund ID from designations relationship if present
-        int fundId = defaultFundId;
+        // Skip donations we have already imported
+        QSqlQuery dup(db);
+        dup.prepare("SELECT id FROM contributions WHERE external_id = ?");
+        dup.addBindValue(externalId);
+        if (dup.exec() && dup.next()) {
+            summary.donationsSkipped++;
+            continue;
+        }
+
+        // Match donor Person ID
+        QJsonObject personRel = relationships.value("person").toObject().value("data").toObject();
+        QString pcoPersonId = personRel.value("id").toString();
+        if (pcoPersonId.isEmpty() || !pcoPersonIdToLocalId.contains(pcoPersonId)) {
+            summary.donationsSkipped++;
+            summary.errors.append(QString("Donation %1 skipped: donor not found locally. "
+                                          "Import people first, or link the donor's barcode to 'PCO-%2'.")
+                                      .arg(dObj.value("id").toString(), pcoPersonId));
+            continue;
+        }
+        int personId = pcoPersonIdToLocalId.value(pcoPersonId);
+
+        // Match Fund ID from designations relationship if present.
+        // Unmapped funds fall back to an explicitly named "Imported (Unmapped)"
+        // fund so the money stays visible instead of hiding in fund #1.
+        int fundId = -1;
         QJsonObject desigRel = relationships.value("designations").toObject().value("data").toObject();
         QString desigFundId = desigRel.value("id").toString();
-        if (pcoFundIdToLocalId.contains(desigFundId)) {
+        if (!desigFundId.isEmpty() && pcoFundIdToLocalId.contains(desigFundId)) {
             fundId = pcoFundIdToLocalId.value(desigFundId);
+        } else {
+            QSqlQuery unmapped(db);
+            unmapped.prepare("SELECT id FROM funds WHERE fund_name = 'Imported (Unmapped)'");
+            if (unmapped.exec() && unmapped.next()) {
+                fundId = unmapped.value(0).toInt();
+            } else {
+                QSqlQuery createUnmapped(db);
+                createUnmapped.prepare("INSERT INTO funds (fund_name, is_active) VALUES ('Imported (Unmapped)', 1)");
+                if (createUnmapped.exec()) {
+                    fundId = createUnmapped.lastInsertId().toInt();
+                }
+            }
+            if (fundId == -1) {
+                summary.donationsSkipped++;
+                summary.errors.append(QString("Donation %1 skipped: could not resolve fund.").arg(dObj.value("id").toString()));
+                continue;
+            }
         }
 
         int amountCents = attrs.value("amount_cents").toInt(0);
@@ -416,7 +444,10 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
             double amountDollars = attrs.value("amount").toDouble(0.0);
             amountCents = static_cast<int>(amountDollars * 100.0);
         }
-        if (amountCents <= 0) continue;
+        if (amountCents <= 0) {
+            summary.donationsSkipped++;
+            continue;
+        }
 
         QString receivedAt = attrs.value("received_at").toString();
         QString date = receivedAt.left(10);
@@ -427,19 +458,26 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         QString checkNumber = attrs.value("check_number").toString();
 
         QSqlQuery ins(db);
-        ins.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) "
-                    "VALUES (:pid, :fid, :amount, :date, :method, :chk)");
+        ins.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number, external_id) "
+                    "VALUES (:pid, :fid, :amount, :date, :method, :chk, :ext)");
         ins.bindValue(":pid", personId);
         ins.bindValue(":fid", fundId);
         ins.bindValue(":amount", amountCents);
         ins.bindValue(":date", date);
         ins.bindValue(":method", paymentMethod);
         ins.bindValue(":chk", checkNumber);
+        ins.bindValue(":ext", externalId);
 
         if (ins.exec()) {
             summary.donationsCount++;
         } else {
-            summary.errors.append(QString("Donation import error: %1").arg(ins.lastError().text()));
+            // A unique-constraint hit here means another import thread raced
+            // us to this external_id; treat as skipped rather than an error.
+            if (ins.lastError().nativeErrorCode() == "19") {
+                summary.donationsSkipped++;
+            } else {
+                summary.errors.append(QString("Donation import error: %1").arg(ins.lastError().text()));
+            }
         }
     }
 

@@ -306,6 +306,7 @@ bool DatabaseManager::createTables() {
         "  contribution_date TEXT NOT NULL,"
         "  payment_method TEXT NOT NULL,"
         "  check_number TEXT,"
+        "  external_id TEXT,"
         "  FOREIGN KEY(person_id) REFERENCES people(id),"
         "  FOREIGN KEY(fund_id) REFERENCES funds(id)"
         ");";
@@ -313,6 +314,10 @@ bool DatabaseManager::createTables() {
         qCritical() << "Failed to create contributions table:" << query.lastError().text();
         return false;
     }
+    query.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_contributions_external_id "
+               "ON contributions(external_id) WHERE external_id IS NOT NULL;");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_date ON contributions(contribution_date);");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_person ON contributions(person_id);");
 
     // Create entity_relationships table
     QString createRelationships = 
@@ -964,6 +969,66 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 6 applied successfully.";
+    }
+
+    // --- Schema Migration 7: Giving-import dedupe key + reporting indexes ---
+    // external_id stores the upstream donation id (e.g. Planning Center
+    // "PCO-<id>") so repeated imports skip already-imported donations instead
+    // of duplicating them. The date indexes speed up the year/month giving
+    // reports the dashboard now runs against contributions.
+    if (current < 7) {
+        qInfo() << "Applying schema migration 7: contributions.external_id + giving indexes";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 7: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery check(m_db);
+        check.exec("PRAGMA table_info(contributions)");
+        bool hasExternalId = false;
+        while (check.next()) {
+            if (check.value(1).toString() == "external_id") {
+                hasExternalId = true;
+                break;
+            }
+        }
+
+        QSqlQuery migQ(m_db);
+        if (!hasExternalId &&
+            !migQ.exec("ALTER TABLE contributions ADD COLUMN external_id TEXT;")) {
+            qCritical() << "Migration 7: add external_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!migQ.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_contributions_external_id "
+                       "ON contributions(external_id) WHERE external_id IS NOT NULL;")) {
+            qCritical() << "Migration 7: external_id index failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!migQ.exec("CREATE INDEX IF NOT EXISTS idx_contributions_date "
+                       "ON contributions(contribution_date);")) {
+            qCritical() << "Migration 7: date index failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!migQ.exec("CREATE INDEX IF NOT EXISTS idx_contributions_person "
+                       "ON contributions(person_id);")) {
+            qCritical() << "Migration 7: person index failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 7: commit failed";
+            m_db.rollback();
+            return false;
+        }
+
+        if (!recordSchemaVersion(7)) {
+            return false;
+        }
+        qInfo() << "Schema migration 7 applied successfully.";
     }
 
     return true;

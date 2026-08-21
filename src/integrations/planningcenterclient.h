@@ -14,6 +14,7 @@ struct PcoImportSummary {
     int servicesCount = 0;
     int fundsCount = 0;
     int donationsCount = 0;
+    int donationsSkipped = 0;   // already imported (external_id match) or unmatchable
     QStringList errors;
 };
 
