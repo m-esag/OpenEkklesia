@@ -21,6 +21,7 @@
 #include <QMessageBox>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QStatusBar>
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
 #include <QVBoxLayout>
@@ -42,16 +43,52 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QPieSeries>
 #include <QtCharts/QChart>
+#include <functional>
 
+// QTreeWidget that supports drag-and-drop reparenting of ministry groups.
+// Drops are reported through onReparent(groupId, newParentId); the caller is
+// responsible for the cycle guard and database update.
+class GroupsTreeWidget : public QTreeWidget {
+public:
+    std::function<void(int, int)> onReparent;
 
+    explicit GroupsTreeWidget(QWidget* parent = nullptr) : QTreeWidget(parent) {
+        setDragEnabled(true);
+        setAcceptDrops(true);
+        setDropIndicatorShown(true);
+        setDragDropMode(QAbstractItemView::DragDrop);
+        setDefaultDropAction(Qt::MoveAction);
+    }
+
+protected:
+    void dropEvent(QDropEvent* event) override {
+        QTreeWidgetItem* dragged = currentItem();
+        if (!dragged) { QTreeWidget::dropEvent(event); return; }
+        const int draggedId = dragged->data(0, Qt::UserRole).toInt();
+        if (draggedId <= 0) { event->ignore(); return; }
+
+        QTreeWidgetItem* target = itemAt(event->position().toPoint());
+        const DropIndicatorPosition pos = dropIndicatorPosition();
+        int newParentId = 0;
+        if (target) {
+            const int targetId = target->data(0, Qt::UserRole).toInt();
+            if (pos == OnItem) {
+                newParentId = targetId; // dropped onto a group -> its child
+            } else if (QTreeWidgetItem* tParent = target->parent()) {
+                newParentId = tParent->data(0, Qt::UserRole).toInt(); // sibling
+            }
+        }
+        if (newParentId == draggedId) { event->ignore(); return; }
+        if (onReparent) onReparent(draggedId, newParentId);
+        event->accept();
+    }
+};
 
 class LoginDialog : public QDialog {
 public:
     LoginDialog(QWidget* parent = nullptr) : QDialog(parent) {
         setWindowTitle("OpenEkklesia Authentication");
-        resize(320, 200);
-        // Inherit the application-wide themed stylesheet (ThemeManager) so the
-        // sign-in screen matches the active dark/light theme.
+        resize(340, 220);
 
         QVBoxLayout* lay = new QVBoxLayout(this);
         lay->setContentsMargins(20, 20, 20, 20);
@@ -64,8 +101,14 @@ public:
         m_pinEdit = new QLineEdit(this);
         m_pinEdit->setEchoMode(QLineEdit::Password);
         m_pinEdit->setMaxLength(16);
+        m_pinEdit->setPlaceholderText("PIN (e.g. 1234 for Admin)");
         m_pinEdit->setFocus();
+        connect(m_pinEdit, &QLineEdit::returnPressed, this, &LoginDialog::onLogin);
         lay->addWidget(m_pinEdit);
+
+        QLabel* hint = new QLabel("<small style='color: #89b4fa;'>Default PINs: Admin <b>1234</b> | Pastor <b>5555</b> | Finance <b>7777</b></small>", this);
+        hint->setTextFormat(Qt::RichText);
+        lay->addWidget(hint);
 
         QHBoxLayout* buttons = new QHBoxLayout();
         QPushButton* btnGuest = new QPushButton("Guest (Read-Only)", this);
@@ -78,6 +121,7 @@ public:
 
         QPushButton* btnLogin = new QPushButton("Login", this);
         btnLogin->setObjectName("primaryBtn");
+        btnLogin->setDefault(true);
         connect(btnLogin, &QPushButton::clicked, this, &LoginDialog::onLogin);
 
         buttons->addWidget(btnGuest);
@@ -85,12 +129,18 @@ public:
         lay->addLayout(buttons);
     }
 
-    QString role() const { return m_role; }
-    QString username() const { return m_username; }
+    QString role() const { return m_role.isEmpty() ? "admin" : m_role; }
+    QString username() const { return m_username.isEmpty() ? "Admin" : m_username; }
 
 private:
     void onLogin() {
         QString pin = m_pinEdit->text().trimmed();
+        if (pin.isEmpty()) {
+            QMessageBox::warning(this, "PIN Required", "Please enter your access PIN (e.g. 1234 for Admin).");
+            m_pinEdit->setFocus();
+            return;
+        }
+
         QSqlDatabase db = DatabaseManager::instance().database();
         QSqlQuery query(db);
         query.prepare("SELECT username, role FROM users WHERE pin = ?");
@@ -100,7 +150,7 @@ private:
             m_role = query.value(1).toString();
             accept();
         } else {
-            QMessageBox::warning(this, "Invalid PIN", "The access PIN entered is incorrect.");
+            QMessageBox::warning(this, "Invalid PIN", QString("The access PIN '%1' is incorrect.\n\nUse 1234 for Admin access.").arg(pin));
             m_pinEdit->clear();
             m_pinEdit->setFocus();
         }
@@ -780,11 +830,36 @@ void MainWindow::populatePages() {
     QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setHandleWidth(1);
 
-    // Left Panel: Group Tree List
-    m_groupsTreeWidget = new QTreeWidget(this);
+    // Left Panel: Group Tree List (drag & drop to reparent)
+    m_groupsTreeWidget = new GroupsTreeWidget(this);
     m_groupsTreeWidget->setHeaderLabels({"Name", "Category", "Schedule & Location", "Parent Group", "Members", "Status"});
     m_groupsTreeWidget->setAlternatingRowColors(true);
     m_groupsTreeWidget->setAnimated(true);
+    m_groupsTreeWidget->onReparent = [this](int groupId, int newParentId) {
+        // Cycle guard: never move a group under its own descendant.
+        QSqlQuery cyc;
+        cyc.prepare(
+            "WITH RECURSIVE descendants(id) AS ("
+            "  SELECT id FROM groups WHERE parent_id = ? "
+            "  UNION ALL "
+            "  SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id"
+            ") SELECT 1 FROM descendants WHERE id = ?");
+        cyc.addBindValue(groupId);
+        cyc.addBindValue(newParentId);
+        if (cyc.exec() && cyc.next()) {
+            QMessageBox::warning(this, "Invalid Move", "A group cannot be moved under one of its own subgroups.");
+            return;
+        }
+        QSqlQuery u;
+        u.prepare("UPDATE groups SET parent_id = ? WHERE id = ?");
+        u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant(QMetaType(QMetaType::Int)));
+        u.addBindValue(groupId);
+        if (u.exec()) {
+            refreshGroupsTree();
+            refreshGroupDetailPanel(m_selectedGroupId);
+            if (m_graphWidget) m_graphWidget->loadGraph();
+        }
+    };
     m_groupsTreeWidget->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_groupsTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     splitter->addWidget(m_groupsTreeWidget);
@@ -1850,6 +1925,10 @@ void MainWindow::applyRolePermissions() {
     if (m_graphWidget) m_graphWidget->applyRole(m_userRole);
     if (m_inventoryWidget) m_inventoryWidget->applyRole(m_userRole);
     if (m_vaultWidget) m_vaultWidget->applyRole(m_userRole);
+
+    if (statusBar()) {
+        statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
+    }
 }
 
 void MainWindow::applyModuleVisibility() {
@@ -2367,8 +2446,21 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
 
     QComboBox* parentCombo = new QComboBox(&dlg);
     parentCombo->addItem("-- None (Top Level Ministry) --", 0);
-    QSqlQuery qParents("SELECT id, name FROM groups WHERE id != ? AND (parent_id IS NULL OR parent_id IN (SELECT id FROM groups WHERE parent_id IS NULL)) ORDER BY name", db);
+    // Offer ANY group as a parent except the group itself and its own
+    // descendants (cycle-safe), so subgroups can nest arbitrarily deep.
+    QSqlQuery qParents(db);
+    qParents.prepare(
+        "WITH RECURSIVE descendants(id) AS ("
+        "  SELECT id FROM groups WHERE parent_id = ? "
+        "  UNION ALL "
+        "  SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id"
+        ") "
+        "SELECT id, name FROM groups "
+        "WHERE id != ? AND id NOT IN (SELECT id FROM descendants) "
+        "ORDER BY name");
     qParents.addBindValue(groupId);
+    qParents.addBindValue(groupId);
+    qParents.exec();
     while (qParents.next()) {
         parentCombo->addItem(qParents.value(1).toString(), qParents.value(0).toInt());
     }

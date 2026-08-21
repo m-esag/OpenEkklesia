@@ -1144,6 +1144,15 @@ void PeopleWidget::applyRole(const QString& role) {
     m_btnManageHouseholds->setEnabled(canEdit);
     m_btnDeleteSelected->setEnabled(canEdit);
     m_btnBatchStatus->setEnabled(canEdit);
+
+    QString tip = isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify records." : "";
+    m_btnSave->setToolTip(tip);
+    m_btnDeletePerson->setToolTip(tip);
+    m_btnAddPerson->setToolTip(tip);
+    m_btnAddHousehold->setToolTip(tip);
+    m_btnManageHouseholds->setToolTip(tip);
+    m_btnDeleteSelected->setToolTip(tip);
+    m_btnBatchStatus->setToolTip(tip);
 }
 
 void PeopleWidget::onSearchTextChanged(const QString& text) {

@@ -112,9 +112,10 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
                 bodyColEnd = tok.bgSurface;
                 break;
             case Group:
-                if (m_healthStatus == FullyStaffed) borderCol = tok.accentSuccess;
-                else if (m_healthStatus == Understaffed) borderCol = tok.accentWarning;
+                // Category color shows ministry type; health warnings take precedence so alerts stay visible.
+                if (m_healthStatus == Understaffed) borderCol = tok.accentWarning;
                 else if (m_healthStatus == CriticalShortage) borderCol = tok.accentDanger;
+                else if (m_categoryColor.isValid()) borderCol = m_categoryColor;
                 else borderCol = tok.accentSuccess;
                 bodyColStart = tok.isDark ? QColor("#183020") : QColor("#e8f5e9");
                 bodyColEnd = tok.bgSurface;
@@ -331,6 +332,10 @@ void EdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
     } else if (m_isBurnoutLink) {
         lineCol = tok.accentDanger;
         lineWidth = 2.5;
+        penStyle = Qt::DashLine;
+    } else if (m_relType == "Parent of") {
+        lineCol = tok.textMuted; // subtle hierarchy line (group parent -> child)
+        lineWidth = 1.2;
         penStyle = Qt::DashLine;
     } else if (m_relType.contains("Spouse") || m_relType.contains("Parent")) {
         lineCol = tok.accentWarning; // Gold family line
@@ -729,13 +734,22 @@ void GraphWidget::loadGraph() {
     }
 
     // 3. Load Groups Nodes
+    // Stable palette so the same category always maps to the same hue across reloads.
+    static const QList<QColor> kCategoryPalette = {
+        QColor("#89b4fa"), QColor("#a6e3a1"), QColor("#f9e2af"), QColor("#f38ba8"),
+        QColor("#cba6f7"), QColor("#94e2d5"), QColor("#fab387"), QColor("#74c7ec"),
+    };
     if (q.exec("SELECT id, name, category FROM groups")) {
         while (q.next()) {
             int gid = q.value("id").toInt();
             QString name = q.value("name").toString();
+            QString category = q.value("category").toString();
 
             NodeItem* node = new NodeItem(gid, name, NodeItem::Group);
             node->setHealthStatus(NodeItem::FullyStaffed);
+            if (!category.isEmpty()) {
+                node->setCategoryColor(kCategoryPalette.at(qHash(category) % kCategoryPalette.size()));
+            }
 
             double angle = QRandomGenerator::global()->bounded(360.0) * M_PI / 180.0;
             double dist = 150.0 + QRandomGenerator::global()->bounded(550.0);
@@ -801,6 +815,23 @@ void GraphWidget::loadGraph() {
 
                 srcNode->setConnectionCount(srcNode->connectionCount() + 1);
                 tgtNode->setConnectionCount(tgtNode->connectionCount() + 1);
+            }
+        }
+    }
+
+    // 5b. Group -> Group "Parent of" hierarchy edges (from groups.parent_id).
+    // Drawn as subtle dashed lines; deliberately NOT counted toward connectionCount
+    // so node size stays driven by real member connections.
+    if (q.exec("SELECT id, parent_id FROM groups WHERE parent_id IS NOT NULL")) {
+        while (q.next()) {
+            int childId = q.value("id").toInt();
+            int parentId = q.value("parent_id").toInt();
+            NodeItem* parentNode = findNode(NodeItem::Group, parentId);
+            NodeItem* childNode = findNode(NodeItem::Group, childId);
+            if (parentNode && childNode) {
+                EdgeItem* edge = new EdgeItem(parentNode, childNode, QStringLiteral("Parent of"));
+                m_scene->addItem(edge);
+                m_edges.append(edge);
             }
         }
     }
@@ -1010,6 +1041,39 @@ void GraphWidget::applyClusteredLayout() {
         double angle = i * 2.0 * M_PI / qMax(1, groupCount);
         QPointF pos(groupRadius * std::cos(angle), groupRadius * std::sin(angle));
         groupNodes[i]->setPos(pos);
+    }
+
+    // 1b. Nest subgroup children in a tighter orbit around their parent group,
+    // so the ministry hierarchy reads as clusters inside clusters.
+    {
+        QMap<int, NodeItem*> groupById;
+        for (NodeItem* g : groupNodes) groupById[g->id()] = g;
+
+        QSqlDatabase db = DatabaseManager::instance().database();
+        QSqlQuery hq(db);
+        if (hq.exec("SELECT id, parent_id FROM groups WHERE parent_id IS NOT NULL")) {
+            QMap<int, QList<int>> childrenOf;
+            while (hq.next()) {
+                int cid = hq.value(0).toInt();
+                int pid = hq.value(1).toInt();
+                if (groupById.contains(cid) && groupById.contains(pid)) {
+                    childrenOf[pid].append(cid);
+                }
+            }
+            for (auto it = childrenOf.begin(); it != childrenOf.end(); ++it) {
+                NodeItem* parent = groupById.value(it.key());
+                if (!parent) continue;
+                const QList<int>& kids = it.value();
+                int kCount = kids.size();
+                for (int i = 0; i < kCount; ++i) {
+                    NodeItem* kid = groupById.value(kids[i]);
+                    if (!kid) continue;
+                    double angle = i * 2.0 * M_PI / qMax(1, kCount);
+                    double orbit = 280.0 + (i / 6) * 70.0;
+                    kid->setPos(parent->pos() + QPointF(orbit * std::cos(angle), orbit * std::sin(angle)));
+                }
+            }
+        }
     }
 
     // 2. Arrange Household Hubs in Outer Ring (radius 1200px) with angular offset

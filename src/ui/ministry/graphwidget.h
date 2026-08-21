@@ -10,6 +10,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QGraphicsSceneHoverEvent>
+#include <QColor>
 #include <QSet>
 #include <QComboBox>
 #include <QPlainTextEdit>
@@ -53,7 +54,11 @@ public:
 
     void setConnectionCount(int count) { m_connectionCount = count; }
     int connectionCount() const { return m_connectionCount; }
-    double radius() const { return 20.0 + (m_connectionCount * 1.5); }
+    // Group hubs render larger (and scale with member count) so ministry size reads at a glance.
+    double radius() const { return (m_type == Group) ? 30.0 + (m_connectionCount * 1.5) : 20.0 + (m_connectionCount * 1.5); }
+
+    void setCategoryColor(const QColor& c) { m_categoryColor = c; QGraphicsItem::update(); }
+    QColor categoryColor() const { return m_categoryColor; }
 
     QString careFlag() const { return m_careFlag; }
     void setCareFlag(const QString& cf) { m_careFlag = cf; }
@@ -110,6 +115,7 @@ private:
     QString m_lastServedDate;
     QPointF m_dragStartPos;
     HealthStatus m_healthStatus;
+    QColor m_categoryColor;
 };
 
 class EdgeItem : public QGraphicsItem {

@@ -31,6 +31,8 @@
 #include <QProgressBar>
 #include <functional>
 
+class GroupsTreeWidget; // file-scope in mainwindow.cpp
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -150,7 +152,7 @@ private:
     QString m_userRole;
     QString m_username;
 
-    QTreeWidget* m_groupsTreeWidget;
+    GroupsTreeWidget* m_groupsTreeWidget;
     QCheckBox* m_chkShowArchivedGroups;
     QWidget* m_groupDetailCard;
     QLabel* m_lblGroupDetailTitle;
