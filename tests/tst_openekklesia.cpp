@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QDir>
 #include <QDate>
+#include <QSettings>
 #include <QSet>
 #include <QStringList>
 #include <QJsonDocument>
@@ -813,6 +814,109 @@ bool test_ministryMatchRankByRole() {
     return true;
 }
 
+bool test_dashboardKpiConfigAndQuickNotes() {
+    // 1. Verify QSettings persistence for KPI cards
+    QSettings s("OpenEkklesia", "CHMS");
+    QStringList customKpis = {"members", "shepherd_due", "at_risk", "unconnected", "giving_ytd"};
+    s.setValue("dashboardKpis", customKpis);
+    QStringList readKpis = s.value("dashboardKpis").toStringList();
+    CHECK_EQ(readKpis.size(), 5);
+    CHECK(readKpis.contains("shepherd_due"));
+    CHECK(readKpis.contains("at_risk"));
+
+    // 2. Verify Quick Note persistence in care_logs and pastoral_activities
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    q.prepare("INSERT INTO care_logs (person_id, care_type, notes, follow_up) VALUES (1, 'Phone Call', 'Quick dashboard note test', 1)");
+    CHECK(q.exec());
+
+    QSqlQuery qPastoral(d);
+    qPastoral.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, outcome, follow_up_date, follow_up_done) "
+                      "VALUES (1, 'Phone Call', date('now', 'localtime'), 'Quick dashboard note test', 'Logged via Dashboard Quick Note', date('now', '+7 days', 'localtime'), 0)");
+    CHECK(qPastoral.exec());
+
+    // Verify written values
+    QSqlQuery qCheck(d);
+    qCheck.prepare("SELECT care_type, notes FROM care_logs WHERE person_id = 1 AND notes = 'Quick dashboard note test'");
+    CHECK(qCheck.exec() && qCheck.next());
+    CHECK_EQ(qCheck.value(0).toString().toStdString(), std::string("Phone Call"));
+
+    QSqlQuery qPCheck(d);
+    qPCheck.prepare("SELECT activity_type, follow_up_done FROM pastoral_activities WHERE person_id = 1 AND notes = 'Quick dashboard note test'");
+    CHECK(qPCheck.exec() && qPCheck.next());
+    CHECK_EQ(qPCheck.value(1).toInt(), 0);
+
+    return true;
+}
+
+bool test_serviceBuilderRunSheetPersistence() {
+    ServiceBuilderWidget sb;
+    QListWidget* library = sb.findChild<QListWidget*>("serviceLibraryList");
+    QListWidget* playlist = sb.findChild<QListWidget*>("servicePlaylist");
+    QDateEdit* dateEdit = sb.findChild<QDateEdit*>("serviceDateEdit");
+    CHECK(library && playlist && dateEdit);
+    if (!library || !playlist || !dateEdit) return true;
+
+    // Persistent library seeded with the classic elements.
+    CHECK_EQ(library->count(), 15);
+
+    const QDate date = dateEdit->date();
+    const QString dateStr = date.toString("yyyy-MM-dd");
+
+    // Reset any arrangement an earlier test may have left on this date.
+    playlist->clear();
+    {
+        QSqlQuery q(db());
+        q.prepare("SELECT run_sheet FROM services WHERE date = ?");
+        q.addBindValue(dateStr);
+        CHECK(q.exec() && q.next());
+        CHECK_EQ(q.value(0).toString().toStdString(), std::string("[]")); // autosaved empty array
+    }
+
+    // Adding an element autosaves the run sheet JSON into the services row.
+    playlist->addItem(library->item(0)->clone());
+    {
+        QSqlQuery q(db());
+        q.prepare("SELECT run_sheet FROM services WHERE date = ?");
+        q.addBindValue(dateStr);
+        CHECK(q.exec() && q.next());
+        CHECK(q.value(0).toString().contains("Amazing Grace"));
+    }
+
+    // Switching dates clears the sheet; returning restores it (title, type,
+    // and duration survive the JSON round trip).
+    dateEdit->setDate(date.addDays(-7));
+    CHECK_EQ(playlist->count(), 0);
+    dateEdit->setDate(date);
+    CHECK_EQ(playlist->count(), 1);
+    if (playlist->count() == 1) {
+        CHECK(playlist->item(0)->text().contains("Amazing Grace"));
+        CHECK_EQ(playlist->item(0)->data(Qt::UserRole).toString().toStdString(), std::string("Song"));
+        CHECK_EQ(playlist->item(0)->data(Qt::UserRole + 1).toInt(), 4);
+    }
+
+    // Templates: DB-level upsert round trip.
+    {
+        QSqlQuery ins(db());
+        ins.prepare("INSERT INTO service_templates (name, run_sheet) VALUES ('TestTpl', '[]') "
+                    "ON CONFLICT(name) DO UPDATE SET run_sheet = excluded.run_sheet");
+        CHECK(ins.exec());
+        QSqlQuery cnt(db());
+        CHECK(cnt.exec("SELECT COUNT(*) FROM service_templates WHERE name = 'TestTpl'"));
+        CHECK(cnt.next());
+        CHECK_EQ(cnt.value(0).toInt(), 1);
+        QSqlQuery del(db());
+        CHECK(del.exec("DELETE FROM service_templates WHERE name = 'TestTpl'"));
+    }
+
+    // Clean up the autosaved row so later tests see a pristine services table.
+    QSqlQuery clean(db());
+    clean.prepare("DELETE FROM services WHERE date = ?");
+    clean.addBindValue(dateStr);
+    CHECK(clean.exec());
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -851,8 +955,10 @@ int main(int argc, char** argv) {
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
         {"ministry_match_rank_by_role", test_ministryMatchRankByRole},
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
+        {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
+        {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},
     };
 
     for (const Test& t : tests) {

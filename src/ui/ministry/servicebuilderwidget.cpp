@@ -11,8 +11,10 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QComboBox>
+#include <QSpinBox>
 #include <QFormLayout>
 #include <QDialogButtonBox>
+#include <QInputDialog>
 #include <QPdfWriter>
 #include <QTextDocument>
 #include "../database/databasemanager.h"
@@ -22,7 +24,7 @@ ServiceBuilderWidget::ServiceBuilderWidget(QWidget *parent)
     : QWidget(parent)
 {
     setupUI();
-    seedLibrary();
+    loadLibrary();
     loadVolunteers();
     loadServiceDetails();
     applyRole("admin"); // default: full access until MainWindow applies the real role
@@ -39,6 +41,18 @@ static QColor tintForType(const QString& type) {
     return QColor("#cba6f7"); // Text / liturgy
 }
 
+static QString typeEmoji(const QString& type) {
+    if (type == "Song") return QStringLiteral("🎵");
+    if (type == "Scripture") return QStringLiteral("📖");
+    if (type == "Media") return QStringLiteral("🎬");
+    return QStringLiteral("💬");
+}
+
+// Composes the display text ("🎵 Song: Amazing Grace (4m)") from clean parts.
+static QString libraryDisplayName(const QString& type, const QString& name, int mins) {
+    return QString("%1 %2: %3 (%4m)").arg(typeEmoji(type), type, name).arg(mins);
+}
+
 void ServiceBuilderWidget::applyRole(const QString& role) {
     m_readOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 ||
                   role.compare("guest", Qt::CaseInsensitive) == 0);
@@ -50,6 +64,10 @@ void ServiceBuilderWidget::applyRole(const QString& role) {
     m_btnSchedule->setEnabled(canEdit);
     m_btnUnschedule->setEnabled(canEdit);
     m_btnSaveServiceDetails->setEnabled(canEdit);
+    m_btnAddElement->setEnabled(canEdit);
+    m_btnRemoveElement->setEnabled(canEdit);
+    m_btnSaveTemplate->setEnabled(canEdit);
+    m_btnApplyTemplate->setEnabled(canEdit);
     m_playlist->setAcceptDrops(canEdit);
     m_playlist->setDragEnabled(canEdit);
     m_libraryList->setDragEnabled(canEdit);
@@ -57,7 +75,9 @@ void ServiceBuilderWidget::applyRole(const QString& role) {
     const QString tip = m_readOnly
         ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
         : "";
-    for (QPushButton* b : {m_btnRemove, m_btnClear, m_btnSave, m_btnSchedule, m_btnUnschedule, m_btnSaveServiceDetails}) {
+    for (QPushButton* b : {m_btnRemove, m_btnClear, m_btnSave, m_btnSchedule, m_btnUnschedule,
+                           m_btnSaveServiceDetails, m_btnAddElement, m_btnRemoveElement,
+                           m_btnSaveTemplate, m_btnApplyTemplate}) {
         b->setToolTip(tip);
     }
 }
@@ -84,9 +104,24 @@ void ServiceBuilderWidget::setupUI() {
     m_libraryList->setAlternatingRowColors(true);
     libraryLayout->addWidget(m_libraryList);
 
-    QLabel* dragTip = new QLabel("Tip: Drag items from here to the right panel.", this);
+    QLabel* dragTip = new QLabel("Tip: Drag items from here to the right panel. Double-click to edit.", this);
     dragTip->setObjectName("dragTip");
+    dragTip->setWordWrap(true);
     libraryLayout->addWidget(dragTip);
+
+    QHBoxLayout* libActions = new QHBoxLayout();
+    m_btnAddElement = new QPushButton("➕ Add Element", this);
+    m_btnAddElement->setObjectName("secondaryBtn");
+    m_btnAddElement->setToolTip("Add a custom element to the persistent library");
+    connect(m_btnAddElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onAddElement);
+    libActions->addWidget(m_btnAddElement);
+
+    m_btnRemoveElement = new QPushButton("✖ Remove Element", this);
+    m_btnRemoveElement->setObjectName("ghostDangerBtn");
+    m_btnRemoveElement->setToolTip("Remove the selected library element");
+    connect(m_btnRemoveElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveElement);
+    libActions->addWidget(m_btnRemoveElement);
+    libraryLayout->addLayout(libActions);
 
     mainLayout->addWidget(libraryPanel, 2);
 
@@ -143,6 +178,18 @@ void ServiceBuilderWidget::setupUI() {
     connect(m_btnSave, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveService);
     actionsLayout->addWidget(m_btnSave);
 
+    m_btnSaveTemplate = new QPushButton("💾 Save as Template", this);
+    m_btnSaveTemplate->setObjectName("secondaryBtn");
+    m_btnSaveTemplate->setToolTip("Save the current run sheet as a named template");
+    connect(m_btnSaveTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveTemplate);
+    actionsLayout->addWidget(m_btnSaveTemplate);
+
+    m_btnApplyTemplate = new QPushButton("📋 Apply Template", this);
+    m_btnApplyTemplate->setObjectName("secondaryBtn");
+    m_btnApplyTemplate->setToolTip("Load a saved run-sheet template into the current date");
+    connect(m_btnApplyTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onApplyTemplate);
+    actionsLayout->addWidget(m_btnApplyTemplate);
+
     m_btnLoad = new QPushButton("Load Layout", this);
     m_btnLoad->setObjectName("primaryBtn");
     connect(m_btnLoad, &QPushButton::clicked, this, &ServiceBuilderWidget::onLoadService);
@@ -166,6 +213,7 @@ void ServiceBuilderWidget::setupUI() {
     QLabel* dateLabel = new QLabel("Service Date:", this);
     dateLabel->setObjectName("dateLabel");
     m_serviceDateEdit = new QDateEdit(this);
+    m_serviceDateEdit->setObjectName("serviceDateEdit");
     m_serviceDateEdit->setCalendarPopup(true);
     m_serviceDateEdit->setDisplayFormat("yyyy-MM-dd");
     // Default to next Sunday
@@ -181,10 +229,12 @@ void ServiceBuilderWidget::setupUI() {
     // Service plan details (title & leader) persisted to the services table
     QFormLayout* serviceForm = new QFormLayout();
     m_serviceTitleEdit = new QLineEdit(this);
+    m_serviceTitleEdit->setObjectName("serviceTitleEdit");
     m_serviceTitleEdit->setPlaceholderText("e.g. Sunday Worship Service");
     serviceForm->addRow("Service Title:", m_serviceTitleEdit);
 
     m_leaderEdit = new QLineEdit(this);
+    m_leaderEdit->setObjectName("serviceLeaderEdit");
     m_leaderEdit->setPlaceholderText("e.g. Pastor James Davis");
     serviceForm->addRow("Service Leader:", m_leaderEdit);
     volunteerLayout->addLayout(serviceForm);
@@ -215,46 +265,151 @@ void ServiceBuilderWidget::setupUI() {
     mainLayout->addWidget(volunteerPanel, 2);
 
     connect(m_serviceDateEdit, &QDateEdit::dateChanged, this, &ServiceBuilderWidget::onServiceDateChanged);
+
+    // Autosave the run sheet to the dated service row on any playlist change
+    // (add, remove, clear, load, reorder). Silent by design: no dialogs.
+    // clear() resets the model, so modelReset is wired too.
+    connect(m_playlist->model(), &QAbstractItemModel::rowsInserted, this, &ServiceBuilderWidget::persistRunSheet);
+    connect(m_playlist->model(), &QAbstractItemModel::rowsRemoved, this, &ServiceBuilderWidget::persistRunSheet);
+    connect(m_playlist->model(), &QAbstractItemModel::rowsMoved, this, &ServiceBuilderWidget::persistRunSheet);
+    connect(m_playlist->model(), &QAbstractItemModel::modelReset, this, &ServiceBuilderWidget::persistRunSheet);
+
+    connect(m_libraryList, &QListWidget::itemDoubleClicked, this, &ServiceBuilderWidget::onEditElement);
 }
 
-void ServiceBuilderWidget::seedLibrary() {
-    struct SeedItem {
-        QString title;
-        QString type; // Song, Scripture, Media, Text
-        int durationMins;
-        QString colorHex;
-    };
+void ServiceBuilderWidget::loadLibrary() {
+    m_libraryList->clear();
 
-    QList<SeedItem> seeds = {
-        // Songs
-        {"🎵 Song: Amazing Grace (4m)", "Song", 4, "#f9e2af"},
-        {"🎵 Song: How Great Thou Art (5m)", "Song", 5, "#f9e2af"},
-        {"🎵 Song: 10,000 Reasons (4m)", "Song", 4, "#f9e2af"},
-        {"🎵 Song: Cornerstone (5m)", "Song", 5, "#f9e2af"},
-        // Scriptures
-        {"📖 Scripture: Psalm 23 (2m)", "Scripture", 2, "#a6e3a1"},
-        {"📖 Scripture: John 3:16 (2m)", "Scripture", 2, "#a6e3a1"},
-        {"📖 Scripture: Romans 8:28 (2m)", "Scripture", 2, "#a6e3a1"},
-        // Media / Slides
-        {"🎬 Media: Welcome & Announcements (1m)", "Media", 1, "#89b4fa"},
-        {"🎬 Media: Kids Dismissal Slide (1m)", "Media", 1, "#89b4fa"},
-        {"🎬 Media: Sermon Presentation (1m)", "Media", 1, "#89b4fa"},
-        {"🎬 Media: Closing Slideshow (1m)", "Media", 1, "#89b4fa"},
-        // Liturgy
-        {"💬 Prayer: Opening Thanksgiving (3m)", "Text", 3, "#cba6f7"},
-        {"💬 Prayer: Pastoral Intercession (3m)", "Text", 3, "#cba6f7"},
-        {"💬 Message: Sunday Sermon (30m)", "Text", 30, "#cba6f7"},
-        {"💬 Liturgy: Benediction (2m)", "Text", 2, "#cba6f7"}
-    };
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    if (!q.exec("SELECT id, name, type, duration_mins FROM service_library ORDER BY id")) {
+        qWarning() << "Failed to load service library:" << q.lastError().text();
+        return;
+    }
+    while (q.next()) {
+        const int id = q.value(0).toInt();
+        const QString name = q.value(1).toString();
+        const QString type = q.value(2).toString();
+        const int mins = q.value(3).toInt();
 
-    for (const auto& seed : seeds) {
-        QListWidgetItem* item = new QListWidgetItem(seed.title, m_libraryList);
-        item->setData(Qt::UserRole, seed.type);
-        item->setData(Qt::UserRole + 1, seed.durationMins);
-        item->setData(Qt::ToolTipRole, QString("Type: %1 · %2 min").arg(seed.type).arg(seed.durationMins));
-        QColor tint(seed.colorHex);
+        QListWidgetItem* item = new QListWidgetItem(libraryDisplayName(type, name, mins), m_libraryList);
+        item->setData(Qt::UserRole, type);
+        item->setData(Qt::UserRole + 1, mins);
+        item->setData(Qt::UserRole + 2, id);
+        item->setData(Qt::ToolTipRole, QString("Type: %1 · %2 min · double-click to edit").arg(type).arg(mins));
+        QColor tint = tintForType(type);
         tint.setAlpha(60);
         item->setBackground(tint);
+    }
+}
+
+// Shared element editor used by add and edit flows.
+static bool elementEditorDialog(QWidget* parent, const QString& title,
+                                QString& name, QString& type, int& mins) {
+    QDialog dlg(parent);
+    dlg.setWindowTitle(title);
+    dlg.resize(360, 180);
+
+    QFormLayout* form = new QFormLayout(&dlg);
+    form->setSpacing(12);
+
+    QLineEdit* nameEdit = new QLineEdit(name, &dlg);
+    nameEdit->setPlaceholderText("e.g. Amazing Grace");
+    form->addRow("Name:", nameEdit);
+
+    QComboBox* typeCombo = new QComboBox(&dlg);
+    typeCombo->addItems({"Song", "Scripture", "Media", "Text"});
+    if (!type.isEmpty()) typeCombo->setCurrentText(type);
+    form->addRow("Type:", typeCombo);
+
+    QSpinBox* minsSpin = new QSpinBox(&dlg);
+    minsSpin->setRange(0, 240);
+    minsSpin->setSuffix(" min");
+    minsSpin->setValue(mins);
+    form->addRow("Duration:", minsSpin);
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    form->addRow(buttons);
+
+    if (dlg.exec() != QDialog::Accepted) return false;
+
+    name = nameEdit->text().trimmed();
+    type = typeCombo->currentText();
+    mins = minsSpin->value();
+    return !name.isEmpty();
+}
+
+void ServiceBuilderWidget::onAddElement() {
+    QString name, type = "Song";
+    int mins = 4;
+    if (!elementEditorDialog(this, "Add Library Element", name, type, mins)) return;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO service_library (name, type, duration_mins, is_custom) VALUES (?, ?, ?, 1)");
+    q.addBindValue(name);
+    q.addBindValue(type);
+    q.addBindValue(mins);
+    if (q.exec()) {
+        loadLibrary();
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to add element: " + q.lastError().text());
+    }
+}
+
+void ServiceBuilderWidget::onEditElement(QListWidgetItem* item) {
+    if (!item) return;
+    const int libId = item->data(Qt::UserRole + 2).toInt();
+    if (libId <= 0) return;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery fetch(db);
+    fetch.prepare("SELECT name, type, duration_mins FROM service_library WHERE id = ?");
+    fetch.addBindValue(libId);
+    if (!(fetch.exec() && fetch.next())) return;
+
+    QString name = fetch.value(0).toString();
+    QString type = fetch.value(1).toString();
+    int mins = fetch.value(2).toInt();
+    if (!elementEditorDialog(this, "Edit Library Element", name, type, mins)) return;
+
+    QSqlQuery up(db);
+    up.prepare("UPDATE service_library SET name = ?, type = ?, duration_mins = ? WHERE id = ?");
+    up.addBindValue(name);
+    up.addBindValue(type);
+    up.addBindValue(mins);
+    up.addBindValue(libId);
+    if (up.exec()) {
+        loadLibrary();
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to update element: " + up.lastError().text());
+    }
+}
+
+void ServiceBuilderWidget::onRemoveElement() {
+    QListWidgetItem* item = m_libraryList->currentItem();
+    if (!item) {
+        QMessageBox::warning(this, "Notice", "Select a library element to remove.");
+        return;
+    }
+    const int libId = item->data(Qt::UserRole + 2).toInt();
+    if (libId <= 0) return;
+
+    auto res = QMessageBox::question(this, "Remove Element",
+                                     QString("Remove '%1' from the library?").arg(item->text()),
+                                     QMessageBox::Yes | QMessageBox::No);
+    if (res != QMessageBox::Yes) return;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("DELETE FROM service_library WHERE id = ?");
+    q.addBindValue(libId);
+    if (q.exec()) {
+        loadLibrary();
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to remove element: " + q.lastError().text());
     }
 }
 
@@ -276,15 +431,7 @@ void ServiceBuilderWidget::onClearPlaylist() {
     }
 }
 
-void ServiceBuilderWidget::onSaveService() {
-    if (m_playlist->count() == 0) {
-        QMessageBox::warning(this, "No Layout", "The Sunday Run Sheet is empty. Add elements before saving.");
-        return;
-    }
-
-    QString fileName = QFileDialog::getSaveFileName(this, "Save Service Plan", QString(), "JSON Files (*.json)");
-    if (fileName.isEmpty()) return;
-
+QJsonArray ServiceBuilderWidget::playlistToJson() const {
     QJsonArray array;
     for (int i = 0; i < m_playlist->count(); ++i) {
         QListWidgetItem* item = m_playlist->item(i);
@@ -294,8 +441,59 @@ void ServiceBuilderWidget::onSaveService() {
         obj["durationMins"] = item->data(Qt::UserRole + 1).toInt();
         array.append(obj);
     }
+    return array;
+}
 
-    QJsonDocument doc(array);
+void ServiceBuilderWidget::loadPlaylistFromJson(const QJsonArray& array) {
+    m_playlist->clear();
+    for (int i = 0; i < array.size(); ++i) {
+        const QJsonObject obj = array[i].toObject();
+        QListWidgetItem* item = new QListWidgetItem(obj["title"].toString(), m_playlist);
+        item->setData(Qt::UserRole, obj["type"].toString());
+        item->setData(Qt::UserRole + 1, obj["durationMins"].toInt());
+    }
+    updateDurationCalculator(); // apply tints + totals from the loaded data
+}
+
+// Autosaves the run sheet JSON into the services row for the selected date.
+void ServiceBuilderWidget::persistRunSheet() {
+    if (m_readOnly) return;
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?) "
+              "ON CONFLICT(date) DO UPDATE SET run_sheet = excluded.run_sheet");
+    q.addBindValue(m_serviceDateEdit->date().toString("yyyy-MM-dd"));
+    q.addBindValue(QString::fromUtf8(QJsonDocument(playlistToJson()).toJson(QJsonDocument::Compact)));
+    if (!q.exec()) {
+        qWarning() << "Failed to autosave run sheet:" << q.lastError().text();
+    }
+}
+
+void ServiceBuilderWidget::loadRunSheetFromDb(const QDate& date) {
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("SELECT run_sheet FROM services WHERE date = ?");
+    q.addBindValue(date.toString("yyyy-MM-dd"));
+    if (q.exec() && q.next()) {
+        const QJsonDocument doc = QJsonDocument::fromJson(q.value(0).toString().toUtf8());
+        if (doc.isArray()) {
+            loadPlaylistFromJson(doc.array());
+            return;
+        }
+    }
+    m_playlist->clear(); // no saved arrangement for this date
+}
+
+void ServiceBuilderWidget::onSaveService() {
+    if (m_playlist->count() == 0) {
+        QMessageBox::warning(this, "No Layout", "The Sunday Run Sheet is empty. Add elements before saving.");
+        return;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Save Service Plan", QString(), "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QJsonDocument doc(playlistToJson());
     QFile file(fileName);
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
@@ -325,18 +523,7 @@ void ServiceBuilderWidget::onLoadService() {
         return;
     }
 
-    m_playlist->clear();
-    QJsonArray array = doc.array();
-    for (int i = 0; i < array.size(); ++i) {
-        QJsonObject obj = array[i].toObject();
-        QString title = obj["title"].toString();
-        QString type = obj["type"].toString();
-
-        QListWidgetItem* item = new QListWidgetItem(title, m_playlist);
-        item->setData(Qt::UserRole, type);
-        item->setData(Qt::UserRole + 1, obj["durationMins"].toInt());
-    }
-    updateDurationCalculator(); // apply tints + totals from the loaded file
+    loadPlaylistFromJson(doc.array());
 }
 
 void ServiceBuilderWidget::loadVolunteers() {
@@ -379,6 +566,8 @@ void ServiceBuilderWidget::loadServiceDetails() {
         m_serviceTitleEdit->clear();
         m_leaderEdit->clear();
     }
+
+    loadRunSheetFromDb(m_serviceDateEdit->date());
 }
 
 void ServiceBuilderWidget::onSaveServiceDetails() {
@@ -404,6 +593,108 @@ void ServiceBuilderWidget::onSaveServiceDetails() {
     } else {
         QMessageBox::critical(this, "Database Error", "Failed to save service details: " + query.lastError().text());
     }
+}
+
+void ServiceBuilderWidget::onSaveTemplate() {
+    if (m_playlist->count() == 0) {
+        QMessageBox::warning(this, "No Layout", "The run sheet is empty. Add elements before saving a template.");
+        return;
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, "Save as Template",
+                                               "Template name (e.g. Standard Sunday):", QLineEdit::Normal,
+                                               QString(), &ok).trimmed();
+    if (!ok || name.isEmpty()) return;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery exists(db);
+    exists.prepare("SELECT 1 FROM service_templates WHERE name = ?");
+    exists.addBindValue(name);
+    if (exists.exec() && exists.next()) {
+        auto res = QMessageBox::question(this, "Template Exists",
+                                         QString("A template named '%1' already exists. Overwrite it?").arg(name),
+                                         QMessageBox::Yes | QMessageBox::No);
+        if (res != QMessageBox::Yes) return;
+    }
+
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO service_templates (name, run_sheet) VALUES (?, ?) "
+              "ON CONFLICT(name) DO UPDATE SET run_sheet = excluded.run_sheet");
+    q.addBindValue(name);
+    q.addBindValue(QString::fromUtf8(QJsonDocument(playlistToJson()).toJson(QJsonDocument::Compact)));
+    if (q.exec()) {
+        QMessageBox::information(this, "Success", QString("Template '%1' saved.").arg(name));
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to save template: " + q.lastError().text());
+    }
+}
+
+void ServiceBuilderWidget::onApplyTemplate() {
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    if (!q.exec("SELECT name FROM service_templates ORDER BY name")) {
+        QMessageBox::critical(this, "Database Error", "Failed to list templates: " + q.lastError().text());
+        return;
+    }
+
+    QStringList names;
+    while (q.next()) names.append(q.value(0).toString());
+    if (names.isEmpty()) {
+        QMessageBox::information(this, "No Templates", "No saved templates yet. Build a run sheet and use 'Save as Template'.");
+        return;
+    }
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("📋 Apply Run-Sheet Template");
+    dlg.resize(380, 300);
+    auto* lay = new QVBoxLayout(&dlg);
+
+    QListWidget* list = new QListWidget(&dlg);
+    list->addItems(names);
+    lay->addWidget(list, 1);
+
+    QHBoxLayout* btns = new QHBoxLayout();
+    QPushButton* btnApply = new QPushButton("Apply", &dlg);
+    btnApply->setObjectName("primaryBtn");
+    btns->addWidget(btnApply);
+    QPushButton* btnDelete = new QPushButton("Delete Template", &dlg);
+    btnDelete->setObjectName("dangerBtn");
+    btns->addWidget(btnDelete);
+    btns->addStretch();
+    QPushButton* btnClose = new QPushButton("Close", &dlg);
+    btnClose->setObjectName("secondaryBtn");
+    btns->addWidget(btnClose);
+    lay->addLayout(btns);
+
+    connect(btnClose, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+    // Apply: load the template's run sheet into the current date (autosaves).
+    connect(btnApply, &QPushButton::clicked, &dlg, [&]() {
+        QListWidgetItem* item = list->currentItem();
+        if (!item) return;
+        QSqlQuery fetch(db);
+        fetch.prepare("SELECT run_sheet FROM service_templates WHERE name = ?");
+        fetch.addBindValue(item->text());
+        if (fetch.exec() && fetch.next()) {
+            const QJsonDocument doc = QJsonDocument::fromJson(fetch.value(0).toString().toUtf8());
+            if (doc.isArray()) loadPlaylistFromJson(doc.array());
+            dlg.accept();
+        }
+    });
+
+    // Delete: remove the selected template and refresh the list.
+    connect(btnDelete, &QPushButton::clicked, &dlg, [&]() {
+        QListWidgetItem* item = list->currentItem();
+        if (!item) return;
+        QSqlQuery del(db);
+        del.prepare("DELETE FROM service_templates WHERE name = ?");
+        del.addBindValue(item->text());
+        if (del.exec()) {
+            delete list->takeItem(list->row(item));
+        }
+    });
+
+    dlg.exec();
 }
 
 void ServiceBuilderWidget::onServiceDateChanged(const QDate& date) {
