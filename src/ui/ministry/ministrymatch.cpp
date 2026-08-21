@@ -57,6 +57,117 @@ GroupMatchProfile MinistryRecommender::groupMatchProfile(const QSqlDatabase& db,
     return profile;
 }
 
+QStringList MinistryRecommender::roleSkills(const QString& role) {
+    const QString r = role.toLower();
+    if (r.contains("preach")) return {"teaching", "preaching", "speaking"};
+    if (r.contains("worship")) return {"worship", "leadership", "vocals", "singing"};
+    if (r.contains("acoustic")) return {"guitar", "acoustic guitar", "acoustic"};
+    if (r.contains("electric")) return {"guitar", "electric guitar", "electric"};
+    if (r.contains("vocal") || r.contains("sing")) return {"vocals", "singing", "vocalist"};
+    if (r.contains("bass")) return {"bass", "bass guitar"};
+    if (r.contains("drum")) return {"drums", "drum", "percussion"};
+    if (r.contains("nursery") || r.contains("child")) return {"nursery", "childcare", "children", "kids"};
+    if (r.contains("audio") || r.contains("sound")) return {"audio", "sound", "sound engineering"};
+    if (r.contains("slide") || r.contains("media") || r.contains("present")) return {"slides", "media", "presentation"};
+    if (r.contains("ush")) return {"usher", "greeting", "hospitality", "welcoming"};
+    return {};
+}
+
+QList<MatchResult> MinistryRecommender::rankByRole(const QSqlDatabase& db, const QString& role) {
+    QList<MatchResult> out;
+    const QStringList roleSkillsList = MinistryRecommender::roleSkills(role);
+    if (roleSkillsList.isEmpty()) return out;
+
+    QSet<QString> wanted;
+    for (const QString& s : roleSkillsList) wanted.insert(s.toLower());
+
+    // Team load (groups served in).
+    QMap<int, int> groupCount;
+    {
+        QSqlQuery q(db);
+        if (q.exec("SELECT source_id, COUNT(*) FROM entity_relationships "
+                   "WHERE source_type = 'Person' AND target_type = 'Group' GROUP BY source_id")) {
+            while (q.next()) groupCount.insert(q.value(0).toInt(), q.value(1).toInt());
+        }
+    }
+
+    // Recent service frequency (last 30 days).
+    QMap<int, int> recentServes;
+    {
+        QSqlQuery q(db);
+        if (q.exec("SELECT person_id, COUNT(*) FROM service_volunteers "
+                   "WHERE service_date >= date('now', '-30 days') GROUP BY person_id")) {
+            while (q.next()) recentServes.insert(q.value(0).toInt(), q.value(1).toInt());
+        }
+    }
+
+    // Engagement (90-day attendance).
+    QMap<int, int> attendance90;
+    {
+        QSqlQuery q(db);
+        if (q.exec("SELECT person_id, COUNT(*) FROM attendance "
+                   "WHERE attended = 1 AND timestamp >= datetime('now', '-90 days') "
+                   "GROUP BY person_id")) {
+            while (q.next()) attendance90.insert(q.value(0).toInt(), q.value(1).toInt());
+        }
+    }
+
+    // Person skills.
+    QMap<int, QStringList> personSkills;
+    {
+        QSqlQuery q(db);
+        if (q.exec("SELECT person_id, skill_or_role FROM member_skills")) {
+            while (q.next()) personSkills[q.value(0).toInt()].append(q.value(1).toString());
+        }
+    }
+
+    QSqlQuery q(db);
+    q.prepare("SELECT id, first_name, last_name FROM people ORDER BY last_name, first_name");
+    if (!q.exec()) return out;
+
+    while (q.next()) {
+        const int pid = q.value(0).toInt();
+        MatchResult r;
+        r.personId = pid;
+        r.name = QString("%1 %2").arg(q.value(1).toString(), q.value(2).toString());
+
+        QStringList matched;
+        for (const QString& s : personSkills.value(pid)) {
+            if (wanted.contains(s.toLower())) matched << s;
+        }
+
+        int raw = 0;
+        if (!matched.isEmpty()) {
+            raw += 40; // skill match dominates
+            r.reasons << "Skills: " + matched.join(", ");
+        }
+        const int load = groupCount.value(pid, 0);
+        if (load > 0) {
+            raw -= qMin(15, load * 5);
+            r.reasons << QString("%1 team(s)").arg(load);
+        }
+        const int serves = recentServes.value(pid, 0);
+        if (serves > 0) {
+            raw -= qMin(15, serves * 5);
+            r.reasons << QString("Served %1x (30d)").arg(serves);
+        }
+        const int att = attendance90.value(pid, 0);
+        if (att >= 3) {
+            raw += 10;
+            r.reasons << QString("Attended %1x (90d)").arg(att);
+        }
+
+        r.score = qBound(0, qRound(raw * 100.0 / 50.0), 100);
+        out.append(r);
+    }
+
+    std::sort(out.begin(), out.end(), [](const MatchResult& a, const MatchResult& b) {
+        if (a.score != b.score) return a.score > b.score;
+        return a.name < b.name;
+    });
+    return out;
+}
+
 QList<MatchResult> MinistryRecommender::recommend(const QSqlDatabase& db, int groupId, const MatchCriteria& criteria) {
     QList<MatchResult> out;
 

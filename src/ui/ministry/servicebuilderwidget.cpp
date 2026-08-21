@@ -16,6 +16,7 @@
 #include <QPdfWriter>
 #include <QTextDocument>
 #include "../database/databasemanager.h"
+#include "ministrymatch.h"
 
 ServiceBuilderWidget::ServiceBuilderWidget(QWidget *parent)
     : QWidget(parent)
@@ -439,39 +440,59 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
     QFormLayout* layout = new QFormLayout(&dlg);
     layout->setSpacing(12);
 
-    QComboBox* personCombo = new QComboBox(&dlg);
     QSqlDatabase db = DatabaseManager::instance().database();
-    
-    // Fetch volunteers with smart burnout indicators (# of active groups & recent service count)
-    QSqlQuery qPeople(
-        "SELECT p.id, p.first_name || ' ' || p.last_name, "
-        "       (SELECT COUNT(*) FROM entity_relationships er WHERE er.source_type = 'Person' AND er.source_id = p.id AND er.target_type = 'Group') AS group_count, "
-        "       (SELECT COUNT(*) FROM service_volunteers sv WHERE sv.person_id = p.id AND sv.service_date >= date('now', '-30 days')) AS recent_serves "
-        "FROM people p ORDER BY last_name, first_name", db);
-    
-    while (qPeople.next()) {
-        int pid = qPeople.value(0).toInt();
-        QString name = qPeople.value(1).toString();
-        int groupCount = qPeople.value(2).toInt();
-        int recentServes = qPeople.value(3).toInt();
-
-        QString tag = name;
-        if (recentServes >= 3) {
-            tag += QString(" ⚠️ (Served %1x past 30 days)").arg(recentServes);
-        } else if (groupCount >= 3) {
-            tag += QString(" ⚡ (In %1 active teams)").arg(groupCount);
-        } else {
-            tag += " ⭐ (Available)";
-        }
-        personCombo->addItem(tag, pid);
-    }
-    layout->addRow("Select Volunteer:", personCombo);
 
     QComboBox* roleCombo = new QComboBox(&dlg);
     roleCombo->addItems({"Preacher", "Worship Leader", "Acoustic Guitar", "Electric Guitar", "Vocalist", "Bass Guitar", "Drums", "Nursery Care", "Audio Engineer", "Slide Operator", "Usher"});
     layout->addRow("Assign Role:", roleCombo);
 
-    QLabel* smartHint = new QLabel("🤖 Smart Suggestions: ⭐ Highly Available | ⚡ Active Teams | ⚠️ High Frequency Warning", &dlg);
+    QComboBox* personCombo = new QComboBox(&dlg);
+
+    // Rank candidates for the selected role: skill fit dominates, team load
+    // and recent service frequency are penalized (burnout guard). Falls back
+    // to the plain alphabetical list with availability tags for roles the
+    // ranker does not recognize.
+    auto populatePeople = [&]() {
+        const QString role = roleCombo->currentText();
+        personCombo->clear();
+
+        const QList<MatchResult> ranked = MinistryRecommender::rankByRole(db, role);
+        if (ranked.isEmpty()) {
+            QSqlQuery qPeople(
+                "SELECT p.id, p.first_name || ' ' || p.last_name, "
+                "       (SELECT COUNT(*) FROM entity_relationships er WHERE er.source_type = 'Person' AND er.source_id = p.id AND er.target_type = 'Group') AS group_count, "
+                "       (SELECT COUNT(*) FROM service_volunteers sv WHERE sv.person_id = p.id AND sv.service_date >= date('now', '-30 days')) AS recent_serves "
+                "FROM people p ORDER BY last_name, first_name", db);
+            while (qPeople.next()) {
+                int pid = qPeople.value(0).toInt();
+                QString name = qPeople.value(1).toString();
+                int groupCount = qPeople.value(2).toInt();
+                int recentServes = qPeople.value(3).toInt();
+
+                QString tag = name;
+                if (recentServes >= 3) {
+                    tag += QString(" ⚠️ (Served %1x past 30 days)").arg(recentServes);
+                } else if (groupCount >= 3) {
+                    tag += QString(" ⚡ (In %1 active teams)").arg(groupCount);
+                } else {
+                    tag += " ⭐ (Available)";
+                }
+                personCombo->addItem(tag, pid);
+            }
+            return;
+        }
+
+        for (const MatchResult& r : ranked) {
+            QString label = QString("%1  🎯 %2%").arg(r.name).arg(r.score);
+            if (!r.reasons.isEmpty()) label += "  · " + r.reasons.join(" · ");
+            personCombo->addItem(label, r.personId);
+        }
+    };
+    connect(roleCombo, &QComboBox::currentIndexChanged, &dlg, [&](int) { populatePeople(); });
+    populatePeople();
+    layout->addRow("Select Volunteer:", personCombo);
+
+    QLabel* smartHint = new QLabel("🤖 Smart Suggestions: ranked by skill fit (🎯 match %), penalized for team load and repeated service — best fit first.", &dlg);
     smartHint->setWordWrap(true);
     smartHint->setStyleSheet("font-size: 11px; color: #a6adc8;");
     layout->addRow(smartHint);

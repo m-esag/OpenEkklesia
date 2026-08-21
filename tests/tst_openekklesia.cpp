@@ -745,6 +745,74 @@ bool test_serviceBuilderRoleAndDuration() {
     return true;
 }
 
+bool test_ministryMatchRankByRole() {
+    QSqlDatabase d = db();
+    CHECK(d.transaction());
+
+    auto insertPerson = [&](const QString& name, const QString& skill) -> int {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO people (first_name, last_name, membership_status) VALUES (?, 'RankT', 'Member')");
+        ins.addBindValue(name);
+        CHECK(ins.exec());
+        const int pid = ins.lastInsertId().toInt();
+        if (!skill.isEmpty()) {
+            QSqlQuery sk(d);
+            sk.prepare("INSERT INTO member_skills (person_id, skill_or_role) VALUES (?, ?)");
+            sk.addBindValue(pid);
+            sk.addBindValue(skill);
+            CHECK(sk.exec());
+        }
+        return pid;
+    };
+
+    const int guitarist = insertPerson("AceGuitar", "guitar");       // perfect skill fit, no load
+    const int busyGuitarist = insertPerson("BusyGuitar", "guitar");  // skill fit but overloaded
+    const int vocalist = insertPerson("Singer", "vocals");           // wrong skill for this role
+
+    // Load up the busy guitarist: 4 teams + served 3x in the last 30 days.
+    for (int g = 9001; g <= 9004; ++g) {
+        QSqlQuery rel(d);
+        rel.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                    "VALUES ('Person', ?, 'Group', ?, 'Member')");
+        rel.addBindValue(busyGuitarist);
+        rel.addBindValue(g);
+        CHECK(rel.exec());
+    }
+    for (int i = 0; i < 3; ++i) {
+        QSqlQuery sv(d);
+        sv.prepare("INSERT INTO service_volunteers (service_date, person_id, role) VALUES (date('now'), ?, 'Drums')");
+        sv.addBindValue(busyGuitarist);
+        CHECK(sv.exec());
+    }
+
+    // Unknown role -> no smart ranking (falls back to the plain list).
+    CHECK(MinistryRecommender::rankByRole(d, "Coffee Maker").isEmpty());
+
+    const QList<MatchResult> ranked = MinistryRecommender::rankByRole(d, "Acoustic Guitar");
+    CHECK_EQ(ranked.size(), 3);
+    if (ranked.size() == 3) {
+        CHECK_EQ(ranked[0].personId, guitarist);       // skill + no load -> top
+        CHECK_EQ(ranked[1].personId, busyGuitarist);   // skill but penalized
+        CHECK_EQ(ranked[2].personId, vocalist);        // no matching skill
+        CHECK(ranked[0].score > ranked[1].score);
+        CHECK(ranked[1].score > ranked[2].score);
+        CHECK(ranked[0].score >= 70);                  // dominant skill fit
+        CHECK(ranked[2].score <= 30);                  // no skill fit
+    }
+
+    // Case-insensitive skill mapping: "Guitar" matches "Acoustic Guitar".
+    insertPerson("CapsGuitar", "Guitar"); // insertPerson already records the skill
+    const QList<MatchResult> caps = MinistryRecommender::rankByRole(d, "Acoustic Guitar");
+    bool sawCaps = false;
+    for (const MatchResult& r : caps) {
+        if (r.name.startsWith("CapsGuitar")) sawCaps = (r.score >= 70);
+    }
+    CHECK(sawCaps);
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -781,6 +849,7 @@ int main(int argc, char** argv) {
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
+        {"ministry_match_rank_by_role", test_ministryMatchRankByRole},
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},

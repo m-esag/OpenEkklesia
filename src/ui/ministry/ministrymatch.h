@@ -58,6 +58,15 @@ public:
     // Full match profile: declared skills/age band win over inference.
     static GroupMatchProfile groupMatchProfile(const QSqlDatabase& db, int groupId);
 
+    // Skills that qualify a person for a given serving role (case-insensitive
+    // mapping, e.g. "Acoustic Guitar" -> guitar skills).
+    static QStringList roleSkills(const QString& role);
+
+    // Rank all people by fit for a serving role: skill match weighted
+    // highest, engagement boosted, team load and recent service frequency
+    // penalized (burnout guard). Empty when the role is unrecognized.
+    static QList<MatchResult> rankByRole(const QSqlDatabase& db, const QString& role);
+
     // Ranked candidates for one group per criteria. People already in the
     // group (any role) are always excluded. Sorted by score descending.
     static QList<MatchResult> recommend(const QSqlDatabase& db, int groupId, const MatchCriteria& criteria);
