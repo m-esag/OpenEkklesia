@@ -19,6 +19,7 @@
 #include <QCompleter>
 #include <QCache>
 #include <QMouseEvent>
+#include <QStackedWidget>
 
 // Custom Clickable Avatar Label with Camera Overlay on Hover
 class ClickableAvatarLabel : public QLabel {
@@ -130,6 +131,9 @@ private:
     // Clears a person's child records then deletes the person (FK-safe).
     // Caller owns the transaction. Returns true on success.
     bool deletePersonCascade(QSqlQuery& q, int personId);
+    void updateGivingSummary(int personId);
+    void setDirty(bool dirty);
+    void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 
     // Left Panel (Master)
     QLineEdit* m_searchEdit;
@@ -145,8 +149,28 @@ private:
     // Status filter row
     QButtonGroup* m_statusFilterGroup;
 
-    // Right Panel (Detail)
+    // Right Panel (Detail - 360° Dossier)
+    QWidget* m_emptyStateWidget;
+    QWidget* m_dossierContainer;
+
+    // Pinned Header
+    QWidget* m_headerWidget;
     ClickableAvatarLabel* m_avatarLabel;
+    QLabel* m_lblHeaderName;
+    QLabel* m_lblHeaderSub;
+    QLabel* m_lblHeaderStatusBadge;
+    QLabel* m_lblHeaderCareBadge;
+
+    // Navigation Rail & Stack
+    QWidget* m_navRail;
+    QPushButton* m_btnNavIdentity;
+    QPushButton* m_btnNavPastoral;
+    QPushButton* m_btnNavGroups;
+    QPushButton* m_btnNavGiving;
+    QPushButton* m_btnNavMinistry;
+    QStackedWidget* m_detailStack;
+
+    // Tab 0: Identity & Family
     QLineEdit* m_firstNameEdit;
     QLineEdit* m_lastNameEdit;
     QComboBox* m_householdCombo;
@@ -158,10 +182,24 @@ private:
     QComboBox* m_statusCombo;
     QDateEdit* m_firstVisitEdit;
     QDateEdit* m_joinDateEdit;
+
+    // Tab 1: Pastoral Care & History
     QComboBox* m_careFlagCombo;
     QTextEdit* m_adminNotesText;
+    QPushButton* m_btnLogCare;
+    QListWidget* m_historyList;
 
-    // Ministry Profile Chips & Tags
+    // Tab 2: Groups & Connections
+    QListWidget* m_connectionsList;
+
+    // Tab 3: Giving & Stewardship
+    QLabel* m_lblGivingYTD;
+    QLabel* m_lblGivingCount;
+    QLabel* m_lblGivingLastDate;
+    QListWidget* m_lstRecentGiving;
+    QPushButton* m_btnGenerateStatement;
+
+    // Tab 4: Ministry Profile Chips & Tags
     QLineEdit* m_giftsEdit;
     QList<QPushButton*> m_giftChips;
     QLineEdit* m_styleEdit;
@@ -171,14 +209,15 @@ private:
     QLineEdit* m_tagInputField;
     QCompleter* m_tagCompleter;
 
-    QLineEdit* m_avatarPathEdit;
+    // Sticky Action Footer
+    QWidget* m_footerFrame;
+    QLabel* m_lblDirtyIndicator;
     QPushButton* m_btnSave;
     QPushButton* m_btnDeletePerson;
-    QPushButton* m_btnLogCare;
-    QListWidget* m_connectionsList;
-    QListWidget* m_historyList;
+    QLineEdit* m_avatarPathEdit;
 
     int m_currentPersonId = 0;
+    bool m_isDirty = false;
 
     // Models & Mapping
     QSqlRelationalTableModel* m_peopleModel;
