@@ -24,6 +24,7 @@
 #include "../src/database/datasharing.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/ministrymatch.h"
+#include "../src/ui/ministry/servicebuilderwidget.h"
 #include "../src/ui/ministry/shepherdwidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
@@ -694,6 +695,56 @@ bool test_shepherdQuickActionsAndPastoralSync() {
     return true;
 }
 
+bool test_serviceBuilderRoleAndDuration() {
+    ServiceBuilderWidget sb;
+
+    // Default (admin) role: mutating controls are enabled.
+    bool saveEnabled = false, exportEnabled = false;
+    for (QPushButton* b : sb.findChildren<QPushButton*>()) {
+        if (b->text() == "Save Layout") saveEnabled = b->isEnabled();
+        if (b->text().contains("Export Run Sheet PDF")) exportEnabled = b->isEnabled();
+    }
+    CHECK(saveEnabled);
+    CHECK(exportEnabled);
+
+    // Guest (read-only): writes disabled, read-only actions stay enabled.
+    sb.applyRole("readonly");
+    for (QPushButton* b : sb.findChildren<QPushButton*>()) {
+        if (b->text() == "Save Layout" || b->text() == "Assign Volunteer"
+            || b->text() == "Unassign" || b->text().contains("Save Service Details")) {
+            CHECK(!b->isEnabled());
+        }
+        if (b->text().contains("Export Run Sheet PDF") || b->text() == "Load Layout") {
+            CHECK(b->isEnabled());
+        }
+    }
+
+    // Restore admin: controls re-enable.
+    sb.applyRole("admin");
+    for (QPushButton* b : sb.findChildren<QPushButton*>()) {
+        if (b->text() == "Save Layout") CHECK(b->isEnabled());
+    }
+
+    // Duration calculator: library items carry real durations; dropping one
+    // into the playlist (simulated by cloning) updates the total.
+    QListWidget* library = sb.findChild<QListWidget*>("serviceLibraryList");
+    QListWidget* playlist = sb.findChild<QListWidget*>("servicePlaylist");
+    CHECK(library && playlist);
+    if (library && playlist) {
+        CHECK_EQ(library->count(), 15);
+        CHECK_EQ(playlist->count(), 0);
+        const int firstMins = library->item(0)->data(Qt::UserRole + 1).toInt();
+        CHECK_EQ(firstMins, 4); // Amazing Grace
+        playlist->addItem(library->item(0)->clone());
+        QLabel* dur = sb.findChild<QLabel*>("serviceDurationLabel");
+        CHECK(dur);
+        if (dur) {
+            CHECK(dur->text().contains("4 mins"));
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -730,6 +781,7 @@ int main(int argc, char** argv) {
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
+        {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
     };

@@ -16,6 +16,10 @@ public:
     explicit ServiceBuilderWidget(QWidget *parent = nullptr);
     ~ServiceBuilderWidget();
 
+    // Role-gated editing: readonly (Guest) can view and export but cannot
+    // modify the run sheet, volunteers, or service details.
+    void applyRole(const QString& role);
+
 private slots:
     void onSaveService();
     void onLoadService();
@@ -54,6 +58,8 @@ private:
     QLineEdit* m_serviceTitleEdit;
     QLineEdit* m_leaderEdit;
     QPushButton* m_btnSaveServiceDetails;
+
+    bool m_readOnly = false;
 };
 
 #endif // SERVICEBUILDERWIDGET_H
