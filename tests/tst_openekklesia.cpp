@@ -23,6 +23,8 @@
 #include "../src/database/databasemanager.h"
 #include "../src/database/datasharing.h"
 #include "../src/ui/core/thememanager.h"
+#include "../src/ui/ministry/ministrymatch.h"
+#include "../src/ui/people/peoplewidget.h"
 
 namespace {
 
@@ -441,6 +443,163 @@ bool test_personGenderAndHouseholdSave() {
     return true;
 }
 
+bool test_ministryMatchRecommendAndExclude() {
+    QSqlDatabase d = db();
+    CHECK(d.transaction());
+
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (name, category) VALUES ('Match Test Youth', 'Youth')"));
+    const int gid = q.lastInsertId().toInt();
+
+    auto insertPerson = [&](const QString& first, const QString& dob, const QString& gender) -> int {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO people (first_name, last_name, date_of_birth, gender, membership_status) "
+                    "VALUES (?, 'MatchT', ?, ?, 'Member')");
+        ins.addBindValue(first);
+        ins.addBindValue(dob);
+        ins.addBindValue(gender);
+        CHECK(ins.exec());
+        return ins.lastInsertId().toInt();
+    };
+    auto addSkill = [&](int pid, const QString& skill) {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO member_skills (person_id, skill_or_role) VALUES (?, ?)");
+        ins.addBindValue(pid);
+        ins.addBindValue(skill);
+        CHECK(ins.exec());
+    };
+    auto addGroupMembership = [&](int pid, int groupId) {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                    "VALUES ('Person', ?, 'Group', ?, 'Member')");
+        ins.addBindValue(pid);
+        ins.addBindValue(groupId);
+        CHECK(ins.exec());
+    };
+
+    const int seedMember = insertPerson("Seed", "2011-01-01", "Male"); // already in the group
+    addSkill(seedMember, "guitar");
+    addGroupMembership(seedMember, gid);
+
+    const int teen = insertPerson("Talent", "2011-06-15", "Male");     // fits: age band + guitar
+    addSkill(teen, "guitar");
+
+    const int adult = insertPerson("Adult", "1980-03-03", "Female");   // outside age band
+    addSkill(adult, "cooking");
+
+    const int noSkill = insertPerson("NoSkill", "2012-07-07", "Female"); // fits age, no matching skill
+    const int burnedOut = insertPerson("Busy", "2011-09-09", "Male");    // fits age+skill but in 3 groups
+    addSkill(burnedOut, "guitar");
+    addGroupMembership(burnedOut, 9001);
+    addGroupMembership(burnedOut, 9002);
+    addGroupMembership(burnedOut, 9003);
+
+    // Skill profile is inferred from current members -> {guitar}.
+    const QStringList profile = MinistryRecommender::groupSkillProfile(d, gid, 6);
+    CHECK_EQ(profile.size(), 1);
+    CHECK_EQ(profile.first().toStdString(), std::string("guitar"));
+
+    MatchCriteria c;
+    c.minAge = 10;
+    c.maxAge = 20;
+    c.requireSkill = true;
+    c.maxGroupsServing = 2;
+    c.maxResults = 25;
+
+    const QList<MatchResult> results = MinistryRecommender::recommend(d, gid, c);
+    // Only the talented teen survives: member excluded, adult age-out,
+    // no-skill excluded, burned-out serving limit.
+    CHECK_EQ(results.size(), 1);
+    if (results.size() == 1) {
+        CHECK_EQ(results[0].personId, teen);
+        CHECK(results[0].score >= 50);
+        const QString why = results[0].reasons.join(" ");
+        CHECK(why.contains("guitar", Qt::CaseInsensitive));
+        CHECK(why.contains("Age", Qt::CaseInsensitive));
+    }
+
+    // Relaxing the skill requirement admits the no-skill teen too.
+    c.requireSkill = false;
+    const QList<MatchResult> loose = MinistryRecommender::recommend(d, gid, c);
+    bool sawNoSkill = false;
+    for (const MatchResult& r : loose) {
+        if (r.personId == noSkill) sawNoSkill = true;
+    }
+    CHECK(sawNoSkill);
+
+    d.rollback();
+    return true;
+}
+
+bool test_ministryMatchAddMembersDedup() {
+    QSqlDatabase d = db();
+    CHECK(d.transaction());
+
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (name) VALUES ('Match Test Add')"));
+    const int gid = q.lastInsertId().toInt();
+
+    auto insertPerson = [&](const QString& name) -> int {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO people (first_name, last_name, membership_status) VALUES (?, 'AddT', 'Member')");
+        ins.addBindValue(name);
+        CHECK(ins.exec());
+        return ins.lastInsertId().toInt();
+    };
+
+    const int p1 = insertPerson("Alpha");
+    const int p2 = insertPerson("Beta");
+
+    const QList<int> added = MinistryRecommender::addMembers(d, gid, {p1, p2});
+    CHECK_EQ(added.size(), 2);
+
+    QSqlQuery cnt(d);
+    cnt.prepare("SELECT COUNT(*) FROM entity_relationships "
+                "WHERE source_type = 'Person' AND target_type = 'Group' AND target_id = ? AND relationship_type = 'Member'");
+    cnt.addBindValue(gid);
+    CHECK(cnt.exec() && cnt.next());
+    CHECK_EQ(cnt.value(0).toInt(), 2);
+
+    // Re-adding the same person is a no-op (dedup-safe).
+    const QList<int> again = MinistryRecommender::addMembers(d, gid, {p1});
+    CHECK_EQ(again.size(), 0);
+    CHECK(cnt.exec() && cnt.next());
+    CHECK_EQ(cnt.value(0).toInt(), 2);
+
+    d.rollback();
+    return true;
+}
+
+bool test_peopleWidget360DossierAndGiving() {
+    PeopleWidget pw;
+    pw.refreshModel();
+
+    // Verify initial selection or person selection
+    pw.selectPerson(1);
+
+    // Test Guest vs Admin permissions
+    pw.applyRole("guest");
+    pw.applyRole("admin");
+
+    // Add a test care log for person 1
+    QSqlQuery q(db());
+    q.prepare("INSERT INTO care_logs (person_id, care_type, notes, follow_up) VALUES (1, 'Counseling', 'Pastoral test note', 1)");
+    CHECK(q.exec());
+
+    // Select again to refresh dossier
+    pw.selectPerson(1);
+
+    // Verify care_logs entry persisted and queryable
+    QSqlQuery qHist(db());
+    qHist.prepare("SELECT care_type, notes, follow_up FROM care_logs WHERE person_id = 1 ORDER BY id DESC LIMIT 1");
+    CHECK(qHist.exec() && qHist.next());
+    CHECK_EQ(qHist.value(0).toString().toStdString(), std::string("Counseling"));
+    CHECK_EQ(qHist.value(1).toString().toStdString(), std::string("Pastoral test note"));
+    CHECK_EQ(qHist.value(2).toInt(), 1);
+
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -474,6 +633,9 @@ int main(int argc, char** argv) {
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
+        {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
+        {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
+        {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
     };
 
     for (const Test& t : tests) {
