@@ -251,6 +251,9 @@ void PlanningCenterDialog::onStartImport() {
                         m_txtLog->append(QString("Received %1 donations from API.").arg(dData.size()));
                         PcoImportSummary sum = m_client.importGivingData(fData, dData);
                         m_txtLog->append(QString("✅ Synced %1 funds and %2 donations into Contributions.").arg(sum.fundsCount).arg(sum.donationsCount));
+                        if (sum.donationsSkipped > 0) {
+                            m_txtLog->append(QString("⏭ Skipped %1 donations (already imported or unmatched donor — see warnings above).").arg(sum.donationsSkipped));
+                        }
                         for (const QString& e : sum.errors) m_txtLog->append(QString("⚠️ %1").arg(e));
                     } else {
                         m_txtLog->append(QString("⚠️ Could not fetch donations: %1").arg(dErr));

@@ -1,6 +1,7 @@
 #ifndef GRAPHWIDGET_H
 #define GRAPHWIDGET_H
 
+#include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
@@ -10,6 +11,8 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QGraphicsSceneHoverEvent>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneContextMenuEvent>
 #include <QColor>
 #include <QSet>
 #include <QComboBox>
@@ -19,10 +22,13 @@
 #include <QListWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QSplitter>
+#include <QStackedWidget>
 #include "thememanager.h"
 
 class NodeItem;
 class EdgeItem;
+class GraphWidget;
 
 class NodeItem : public QGraphicsItem {
 public:
@@ -54,7 +60,6 @@ public:
 
     void setConnectionCount(int count) { m_connectionCount = count; }
     int connectionCount() const { return m_connectionCount; }
-    // Group hubs render larger (and scale with member count) so ministry size reads at a glance.
     double radius() const { return (m_type == Group) ? 30.0 + (m_connectionCount * 1.5) : 20.0 + (m_connectionCount * 1.5); }
 
     void setCategoryColor(const QColor& c) { m_categoryColor = c; QGraphicsItem::update(); }
@@ -78,6 +83,10 @@ public:
     QString servingRole() const { return m_servingRole; }
     QString lastServedDate() const { return m_lastServedDate; }
 
+    bool isHygieneComplete() const { return !m_phone.trimmed().isEmpty() && !m_email.trimmed().isEmpty(); }
+    bool isHygieneWarning() const { return (!m_phone.trimmed().isEmpty() && m_email.trimmed().isEmpty()) || (m_phone.trimmed().isEmpty() && !m_email.trimmed().isEmpty()); }
+    bool isHygieneCritical() const { return m_phone.trimmed().isEmpty() && m_email.trimmed().isEmpty(); }
+
     enum HealthStatus { HealthNormal, FullyStaffed, Understaffed, CriticalShortage };
     void setHealthStatus(HealthStatus hs) { m_healthStatus = hs; QGraphicsItem::update(); }
     HealthStatus healthStatus() const { return m_healthStatus; }
@@ -90,6 +99,7 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
 
     void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
@@ -120,29 +130,56 @@ private:
 
 class EdgeItem : public QGraphicsItem {
 public:
-    EdgeItem(NodeItem* source, NodeItem* target, const QString& relType, bool isBurnoutLink = false);
+    EdgeItem(NodeItem* source, NodeItem* target, const QString& relType, int relId = 0, bool isBurnoutLink = false);
 
     NodeItem* sourceNode() const { return m_source; }
     NodeItem* targetNode() const { return m_target; }
     QString relationshipType() const { return m_relType; }
+    void setRelationshipType(const QString& rt) { m_relType = rt; update(); }
+    int relationshipId() const { return m_relId; }
+    void setRelationshipId(int id) { m_relId = id; }
     bool isBurnoutLink() const { return m_isBurnoutLink; }
 
     QRectF boundingRect() const override;
+    QPainterPath shape() const override; // 12px wide hitbox buffer for easy clicking!
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+    void setSelectedState(bool sel) { m_isSelected = sel; update(); }
+    bool isSelectedState() const { return m_isSelected; }
 
 protected:
     void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
     NodeItem* m_source;
     NodeItem* m_target;
     QString m_relType;
+    int m_relId;
     bool m_isBurnoutLink;
     bool m_isHovered;
+    bool m_isSelected;
 };
 
-class GraphWidget : public QGraphicsView {
+class GraphCanvasView : public QGraphicsView {
+    Q_OBJECT
+public:
+    explicit GraphCanvasView(QGraphicsScene* scene, QWidget* parent = nullptr);
+    void setGraphWidget(GraphWidget* gw) { m_graphWidget = gw; }
+
+protected:
+    void wheelEvent(QWheelEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void drawBackground(QPainter* painter, const QRectF& rect) override;
+    void drawForeground(QPainter* painter, const QRectF& rect) override;
+    void resizeEvent(QResizeEvent* event) override;
+
+private:
+    GraphWidget* m_graphWidget = nullptr;
+};
+
+class GraphWidget : public QWidget {
     Q_OBJECT
 
 signals:
@@ -164,6 +201,7 @@ public:
 
     void handleNodeClick(NodeItem* node);
     void selectNodeForDetails(NodeItem* node);
+    void selectEdgeForDetails(EdgeItem* edge);
     void showNodeContextMenu(NodeItem* node, const QPoint& globalPos);
     void applyRole(const QString& role);
     void applyTheme(const ThemeTokens& tokens);
@@ -171,6 +209,11 @@ public:
     void focusAndSelectNode(NodeItem* node);
     void spotlightIsolatedNodes();
     void spotlightBurnoutNodes();
+    void spotlightHygieneNodes();
+
+    bool isHygieneActive() const { return m_filterHygieneActive; }
+    QGraphicsScene* scene() const { return m_scene; }
+    GraphCanvasView* canvasView() const { return m_canvasView; }
 
 private slots:
     void updatePhysics();
@@ -189,15 +232,16 @@ private slots:
     void onToggleLegend();
     void onToggleLayoutMode();
     void onSpotlightIsolatedClicked();
+    void onToggleDataHygiene();
+    void onToggleCollapseDock();
+    void onSeverSelectedEdge();
+    void onEdgeRoleChanged(int index);
+    void onRosterItemClicked(QListWidgetItem* item);
+    void onCopyContactInfo(NodeItem* node, const QString& type);
+    void onQuickAssignGroup(NodeItem* node);
 
 protected:
-    void wheelEvent(QWheelEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
     void showEvent(QShowEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
-
-private:
-    QWidget* m_topBarWidget;
 
 private:
     void setupUI();
@@ -209,19 +253,33 @@ private:
     void saveNodePositions();
     void loadNodePositions();
     void styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor);
+    void updateDetailsPanelForEmpty();
 
+    QSplitter* m_splitter;
+    GraphCanvasView* m_canvasView;
     QGraphicsScene* m_scene;
     QTimer* m_timer;
     QList<NodeItem*> m_nodes;
     QList<EdgeItem*> m_edges;
 
-    // Filter Buttons (Toggle Pills)
+    // Top Controls
+    QWidget* m_topBarWidget;
     QPushButton* m_btnTogglePeople;
     QPushButton* m_btnToggleHouseholds;
     QPushButton* m_btnToggleGroups;
     QPushButton* m_btnToggleBurnout;
     QPushButton* m_btnToggleIsolation;
+    QPushButton* m_btnToggleHygiene;
     QPushButton* m_btnToggleLayout;
+    QPushButton* m_btnIsolatedBanner;
+    QPushButton* m_btnLegendToggle;
+    QLineEdit* m_graphSearchEdit;
+    QPushButton* m_btnPathfind;
+    QPushButton* m_btnClearPath;
+    QLabel* m_lblPathStatus;
+    QPushButton* m_btnRunAudit;
+    QPushButton* m_btnExportPNG;
+    QPushButton* m_btnExportJSON;
 
     // Filter States
     bool m_filterPeopleActive;
@@ -229,27 +287,13 @@ private:
     bool m_filterGroupsActive;
     bool m_filterBurnoutActive;
     bool m_filterIsolationActive;
+    bool m_filterHygieneActive;
     LayoutMode m_layoutMode;
 
-    // Persistent Banner Badge for Unconnected Members
-    QPushButton* m_btnIsolatedBanner;
-
-    // Collapsible Legend Overlay Widget
+    // Collapsible Legend & Minimap
     QWidget* m_legendOverlay;
-    QPushButton* m_btnLegendToggle;
-
-    // Floating Minimap
     QGraphicsView* m_minimapView;
     void updateMinimap();
-
-protected:
-    void drawBackground(QPainter* painter, const QRectF& rect) override;
-    void drawForeground(QPainter* painter, const QRectF& rect) override;
-
-    // Pathfinder UI
-    QPushButton* m_btnPathfind;
-    QPushButton* m_btnClearPath;
-    QLabel* m_lblPathStatus;
 
     // Pathfinder State
     bool m_pathfindActive;
@@ -258,26 +302,52 @@ protected:
     QList<NodeItem*> m_pathHighlightedNodes;
     QList<EdgeItem*> m_pathHighlightedEdges;
 
-    // Side Details Panel (Context-Sensitive)
-    QWidget* m_detailsPanel;
+    // Right Contextual Inspector Dock (Dual-Panel)
+    QWidget* m_detailsDock;
+    QPushButton* m_btnCollapseDock;
     QScrollArea* m_detailsScrollArea;
-    QVBoxLayout* m_detailsLayout;
+    QStackedWidget* m_detailsStack;
 
-    QLabel* m_lblDetailTitle;
-    QLabel* m_lblDetailCategory;
-    QLabel* m_lblDetailBody;
+    // Page 0: Person Details
+    QWidget* m_pagePerson;
+    QLabel* m_lblPersonAvatar;
+    QLabel* m_lblPersonName;
+    QLabel* m_lblPersonStatus;
+    QLabel* m_lblPersonContact;
+    QPushButton* m_btnCopyPhone;
+    QPushButton* m_btnCopyEmail;
     QComboBox* m_cmbCareFlag;
+    QLabel* m_lblPersonGroups;
     QPlainTextEdit* m_txtAdminNotes;
     QPushButton* m_btnSaveNotes;
     QPushButton* m_btnOpenProfile;
-    QListWidget* m_lstRoster;
-    NodeItem* m_selectedNodeForDetails;
 
-    // Actions
-    QPushButton* m_btnExportPNG;
-    QPushButton* m_btnRunAudit;
-    QPushButton* m_btnExportJSON;
-    QLineEdit* m_graphSearchEdit;
+    // Page 1: Group Details
+    QWidget* m_pageGroup;
+    QLabel* m_lblGroupName;
+    QLabel* m_lblGroupCategory;
+    QLabel* m_lblGroupHealth;
+    QLabel* m_lblGroupMemberCount;
+    QListWidget* m_lstRoster;
+    QPushButton* m_btnGroupAddMember;
+    QPushButton* m_btnGroupCopyEmails;
+
+    // Page 2: Edge / Relationship Details
+    QWidget* m_pageEdge;
+    QLabel* m_lblEdgeTitle;
+    QLabel* m_lblEdgeBetween;
+    QComboBox* m_cmbEdgeRole;
+    QPushButton* m_btnSeverEdge;
+
+    // Page 3: Empty / Data Hygiene Action Dashboard
+    QWidget* m_pageEmpty;
+    QLabel* m_lblHygieneMissingPhone;
+    QLabel* m_lblHygieneMissingEmail;
+    QLabel* m_lblHygieneIsolated;
+    QPushButton* m_btnSpotlightIncomplete;
+
+    NodeItem* m_selectedNodeForDetails;
+    EdgeItem* m_selectedEdgeForDetails;
     QString m_userRole;
 
     // Data Sets
@@ -290,7 +360,6 @@ protected:
     double m_gravity;
     bool m_physicsRunning;
 
-    // Configured thresholds (read from QSettings on graph load).
     int m_burnoutThreshold = 3;
     int m_familyDominancePercent = 50;
 };

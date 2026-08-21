@@ -742,7 +742,10 @@ void PeopleWidget::setupUI() {
         return mBox;
     };
 
-    givingMetricsRow->addWidget(makeMetric("YTD Total Giving", &m_lblGivingYTD, "$0.00"));
+    // Note: this SUM is all-time (not year-to-date); the label used to say
+    // "YTD" which was misleading. Household combines this person + spouse.
+    givingMetricsRow->addWidget(makeMetric("Total Giving", &m_lblGivingYTD, "$0.00"));
+    givingMetricsRow->addWidget(makeMetric("Household (with spouse)", &m_lblGivingHousehold, "—"));
     givingMetricsRow->addWidget(makeMetric("Total Gifts", &m_lblGivingCount, "0"));
     givingMetricsRow->addWidget(makeMetric("Last Contribution", &m_lblGivingLastDate, "—"));
     layCardGiving->addLayout(givingMetricsRow);
@@ -1261,7 +1264,7 @@ void PeopleWidget::updateHeader(const QString& name, const QString& status, cons
 void PeopleWidget::updateGivingSummary(int personId) {
     if (!m_lblGivingYTD) return;
 
-    double ytdTotal = 0.0;
+    double totalGiving = 0.0;
     int count = 0;
     QString lastDate = "—";
 
@@ -1269,20 +1272,50 @@ void PeopleWidget::updateGivingSummary(int personId) {
     q.prepare("SELECT COALESCE(SUM(amount), 0), COUNT(id), MAX(contribution_date) FROM contributions WHERE person_id = ?");
     q.addBindValue(personId);
     if (q.exec() && q.next()) {
-        ytdTotal = q.value(0).toDouble() / 100.0;
+        totalGiving = q.value(0).toDouble() / 100.0;
         count = q.value(1).toInt();
         lastDate = q.value(2).toString();
         if (lastDate.isEmpty()) lastDate = "None recorded";
     }
 
-    m_lblGivingYTD->setText(QString("%1 %2").arg(appCurrencySymbol(), QString::number(ytdTotal, 'f', 2)));
+    m_lblGivingYTD->setText(QString("%1 %2").arg(appCurrencySymbol(), QString::number(totalGiving, 'f', 2)));
     m_lblGivingCount->setText(QString::number(count));
     m_lblGivingLastDate->setText(lastDate);
+
+    // Household view: couples usually give jointly under one spouse's record.
+    // The spouse link lives in entity_relationships (stored in both
+    // directions), so one lookup suffices. Anonymous gifts never land here.
+    if (m_lblGivingHousehold) {
+        QString householdText = "—";
+        int spouseId = 0;
+        QSqlQuery spouse;
+        spouse.prepare("SELECT CASE WHEN source_type = 'Person' AND source_id = :me THEN target_id "
+                       "        ELSE source_id END AS other "
+                       "FROM entity_relationships "
+                       "WHERE relationship_type = 'Spouse' "
+                       "  AND ((source_type = 'Person' AND source_id = :me) OR (target_type = 'Person' AND target_id = :me)) "
+                       "LIMIT 1");
+        spouse.bindValue(":me", personId);
+        if (spouse.exec() && spouse.next()) {
+            spouseId = spouse.value(0).toInt();
+        }
+        if (spouseId > 0) {
+            QSqlQuery hq;
+            hq.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE person_id IN (?, ?)");
+            hq.addBindValue(personId);
+            hq.addBindValue(spouseId);
+            if (hq.exec() && hq.next()) {
+                double household = hq.value(0).toDouble() / 100.0;
+                householdText = QString("%1 %2").arg(appCurrencySymbol(), QString::number(household, 'f', 2));
+            }
+        }
+        m_lblGivingHousehold->setText(householdText);
+    }
 
     if (m_lstRecentGiving) {
         m_lstRecentGiving->clear();
         QSqlQuery qGifts;
-        qGifts.prepare("SELECT c.contribution_date, f.fund_name, c.amount, c.payment_method "
+        qGifts.prepare("SELECT c.contribution_date, f.fund_name, c.amount, COALESCE(NULLIF(c.payment_method, ''), '—'), COALESCE(c.note, '') "
                        "FROM contributions c JOIN funds f ON c.fund_id = f.id "
                        "WHERE c.person_id = ? ORDER BY c.contribution_date DESC LIMIT 10");
         qGifts.addBindValue(personId);
@@ -1292,9 +1325,12 @@ void PeopleWidget::updateGivingSummary(int personId) {
                 QString fund = qGifts.value(1).toString();
                 double amt = qGifts.value(2).toDouble() / 100.0;
                 QString pay = qGifts.value(3).toString();
+                QString note = qGifts.value(4).toString();
 
-                m_lstRecentGiving->addItem(QString("💰 %1 — %2 %3 (%4, %5)")
-                    .arg(dt, appCurrencySymbol(), QString::number(amt, 'f', 2), fund, pay));
+                QString line = QString("💰 %1 — %2 %3 (%4, %5)")
+                    .arg(dt, appCurrencySymbol(), QString::number(amt, 'f', 2), fund, pay);
+                if (!note.isEmpty()) line += QString(" · %1").arg(note);
+                m_lstRecentGiving->addItem(line);
             }
         }
         if (m_lstRecentGiving->count() == 0) {

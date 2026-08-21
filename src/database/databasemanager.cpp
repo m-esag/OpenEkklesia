@@ -304,13 +304,14 @@ bool DatabaseManager::createTables() {
     QString createContributions = 
         "CREATE TABLE IF NOT EXISTS contributions ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  person_id INTEGER NOT NULL,"
+        "  person_id INTEGER,"
         "  fund_id INTEGER NOT NULL,"
         "  amount INTEGER NOT NULL,"
         "  contribution_date TEXT NOT NULL,"
-        "  payment_method TEXT NOT NULL,"
+        "  payment_method TEXT,"
         "  check_number TEXT,"
         "  external_id TEXT,"
+        "  note TEXT,"
         "  FOREIGN KEY(person_id) REFERENCES people(id),"
         "  FOREIGN KEY(fund_id) REFERENCES funds(id)"
         ");";
@@ -1167,6 +1168,100 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 9 applied successfully.";
+    }
+
+    // --- Schema Migration 10: Anonymous gifts + relaxed payment columns + note ---
+    // The Sunday batch-entry form is intentionally minimal (Date / Person /
+    // Fund / Amount / Note), so:
+    //   - person_id becomes nullable: anonymous plate offerings no longer
+    //     require a fabricated donor, and fund totals reconcile correctly.
+    //   - payment_method loses NOT NULL: the entry form no longer writes it;
+    //     the Planning Center import still fills it for online/check gifts.
+    //   - note is added for free-text context ("in memory of", campaign, etc).
+    // SQLite cannot relax NOT NULL in place, so the table is rebuilt via
+    // create-new / copy / drop / rename inside one transaction.
+    if (current < 10) {
+        qInfo() << "Applying schema migration 10: contributions rebuild (nullable person, note column)";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 10: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery check(m_db);
+        check.exec("PRAGMA table_info(contributions)");
+        bool hasNote = false;
+        bool personNullable = false;
+        while (check.next()) {
+            const QString col = check.value(1).toString();
+            const bool notNull = check.value(3).toBool();
+            if (col == "note") hasNote = true;
+            if (col == "person_id" && !notNull) personNullable = true;
+        }
+
+        if (!hasNote || !personNullable) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec(
+                    "CREATE TABLE contributions_mig10 ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  person_id INTEGER,"
+                    "  fund_id INTEGER NOT NULL,"
+                    "  amount INTEGER NOT NULL,"
+                    "  contribution_date TEXT NOT NULL,"
+                    "  payment_method TEXT,"
+                    "  check_number TEXT,"
+                    "  external_id TEXT,"
+                    "  note TEXT,"
+                    "  FOREIGN KEY(person_id) REFERENCES people(id),"
+                    "  FOREIGN KEY(fund_id) REFERENCES funds(id)"
+                    ");")) {
+                qCritical() << "Migration 10: create staging table failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            if (!migQ.exec(
+                    "INSERT INTO contributions_mig10 (id, person_id, fund_id, amount, contribution_date, "
+                    "                                  payment_method, check_number, external_id) "
+                    "SELECT id, person_id, fund_id, amount, contribution_date, "
+                    "       payment_method, check_number, external_id FROM contributions;")) {
+                qCritical() << "Migration 10: copy rows failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            if (!migQ.exec("DROP TABLE contributions;")) {
+                qCritical() << "Migration 10: drop old table failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            if (!migQ.exec("ALTER TABLE contributions_mig10 RENAME TO contributions;")) {
+                qCritical() << "Migration 10: rename staging table failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            // Indexes were dropped with the old table — recreate all three.
+            if (!migQ.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_contributions_external_id "
+                           "ON contributions(external_id) WHERE external_id IS NOT NULL;") ||
+                !migQ.exec("CREATE INDEX IF NOT EXISTS idx_contributions_date "
+                           "ON contributions(contribution_date);") ||
+                !migQ.exec("CREATE INDEX IF NOT EXISTS idx_contributions_person "
+                           "ON contributions(person_id);")) {
+                qCritical() << "Migration 10: recreate indexes failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        } else {
+            qInfo() << "Migration 10: contributions already in target shape; skipping rebuild.";
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 10: commit failed";
+            m_db.rollback();
+            return false;
+        }
+
+        if (!recordSchemaVersion(10)) {
+            return false;
+        }
+        qInfo() << "Schema migration 10 applied successfully.";
     }
 
     return true;
