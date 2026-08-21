@@ -32,6 +32,7 @@ private:
 
     QTableWidget* m_roadmapTable;
     QTableWidget* m_ganttTable;
+    QDateEdit* m_anchorDate; // Gantt rolling-window start (default: today)
 
     QPushButton* m_btnAddTask;
     QPushButton* m_btnEditTask;
