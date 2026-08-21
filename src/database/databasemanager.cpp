@@ -602,7 +602,8 @@ bool DatabaseManager::createTables() {
         "  date TEXT NOT NULL UNIQUE,"
         "  title TEXT,"
         "  leader TEXT,"
-        "  run_sheet TEXT"
+        "  run_sheet TEXT,"
+        "  start_time TEXT"
         ");";
     if (!query.exec(createServices)) {
         qCritical() << "Failed to create services table:" << query.lastError().text();
@@ -1262,6 +1263,41 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 10 applied successfully.";
+    }
+
+    // --- Schema Migration 11: services.start_time ---
+    // Service Builder "Service starts at" field; the run sheet computes each
+    // item's start time from it and warns on overrun.
+    if (current < 11) {
+        qInfo() << "Applying schema migration 11: services.start_time";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 11: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(services)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        if (!cols.contains("start_time")) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec("ALTER TABLE services ADD COLUMN start_time TEXT;")) {
+                qCritical() << "Migration 11: add start_time failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 11: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(11)) {
+            return false;
+        }
+        qInfo() << "Schema migration 11 applied successfully.";
     }
 
     return true;
