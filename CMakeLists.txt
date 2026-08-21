@@ -70,6 +70,10 @@ set(SOURCES
     src/ui/ministry/facilitieswidget.cpp
     src/ui/ministry/graphwidget.h
     src/ui/ministry/graphwidget.cpp
+    src/ui/ministry/ministrymatch.h
+    src/ui/ministry/ministrymatch.cpp
+    src/ui/ministry/matchdialog.h
+    src/ui/ministry/matchdialog.cpp
 
     # UI Administration & Security Submodule
     src/ui/admin/settingswidget.h
@@ -112,18 +116,25 @@ add_executable(openekklesia_tests
     src/database/datasharing.h
     src/ui/core/thememanager.cpp
     src/ui/core/thememanager.h
+    src/ui/ministry/ministrymatch.cpp
+    src/ui/ministry/ministrymatch.h
+    src/ui/people/peoplewidget.cpp
+    src/ui/people/peoplewidget.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
 )
 
 target_link_libraries(openekklesia_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::PrintSupport
 )
 
 add_test(NAME openekklesia_tests COMMAND openekklesia_tests)

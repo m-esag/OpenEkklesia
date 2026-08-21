@@ -76,7 +76,7 @@ private:
     void populatePages();
     void applyRolePermissions();
     void applyModuleVisibility();
-    bool isModuleEnabled(const QString& moduleKey) const;
+    bool isModuleEnabled(const QString& moduleKey, bool defaultValue = true) const;
     void updateDashboardStats();
     void refreshAccountsModel();
     void refreshLedgerModel();

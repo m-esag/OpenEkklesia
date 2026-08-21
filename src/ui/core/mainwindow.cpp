@@ -24,6 +24,7 @@
 #include <QStatusBar>
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
+#include "../ministry/matchdialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -947,6 +948,25 @@ void MainWindow::populatePages() {
         }
     });
     rosterHeaderRow->addWidget(btnAddRosterMember);
+
+    QPushButton* btnSuggest = new QPushButton("✨ Suggest People", m_groupDetailCard);
+    btnSuggest->setObjectName("secondaryBtn");
+    btnSuggest->setStyleSheet("padding: 4px 10px; font-size: 11px;");
+    connect(btnSuggest, &QPushButton::clicked, this, [this]() {
+        if (m_selectedGroupId <= 0) {
+            QMessageBox::warning(this, "No Selection", "Please select a group first.");
+            return;
+        }
+        MatchDialog dlg(m_selectedGroupId, this);
+        connect(&dlg, &MatchDialog::openProfile, this, [this](int personId) { selectPerson(personId); });
+        dlg.exec();
+        if (!dlg.addedPersonIds().isEmpty()) {
+            refreshGroupDetailPanel(m_selectedGroupId);
+            refreshGroupsTree();
+            if (m_graphWidget) m_graphWidget->loadGraph();
+        }
+    });
+    rosterHeaderRow->addWidget(btnSuggest);
     detailLayout->addLayout(rosterHeaderRow);
 
     m_groupRosterTable = new QTableWidget(m_groupDetailCard);
@@ -1941,7 +1961,14 @@ void MainWindow::applyModuleVisibility() {
     bool modService = s.value("modules/service", true).toBool();
     bool modPlanning = s.value("modules/planning", true).toBool();
     bool modFacilities = s.value("modules/facilities", true).toBool();
-    bool modFinance = s.value("modules/finance", true).toBool();
+    // Giving (contributions, funds, receipts) is this app's core job. The
+    // double-entry ledger exists for churches doing full bookkeeping here;
+    // it defaults OFF for the GnuCash workflow — enable in Settings to get
+    // Accounts/Ledger/Budgets back. Giving inherits any previously-set
+    // legacy "finance" value so existing installs keep their choice.
+    bool modFinance = s.value("modules/finance", true).toBool(); // legacy key
+    bool modGiving = s.value("modules/giving", modFinance).toBool();
+    bool modLedger = s.value("modules/ledger", false).toBool();
     bool modInventory = s.value("modules/inventory", true).toBool();
     bool modVault = s.value("modules/vault", true).toBool();
     bool modKiosk = s.value("modules/kiosk", true).toBool();
@@ -1957,9 +1984,9 @@ void MainWindow::applyModuleVisibility() {
     if (m_btnFacilities) m_btnFacilities->setVisible(modFacilities);
     if (m_btnPlanning) m_btnPlanning->setVisible(modPlanning);
 
-    if (m_btnContributions) m_btnContributions->setVisible(modFinance);
-    if (m_btnAccounts) m_btnAccounts->setVisible(modFinance);
-    if (m_btnLedger) m_btnLedger->setVisible(modFinance);
+    if (m_btnContributions) m_btnContributions->setVisible(modGiving);
+    if (m_btnAccounts) m_btnAccounts->setVisible(modLedger);
+    if (m_btnLedger) m_btnLedger->setVisible(modLedger);
     if (m_btnInventory) m_btnInventory->setVisible(modInventory);
     if (m_btnVault) m_btnVault->setVisible(modVault);
 
@@ -1974,7 +2001,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_headerMinistry) m_headerMinistry->setVisible(anyMinistry);
     if (m_secMinistry) m_secMinistry->setVisible(anyMinistry && s.value("sidebarSecMinistry", true).toBool());
 
-    bool anyFinance = (modFinance || modInventory || modVault);
+    bool anyFinance = (modGiving || modLedger || modInventory || modVault);
     if (m_headerFinance) m_headerFinance->setVisible(anyFinance);
     if (m_secFinance) m_secFinance->setVisible(anyFinance && s.value("sidebarSecFinance", true).toBool());
 
@@ -1989,15 +2016,15 @@ void MainWindow::applyModuleVisibility() {
     if (m_actFacilities) m_actFacilities->setVisible(modFacilities);
     if (m_actPlanning) m_actPlanning->setVisible(modPlanning);
 
-    if (m_actCont) m_actCont->setVisible(modFinance);
-    if (m_actAccounts) m_actAccounts->setVisible(modFinance);
-    if (m_actLedger) m_actLedger->setVisible(modFinance);
+    if (m_actCont) m_actCont->setVisible(modGiving);
+    if (m_actAccounts) m_actAccounts->setVisible(modLedger);
+    if (m_actLedger) m_actLedger->setVisible(modLedger);
     if (m_actInventory) m_actInventory->setVisible(modInventory);
     if (m_actVault) m_actVault->setVisible(modVault);
 }
 
-bool MainWindow::isModuleEnabled(const QString& moduleKey) const {
-    return QSettings("OpenEkklesia", "CHMS").value(QString("modules/%1").arg(moduleKey), true).toBool();
+bool MainWindow::isModuleEnabled(const QString& moduleKey, bool defaultValue) const {
+    return QSettings("OpenEkklesia", "CHMS").value(QString("modules/%1").arg(moduleKey), defaultValue).toBool();
 }
 
 bool MainWindow::promptLogin() {
