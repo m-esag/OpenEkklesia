@@ -25,6 +25,7 @@
 #include "../src/database/datasharing.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/ministrymatch.h"
+#include "../src/ui/ministry/planningwidget.h"
 #include "../src/ui/ministry/servicebuilderwidget.h"
 #include "../src/ui/ministry/shepherdwidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
@@ -1176,6 +1177,90 @@ bool test_serviceBuilderTier3() {
     return true;
 }
 
+bool test_groupRecommendationDisablers() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // Insert Elected governance group, Seasonal cohort, and Open team
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (name, category, recruitment_status) VALUES ('Board of Directors', 'Governance', 'Elected')"));
+    int boardId = q.lastInsertId().toInt();
+
+    CHECK(q.exec("INSERT INTO groups (name, category, recruitment_status) VALUES ('Fall Alpha Cohort', 'Bible Study', 'Seasonal')"));
+    int alphaId = q.lastInsertId().toInt();
+
+    CHECK(q.exec("INSERT INTO groups (name, category, recruitment_status) VALUES ('Welcome & Hospitality', 'Ministry Team', 'Open')"));
+    int welcomeId = q.lastInsertId().toInt();
+
+    // Verify recruitment_status query filtering
+    QSqlQuery check(d);
+    check.prepare("SELECT id, name, recruitment_status FROM groups WHERE recruitment_status = 'Open'");
+    CHECK(check.exec());
+    QList<int> openIds;
+    while (check.next()) openIds.append(check.value(0).toInt());
+
+    CHECK(openIds.contains(welcomeId));
+    CHECK(!openIds.contains(boardId));
+    CHECK(!openIds.contains(alphaId));
+
+    d.rollback();
+    return true;
+}
+
+bool test_planningWidgetRendersAndRoles() {
+    QSqlDatabase d = db();
+
+    // Seed a task before constructing the widget so both tables populate.
+    QSqlQuery ins(d);
+    CHECK(ins.exec("DELETE FROM ministry_tasks"));
+    CHECK(ins.exec("INSERT INTO ministry_tasks (team, title, owner, start_day, duration_days, start_month, duration_months, status) "
+                   "VALUES ('Worship & Media Team', 'Easter Production', 'John Doe', 3, 5, 2, 2, 'In-Progress')"));
+
+    PlanningWidget pw;
+
+    // Both views render the task.
+    QTableWidget* roadmap = pw.findChild<QTableWidget*>("planningRoadmapTable");
+    QTableWidget* gantt = pw.findChild<QTableWidget*>("planningGanttTable");
+    CHECK(roadmap && gantt);
+    if (roadmap && gantt) {
+        CHECK_EQ(roadmap->rowCount(), 1);
+        CHECK_EQ(gantt->rowCount(), 1);
+        // Roadmap: JAN..MAY/JUN columns — FEB (start_month 2) should show the badge.
+        if (roadmap->rowCount() == 1 && roadmap->item(0, 3)) {
+            CHECK(!roadmap->item(0, 3)->text().isEmpty());
+            CHECK_EQ(roadmap->item(0, 1)->text().toStdString(), std::string("Easter Production"));
+        }
+        // Gantt: D3..D7 filled (start_day 3, duration 5).
+        if (gantt->rowCount() == 1) {
+            CHECK(gantt->item(0, 0) && gantt->item(0, 0)->data(Qt::UserRole).toInt() > 0);
+            CHECK(gantt->item(0, 2 + 3) && !gantt->item(0, 2 + 3)->text().isEmpty()); // D3
+            CHECK(gantt->item(0, 2 + 7) && gantt->item(0, 2 + 7)->text().isEmpty());   // D8 out of range
+        }
+    }
+
+    // Role gating: Guest disables the mutating buttons; admin re-enables.
+    bool addEnabled = false;
+    for (QPushButton* b : pw.findChildren<QPushButton*>()) {
+        if (b->text().contains("Add Initiative")) addEnabled = b->isEnabled();
+    }
+    CHECK(addEnabled);
+
+    pw.applyRole("readonly");
+    for (QPushButton* b : pw.findChildren<QPushButton*>()) {
+        if (b->text().contains("Add Initiative") || b->text().contains("Edit Selected")
+            || b->text().contains("Remove Selected")) {
+            CHECK(!b->isEnabled());
+        }
+    }
+    pw.applyRole("admin");
+    for (QPushButton* b : pw.findChildren<QPushButton*>()) {
+        if (b->text().contains("Add Initiative")) CHECK(b->isEnabled());
+    }
+
+    CHECK(ins.exec("DELETE FROM ministry_tasks"));
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1217,12 +1302,14 @@ int main(int argc, char** argv) {
         {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
         {"service_builder_tier2", test_serviceBuilderTier2},
         {"service_builder_tier3", test_serviceBuilderTier3},
+        {"planning_widget_renders_and_roles", test_planningWidgetRendersAndRoles},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
         {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},
         {"graph_dual_panel_and_data_hygiene", test_graphDualPanelAndDataHygiene},
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
+        {"group_recommendation_disablers", test_groupRecommendationDisablers},
     };
 
     for (const Test& t : tests) {
