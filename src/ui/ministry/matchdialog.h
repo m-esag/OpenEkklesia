@@ -39,6 +39,9 @@ private:
     QString m_groupName;
     QStringList m_groupSkills;
     int m_memberCount = 0;
+    int m_groupMinAge = 0;
+    int m_groupMaxAge = 0;
+    bool m_groupAgeBandSet = false;
     QList<MatchResult> m_results;
     QList<int> m_addedPersonIds;
 

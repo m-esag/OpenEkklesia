@@ -6,6 +6,7 @@
 #include <QDate>
 #include <QSet>
 #include <QMap>
+#include <QRegularExpression>
 #include <algorithm>
 
 QStringList MinistryRecommender::groupSkillProfile(const QSqlDatabase& db, int groupId, int limit) {
@@ -28,11 +29,46 @@ QStringList MinistryRecommender::groupSkillProfile(const QSqlDatabase& db, int g
     return skills;
 }
 
+GroupMatchProfile MinistryRecommender::groupMatchProfile(const QSqlDatabase& db, int groupId) {
+    GroupMatchProfile profile;
+    QSqlQuery q(db);
+    q.prepare("SELECT required_skills, min_age, max_age FROM groups WHERE id = ?");
+    q.addBindValue(groupId);
+    if (q.exec() && q.next()) {
+        const QString declared = q.value(0).toString().trimmed();
+        if (!declared.isEmpty()) {
+            const QStringList raw = declared.split(QRegularExpression("[,\\n;]"), Qt::SkipEmptyParts);
+            QSet<QString> seen;
+            for (QString s : raw) {
+                s = s.trimmed();
+                if (s.isEmpty() || seen.contains(s)) continue;
+                seen.insert(s);
+                profile.requiredSkills.append(s);
+            }
+            profile.skillsDeclared = true;
+        }
+        profile.minAge = qMax(0, q.value(1).toInt());
+        profile.maxAge = qMax(0, q.value(2).toInt());
+        if (profile.maxAge > 0) profile.ageBandSet = true;
+        if (profile.ageBandSet && profile.minAge > profile.maxAge) {
+            std::swap(profile.minAge, profile.maxAge);
+        }
+    }
+    return profile;
+}
+
 QList<MatchResult> MinistryRecommender::recommend(const QSqlDatabase& db, int groupId, const MatchCriteria& criteria) {
     QList<MatchResult> out;
 
-    // Skills the group "needs", inferred from its current members.
-    const QStringList profile = groupSkillProfile(db, groupId);
+    // Skills the group "needs": declared required_skills win; otherwise infer
+    // from the skills of the group's current members.
+    const GroupMatchProfile matchProfile = groupMatchProfile(db, groupId);
+    QStringList profile;
+    if (matchProfile.skillsDeclared) {
+        profile = matchProfile.requiredSkills;
+    } else {
+        profile = groupSkillProfile(db, groupId);
+    }
     const QSet<QString> needSkills(profile.begin(), profile.end());
 
     // People already in the group (any role) are never recommended.

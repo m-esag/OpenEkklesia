@@ -18,7 +18,8 @@
 MatchDialog::MatchDialog(int groupId, QWidget* parent)
     : QDialog(parent), m_groupId(groupId)
 {
-    // Group name + skill profile for the summary line.
+    // Group name + match profile for the summary line and default criteria.
+    GroupMatchProfile matchProfile;
     {
         QSqlDatabase db = DatabaseManager::instance().database();
         QSqlQuery q(db);
@@ -32,7 +33,15 @@ MatchDialog::MatchDialog(int groupId, QWidget* parent)
         c.addBindValue(groupId);
         if (c.exec() && c.next()) m_memberCount = c.value(0).toInt();
 
-        m_groupSkills = MinistryRecommender::groupSkillProfile(db, groupId, 6);
+        matchProfile = MinistryRecommender::groupMatchProfile(db, groupId);
+        if (matchProfile.skillsDeclared) {
+            m_groupSkills = matchProfile.requiredSkills;
+        } else {
+            m_groupSkills = MinistryRecommender::groupSkillProfile(db, groupId, 6);
+        }
+        m_groupMinAge = matchProfile.minAge;
+        m_groupMaxAge = matchProfile.maxAge;
+        m_groupAgeBandSet = matchProfile.ageBandSet;
     }
     if (m_groupName.isEmpty()) m_groupName = QString("Group #%1").arg(groupId);
 
@@ -63,6 +72,11 @@ void MatchDialog::setupUI() {
     m_spinMaxAge = new QSpinBox(this);
     m_spinMaxAge->setRange(0, 120);
     m_spinMaxAge->setValue(120);
+    // Pre-fill with the group's declared age band when it has one.
+    if (m_groupAgeBandSet) {
+        m_spinMinAge->setValue(m_groupMinAge);
+        m_spinMaxAge->setValue(m_groupMaxAge);
+    }
     auto* ageRow = new QHBoxLayout();
     ageRow->addWidget(m_spinMinAge);
     ageRow->addWidget(new QLabel("–", this));
@@ -147,11 +161,16 @@ void MatchDialog::setupUI() {
     lay->addLayout(btnRow);
 
     // Summary + kick off the first search so the dialog opens with results.
-    m_lblGroupSummary->setText(QString("%1 · %2 member(s) · needs: %3")
-        .arg(m_groupName)
-        .arg(m_memberCount)
-        .arg(m_groupSkills.isEmpty() ? "none recorded yet (skill filter disabled)"
-                                     : m_groupSkills.join(", ")));
+    QString needs = m_groupSkills.isEmpty()
+        ? "no skills on record (skill filter disabled)"
+        : m_groupSkills.join(", ");
+    if (m_groupAgeBandSet) {
+        m_lblGroupSummary->setText(QString("%1 · %2 member(s) · needs: %3 · preferred age %4–%5")
+            .arg(m_groupName).arg(m_memberCount).arg(needs).arg(m_groupMinAge).arg(m_groupMaxAge));
+    } else {
+        m_lblGroupSummary->setText(QString("%1 · %2 member(s) · needs: %3")
+            .arg(m_groupName).arg(m_memberCount).arg(needs));
+    }
     runMatch();
 }
 

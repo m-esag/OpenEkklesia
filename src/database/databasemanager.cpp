@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
+#include <QSet>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -234,6 +235,9 @@ bool DatabaseManager::createTables() {
         "  location TEXT,"
         "  contact_person_id INTEGER REFERENCES people(id),"
         "  max_capacity INTEGER DEFAULT 0,"
+        "  required_skills TEXT,"
+        "  min_age INTEGER DEFAULT 0,"
+        "  max_age INTEGER DEFAULT 0,"
         "  notes TEXT"
         ");";
     if (!query.exec(createGroups)) {
@@ -1029,6 +1033,55 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 7 applied successfully.";
+    }
+
+    // --- Schema Migration 8: per-group Ministry Match profile ---
+    // Groups can declare what they are looking for — required_skills
+    // (comma-separated) plus an optional age band — so "Suggest People"
+    // matches against declared criteria instead of only inferring from
+    // current members. max_age 0 means "no age band declared".
+    if (current < 8) {
+        qInfo() << "Applying schema migration 8: groups match profile columns";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 8: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(groups)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+
+        QSqlQuery migQ(m_db);
+        if (!cols.contains("required_skills") &&
+            !migQ.exec("ALTER TABLE groups ADD COLUMN required_skills TEXT;")) {
+            qCritical() << "Migration 8: add required_skills failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!cols.contains("min_age") &&
+            !migQ.exec("ALTER TABLE groups ADD COLUMN min_age INTEGER DEFAULT 0;")) {
+            qCritical() << "Migration 8: add min_age failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!cols.contains("max_age") &&
+            !migQ.exec("ALTER TABLE groups ADD COLUMN max_age INTEGER DEFAULT 0;")) {
+            qCritical() << "Migration 8: add max_age failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 8: commit failed";
+            m_db.rollback();
+            return false;
+        }
+
+        if (!recordSchemaVersion(8)) {
+            return false;
+        }
+        qInfo() << "Schema migration 8 applied successfully.";
     }
 
     return true;

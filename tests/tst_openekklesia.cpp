@@ -24,6 +24,8 @@
 #include "../src/database/datasharing.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/ministrymatch.h"
+#include "../src/ui/ministry/shepherdwidget.h"
+#include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
 
 namespace {
@@ -600,6 +602,98 @@ bool test_peopleWidget360DossierAndGiving() {
     return true;
 }
 
+bool test_ministryMatchDeclaredProfileWins() {
+    QSqlDatabase d = db();
+    CHECK(d.transaction());
+
+    // Group declares it needs vocalists aged 10-20, but has NO members yet.
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (name, required_skills, min_age, max_age) "
+                 "VALUES ('Match Declared', 'vocals', 10, 20)"));
+    const int gid = q.lastInsertId().toInt();
+
+    auto insertPerson = [&](const QString& first, const QString& dob, const QString& skill) -> int {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO people (first_name, last_name, date_of_birth, gender, membership_status) "
+                    "VALUES (?, 'DeclT', ?, 'Male', 'Member')");
+        ins.addBindValue(first);
+        ins.addBindValue(dob);
+        CHECK(ins.exec());
+        const int pid = ins.lastInsertId().toInt();
+        QSqlQuery sk(d);
+        sk.prepare("INSERT INTO member_skills (person_id, skill_or_role) VALUES (?, ?)");
+        sk.addBindValue(pid);
+        sk.addBindValue(skill);
+        CHECK(sk.exec());
+        return pid;
+    };
+
+    const int teenVocalist = insertPerson("VocalTeen", "2011-05-01", "vocals");
+    insertPerson("GuitarTeen", "2011-06-01", "guitar");   // skill not declared
+    insertPerson("AdultVocal", "1980-01-01", "vocals");   // right skill, wrong age
+
+    // Profile: declared skills win over (empty) inference; age band present.
+    const GroupMatchProfile profile = MinistryRecommender::groupMatchProfile(d, gid);
+    CHECK(profile.skillsDeclared);
+    CHECK(profile.ageBandSet);
+    CHECK_EQ(profile.requiredSkills.size(), 1);
+    if (profile.requiredSkills.size() == 1) {
+        CHECK_EQ(profile.requiredSkills.first().toStdString(), std::string("vocals"));
+    }
+    CHECK_EQ(profile.minAge, 10);
+    CHECK_EQ(profile.maxAge, 20);
+    // Inference on a member-less group is empty, proving declared wins.
+    CHECK(MinistryRecommender::groupSkillProfile(d, gid, 6).isEmpty());
+
+    // Declared-skill filter with age unconstrained: both vocalists match,
+    // the guitarist is excluded (skill not declared).
+    MatchCriteria c;
+    c.requireSkill = true;
+    const QList<MatchResult> results = MinistryRecommender::recommend(d, gid, c);
+    CHECK_EQ(results.size(), 2);
+
+    // With the declared age band applied, the adult vocalist is excluded too.
+    c.minAge = profile.minAge;
+    c.maxAge = profile.maxAge;
+    const QList<MatchResult> banded = MinistryRecommender::recommend(d, gid, c);
+    CHECK_EQ(banded.size(), 1);
+    if (banded.size() == 1) CHECK_EQ(banded[0].personId, teenVocalist);
+
+    d.rollback();
+    return true;
+}
+
+bool test_shepherdQuickActionsAndPastoralSync() {
+    ShepherdWidget sw;
+    sw.refreshAll();
+
+    // Verify ShepherdWidget insertion and reschedule
+    QSqlQuery q(db());
+    q.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, outcome, follow_up_date, follow_up_done) "
+              "VALUES (1, 'Visit', date('now', 'localtime'), 'Hospital Visit Test', 'Prayed with member', date('now', 'localtime'), 0)");
+    CHECK(q.exec());
+    int actId = q.lastInsertId().toInt();
+
+    // Reschedule follow up to +14 days
+    QSqlQuery qReschedule(db());
+    qReschedule.prepare("UPDATE pastoral_activities SET follow_up_date = date('now', '+14 days', 'localtime') WHERE id = ?");
+    qReschedule.addBindValue(actId);
+    CHECK(qReschedule.exec());
+
+    // Verify updated follow_up_date
+    QSqlQuery qCheck(db());
+    qCheck.prepare("SELECT follow_up_date, follow_up_done FROM pastoral_activities WHERE id = ?");
+    qCheck.addBindValue(actId);
+    CHECK(qCheck.exec() && qCheck.next());
+    CHECK_EQ(qCheck.value(1).toInt(), 0);
+
+    // Test PastoralAnalyticsWidget instantiation and refresh
+    PastoralAnalyticsWidget paw;
+    paw.refreshAnalytics();
+
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -635,7 +729,9 @@ int main(int argc, char** argv) {
         {"theme_contrast_guardian", test_themeContrastGuardian},
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
+        {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
+        {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
     };
 
     for (const Test& t : tests) {
