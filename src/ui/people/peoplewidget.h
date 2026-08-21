@@ -194,6 +194,7 @@ private:
 
     // Tab 3: Giving & Stewardship
     QLabel* m_lblGivingYTD;
+    QLabel* m_lblGivingHousehold; // this person + spouse combined
     QLabel* m_lblGivingCount;
     QLabel* m_lblGivingLastDate;
     QListWidget* m_lstRecentGiving;

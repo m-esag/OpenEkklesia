@@ -13,8 +13,6 @@
 #include <QSqlError>
 #include <QCompleter>
 #include <QDir>
-#include <QPdfWriter>
-#include <QTextDocument>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QInputDialog>
@@ -75,20 +73,19 @@ void ContributionsWidget::setupUI() {
 
     m_fundCombo = new QComboBox(this);
 
-    m_paymentCombo = new QComboBox(this);
-    m_paymentCombo->addItems({"Cash", "Check", "Electronic"});
-    connect(m_paymentCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ContributionsWidget::onPaymentMethodChanged);
-
-    m_checkNumberEdit = new QLineEdit(this);
-    m_checkNumberEdit->setPlaceholderText("Check number (only if check)");
-    m_checkNumberEdit->setEnabled(false);
+    // The entry form is deliberately minimal for Sunday-morning speed:
+    // Date / Person / Amount / Fund / optional Note. Payment method and
+    // check number are no longer captured here — the Planning Center import
+    // still records them for online/check gifts, and bank reconciliation
+    // lives in GnuCash.
+    m_noteEdit = new QLineEdit(this);
+    m_noteEdit->setPlaceholderText("Optional note (e.g. 'in memory of...')");
 
     form->addRow("Date:", m_dateEdit);
     form->addRow("Person:", m_personCombo);
     form->addRow("Amount:", m_amountSpin);
     form->addRow("Fund:", m_fundCombo);
-    form->addRow("Payment Method:", m_paymentCombo);
-    form->addRow("Check Number:", m_checkNumberEdit);
+    form->addRow("Note:", m_noteEdit);
 
     formLayout->addLayout(form);
 
@@ -98,18 +95,6 @@ void ContributionsWidget::setupUI() {
     formLayout->addWidget(m_btnSave);
 
     formLayout->addSpacing(15);
-    
-    // Tax reporting features
-    QLabel* exportLabel = new QLabel("Year-End Tax Receipts", this);
-    exportLabel->setObjectName("detailSubHeader");
-    formLayout->addWidget(exportLabel);
-
-    m_btnExportPDF = new QPushButton("Export Tax Statements (PDF)", this);
-    m_btnExportPDF->setObjectName("accentBtnPink");
-    connect(m_btnExportPDF, &QPushButton::clicked, this, &ContributionsWidget::onExportTaxStatements);
-    formLayout->addWidget(m_btnExportPDF);
-
-    formLayout->addSpacing(10);
 
     // Fund administration — funds are the organizing concept for giving, so
     // they can be added/renamed/deactivated without leaving this page.
@@ -127,10 +112,6 @@ void ContributionsWidget::setupUI() {
     m_btnGnuCashExport->setToolTip("Export recorded giving for a date range as CSV, ready to import into GnuCash as income transactions.");
     connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
     formLayout->addWidget(m_btnGnuCashExport);
-
-    m_progressBar = new QProgressBar(this);
-    m_progressBar->setVisible(false);
-    formLayout->addWidget(m_progressBar);
 
     formLayout->addStretch();
     mainLayout->addWidget(formPanel, 2);
@@ -167,7 +148,7 @@ void ContributionsWidget::setupModels() {
             m_personCombo->addItem(name, id);
         }
     }
-    
+
     // Add autocomplete to Person combo
     m_personCombo->setEditable(true);
     QCompleter* completer = new QCompleter(this);
@@ -175,6 +156,9 @@ void ContributionsWidget::setupModels() {
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setModel(m_personCombo->model());
     m_personCombo->setCompleter(completer);
+
+    // Anonymous plate offerings: item at kAnonymousIndex, bound to no person.
+    m_personCombo->insertItem(kAnonymousIndex, "— Anonymous (plate offering) —");
 
     // Load active funds
     if (query.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
@@ -205,6 +189,7 @@ void ContributionsWidget::refreshContributions() {
         }
     }
     m_personCombo->blockSignals(false);
+    m_personCombo->insertItem(kAnonymousIndex, "— Anonymous (plate offering) —");
 
     m_fundCombo->blockSignals(true);
     m_fundCombo->clear();
@@ -223,15 +208,19 @@ void ContributionsWidget::refreshContributions() {
 }
 
 void ContributionsWidget::refreshHistoryModel() {
+    // person_id is nullable (anonymous plate offerings); payment_method is
+    // only written by the Planning Center import these days — coalesce both
+    // so rows never render blank.
     QString queryStr = QString(
         "SELECT c.id AS \"ID\", "
         "       c.contribution_date AS \"Date\", "
-        "       (p.first_name || ' ' || p.last_name) AS \"Contributor\", "
+        "       COALESCE(p.first_name || ' ' || p.last_name, '— Anonymous —') AS \"Contributor\", "
         "       f.fund_name AS \"Fund\", "
         "       printf('%1%.2f', c.amount / 100.0) AS \"Amount\", "
-        "       c.payment_method AS \"Method\" "
+        "       COALESCE(NULLIF(c.payment_method, ''), '—') AS \"Method\", "
+        "       COALESCE(c.note, '') AS \"Note\" "
         "FROM contributions c "
-        "JOIN people p ON c.person_id = p.id "
+        "LEFT JOIN people p ON c.person_id = p.id "
         "JOIN funds f ON c.fund_id = f.id "
         "ORDER BY c.id DESC LIMIT 50").arg(appCurrencySymbol());
     m_historyModel->setQuery(queryStr);
@@ -247,52 +236,60 @@ void ContributionsWidget::keyPressEvent(QKeyEvent *event) {
     }
 }
 
-void ContributionsWidget::onPaymentMethodChanged(int index) {
-    bool isCheck = (m_paymentCombo->itemText(index) == "Check");
-    m_checkNumberEdit->setEnabled(isCheck);
-    if (!isCheck) {
-        m_checkNumberEdit->clear();
-    }
-}
-
 void ContributionsWidget::onSaveContribution() {
     if (m_amountSpin->value() <= 0.00) {
         QMessageBox::warning(this, "Validation Error", "Please enter a positive contribution amount.");
         return;
     }
 
-    int personId = m_personCombo->currentData().toInt();
-    if (personId == 0) {
-        // Find text match if typed
-        QString typedText = m_personCombo->currentText();
-        for (const auto& person : m_peopleList) {
-            if (person.second.compare(typedText, Qt::CaseInsensitive) == 0) {
-                personId = person.first;
-                break;
+    // Anonymous selection is a deliberate choice (plate offering with no
+    // envelope/name); anything else that fails to resolve is a typo.
+    const bool anonymous = (m_personCombo->currentIndex() == kAnonymousIndex);
+    int personId = 0;
+    if (!anonymous) {
+        personId = m_personCombo->currentData().toInt();
+        if (personId == 0) {
+            // Find text match if typed
+            QString typedText = m_personCombo->currentText();
+            for (const auto& person : m_peopleList) {
+                if (person.second.compare(typedText, Qt::CaseInsensitive) == 0) {
+                    personId = person.first;
+                    break;
+                }
             }
         }
-    }
-
-    if (personId == 0) {
-        QMessageBox::warning(this, "Validation Error", "Invalid person selected. Please select a name from the list.");
-        return;
+        if (personId == 0) {
+            QMessageBox::warning(this, "Validation Error",
+                                 "Invalid person selected. Pick a name from the list, or choose '— Anonymous —'.");
+            return;
+        }
     }
 
     int fundId = m_fundCombo->currentData().toInt();
     int amountCents = static_cast<int>(m_amountSpin->value() * 100.0 + 0.5);
+    QString note = m_noteEdit->text().trimmed();
+
+    // First-gift milestone: detect before inserting so a person's earliest
+    // recorded gift is celebrated in their pastoral timeline.
+    bool firstGift = false;
+    if (!anonymous) {
+        QSqlQuery cnt;
+        cnt.prepare("SELECT COUNT(*) FROM contributions WHERE person_id = ?");
+        cnt.addBindValue(personId);
+        if (cnt.exec() && cnt.next()) firstGift = (cnt.value(0).toInt() == 0);
+    }
 
     QSqlDatabase db = QSqlDatabase::database();
     db.transaction();
 
     QSqlQuery query;
-    query.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) "
-                  "VALUES (?, ?, ?, ?, ?, ?)");
-    query.addBindValue(personId);
+    query.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
+                  "VALUES (?, ?, ?, ?, ?)");
+    query.addBindValue(anonymous ? QVariant(QMetaType(QMetaType::Int)) : QVariant(personId));
     query.addBindValue(fundId);
     query.addBindValue(amountCents);
     query.addBindValue(m_dateEdit->date().toString("yyyy-MM-dd"));
-    query.addBindValue(m_paymentCombo->currentText());
-    query.addBindValue(m_checkNumberEdit->text().trimmed().isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : m_checkNumberEdit->text().trimmed());
+    query.addBindValue(note.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(note));
 
     if (query.exec()) {
         db.commit();
@@ -300,184 +297,30 @@ void ContributionsWidget::onSaveContribution() {
         for (const auto& f : m_fundsList) {
             if (f.first == fundId) { fundName = f.second; break; }
         }
-        DatabaseManager::logMemberHistory(personId, "Contribution",
-            QString("Contributed %1%2 to %3").arg(appCurrencySymbol(),
-                QString::number(amountCents / 100.0, 'f', 2),
-                fundName.isEmpty() ? QString("Fund #%1").arg(fundId) : fundName));
+        if (fundName.isEmpty()) fundName = QString("Fund #%1").arg(fundId);
+        const QString amountStr = QString("%1%2").arg(appCurrencySymbol(),
+                                                      QString::number(amountCents / 100.0, 'f', 2));
+        if (!anonymous) {
+            if (firstGift) {
+                DatabaseManager::logMemberHistory(personId, "First Gift",
+                    QString("First recorded contribution: %1 to %2.").arg(amountStr, fundName));
+            }
+            DatabaseManager::logMemberHistory(personId, "Contribution",
+                QString("Contributed %1 to %2").arg(amountStr, fundName));
+        }
         DatabaseManager::logAudit("contributions", query.lastInsertId().toInt(), "amount", "", QString::number(amountCents), "finance");
         refreshHistoryModel();
-        
-        // Rapid batch UX: clear amount & person, refocus person
+
+        // Rapid batch UX: clear amount/note & person, refocus person
         m_amountSpin->setValue(0.00);
+        m_noteEdit->clear();
         m_personCombo->setCurrentIndex(-1);
         m_personCombo->lineEdit()->clear();
-        m_checkNumberEdit->clear();
         m_personCombo->setFocus();
     } else {
         db.rollback();
         QMessageBox::critical(this, "Database Error", "Failed to save contribution: " + query.lastError().text());
     }
-}
-
-void ContributionsWidget::onExportTaxStatements() {
-    QSqlQuery query;
-    QList<int> contributors;
-
-    // Get unique contributors with giving in the current year
-    QString yearStr = QDate::currentDate().toString("yyyy");
-    query.prepare("SELECT DISTINCT person_id FROM contributions WHERE contribution_date LIKE ?");
-    query.addBindValue(yearStr + "%");
-    if (query.exec()) {
-        while (query.next()) {
-            contributors.append(query.value(0).toInt());
-        }
-    }
-
-    if (contributors.isEmpty()) {
-        QMessageBox::information(this, "No Data", "No contributions found for the tax year " + yearStr);
-        return;
-    }
-
-    // Set up export directory
-    QString exportDir = QDir::homePath() + "/Documents/OpenEkklesia_Tax_Statements/";
-    QDir().mkpath(exportDir);
-
-    m_progressBar->setVisible(true);
-    m_progressBar->setRange(0, contributors.size());
-    m_progressBar->setValue(0);
-
-    int count = 0;
-    for (int i = 0; i < contributors.size(); ++i) {
-        int personId = contributors[i];
-        
-        // Fetch person details
-        QSqlQuery pQuery;
-        pQuery.prepare("SELECT first_name, last_name, email FROM people WHERE id = ?");
-        pQuery.addBindValue(personId);
-        if (!pQuery.exec() || !pQuery.next()) continue;
-
-        QString firstName = pQuery.value(0).toString();
-        QString lastName = pQuery.value(1).toString();
-        QString fullName = firstName + " " + lastName;
-
-        // Fetch household details
-        QSqlQuery hQuery;
-        hQuery.prepare("SELECT h.family_name, h.address_line1, h.city, h.zip_code "
-                       "FROM households h JOIN people p ON p.household_id = h.id "
-                       "WHERE p.id = ?");
-        hQuery.addBindValue(personId);
-        QString familyName = "The " + lastName + " Household";
-        QString address = "No Address Recorded";
-        if (hQuery.exec() && hQuery.next()) {
-            familyName = hQuery.value(0).toString();
-            address = QString("%1<br>%2, %3").arg(hQuery.value(1).toString(), hQuery.value(2).toString(), hQuery.value(3).toString());
-        }
-
-        // Fetch history of giving
-        QSqlQuery gQuery;
-        gQuery.prepare("SELECT c.contribution_date, f.fund_name, c.payment_method, c.check_number, c.amount "
-                       "FROM contributions c JOIN funds f ON c.fund_id = f.id "
-                       "WHERE c.person_id = ? AND c.contribution_date LIKE ? "
-                       "ORDER BY c.contribution_date ASC");
-        gQuery.addBindValue(personId);
-        gQuery.addBindValue(yearStr + "%");
-        
-        if (!gQuery.exec()) continue;
-
-        QString itemsHtml = "";
-        double totalSum = 0.0;
-        while (gQuery.next()) {
-            QString date = gQuery.value(0).toString();
-            QString fund = gQuery.value(1).toString();
-            QString method = gQuery.value(2).toString();
-            QString checkNo = gQuery.value(3).toString();
-            if (checkNo.isEmpty()) checkNo = "-";
-            double amount = gQuery.value(4).toInt() / 100.0;
-            totalSum += amount;
-
-            itemsHtml += QString(
-                "<tr>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%1</td>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%2</td>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%3</td>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd;'>%4</td>"
-                "  <td style='padding: 6px; border-bottom: 1px solid #ddd; text-align: right;'>%7%5</td>"
-                "</tr>"
-            ).arg(date, fund, method, checkNo, QString::number(amount, 'f', 2));
-        }
-
-        // Create HTML content
-        QString htmlContent = QString(
-            "<html>"
-            "<body>"
-            "  <div style='font-family: sans-serif; padding: 20px;'>"
-            "    <h1 style='color: #444;'>%8</h1>"
-            "    <p style='color: #666;'>%9</p>"
-            "    <hr style='border: 0; border-top: 2px solid #555;'>"
-            "    <br><br>"
-            "    <table style='width: 100%;'>"
-            "      <tr>"
-            "        <td style='width: 50%%; vertical-align: top;'>"
-            "          <strong>Donor:</strong><br>"
-            "          %1<br>"
-            "          %2"
-            "        </td>"
-            "        <td style='width: 50%%; vertical-align: top; text-align: right;'>"
-            "          <strong>Statement Year:</strong> %3<br>"
-            "          <strong>Date Printed:</strong> %4"
-            "        </td>"
-            "      </tr>"
-            "    </table>"
-            "    <br><br>"
-            "    <h3 style='color: #444;'>Giving Summary Statement</h3>"
-            "    <table style='width: 100%%; border-collapse: collapse;'>"
-            "      <thead>"
-            "        <tr style='background-color: #eee; text-align: left;'>"
-            "          <th style='padding: 8px; border-bottom: 2px solid #555;'>Date</th>"
-            "          <th style='padding: 8px; border-bottom: 2px solid #555;'>Fund</th>"
-            "          <th style='padding: 8px; border-bottom: 2px solid #555;'>Method</th>"
-            "          <th style='padding: 8px; border-bottom: 2px solid #555;'>Ref #</th>"
-            "          <th style='padding: 8px; border-bottom: 2px solid #555; text-align: right;'>Amount</th>"
-            "        </tr>"
-            "      </thead>"
-            "      <tbody>"
-            "        %5"
-            "      </tbody>"
-            "    </table>"
-            "    <br>"
-            "    <div style='text-align: right; font-size: 16px; font-weight: bold;'>"
-            "      Total Tax-Deductible Contribution: %7%6"
-            "    </div>"
-            "    <br><br><br>"
-            "    <p style='font-size: 12px; color: #555; text-align: center;'>"
-            "      Thank you for your generous support of OpenEkklesia. No goods or services were provided in exchange for this contribution."
-            "    </p>"
-            "  </div>"
-            "</body>"
-            "</html>"
-        ).arg(fullName, address, yearStr, QDate::currentDate().toString("yyyy-MM-dd"), itemsHtml,
-              QString::number(totalSum, 'f', 2),
-              appCurrencySymbol(),
-              QSettings("OpenEkklesia", "CHMS").value("churchName", "OpenEkklesia Church").toString(),
-              QSettings("OpenEkklesia", "CHMS").value("churchAddress", "").toString());
-
-        // Output to PDF
-        QString pdfPath = QString("%1Tax_Statement_%2_%3.pdf").arg(exportDir, yearStr, lastName + "_" + firstName);
-        QPdfWriter pdfWriter(pdfPath);
-        pdfWriter.setPageSize(QPageSize(QPageSize::Letter));
-        
-        QTextDocument doc;
-        doc.setHtml(htmlContent);
-        doc.print(&pdfWriter);
-
-        count++;
-        m_progressBar->setValue(count);
-        QCoreApplication::processEvents(); // Keep UI updated
-    }
-
-    m_progressBar->setVisible(false);
-    QMessageBox::information(this, "Export Success", 
-                            QString("Successfully exported %1 tax statement PDFs to: %2").arg(QString::number(count), exportDir));
 }
 
 void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
@@ -736,7 +579,8 @@ void ContributionsWidget::onExportGnuCashCsv() {
                 QString donor = q.value(2).toString();
                 QString method = q.value(3).toString();
                 double cents = q.value(4).toDouble();
-                QString donorLabel = donor.isEmpty() ? "Unattributed" : donor;
+                QString donorLabel = donor.isEmpty() ? "Anonymous" : donor;
+                if (method.isEmpty()) method = "—";
                 out << date << ','
                     << csv(QString("Giving — %1 — %2 (%3)").arg(fund, donorLabel, method))
                     << ',' << QString::number(cents / 100.0, 'f', 2) << '\n';
@@ -760,11 +604,11 @@ void ContributionsWidget::applyRole(const QString& role) {
     // user gets the full finance form.
     const bool readOnly = (role == "readonly");
     m_btnSave->setEnabled(!readOnly);
-    m_btnExportPDF->setEnabled(!readOnly);
+    m_btnManageFunds->setEnabled(!readOnly);
+    m_btnGnuCashExport->setEnabled(!readOnly);
     m_dateEdit->setEnabled(!readOnly);
     m_personCombo->setEnabled(!readOnly);
     m_amountSpin->setEnabled(!readOnly);
     m_fundCombo->setEnabled(!readOnly);
-    m_paymentCombo->setEnabled(!readOnly);
-    m_checkNumberEdit->setEnabled(!readOnly);
+    m_noteEdit->setReadOnly(readOnly);
 }

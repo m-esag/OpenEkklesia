@@ -62,6 +62,10 @@ private:
     QListWidget* m_prayerList;
     QPushButton* m_btnAddPrayer;
     QPushButton* m_btnPrayerDone;
+
+    // Giving Care tab: lapsed-giver watchlist drawn from contributions
+    QListWidget* m_lapsedGiverList;
+    void refreshLapsedGivers();
 };
 
 #endif // SHEPHERDWIDGET_H

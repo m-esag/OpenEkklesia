@@ -9,7 +9,6 @@
 #include <QTableView>
 #include <QSqlQueryModel>
 #include <QKeyEvent>
-#include <QProgressBar>
 #include <QPushButton>
 
 class ContributionsWidget : public QWidget {
@@ -27,8 +26,6 @@ protected:
 
 private slots:
     void onSaveContribution();
-    void onPaymentMethodChanged(int index);
-    void onExportTaxStatements();
     void onHistoryContextMenu(const QPoint& pos);
     void onManageFunds();
     void onExportGnuCashCsv();
@@ -39,15 +36,16 @@ private:
     void refreshHistoryModel();
     void refreshFundCombo();
 
+    // Index of the "— Anonymous —" entry in the person combo (item 0).
+    static constexpr int kAnonymousIndex = 0;
+
     // Inputs (Left Panel)
     QDateEdit* m_dateEdit;
     QComboBox* m_personCombo;
     QDoubleSpinBox* m_amountSpin;
     QComboBox* m_fundCombo;
-    QComboBox* m_paymentCombo;
-    QLineEdit* m_checkNumberEdit;
+    QLineEdit* m_noteEdit;
     QPushButton* m_btnSave;
-    QPushButton* m_btnExportPDF;
     QPushButton* m_btnManageFunds;
     QPushButton* m_btnGnuCashExport;
     QString m_userRole;
@@ -55,9 +53,6 @@ private:
     // History Table (Right Panel)
     QTableView* m_historyTable;
     QSqlQueryModel* m_historyModel;
-
-    // Actions & Progress
-    QProgressBar* m_progressBar;
 
     // Database structures
     QList<QPair<int, QString>> m_peopleList; // id, name

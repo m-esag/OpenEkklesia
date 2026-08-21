@@ -179,6 +179,29 @@ void ShepherdWidget::setupUI() {
     prayerBtns->addStretch();
     prayerLay->addLayout(prayerBtns);
     m_tabs->addTab(tabPrayer, "🙏 Prayer List");
+
+    // ---- Tab 4: Giving Care (lapsed-giver watchlist) ----
+    // Giving drop-off is one of the earliest engagement signals, often
+    // preceding an attendance drop. Double-click a row to open the profile.
+    QWidget* tabGiving = new QWidget(this);
+    QVBoxLayout* givingLay = new QVBoxLayout(tabGiving);
+    givingLay->setContentsMargins(10, 12, 10, 10);
+
+    QLabel* givingHint = new QLabel(
+        "Members and regular attenders who gave in at least 3 of the 6 months before the "
+        "last 60 days, but have not given since. A quiet call often matters here.", tabGiving);
+    givingHint->setWordWrap(true);
+    givingHint->setStyleSheet("color: #a6adc8; font-size: 11px;");
+    givingLay->addWidget(givingHint);
+
+    m_lapsedGiverList = new QListWidget(tabGiving);
+    m_lapsedGiverList->setAlternatingRowColors(true);
+    connect(m_lapsedGiverList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        int personId = item->data(Qt::UserRole).toInt();
+        if (personId > 0) emit navigateToMember(personId);
+    });
+    givingLay->addWidget(m_lapsedGiverList);
+    m_tabs->addTab(tabGiving, "💰 Giving Care");
 }
 
 void ShepherdWidget::refreshAll() {
@@ -202,6 +225,48 @@ void ShepherdWidget::refreshAll() {
     refreshQueue();
     refreshTimeline();
     refreshPrayerList();
+    refreshLapsedGivers();
+}
+
+void ShepherdWidget::refreshLapsedGivers() {
+    if (!m_lapsedGiverList) return;
+    m_lapsedGiverList->clear();
+
+    // "Habitual then silent": gave in >= 3 distinct months within the window
+    // from 6 months ago to 60 days ago, and nothing in the last 60 days.
+    // Anonymous gifts have no person link and are excluded by the join.
+    QSqlQuery q;
+    q.prepare(
+        "SELECT p.id, p.first_name || ' ' || p.last_name, "
+        "       (SELECT COUNT(DISTINCT strftime('%Y-%m', c.contribution_date)) "
+        "          FROM contributions c "
+        "         WHERE c.person_id = p.id "
+        "           AND c.contribution_date >= date('now', '-6 months') "
+        "           AND c.contribution_date <  date('now', '-60 days')) AS active_months, "
+        "       (SELECT MAX(c.contribution_date) FROM contributions c WHERE c.person_id = p.id) AS last_gift "
+        "FROM people p "
+        "WHERE p.membership_status IN ('Member', 'Regular Attender') "
+        "  AND active_months >= 3 "
+        "  AND last_gift < date('now', '-60 days') "
+        "ORDER BY last_gift ASC");
+    if (!q.exec()) {
+        qWarning() << "refreshLapsedGivers failed:" << q.lastError().text();
+        return;
+    }
+    while (q.next()) {
+        int id = q.value(0).toInt();
+        QString name = q.value(1).toString();
+        int months = q.value(2).toInt();
+        QString last = q.value(3).toString();
+        QListWidgetItem* item = new QListWidgetItem(
+            QString("📉 %1 — gave in %2 of the last 6 months, silent since %3")
+                .arg(name).arg(months).arg(last.isEmpty() ? "—" : last),
+            m_lapsedGiverList);
+        item->setData(Qt::UserRole, id);
+    }
+    if (m_lapsedGiverList->count() == 0) {
+        m_lapsedGiverList->addItem("No lapsed givers — regular giving patterns are all current. 🎉");
+    }
 }
 
 void ShepherdWidget::refreshStats() {
