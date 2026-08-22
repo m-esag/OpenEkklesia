@@ -1068,7 +1068,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
 
     QLabel* smartHint = new QLabel("🤖 Smart Suggestions: ranked by skill fit (🎯 match %), penalized for team load and repeated service — best fit first.", &dlg);
     smartHint->setWordWrap(true);
-    smartHint->setStyleSheet("font-size: 11px; color: #a6adc8;");
+    smartHint->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
     layout->addRow(smartHint);
 
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);

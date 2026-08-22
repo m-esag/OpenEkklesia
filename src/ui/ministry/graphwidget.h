@@ -21,6 +21,8 @@
 #include <QScrollArea>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QTreeWidget>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
@@ -232,7 +234,7 @@ signals:
     void navigateToProfile(const QString& entityType, int entityId);
 
 public:
-    enum LayoutMode { ForceDirected, Clustered };
+    enum LayoutMode { ForceDirected, Clustered, TreeHierarchy };
 
     explicit GraphWidget(QWidget* parent = nullptr);
     ~GraphWidget();
@@ -241,6 +243,7 @@ public:
     void pausePhysics();
     void resumePhysics();
     void setRepulsionStrength(double val);
+    void applyTreeHierarchyLayout();
 
     void highlightConnections(NodeItem* node);
     void resetHighlight();
@@ -267,6 +270,8 @@ public:
     bool isPhysicsRunning() const { return m_physicsRunning; }
     QGraphicsScene* scene() const { return m_scene; }
     GraphCanvasView* canvasView() const { return m_canvasView; }
+
+    void refreshHierarchyTree();
 
     void computeSmartBridge(NodeItem* personNode);
     void clearGhostEdges();
@@ -318,6 +323,7 @@ protected:
 private:
     void setupUI();
     void restyleChrome(const ThemeTokens& tok);
+    void styleChromeWidgets(const ThemeTokens& tok);
     void restoreFilterState();
     void applyForceDirectedLayout();
     void applyClusteredLayout();
@@ -342,6 +348,7 @@ private:
     // Top Controls
     QWidget* m_topBarWidget;
     QComboBox* m_cmbMinistryBranch;
+    QPushButton* m_btnToggleHierarchyTree;
     QPushButton* m_btnToggleSelectMode;
     QPushButton* m_btnTogglePeople;
     QPushButton* m_btnToggleHouseholds;
@@ -399,8 +406,16 @@ private:
     // Right Contextual Inspector Dock (Dual-Panel)
     QWidget* m_detailsDock;
     QPushButton* m_btnCollapseDock;
+    QTabWidget* m_dockTabs;
     QScrollArea* m_detailsScrollArea;
     QStackedWidget* m_detailsStack;
+
+    // Tab 2: Hierarchy Tree Explorer
+    QWidget* m_hierarchyTab;
+    QLineEdit* m_txtHierarchySearch;
+    QTreeWidget* m_hierarchyTreeWidget;
+    QPushButton* m_btnExpandAllHierarchy;
+    QPushButton* m_btnCollapseAllHierarchy;
 
     // Page 0: Person Details
     QWidget* m_pagePerson;

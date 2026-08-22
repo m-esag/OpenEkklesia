@@ -248,6 +248,11 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
     else if (m_type == Visitor) symbol = "👋";
     else if (m_isBridgeBroker) symbol = "🌉";
     else symbol = "👤";
+
+    if (m_isPinned) {
+        painter->setFont(QFont("Segoe UI Emoji", 10));
+        painter->drawText(QPointF(r * 0.4, -r * 0.4), "📌");
+    }
     painter->drawText(QRectF(-r, -r, r * 2.0, r * 2.0), Qt::AlignCenter, symbol);
 
     if (!m_careFlag.isEmpty()) {
@@ -381,14 +386,14 @@ EdgeItem::EdgeItem(NodeItem* source, NodeItem* target, const QString& relType, i
 }
 
 QRectF EdgeItem::boundingRect() const {
-    if (!m_source || !m_target) return QRectF();
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return QRectF();
     QPointF p1 = m_source->pos();
     QPointF p2 = m_target->pos();
     return QRectF(p1, p2).normalized().adjusted(-15, -15, 15, 15);
 }
 
 QPainterPath EdgeItem::shape() const {
-    if (!m_source || !m_target) return QPainterPath();
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return QPainterPath();
     QPainterPath p;
     p.moveTo(m_source->pos());
     p.lineTo(m_target->pos());
@@ -398,7 +403,7 @@ QPainterPath EdgeItem::shape() const {
 }
 
 void EdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    if (!m_source || !m_target) return;
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return;
     painter->setRenderHint(QPainter::Antialiasing);
 
     ThemeTokens tok = ThemeManager::instance().currentTokens();
@@ -530,14 +535,20 @@ void GraphCanvasView::contextMenuEvent(QContextMenuEvent* event) {
     if (!m_graphWidget) return;
 
     QMenu menu(this);
+    bool running = m_graphWidget->isPhysicsRunning();
+    QAction* actFreeze = menu.addAction(running ? "❄️ Freeze Layout Physics" : "▶️ Unfreeze & Resume Physics");
     QAction* actResetPhysics = menu.addAction("🔄 Unfreeze Physics & Re-center");
+    menu.addSeparator();
     QAction* actExportPng = menu.addAction("📸 Export High-Res Canvas (PNG)...");
     QAction* actFit = menu.addAction("🔍 Fit Graph to View");
 
     QAction* sel = menu.exec(event->globalPos());
     if (!sel) return;
 
-    if (sel == actResetPhysics) {
+    if (sel == actFreeze) {
+        if (running) m_graphWidget->pausePhysics();
+        else m_graphWidget->resumePhysics();
+    } else if (sel == actResetPhysics) {
         m_graphWidget->resumePhysics();
         m_graphWidget->loadGraph();
     } else if (sel == actExportPng) {
@@ -694,6 +705,15 @@ void GraphWidget::setupUI() {
     m_cmbMinistryBranch->setStyleSheet("font-size: 11px; padding: 4px;");
     connect(m_cmbMinistryBranch, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onMinistryBranchChanged);
 
+    m_btnToggleHierarchyTree = new QPushButton("🌲 Ministry Tree", this);
+    m_btnToggleHierarchyTree->setObjectName("secondaryBtn");
+    m_btnToggleHierarchyTree->setStyleSheet("font-size: 11px; padding: 5px 8px; font-weight: bold;");
+    m_btnToggleHierarchyTree->setToolTip("View full ministry hierarchy tree table with sub-groups and involved members");
+    connect(m_btnToggleHierarchyTree, &QPushButton::clicked, this, [this]() {
+        if (m_detailsDock->isHidden()) m_detailsDock->show();
+        if (m_dockTabs) m_dockTabs->setCurrentWidget(m_hierarchyTab);
+    });
+
     m_btnToggleSelectMode = new QPushButton("✋ Pan Canvas", this);
     m_btnToggleSelectMode->setCheckable(true);
     m_btnToggleSelectMode->setChecked(false);
@@ -760,6 +780,7 @@ void GraphWidget::setupUI() {
     });
 
     row1->addWidget(m_cmbMinistryBranch);
+    row1->addWidget(m_btnToggleHierarchyTree);
     row1->addWidget(m_btnToggleSelectMode);
     row1->addWidget(m_btnTogglePeople);
     row1->addWidget(m_btnToggleHouseholds);
@@ -775,6 +796,15 @@ void GraphWidget::setupUI() {
     m_btnToggleLayout->setObjectName("secondaryBtn");
     m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnToggleLayout, &QPushButton::clicked, this, &GraphWidget::onToggleLayoutMode);
+
+    m_btnToggleFreeze = new QPushButton("❄️ Freeze Layout", this);
+    m_btnToggleFreeze->setObjectName("secondaryBtn");
+    m_btnToggleFreeze->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+    m_btnToggleFreeze->setToolTip("Freeze / Unfreeze the dynamic force-directed physics layout");
+    connect(m_btnToggleFreeze, &QPushButton::clicked, this, [this]() {
+        if (m_physicsRunning) pausePhysics();
+        else resumePhysics();
+    });
 
     m_btnToggleStatusCluster = new QPushButton("🏷️ Cluster by Status", this);
     m_btnToggleStatusCluster->setObjectName("secondaryBtn");
@@ -816,6 +846,7 @@ void GraphWidget::setupUI() {
     row2->addWidget(m_btnIsolatedBanner);
     row2->addStretch();
     row2->addWidget(m_btnToggleLayout);
+    row2->addWidget(m_btnToggleFreeze);
     row2->addWidget(m_btnToggleStatusCluster);
     row2->addWidget(m_btnPathfind);
     row2->addWidget(m_btnRunAudit);
@@ -861,19 +892,16 @@ void GraphWidget::setupUI() {
     m_detailsDock = new QWidget(m_splitter);
     m_detailsDock->setObjectName("detailsDock");
     m_detailsDock->setMinimumWidth(320);
-    m_detailsDock->setStyleSheet(
-        "QWidget#detailsDock { background-color: #181825; border-left: 1px solid #313244; color: #cdd6f4; }"
-        "QLabel { color: #cdd6f4; }"
-        "QLineEdit, QPlainTextEdit, QComboBox { background-color: #11111b; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; font-size: 11px; padding: 4px; }"
-    );
+    // Colors come from styleChromeWidgets() (theme tokens) — called at the end
+    // of setupUI and on every theme change.
     QVBoxLayout* dockLayout = new QVBoxLayout(m_detailsDock);
-    dockLayout->setContentsMargins(14, 12, 14, 12);
-    dockLayout->setSpacing(10);
+    dockLayout->setContentsMargins(10, 10, 10, 10);
+    dockLayout->setSpacing(8);
 
     // Dock Header with Title and Collapse Toggle
     QHBoxLayout* dockHeader = new QHBoxLayout();
     QLabel* dockTitle = new QLabel("🏷️ Context Inspector", m_detailsDock);
-    dockTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #89b4fa;");
+    dockTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #89b4fa;");
     m_btnCollapseDock = new QPushButton("⇥ Collapse", m_detailsDock);
     m_btnCollapseDock->setObjectName("secondaryBtn");
     m_btnCollapseDock->setStyleSheet("padding: 3px 8px; font-size: 10px;");
@@ -883,15 +911,147 @@ void GraphWidget::setupUI() {
     dockHeader->addWidget(m_btnCollapseDock);
     dockLayout->addLayout(dockHeader);
 
+    m_dockTabs = new QTabWidget(m_detailsDock);
+    m_dockTabs->setStyleSheet("QTabWidget::pane { border: none; background: transparent; } QTabBar::tab { font-size: 11px; padding: 6px 12px; }");
+
+    // Tab 1: Node Context Details
     m_detailsStack = new QStackedWidget();
 
-    m_detailsScrollArea = new QScrollArea(m_detailsDock);
+    m_detailsScrollArea = new QScrollArea(m_dockTabs);
     m_detailsScrollArea->setWidgetResizable(true);
     m_detailsScrollArea->setFrameShape(QFrame::NoFrame);
     m_detailsScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_detailsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollBar:vertical { width: 6px; background: transparent; } QScrollBar::handle:vertical { background: #313244; border-radius: 3px; }");
     m_detailsScrollArea->setWidget(m_detailsStack);
-    dockLayout->addWidget(m_detailsScrollArea, 1);
+    m_dockTabs->addTab(m_detailsScrollArea, "🏷️ Inspector");
+
+    // Tab 2: Hierarchy Tree Explorer
+    m_hierarchyTab = new QWidget(m_dockTabs);
+    QVBoxLayout* hLay = new QVBoxLayout(m_hierarchyTab);
+    hLay->setContentsMargins(0, 6, 0, 0);
+    hLay->setSpacing(6);
+
+    QHBoxLayout* hControls = new QHBoxLayout();
+    m_txtHierarchySearch = new QLineEdit(m_hierarchyTab);
+    m_txtHierarchySearch->setPlaceholderText("🔍 Filter ministry tree...");
+    m_txtHierarchySearch->setClearButtonEnabled(true);
+    m_btnExpandAllHierarchy = new QPushButton("➕", m_hierarchyTab);
+    m_btnExpandAllHierarchy->setToolTip("Expand All");
+    m_btnExpandAllHierarchy->setStyleSheet("padding: 3px 6px; font-size: 11px;");
+    m_btnCollapseAllHierarchy = new QPushButton("➖", m_hierarchyTab);
+    m_btnCollapseAllHierarchy->setToolTip("Collapse All");
+    m_btnCollapseAllHierarchy->setStyleSheet("padding: 3px 6px; font-size: 11px;");
+
+    hControls->addWidget(m_txtHierarchySearch, 1);
+    hControls->addWidget(m_btnExpandAllHierarchy);
+    hControls->addWidget(m_btnCollapseAllHierarchy);
+    hLay->addLayout(hControls);
+
+    m_hierarchyTreeWidget = new QTreeWidget(m_hierarchyTab);
+    m_hierarchyTreeWidget->setHeaderLabels({"Entity / Member", "Role / Type", "Status"});
+    m_hierarchyTreeWidget->setAlternatingRowColors(true);
+    m_hierarchyTreeWidget->setAnimated(true);
+    m_hierarchyTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_hierarchyTreeWidget->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_hierarchyTreeWidget->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    hLay->addWidget(m_hierarchyTreeWidget, 1);
+
+    connect(m_btnExpandAllHierarchy, &QPushButton::clicked, m_hierarchyTreeWidget, &QTreeWidget::expandAll);
+    connect(m_btnCollapseAllHierarchy, &QPushButton::clicked, m_hierarchyTreeWidget, &QTreeWidget::collapseAll);
+    connect(m_txtHierarchySearch, &QLineEdit::textChanged, this, [this](const QString& text) {
+        QString term = text.trimmed().toLower();
+        std::function<bool(QTreeWidgetItem*)> filterItem = [&](QTreeWidgetItem* item) -> bool {
+            bool matches = item->text(0).toLower().contains(term) || item->text(1).toLower().contains(term);
+            bool childMatches = false;
+            for (int i = 0; i < item->childCount(); ++i) {
+                if (filterItem(item->child(i))) childMatches = true;
+            }
+            bool show = matches || childMatches || term.isEmpty();
+            item->setHidden(!show);
+            if (childMatches && !term.isEmpty()) item->setExpanded(true);
+            return show;
+        };
+        for (int i = 0; i < m_hierarchyTreeWidget->topLevelItemCount(); ++i) {
+            filterItem(m_hierarchyTreeWidget->topLevelItem(i));
+        }
+    });
+
+    connect(m_hierarchyTreeWidget, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
+        if (!item) return;
+        QString type = item->data(0, Qt::UserRole + 1).toString();
+        int id = item->data(0, Qt::UserRole).toInt();
+        if (id <= 0) return;
+
+        for (NodeItem* n : m_nodes) {
+            if (type == "Person" && n->isPersonNode() && n->id() == id) {
+                focusAndSelectNode(n);
+                selectNodeForDetails(n);
+                break;
+            } else if (type == "Group" && n->nodeType() == NodeItem::Group && n->id() == id) {
+                focusAndSelectNode(n);
+                selectNodeForDetails(n);
+                break;
+            }
+        }
+    });
+
+    m_hierarchyTreeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_hierarchyTreeWidget, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QTreeWidgetItem* item = m_hierarchyTreeWidget->itemAt(pos);
+        if (!item) return;
+        QString type = item->data(0, Qt::UserRole + 1).toString();
+        int id = item->data(0, Qt::UserRole).toInt();
+        if (id <= 0) return;
+
+        QMenu menu(this);
+        if (type == "Person") {
+            QAction* actProfile = menu.addAction("👤 View Full Profile");
+            QAction* actPhone = menu.addAction("📞 Copy Phone Number");
+            QAction* actEmail = menu.addAction("✉️ Copy Email Address");
+            menu.addSeparator();
+            QAction* actFocus = menu.addAction("🕸️ Focus on Canvas");
+
+            QAction* sel = menu.exec(m_hierarchyTreeWidget->viewport()->mapToGlobal(pos));
+            if (!sel) return;
+
+            if (sel == actProfile) {
+                emit navigateToProfile("Person", id);
+            } else if (sel == actPhone) {
+                QString phone = item->data(0, Qt::UserRole + 3).toString();
+                if (!phone.isEmpty()) QGuiApplication::clipboard()->setText(phone);
+            } else if (sel == actEmail) {
+                QString email = item->data(0, Qt::UserRole + 4).toString();
+                if (!email.isEmpty()) QGuiApplication::clipboard()->setText(email);
+            } else if (sel == actFocus) {
+                for (NodeItem* n : m_nodes) {
+                    if (n->isPersonNode() && n->id() == id) {
+                        focusAndSelectNode(n);
+                        break;
+                    }
+                }
+            }
+        } else if (type == "Group") {
+            QAction* actFocus = menu.addAction("🕸️ Focus on Canvas");
+            QAction* actMinistries = menu.addAction("✏️ View in Ministries Tab");
+
+            QAction* sel = menu.exec(m_hierarchyTreeWidget->viewport()->mapToGlobal(pos));
+            if (!sel) return;
+
+            if (sel == actFocus) {
+                for (NodeItem* n : m_nodes) {
+                    if (n->nodeType() == NodeItem::Group && n->id() == id) {
+                        focusAndSelectNode(n);
+                        break;
+                    }
+                }
+            } else if (sel == actMinistries) {
+                emit navigateToProfile("Group", id);
+            }
+        }
+    });
+
+    m_dockTabs->addTab(m_hierarchyTab, "🌲 Ministry Tree");
+    dockLayout->addWidget(m_dockTabs, 1);
 
     // Page 0: Person Node Inspector
     m_pagePerson = new QWidget(m_detailsStack);
@@ -902,7 +1062,7 @@ void GraphWidget::setupUI() {
     m_lblPersonAvatar = new QLabel("👤", m_pagePerson);
     m_lblPersonAvatar->setStyleSheet("font-size: 28px;");
     m_lblPersonName = new QLabel("Person Name", m_pagePerson);
-    m_lblPersonName->setStyleSheet("font-size: 16px; font-weight: bold; color: #ffffff;");
+    m_lblPersonName->setStyleSheet("font-size: 16px; font-weight: bold; color: palette(text);");
     m_lblPersonStatus = new QLabel("Status: Active Member", m_pagePerson);
     m_lblPersonStatus->setStyleSheet("font-size: 12px; color: #89b4fa; font-weight: 500;");
 
@@ -934,7 +1094,6 @@ void GraphWidget::setupUI() {
     connect(m_cmbCareFlag, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onCareFlagChanged);
 
     m_lblPersonGroups = new QLabel("Connected Groups: (Loading...)", m_pagePerson);
-    m_lblPersonGroups->setStyleSheet("font-size: 11px; color: #cdd6f4; line-height: 1.4;");
     m_lblPersonGroups->setWordWrap(true);
 
     m_smartBridgeSection = new QWidget(m_pagePerson);
@@ -947,7 +1106,6 @@ void GraphWidget::setupUI() {
     m_txtAdminNotes = new QPlainTextEdit(m_pagePerson);
     m_txtAdminNotes->setPlaceholderText("Pastoral admin notes & observations...");
     m_txtAdminNotes->setMaximumHeight(75);
-    m_txtAdminNotes->setStyleSheet("background-color: #11111b; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; font-size: 11px;");
 
     m_btnSaveNotes = new QPushButton("💾 Save Notes", m_pagePerson);
     m_btnSaveNotes->setObjectName("secondaryBtn");
@@ -987,7 +1145,6 @@ void GraphWidget::setupUI() {
 
     m_lblLogContactStatus = new QLabel(m_pagePerson);
     m_lblLogContactStatus->setWordWrap(true);
-    m_lblLogContactStatus->setStyleSheet("font-size: 10px; color: #a6adc8;");
     m_lblLogContactStatus->hide();
     pLay->addWidget(m_lblLogContactStatus);
 
@@ -1017,9 +1174,6 @@ void GraphWidget::setupUI() {
 
     m_lstRoster = new QListWidget(m_pageGroup);
     m_lstRoster->setMaximumHeight(140);
-    m_lstRoster->setStyleSheet("QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; color: #cdd6f4; font-size: 11px; }"
-                               "QListWidget::item { padding: 4px; }"
-                               "QListWidget::item:hover { background-color: #313244; color: #89b4fa; }");
     connect(m_lstRoster, &QListWidget::itemClicked, this, &GraphWidget::onRosterItemClicked);
 
     QHBoxLayout* groupBtnRow = new QHBoxLayout();
@@ -1064,7 +1218,6 @@ void GraphWidget::setupUI() {
     m_lblGroupTasks = new QLabel("📋 Prep tasks: none", m_pageGroup);
     m_lblGroupTasks->setObjectName("groupPrepTasksLabel");
     m_lblGroupTasks->setWordWrap(true);
-    m_lblGroupTasks->setStyleSheet("font-size: 11px; color: #a6adc8;");
 
     gLay->addWidget(m_lblGroupName);
     gLay->addWidget(m_lblGroupCategory);
@@ -1157,7 +1310,6 @@ void GraphWidget::setupUI() {
 
     m_lstBatchMembers = new QListWidget(m_pageBatch);
     m_lstBatchMembers->setMaximumHeight(120);
-    m_lstBatchMembers->setStyleSheet("QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; color: #cdd6f4; font-size: 11px; }");
 
     m_btnBatchEmails = new QPushButton("✉️ Copy Selected Emails", m_pageBatch);
     m_btnBatchEmails->setObjectName("primaryBtn");
@@ -1206,18 +1358,21 @@ void GraphWidget::setupUI() {
     legLayout->setSpacing(6);
 
     QLabel* legTitle = new QLabel("📖 Graph Legend & Symbols", m_legendOverlay);
-    legTitle->setStyleSheet("font-size: 12px; font-weight: bold; color: #89b4fa;");
+    legTitle->setObjectName("legTitleLabel");
     legLayout->addWidget(legTitle);
 
     QLabel* legShapes = new QLabel("👤 Member (Circle)   🏛️ Group (Hexagon)\n🏡 Household (Diamond)   🔴 Isolated (Square)\n🌉 Relational Broker (Purple Aura)", m_legendOverlay);
-    legShapes->setStyleSheet("font-size: 11px; color: #cdd6f4;");
+    legShapes->setObjectName("legShapesLabel");
     legLayout->addWidget(legShapes);
 
     QLabel* legLines = new QLabel("── Gold Solid: Family Tie\n── Cyan Solid: Ministry Leader\n- - Gray Dash: General Member\n- - Red Dash: Burnout Risk Link\n- - Cyan Dash: Smart Bridge Suggestion", m_legendOverlay);
-    legLines->setStyleSheet("font-size: 10px; color: #a6adc8;");
+    legLines->setObjectName("legLinesLabel");
     legLayout->addWidget(legLines);
 
     selectNodeForDetails(nullptr);
+
+    // Apply token colors now that every chrome widget exists.
+    styleChromeWidgets(ThemeManager::instance().currentTokens());
 }
 
 void GraphWidget::resizeEvent(QResizeEvent* event) {
@@ -1286,6 +1441,8 @@ void GraphWidget::refreshMinistryBranches() {
 void GraphWidget::onMinistryBranchChanged(int) {
     m_selectedMinistryParentId = m_cmbMinistryBranch->currentData().toInt();
     onFilterToggled();
+    refreshHierarchyTree();
+    if (m_dockTabs) m_dockTabs->setCurrentWidget(m_hierarchyTab);
 }
 
 void GraphWidget::onSceneSelectionChanged() {
@@ -1702,7 +1859,7 @@ void GraphWidget::computeSmartBridge(NodeItem* personNode) {
 
     m_smartBridgeSection->show();
     m_smartBridgeSection->setStyleSheet(
-        "QWidget#smartBridgeSection { background-color: #11111b; border: 1px solid #313244; border-radius: 8px; padding: 6px; }"
+        "QWidget#smartBridgeSection { background-color: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 6px; }"
     );
 
     QLabel* header = new QLabel("💡 Smart Bridge Recommendations", m_smartBridgeSection);
@@ -1727,7 +1884,7 @@ void GraphWidget::computeSmartBridge(NodeItem* personNode) {
 
         QHBoxLayout* topRow = new QHBoxLayout();
         QLabel* lblRec = new QLabel(QString("🏛️ %1").arg(c.groupNode->name()), rowWidget);
-        lblRec->setStyleSheet("font-size: 13px; font-weight: bold; color: #ffffff; background: transparent; border: none;");
+        lblRec->setStyleSheet("font-size: 13px; font-weight: bold; color: palette(text); background: transparent; border: none;");
 
         QLabel* lblPct = new QLabel(QString("%1% Match").arg(c.score), rowWidget);
         lblPct->setStyleSheet("background-color: #003847; color: #00e5ff; border: 1px solid #00e5ff; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold;");
@@ -1809,15 +1966,36 @@ void GraphWidget::onToggleLegend() {
 }
 
 void GraphWidget::onToggleLayoutMode() {
-    if (m_layoutMode == ForceDirected) {
-        m_layoutMode = Clustered;
-        m_btnToggleLayout->setText("🧩 Clustered");
-        pausePhysics();
-        applyClusteredLayout();
+    if (m_selectedMinistryParentId > 0) {
+        if (m_layoutMode == ForceDirected) {
+            m_layoutMode = TreeHierarchy;
+            m_btnToggleLayout->setText("🌲 Tree Org-Chart");
+            m_btnToggleLayout->setStyleSheet("background-color: #a6e3a1; color: #11111b; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;");
+            pausePhysics();
+            applyTreeHierarchyLayout();
+        } else if (m_layoutMode == TreeHierarchy) {
+            m_layoutMode = Clustered;
+            m_btnToggleLayout->setText("🧩 Clustered");
+            m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+            pausePhysics();
+            applyClusteredLayout();
+        } else {
+            m_layoutMode = ForceDirected;
+            m_btnToggleLayout->setText("⚡ Force-Directed");
+            m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+            resumePhysics();
+        }
     } else {
-        m_layoutMode = ForceDirected;
-        m_btnToggleLayout->setText("⚡ Force-Directed");
-        resumePhysics();
+        if (m_layoutMode == ForceDirected) {
+            m_layoutMode = Clustered;
+            m_btnToggleLayout->setText("🧩 Clustered");
+            pausePhysics();
+            applyClusteredLayout();
+        } else {
+            m_layoutMode = ForceDirected;
+            m_btnToggleLayout->setText("⚡ Force-Directed");
+            resumePhysics();
+        }
     }
 }
 
@@ -2059,6 +2237,7 @@ void GraphWidget::loadGraph() {
 
     loadNodePositions();
     onFilterToggled();
+    refreshHierarchyTree();
     updateDetailsPanelForEmpty();
     resumePhysics(); // fresh graph starts moving until it settles (auto-freeze)
 }
@@ -2479,6 +2658,8 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aPhone = m.addAction("📞 Copy Phone Number");
         QAction* aEmail = m.addAction("✉️ Copy Email Address");
         m.addSeparator();
+        QAction* aPin = m.addAction(node->isPinned() ? "🔓 Unpin / Unfreeze Node" : "📌 Pin / Freeze Node in Place");
+        m.addSeparator();
         QAction* aAssign = m.addAction("➕ Assign to Group...");
         QMenu* mCare = m.addMenu("🚩 Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
@@ -2494,6 +2675,9 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
             onCopyContactInfo(node, "phone");
         } else if (sel == aEmail) {
             onCopyContactInfo(node, "email");
+        } else if (sel == aPin) {
+            node->setPinned(!node->isPinned());
+            m_scene->update();
         } else if (sel == aAssign) {
             onQuickAssignGroup(node);
         } else if (sel && mCare->actions().contains(sel)) {
@@ -2509,6 +2693,7 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         }
     } else if (node->nodeType() == NodeItem::Group) {
         QAction* aHighlight = m.addAction("📋 Highlight Roster on Canvas");
+        QAction* aPin = m.addAction(node->isPinned() ? "🔓 Unpin / Unfreeze Node" : "📌 Pin / Freeze Node in Place");
         QAction* aAdd = m.addAction("➕ Add Member to Group...");
         QAction* aEmails = m.addAction("✉️ Copy All Member Emails");
         QAction* aMinistries = m.addAction("✏️ View in Ministries Tab");
@@ -2516,6 +2701,9 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* sel = m.exec(globalPos);
         if (sel == aHighlight) {
             highlightConnections(node);
+        } else if (sel == aPin) {
+            node->setPinned(!node->isPinned());
+            m_scene->update();
         } else if (sel == aAdd) {
             onQuickAssignGroup(node);
         } else if (sel == aEmails) {
@@ -2544,10 +2732,11 @@ void GraphWidget::handleNodeClick(NodeItem* node) {
 
 void GraphWidget::highlightConnections(NodeItem* node) {
     resetHighlight();
-    if (!node) return;
+    if (!node || !node->isVisible()) return;
 
     node->setHovered(true);
     for (EdgeItem* edge : m_edges) {
+        if (!edge->isVisible() || !edge->sourceNode()->isVisible() || !edge->targetNode()->isVisible()) continue;
         if (edge->sourceNode() == node || edge->targetNode() == node) {
             edge->sourceNode()->setHovered(true);
             edge->targetNode()->setHovered(true);
@@ -2665,7 +2854,14 @@ void GraphWidget::onFilterToggled() {
         n->setVisible(visible);
     }
     for (EdgeItem* e : m_edges) {
-        e->setVisible(e->sourceNode()->isVisible() && e->targetNode()->isVisible());
+        bool v = e->sourceNode()->isVisible() && e->targetNode()->isVisible();
+        if (m_selectedMinistryParentId > 0) {
+            if (e->sourceNode()->nodeType() == NodeItem::Group && !branchGroupIds.contains(e->sourceNode()->id())) v = false;
+            if (e->targetNode()->nodeType() == NodeItem::Group && !branchGroupIds.contains(e->targetNode()->id())) v = false;
+            if (e->sourceNode()->isPersonNode() && !branchPersonIds.contains(e->sourceNode()->id())) v = false;
+            if (e->targetNode()->isPersonNode() && !branchPersonIds.contains(e->targetNode()->id())) v = false;
+        }
+        e->setVisible(v);
     }
 
     // Persist the working view so it survives restarts.
@@ -3049,7 +3245,7 @@ void GraphWidget::applyForceDirectedLayout() {
     m_lastMaxDisplacement = 0.0;
 
     for (NodeItem* n1 : m_nodes) {
-        if (!n1->isVisible() || n1->isBeingDragged) continue;
+        if (!n1->isVisible() || n1->isBeingDragged || n1->isPinned()) continue;
         QPointF force(0, 0);
 
         // Repulsion between all visible nodes (Coulomb with minimum distance buffer)
@@ -3155,11 +3351,19 @@ void GraphWidget::updatePhysics() {
 void GraphWidget::pausePhysics() {
     m_physicsRunning = false;
     m_timer->stop();
+    if (m_btnToggleFreeze) {
+        m_btnToggleFreeze->setText("▶️ Resume Physics");
+        m_btnToggleFreeze->setStyleSheet("background-color: #fab387; color: #11111b; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;");
+    }
 }
 
 void GraphWidget::resumePhysics() {
     m_physicsRunning = true;
     m_settleTicks = 0;
+    if (m_btnToggleFreeze) {
+        m_btnToggleFreeze->setText("❄️ Freeze Layout");
+        m_btnToggleFreeze->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+    }
     if (!m_nodes.isEmpty() && !m_timer->isActive()) {
         m_timer->start(33);
     }
@@ -3175,7 +3379,70 @@ void GraphWidget::applyRole(const QString& role) {
 
 void GraphWidget::applyTheme(const ThemeTokens& tok) {
     if (m_scene) m_scene->update();
+    styleChromeWidgets(tok);
     restyleChrome(tok);
+}
+
+// Token-based styles for the inspector dock, its lists/editors, and the
+// legend labels — previously hardcoded Catppuccin-dark, which became
+// unreadable (light text on light background) under light themes.
+void GraphWidget::styleChromeWidgets(const ThemeTokens& tok) {
+    const QString bg = tok.bgSurface.name();
+    const QString bgInput = tok.bgInput.name();
+    const QString border = tok.borderColor.name();
+    const QString text = tok.textPrimary.name();
+    const QString muted = tok.textSecondary.name();
+    const QString accent = tok.accentPrimary.name();
+
+    if (m_detailsDock) {
+        m_detailsDock->setStyleSheet(QString(
+            "QWidget#detailsDock { background-color: %1; border-left: 1px solid %2; color: %3; }"
+            "QWidget#detailsDock QLabel { color: %3; }"
+            "QLineEdit, QPlainTextEdit, QComboBox { background-color: %4; border: 1px solid %2; border-radius: 6px; color: %3; font-size: 11px; padding: 4px; }"
+        ).arg(bg, border, text, bgInput));
+    }
+    if (m_hierarchyTreeWidget) {
+        m_hierarchyTreeWidget->setStyleSheet(QString(
+            "QTreeWidget { background: %1; border: 1px solid %2; border-radius: 6px; color: %3; }"
+            "QTreeWidget::item { padding: 4px 6px; }"
+            "QTreeWidget::item:selected { background-color: %4; color: %5; font-weight: bold; }"
+        ).arg(bgInput, border, text, accent, tok.isDark ? QStringLiteral("#11111b") : QStringLiteral("#ffffff")));
+    }
+    if (m_lblPersonGroups) {
+        m_lblPersonGroups->setStyleSheet(QString("font-size: 11px; color: %1; line-height: 1.4;").arg(text));
+    }
+    if (m_txtAdminNotes) {
+        m_txtAdminNotes->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: 6px; color: %3; font-size: 11px;").arg(bgInput, border, text));
+    }
+    if (m_lblLogContactStatus) {
+        m_lblLogContactStatus->setStyleSheet(QString("font-size: 10px; color: %1;").arg(muted));
+    }
+    if (m_lstRoster) {
+        m_lstRoster->setStyleSheet(QString(
+            "QListWidget { background-color: %1; border: 1px solid %2; border-radius: 6px; color: %3; font-size: 11px; }"
+            "QListWidget::item { padding: 4px; }"
+            "QListWidget::item:hover { background-color: %4; color: %5; }"
+        ).arg(bgInput, border, text, bg, accent));
+    }
+    if (m_lblGroupTasks) {
+        m_lblGroupTasks->setStyleSheet(QString("font-size: 11px; color: %1;").arg(muted));
+    }
+    if (m_lstBatchMembers) {
+        m_lstBatchMembers->setStyleSheet(QString(
+            "QListWidget { background-color: %1; border: 1px solid %2; border-radius: 6px; color: %3; font-size: 11px; }"
+        ).arg(bgInput, border, text));
+    }
+    if (m_legendOverlay) {
+        if (QLabel* t = m_legendOverlay->findChild<QLabel*>("legTitleLabel")) {
+            t->setStyleSheet(QString("font-size: 12px; font-weight: bold; color: %1;").arg(accent));
+        }
+        if (QLabel* s = m_legendOverlay->findChild<QLabel*>("legShapesLabel")) {
+            s->setStyleSheet(QString("font-size: 11px; color: %1;").arg(text));
+        }
+        if (QLabel* l = m_legendOverlay->findChild<QLabel*>("legLinesLabel")) {
+            l->setStyleSheet(QString("font-size: 10px; color: %1;").arg(muted));
+        }
+    }
 }
 
 // Restores the admin's working view (filter toggles + layout mode) from
@@ -3297,5 +3564,219 @@ void GraphWidget::loadNodePositions() {
                 }
             }
         }
+    }
+}
+
+void GraphWidget::refreshHierarchyTree() {
+    if (!m_hierarchyTreeWidget) return;
+    m_hierarchyTreeWidget->clear();
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+
+    // Map parent_id -> list of child group rows
+    QMap<int, QList<QVariantMap>> childrenMap;
+    QList<QVariantMap> rootGroups;
+
+    QSqlQuery qGroups("SELECT id, name, category, parent_id FROM groups ORDER BY name", db);
+    while (qGroups.next()) {
+        QVariantMap g;
+        g["id"] = qGroups.value(0).toInt();
+        g["name"] = qGroups.value(1).toString();
+        g["category"] = qGroups.value(2).toString();
+        g["parent_id"] = qGroups.value(3).toInt();
+
+        int pId = g["parent_id"].toInt();
+        if (pId > 0) childrenMap[pId].append(g);
+        else rootGroups.append(g);
+    }
+
+    // Map group_id -> list of members
+    QMap<int, QList<QVariantMap>> groupMembers;
+    QSqlQuery qMem(
+        "SELECT er.target_id, p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone, p.email, p.status, p.care_flag "
+        "FROM entity_relationships er JOIN people p ON p.id = er.source_id "
+        "WHERE er.target_type = 'Group' AND er.source_type = 'Person' "
+        "ORDER BY CASE WHEN er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher') THEN 0 ELSE 1 END, p.first_name", db);
+    while (qMem.next()) {
+        QVariantMap m;
+        int gId = qMem.value(0).toInt();
+        m["id"] = qMem.value(1).toInt();
+        m["name"] = qMem.value(2).toString();
+        m["role"] = qMem.value(3).toString();
+        m["phone"] = qMem.value(4).toString();
+        m["email"] = qMem.value(5).toString();
+        m["status"] = qMem.value(6).toString();
+        m["care_flag"] = qMem.value(7).toString();
+        groupMembers[gId].append(m);
+    }
+
+    std::function<void(QTreeWidgetItem*, const QVariantMap&)> addGroupItem;
+    addGroupItem = [&](QTreeWidgetItem* parentItem, const QVariantMap& gData) {
+        int gId = gData["id"].toInt();
+        QString gName = gData["name"].toString();
+        QString cat = gData["category"].toString();
+
+        QTreeWidgetItem* gItem = nullptr;
+        if (parentItem) {
+            gItem = new QTreeWidgetItem(parentItem);
+            gItem->setText(0, QString("↳ 🏛️ %1").arg(gName));
+            gItem->setForeground(0, QBrush(QColor("#89b4fa")));
+            gItem->setFont(0, QFont("Segoe UI", 9, QFont::DemiBold));
+        } else {
+            gItem = new QTreeWidgetItem(m_hierarchyTreeWidget);
+            gItem->setText(0, QString("🏛️ %1").arg(gName));
+            gItem->setFont(0, QFont("Segoe UI", 10, QFont::Bold));
+            gItem->setForeground(0, QBrush(QColor("#a6e3a1")));
+        }
+        gItem->setText(1, cat.isEmpty() ? "Ministry Group" : cat);
+        int mCount = groupMembers.value(gId).size();
+        gItem->setText(2, QString("%1 involved").arg(mCount));
+        gItem->setData(0, Qt::UserRole, gId);
+        gItem->setData(0, Qt::UserRole + 1, "Group");
+
+        // Add sub-groups first
+        if (childrenMap.contains(gId)) {
+            for (const auto& childG : childrenMap[gId]) {
+                addGroupItem(gItem, childG);
+            }
+        }
+
+        // Add people involved under this group
+        if (groupMembers.contains(gId)) {
+            for (const auto& mem : groupMembers[gId]) {
+                QTreeWidgetItem* pItem = new QTreeWidgetItem(gItem);
+                QString role = mem["role"].toString();
+                QString careFlag = mem["care_flag"].toString();
+                QString status = mem["status"].toString();
+
+                pItem->setText(0, QString("    👤 %1").arg(mem["name"].toString()));
+                pItem->setFont(0, QFont("Segoe UI", 9));
+                pItem->setText(1, role.isEmpty() ? "Member" : role);
+                if (role == "Leader" || role == "Co-Leader") {
+                    pItem->setForeground(1, QBrush(QColor("#f9e2af")));
+                    pItem->setFont(1, QFont("Segoe UI", 9, QFont::Bold));
+                } else {
+                    pItem->setForeground(1, QBrush(QColor("#a6adc8")));
+                }
+
+                QString statDisplay = status;
+                if (!careFlag.isEmpty() && careFlag != "Normal") {
+                    statDisplay += QString(" [%1]").arg(careFlag);
+                    if (careFlag == "At-Risk") pItem->setForeground(2, QBrush(QColor("#f38ba8")));
+                }
+                pItem->setText(2, statDisplay);
+
+                pItem->setData(0, Qt::UserRole, mem["id"].toInt());
+                pItem->setData(0, Qt::UserRole + 1, "Person");
+                pItem->setData(0, Qt::UserRole + 2, gId);
+                pItem->setData(0, Qt::UserRole + 3, mem["phone"].toString());
+                pItem->setData(0, Qt::UserRole + 4, mem["email"].toString());
+            }
+        }
+
+        gItem->setExpanded(true);
+    };
+
+    if (m_selectedMinistryParentId > 0) {
+        // Find the selected branch root
+        QSqlQuery qSpecific(db);
+        qSpecific.prepare("SELECT id, name, category, parent_id FROM groups WHERE id = ?");
+        qSpecific.addBindValue(m_selectedMinistryParentId);
+        if (qSpecific.exec() && qSpecific.next()) {
+            QVariantMap g;
+            g["id"] = qSpecific.value(0).toInt();
+            g["name"] = qSpecific.value(1).toString();
+            g["category"] = qSpecific.value(2).toString();
+            g["parent_id"] = qSpecific.value(3).toInt();
+            addGroupItem(nullptr, g);
+        }
+    } else {
+        for (const auto& rootG : rootGroups) {
+            addGroupItem(nullptr, rootG);
+        }
+    }
+}
+
+void GraphWidget::applyTreeHierarchyLayout() {
+    if (m_selectedMinistryParentId <= 0) return;
+
+    // 1. Identify Root Group Node
+    NodeItem* rootGroupNode = nullptr;
+    for (NodeItem* n : m_nodes) {
+        if (n->nodeType() == NodeItem::Group && n->id() == m_selectedMinistryParentId) {
+            rootGroupNode = n;
+            break;
+        }
+    }
+    if (!rootGroupNode) return;
+
+    // 2. Identify Sub-Groups (child groups)
+    QList<NodeItem*> subGroupNodes;
+    for (NodeItem* n : m_nodes) {
+        if (n->nodeType() == NodeItem::Group && n->id() != m_selectedMinistryParentId && n->isVisible()) {
+            subGroupNodes.append(n);
+        }
+    }
+
+    // 3. Map group -> list of visible member nodes
+    QMap<int, QList<NodeItem*>> groupMembers;
+    QSet<int> placedPersonIds;
+
+    for (EdgeItem* e : m_edges) {
+        if (!e->isVisible()) continue;
+        NodeItem* gNode = nullptr;
+        NodeItem* pNode = nullptr;
+        if (e->sourceNode()->nodeType() == NodeItem::Group && e->targetNode()->isPersonNode()) {
+            gNode = e->sourceNode();
+            pNode = e->targetNode();
+        } else if (e->targetNode()->nodeType() == NodeItem::Group && e->sourceNode()->isPersonNode()) {
+            gNode = e->targetNode();
+            pNode = e->sourceNode();
+        }
+        if (gNode && pNode && pNode->isVisible()) {
+            if (!groupMembers[gNode->id()].contains(pNode)) {
+                groupMembers[gNode->id()].append(pNode);
+            }
+        }
+    }
+
+    // 4. Position Root Group at top center
+    rootGroupNode->setPos(0, -250);
+
+    // If root group has direct members, place them on the left and right of the root
+    QList<NodeItem*> directMembers = groupMembers.value(rootGroupNode->id());
+    for (int i = 0; i < directMembers.size(); ++i) {
+        double offset = (i % 2 == 0 ? 1 : -1) * (140.0 + (i / 2) * 100.0);
+        directMembers[i]->setPos(offset, -250.0 + (i % 2 == 0 ? 30.0 : -30.0));
+        placedPersonIds.insert(directMembers[i]->id());
+    }
+
+    // 5. Position Sub-Groups horizontally at y = 0
+    int subCount = subGroupNodes.size();
+    double subSpacing = qMax(240.0, 900.0 / qMax(1, subCount));
+    double startX = -((subCount - 1) * subSpacing) / 2.0;
+
+    for (int i = 0; i < subCount; ++i) {
+        NodeItem* subG = subGroupNodes[i];
+        double gx = startX + i * subSpacing;
+        subG->setPos(gx, 0);
+
+        // Position members of this sub-group in vertical columns below it
+        QList<NodeItem*> mems = groupMembers.value(subG->id());
+        int memIdx = 0;
+        for (NodeItem* p : mems) {
+            if (placedPersonIds.contains(p->id())) continue;
+            double px = gx + ((memIdx % 2 == 0) ? -55.0 : 55.0);
+            double py = 120.0 + (memIdx / 2) * 85.0;
+            p->setPos(px, py);
+            placedPersonIds.insert(p->id());
+            ++memIdx;
+        }
+    }
+
+    // Pause physics so the tree stays locked in place
+    pausePhysics();
+    if (m_canvasView && m_scene) {
+        m_canvasView->fitInView(m_scene->itemsBoundingRect().adjusted(-80, -80, 80, 80), Qt::KeepAspectRatio);
     }
 }

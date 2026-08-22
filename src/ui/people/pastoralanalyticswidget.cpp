@@ -53,7 +53,7 @@ void PastoralAnalyticsWidget::setupUI() {
     header->setObjectName("pageHeader");
 
     m_lblSubtitle = new QLabel("Current Snapshot as of August 2026 • Real-Time Congregation Health Indicators", this);
-    m_lblSubtitle->setStyleSheet("color: #a6adc8; font-size: 12px; font-weight: bold;");
+    m_lblSubtitle->setStyleSheet("color: palette(placeholderText); font-size: 12px; font-weight: bold;");
 
     titleBox->addWidget(header);
     titleBox->addWidget(m_lblSubtitle);
@@ -277,7 +277,7 @@ void PastoralAnalyticsWidget::setupUI() {
     m_lstPastoralActions = new QListWidget(this);
     m_lstPastoralActions->setMaximumHeight(140);
     m_lstPastoralActions->setStyleSheet("QListWidget { background: transparent; border: none; font-size: 12px; }"
-                                         "QListWidget::item { padding: 8px; border-bottom: 1px solid #313244; color: #cdd6f4; font-weight: bold; }"
+                                         "QListWidget::item { padding: 8px; border-bottom: 1px solid #313244; color: palette(text); font-weight: bold; }"
                                          "QListWidget::item:hover { background-color: rgba(137, 180, 250, 0.15); color: #89b4fa; border-radius: 6px; }");
 
     connect(m_lstPastoralActions, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
