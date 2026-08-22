@@ -107,10 +107,10 @@ void TransactionDialog::setupUI() {
 
     // Stylesheet adaptation for the dark theme
     QString style = 
-        "QDialog { background-color: #181825; color: #cdd6f4; }"
-        "QLabel { color: #cdd6f4; }"
-        "QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 6px; color: #cdd6f4; padding: 6px; }"
-        "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; padding: 8px 15px; }"
+        "QDialog { background-color: #181825; color: palette(text); }"
+        "QLabel { color: palette(text); }"
+        "QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 6px; color: palette(text); padding: 6px; }"
+        "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 6px; color: palette(text); padding: 8px 15px; }"
         "QPushButton:hover { background-color: #45475a; }"
         "QPushButton#m_btnSave { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
         "QPushButton:disabled { background-color: #11111b; color: #585b70; border: 1px solid #11111b; }";

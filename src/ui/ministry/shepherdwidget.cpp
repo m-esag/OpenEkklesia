@@ -271,7 +271,7 @@ void ShepherdWidget::setupUI() {
         "Members and regular attenders who gave in at least 3 of the 6 months before the "
         "last 60 days, but have not given since. A quiet call often matters here.", tabGiving);
     givingHint->setWordWrap(true);
-    givingHint->setStyleSheet("color: #a6adc8; font-size: 11px;");
+    givingHint->setStyleSheet("color: palette(placeholderText); font-size: 11px;");
     givingLay->addWidget(givingHint);
 
     m_lapsedGiverList = new QListWidget(tabGiving);

@@ -101,7 +101,7 @@ void ContributionsWidget::setupUI() {
     headerLayout->addLayout(titleRow);
 
     m_lblBatchMeta = new QLabel("Batch Details • 0 donations recorded", headerCard);
-    m_lblBatchMeta->setStyleSheet("color: #a6adc8; font-size: 12px;");
+    m_lblBatchMeta->setStyleSheet("color: palette(placeholderText); font-size: 12px;");
     headerLayout->addWidget(m_lblBatchMeta);
 
     mainLayout->addWidget(headerCard);
@@ -802,7 +802,7 @@ void ContributionsWidget::refreshFundPills() {
     int cIdx = 0;
 
     QLabel* lblHeader = new QLabel("🏷️ Batch Funds:", m_pillsContainer);
-    lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #a6adc8;");
+    lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(placeholderText);");
     m_pillsLayout->addWidget(lblHeader);
 
     bool hasPills = false;

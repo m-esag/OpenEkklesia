@@ -46,7 +46,7 @@ void SettingsWidget::setupUI() {
     QLabel* pageHeader = new QLabel("⚙️ Application Settings & Preferences", this);
     pageHeader->setObjectName("pageHeader");
     m_lblStatus = new QLabel("Configure your church identity, regional formats, theme, and data management.", this);
-    m_lblStatus->setStyleSheet("color: #a6adc8; font-size: 13px;");
+    m_lblStatus->setStyleSheet("color: palette(placeholderText); font-size: 13px;");
     titleCol->addWidget(pageHeader);
     titleCol->addWidget(m_lblStatus);
     topBar->addLayout(titleCol);
@@ -152,7 +152,7 @@ void SettingsWidget::setupUI() {
     m_logoPreview->setFixedSize(96, 96);
     m_logoPreview->setAlignment(Qt::AlignCenter);
     m_logoPreview->setText("No logo\nselected");
-    m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: #a6adc8;");
+    m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
     m_btnPickLogo = new QPushButton("🖼️ Upload Church Logo", pageGeneral);
     m_btnPickLogo->setObjectName("primaryBtn");
     connect(m_btnPickLogo, &QPushButton::clicked, this, &SettingsWidget::onPickLogo);
@@ -937,7 +937,7 @@ void SettingsWidget::setupUI() {
     QLabel* lblPurgeTitle = new QLabel("Purge Demo / Sample Records", pageDanger);
     lblPurgeTitle->setStyleSheet("font-weight: bold; font-size: 14px;");
     QLabel* lblPurgeDesc = new QLabel("Clears sample members, transactions, groups, and plans so your church starts with a clean database.", pageDanger);
-    lblPurgeDesc->setStyleSheet("color: #a6adc8; font-size: 12px;");
+    lblPurgeDesc->setStyleSheet("color: palette(placeholderText); font-size: 12px;");
     purgeText->addWidget(lblPurgeTitle);
     purgeText->addWidget(lblPurgeDesc);
     rowPurge->addLayout(purgeText);
@@ -975,7 +975,7 @@ void SettingsWidget::setupUI() {
     QLabel* lblResetTitle = new QLabel("Reset All Settings to Defaults", pageDanger);
     lblResetTitle->setStyleSheet("font-weight: bold; font-size: 14px;");
     QLabel* lblResetDesc = new QLabel("Reverts all theme customizations, regional preferences, and church branding to standard defaults.", pageDanger);
-    lblResetDesc->setStyleSheet("color: #a6adc8; font-size: 12px;");
+    lblResetDesc->setStyleSheet("color: palette(placeholderText); font-size: 12px;");
     resetText->addWidget(lblResetTitle);
     resetText->addWidget(lblResetDesc);
     rowReset->addLayout(resetText);

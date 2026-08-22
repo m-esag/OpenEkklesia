@@ -277,7 +277,7 @@ void PeopleWidget::setupUI() {
     };
     for (auto it = filters.constBegin(); it != filters.constEnd(); ++it) {
         QRadioButton* btn = new QRadioButton(it.value(), this);
-        btn->setStyleSheet("QRadioButton { color: #cdd6f4; padding: 2px 4px; font-size: 11px; }"
+        btn->setStyleSheet("QRadioButton { color: palette(text); padding: 2px 4px; font-size: 11px; }"
                            "QRadioButton::indicator { width: 11px; height: 11px; }");
         btn->setChecked(it.key() == 0);
         m_statusFilterGroup->addButton(btn, it.key());
@@ -385,10 +385,10 @@ void PeopleWidget::setupUI() {
     icoEmpty->setStyleSheet("font-size: 64px; opacity: 0.35;");
     icoEmpty->setAlignment(Qt::AlignCenter);
     QLabel* lblEmptyTitle = new QLabel("No Member Profile Selected", m_emptyStateWidget);
-    lblEmptyTitle->setStyleSheet("font-size: 17px; font-weight: bold; color: #cdd6f4;");
+    lblEmptyTitle->setStyleSheet("font-size: 17px; font-weight: bold; color: palette(text);");
     lblEmptyTitle->setAlignment(Qt::AlignCenter);
     QLabel* lblEmptySub = new QLabel("Select a member from the directory on the left or click '➕ Add Person' to manage profiles.", m_emptyStateWidget);
-    lblEmptySub->setStyleSheet("font-size: 12px; color: #a6adc8; max-width: 320px; text-align: center;");
+    lblEmptySub->setStyleSheet("font-size: 12px; color: palette(placeholderText); max-width: 320px; text-align: center;");
     lblEmptySub->setWordWrap(true);
     lblEmptySub->setAlignment(Qt::AlignCenter);
     layEmpty->addWidget(icoEmpty);
@@ -421,11 +421,11 @@ void PeopleWidget::setupUI() {
     headerInfo->setSpacing(3);
 
     m_lblHeaderName = new QLabel("Member Profile", m_headerWidget);
-    m_lblHeaderName->setStyleSheet("font-size: 17px; font-weight: bold; color: #cdd6f4;");
+    m_lblHeaderName->setStyleSheet("font-size: 17px; font-weight: bold; color: palette(text);");
     headerInfo->addWidget(m_lblHeaderName);
 
     m_lblHeaderSub = new QLabel("Select a member", m_headerWidget);
-    m_lblHeaderSub->setStyleSheet("font-size: 11px; color: #a6adc8;");
+    m_lblHeaderSub->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
     headerInfo->addWidget(m_lblHeaderSub);
 
     QHBoxLayout* badgesRow = new QHBoxLayout();
@@ -456,8 +456,8 @@ void PeopleWidget::setupUI() {
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
-            "QPushButton { background-color: #181825; border: 1px solid #313244; border-radius: 6px; color: #a6adc8; padding: 5px 10px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #313244; color: #cdd6f4; border-color: #45475a; }"
+            "QPushButton { background-color: #181825; border: 1px solid #313244; border-radius: 6px; color: palette(placeholderText); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #313244; color: palette(text); border-color: #45475a; }"
             "QPushButton:checked { background-color: #313244; color: #89b4fa; border: 1px solid #89b4fa; }"
         );
         connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
@@ -760,7 +760,7 @@ void PeopleWidget::setupUI() {
         v->setContentsMargins(6, 6, 6, 6);
         v->setSpacing(2);
         QLabel* t = new QLabel(title);
-        t->setStyleSheet("font-size: 10px; color: #a6adc8; font-weight: bold;");
+        t->setStyleSheet("font-size: 10px; color: palette(placeholderText); font-weight: bold;");
         QLabel* val = new QLabel(defVal);
         val->setStyleSheet("font-size: 15px; font-weight: bold; color: #2ef098;");
         *outLabel = val;
@@ -778,7 +778,7 @@ void PeopleWidget::setupUI() {
     layCardGiving->addLayout(givingMetricsRow);
 
     QLabel* lblRecentGifts = new QLabel("Recent Contribution Records:", cardGiving);
-    lblRecentGifts->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    lblRecentGifts->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardGiving->addWidget(lblRecentGifts);
 
     m_lstRecentGiving = new QListWidget(cardGiving);
@@ -854,7 +854,7 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", g);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: #cdd6f4; padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #89b4fa; color: #89b4fa; }"
             "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 1px solid #89b4fa; color: #89b4fa; }"
         );
@@ -877,7 +877,7 @@ void PeopleWidget::setupUI() {
 
     // Relational Styles
     QLabel* lblStyleHeader = new QLabel("Relational Style Dynamics:", cardMin);
-    lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblStyleHeader);
 
     m_styleEdit = new QLineEdit(cardMin);
@@ -894,7 +894,7 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", s);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: #cdd6f4; padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #a6e3a1; color: #a6e3a1; }"
             "QPushButton:checked { background-color: rgba(166, 227, 161, 0.25); border: 1px solid #a6e3a1; color: #a6e3a1; }"
         );
@@ -912,7 +912,7 @@ void PeopleWidget::setupUI() {
 
     // Interest Tags
     QLabel* lblTagsHeader = new QLabel("Interest Tags:", cardMin);
-    lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4; margin-top: 4px;");
+    lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblTagsHeader);
 
     m_tagsEdit = new QLineEdit(cardMin);
@@ -2551,5 +2551,28 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
             dq.exec();
             updateHistoryTimeline(m_currentPersonId);
         }
+    }
+}
+
+void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& val) {
+    if (type == "status") {
+        if (val == "Visitor") m_statusFilterGroup->button(1)->setChecked(true);
+        else if (val == "Regular Attender") m_statusFilterGroup->button(2)->setChecked(true);
+        else if (val == "Member") m_statusFilterGroup->button(3)->setChecked(true);
+        else if (val == "Inactive") m_statusFilterGroup->button(4)->setChecked(true);
+        else m_statusFilterGroup->button(0)->setChecked(true);
+        m_searchEdit->clear();
+        reapplyFilter();
+    } else if (type == "care_flag") {
+        m_statusFilterGroup->button(0)->setChecked(true);
+        m_searchEdit->setText(val);
+    } else if (type == "unconnected") {
+        m_statusFilterGroup->button(0)->setChecked(true);
+        m_searchEdit->clear();
+        m_peopleModel->setFilter("id NOT IN (SELECT DISTINCT source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group')");
+        m_peopleModel->select();
+    } else {
+        m_statusFilterGroup->button(0)->setChecked(true);
+        m_searchEdit->setText(val);
     }
 }

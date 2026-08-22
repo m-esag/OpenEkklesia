@@ -667,6 +667,13 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
 
+    m_chkShowMembersInTree = new QCheckBox("👥 Show People in Tree", this);
+    m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
+    connect(m_chkShowMembersInTree, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+        refreshGroupsTree();
+    });
+    grpHeaderLayout->addWidget(m_chkShowMembersInTree);
+
     QPushButton* btnAddGroup = new QPushButton("➕ Add Group", this);
     btnAddGroup->setObjectName("primaryBtn");
     connect(btnAddGroup, &QPushButton::clicked, this, [this]() {
@@ -882,8 +889,26 @@ void MainWindow::populatePages() {
             refreshGroupDetailPanel(0);
             return;
         }
-        int groupId = current->data(0, Qt::UserRole).toInt();
-        refreshGroupDetailPanel(groupId);
+        QString type = current->data(0, Qt::UserRole + 1).toString();
+        if (type == "Person") {
+            int gId = current->data(0, Qt::UserRole + 2).toInt();
+            refreshGroupDetailPanel(gId);
+        } else {
+            int groupId = current->data(0, Qt::UserRole).toInt();
+            refreshGroupDetailPanel(groupId);
+        }
+    });
+
+    connect(m_groupsTreeWidget, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* current, int) {
+        if (!current) return;
+        QString type = current->data(0, Qt::UserRole + 1).toString();
+        if (type == "Person") {
+            int personId = current->data(0, Qt::UserRole).toInt();
+            if (personId > 0 && m_peopleWidget) {
+                m_stackedWidget->setCurrentWidget(m_peopleWidget);
+                m_peopleWidget->selectPerson(personId);
+            }
+        }
     });
 
     // Right Panel: Inline Group Detail & Roster Panel
@@ -2206,6 +2231,46 @@ void MainWindow::refreshGroupsTree() {
         item->setText(4, QString("%1 members").arg(memCount));
         item->setText(5, isArchived ? "Archived" : "Active");
         item->setData(0, Qt::UserRole, id);
+        item->setData(0, Qt::UserRole + 1, "Group");
+
+        if (m_chkShowMembersInTree && m_chkShowMembersInTree->isChecked()) {
+            QSqlQuery qMembers(db);
+            qMembers.prepare(
+                "SELECT p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone, p.email, p.status, p.care_flag "
+                "FROM entity_relationships er JOIN people p ON p.id = er.source_id "
+                "WHERE er.target_type = 'Group' AND er.source_type = 'Person' AND er.target_id = ? "
+                "ORDER BY CASE WHEN er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher') THEN 0 ELSE 1 END, p.first_name");
+            qMembers.addBindValue(id);
+            if (qMembers.exec()) {
+                while (qMembers.next()) {
+                    QTreeWidgetItem* pItem = new QTreeWidgetItem(item);
+                    int pId = qMembers.value(0).toInt();
+                    QString pName = qMembers.value(1).toString();
+                    QString pRole = qMembers.value(2).toString();
+                    QString pPhone = qMembers.value(3).toString();
+                    QString pEmail = qMembers.value(4).toString();
+                    QString pStatus = qMembers.value(5).toString();
+                    QString pCare = qMembers.value(6).toString();
+
+                    pItem->setText(0, QString("      👤 %1").arg(pName));
+                    pItem->setFont(0, QFont("Segoe UI", 9));
+                    pItem->setForeground(0, QBrush(QColor("#cdd6f4")));
+                    pItem->setText(1, pRole.isEmpty() ? "Member" : pRole);
+                    if (pRole == "Leader" || pRole == "Co-Leader") {
+                        pItem->setForeground(1, QBrush(QColor("#f9e2af")));
+                        pItem->setFont(1, QFont("Segoe UI", 9, QFont::Bold));
+                    }
+                    QString contact = pPhone.isEmpty() ? pEmail : pPhone;
+                    pItem->setText(2, contact.isEmpty() ? "—" : contact);
+                    pItem->setText(3, name);
+                    pItem->setText(4, "—");
+                    pItem->setText(5, pCare.isEmpty() || pCare == "Normal" ? pStatus : QString("%1 [%2]").arg(pStatus, pCare));
+                    pItem->setData(0, Qt::UserRole, pId);
+                    pItem->setData(0, Qt::UserRole + 1, "Person");
+                    pItem->setData(0, Qt::UserRole + 2, id);
+                }
+            }
+        }
 
         if (childrenMap.contains(id)) {
             for (const auto& childData : childrenMap[id]) {
@@ -2275,7 +2340,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     } else if (recruitStatus == "Seasonal") {
         metaParts << "<span style='background-color: #1e1e2e; color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>📅 Seasonal Cohort (Closed Enrollment)</span>";
     } else if (recruitStatus == "Closed") {
-        metaParts << "<span style='background-color: #313244; color: #a6adc8; border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🔒 Closed (Invite Only)</span>";
+        metaParts << "<span style='background-color: #313244; color: palette(placeholderText); border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🔒 Closed (Invite Only)</span>";
     } else {
         metaParts << "<span style='background-color: #18332b; color: #a6e3a1; border: 1px solid #a6e3a1; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🟢 Open for Recruitment</span>";
     }
