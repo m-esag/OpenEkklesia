@@ -1,5 +1,6 @@
 #include "graphwidget.h"
 #include "../database/databasemanager.h"
+#include "matchdialog.h"
 #include <QPainter>
 #include <QPainterPathStroker>
 #include <QGraphicsSceneMouseEvent>
@@ -165,6 +166,10 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
                 if (m_isBridgeBroker) {
                     borderCol = QColor("#cba6f7");
                     bodyColStart = tok.isDark ? QColor("#2b1e40") : QColor("#f5f0fa");
+                } else if (m_statusColor.isValid() && !m_isCriticalBurnout) {
+                    // Status-cluster view: membership status drives the border.
+                    borderCol = m_statusColor;
+                    bodyColStart = tok.bgSurface;
                 } else if (m_careFlag == "Leader" || m_connectionCount >= 4) {
                     borderCol = tok.accentPrimary;
                     bodyColStart = tok.isDark ? QColor("#003847") : QColor("#e0f7fa");
@@ -511,9 +516,37 @@ void GraphCanvasView::wheelEvent(QWheelEvent* event) {
 
 void GraphCanvasView::mousePressEvent(QMouseEvent* event) {
     QGraphicsView::mousePressEvent(event);
+    if (m_graphWidget) m_graphWidget->resumePhysics(); // a drag may follow
     if (!itemAt(event->pos()) && m_graphWidget) {
         m_graphWidget->resetHighlight();
     }
+}
+
+// Keyboard navigation: arrows move the selection to a connected neighbor in
+// that direction; Esc clears the selection/highlight.
+void GraphCanvasView::keyPressEvent(QKeyEvent* event) {
+    if (!m_graphWidget) {
+        QGraphicsView::keyPressEvent(event);
+        return;
+    }
+    if (event->key() == Qt::Key_Escape) {
+        m_graphWidget->resetHighlight();
+        m_graphWidget->clearSceneSelection();
+        event->accept();
+        return;
+    }
+    const Qt::Key key = static_cast<Qt::Key>(event->key());
+    if (key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down) {
+        QPointF dir;
+        if (key == Qt::Key_Left) dir = QPointF(-1, 0);
+        else if (key == Qt::Key_Right) dir = QPointF(1, 0);
+        else if (key == Qt::Key_Up) dir = QPointF(0, -1);
+        else dir = QPointF(0, 1);
+        m_graphWidget->selectNeighborInDirection(dir);
+        event->accept();
+        return;
+    }
+    QGraphicsView::keyPressEvent(event);
 }
 
 void GraphCanvasView::drawBackground(QPainter* painter, const QRectF& rect) {
@@ -571,6 +604,7 @@ GraphWidget::GraphWidget(QWidget* parent)
     }
     m_timer->start(33);
 
+    restoreFilterState(); // working view (toggles + layout) from last session
     loadGraph();
 }
 
@@ -739,6 +773,12 @@ void GraphWidget::setupUI() {
     m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnToggleLayout, &QPushButton::clicked, this, &GraphWidget::onToggleLayoutMode);
 
+    m_btnToggleStatusCluster = new QPushButton("🏷️ Cluster by Status", this);
+    m_btnToggleStatusCluster->setObjectName("secondaryBtn");
+    m_btnToggleStatusCluster->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+    m_btnToggleStatusCluster->setToolTip("Recolor people by membership status (Member / Attender / Visitor)");
+    connect(m_btnToggleStatusCluster, &QPushButton::clicked, this, &GraphWidget::onToggleStatusCluster);
+
     m_btnIsolatedBanner = new QPushButton("⚠️ 0 Unconnected Members", this);
     m_btnIsolatedBanner->setCursor(Qt::PointingHandCursor);
     connect(m_btnIsolatedBanner, &QPushButton::clicked, this, &GraphWidget::onSpotlightIsolatedClicked);
@@ -773,6 +813,7 @@ void GraphWidget::setupUI() {
     row2->addWidget(m_btnIsolatedBanner);
     row2->addStretch();
     row2->addWidget(m_btnToggleLayout);
+    row2->addWidget(m_btnToggleStatusCluster);
     row2->addWidget(m_btnPathfind);
     row2->addWidget(m_btnRunAudit);
     row2->addWidget(m_btnExportPNG);
@@ -784,6 +825,7 @@ void GraphWidget::setupUI() {
 
     m_canvasView = new GraphCanvasView(m_scene, leftContainer);
     m_canvasView->setGraphWidget(this);
+    m_canvasView->setFocusPolicy(Qt::StrongFocus); // arrow-key navigation
     leftLayout->addWidget(m_canvasView, 1);
     m_splitter->addWidget(leftContainer);
 
@@ -931,6 +973,21 @@ void GraphWidget::setupUI() {
     pLay->addWidget(m_txtAdminNotes);
     pLay->addWidget(m_btnSaveNotes);
     pLay->addWidget(m_btnOpenProfile);
+
+    // Reconnect workflow: log a contact attempt -> pastoral_activities + flag.
+    m_btnLogContact = new QPushButton("📞 Log Contact Attempt", m_pagePerson);
+    m_btnLogContact->setObjectName("secondaryBtn");
+    m_btnLogContact->setStyleSheet("font-size: 11px; padding: 5px;");
+    m_btnLogContact->setToolTip("Records a contact attempt (pastoral log) and marks the person 'Needs Contact'");
+    connect(m_btnLogContact, &QPushButton::clicked, this, &GraphWidget::onLogContact);
+    pLay->addWidget(m_btnLogContact);
+
+    m_lblLogContactStatus = new QLabel(m_pagePerson);
+    m_lblLogContactStatus->setWordWrap(true);
+    m_lblLogContactStatus->setStyleSheet("font-size: 10px; color: #a6adc8;");
+    m_lblLogContactStatus->hide();
+    pLay->addWidget(m_lblLogContactStatus);
+
     pLay->addStretch();
     m_detailsStack->addWidget(m_pagePerson);
 
@@ -990,6 +1047,22 @@ void GraphWidget::setupUI() {
     groupBtnRow->addWidget(m_btnGroupAddMember);
     groupBtnRow->addWidget(m_btnGroupCopyEmails);
 
+    // Suggest People: launch the Ministry Match recommender for this group
+    // (declared skills/age profile, ranked, one-click add).
+    m_btnGroupSuggest = new QPushButton("✨ Suggest People", m_pageGroup);
+    m_btnGroupSuggest->setObjectName("accentBtnCyan");
+    m_btnGroupSuggest->setStyleSheet("font-size: 10px; padding: 4px 6px;");
+    m_btnGroupSuggest->setToolTip("Find people who fit this ministry and add them in one click");
+    connect(m_btnGroupSuggest, &QPushButton::clicked, this, &GraphWidget::onGroupSuggest);
+    groupBtnRow->addWidget(m_btnGroupSuggest);
+
+    // Prep tasks: ministry_tasks linked to this group (real dates), with a
+    // slipping flag when past due and not completed.
+    m_lblGroupTasks = new QLabel("📋 Prep tasks: none", m_pageGroup);
+    m_lblGroupTasks->setObjectName("groupPrepTasksLabel");
+    m_lblGroupTasks->setWordWrap(true);
+    m_lblGroupTasks->setStyleSheet("font-size: 11px; color: #a6adc8;");
+
     gLay->addWidget(m_lblGroupName);
     gLay->addWidget(m_lblGroupCategory);
     gLay->addWidget(m_lblGroupHealth);
@@ -997,6 +1070,7 @@ void GraphWidget::setupUI() {
     gLay->addWidget(m_lblGroupMemberCount);
     gLay->addWidget(m_lstRoster);
     gLay->addLayout(groupBtnRow);
+    gLay->addWidget(m_lblGroupTasks);
     gLay->addStretch();
     m_detailsStack->addWidget(m_pageGroup);
 
@@ -1050,12 +1124,20 @@ void GraphWidget::setupUI() {
     m_btnSpotlightIncomplete->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnSpotlightIncomplete, &QPushButton::clicked, this, &GraphWidget::spotlightHygieneNodes);
 
+    // Undo the most recent sever (this session only).
+    m_btnUndoSever = new QPushButton("↩️ Undo Last Sever", m_pageEmpty);
+    m_btnUndoSever->setObjectName("secondaryBtn");
+    m_btnUndoSever->setStyleSheet("font-size: 11px; padding: 5px 8px;");
+    m_btnUndoSever->setEnabled(false);
+    connect(m_btnUndoSever, &QPushButton::clicked, this, &GraphWidget::onUndoSever);
+
     empLay->addWidget(empTitle);
     empLay->addWidget(m_lblHygieneMissingPhone);
     empLay->addWidget(m_lblHygieneMissingEmail);
     empLay->addWidget(m_lblHygieneIsolated);
     empLay->addWidget(m_lblHygieneBridgeCount);
     empLay->addWidget(m_btnSpotlightIncomplete);
+    empLay->addWidget(m_btnUndoSever);
     empLay->addStretch();
     m_detailsStack->addWidget(m_pageEmpty);
 
@@ -1751,6 +1833,7 @@ void GraphWidget::loadGraph() {
     m_isolatedPersonIds.clear();
     m_bridgeNodeIds.clear();
     m_bridgeGroupsMap.clear();
+    m_personStatusMap.clear();
     m_groupFamilyConcentrationMap.clear();
     m_burnoutDetailsMap.clear();
 
@@ -1829,6 +1912,7 @@ void GraphWidget::loadGraph() {
             node->setCareFlag(cf);
             node->setAdminNotes(notes);
             node->setContactInfo(phone, email);
+            m_personStatusMap[pid] = status;
 
             double angle = (2.0 * M_PI / qMax(1, 35)) * personIdx;
             double dist = 180.0 + (personIdx % 5) * 55.0;
@@ -1973,6 +2057,7 @@ void GraphWidget::loadGraph() {
     loadNodePositions();
     onFilterToggled();
     updateDetailsPanelForEmpty();
+    resumePhysics(); // fresh graph starts moving until it settles (auto-freeze)
 }
 
 void GraphWidget::updateIsolationQuery() {
@@ -2085,6 +2170,36 @@ void GraphWidget::selectNodeForDetails(NodeItem* node) {
             }
         }
         m_lblGroupMemberCount->setText(QString("Members (%1):").arg(mCount));
+
+        // Prep tasks linked to this group (planning module, real dates).
+        if (m_lblGroupTasks) {
+            QSqlQuery tq;
+            tq.prepare("SELECT title, start_date, end_date, COALESCE(status, 'In-Progress') "
+                       "FROM ministry_tasks WHERE team_id = ? ORDER BY start_date");
+            tq.addBindValue(node->id());
+            QStringList lines;
+            if (tq.exec()) {
+                const QDate today = QDate::currentDate();
+                while (tq.next()) {
+                    const QString title = tq.value(0).toString();
+                    const QDate start = QDate::fromString(tq.value(1).toString(), Qt::ISODate);
+                    const QDate end = QDate::fromString(tq.value(2).toString(), Qt::ISODate);
+                    const QString status = tq.value(3).toString();
+                    QString line = title;
+                    if (start.isValid()) line += QString(" · %1").arg(start.toString("MMM d"));
+                    if (end.isValid()) line += QString(" – %1").arg(end.toString("MMM d"));
+                    if (status == "Completed") line += " ✅";
+                    else if (end.isValid() && end < today) line += " ⚠️ slipping";
+                    else if (status == "Planned") line += " 📌";
+                    lines << line;
+                }
+            }
+            if (lines.isEmpty()) {
+                m_lblGroupTasks->setText("📋 Prep tasks: none");
+            } else {
+                m_lblGroupTasks->setText("📋 Prep tasks:\n• " + lines.join("\n• "));
+            }
+        }
     }
 }
 
@@ -2169,12 +2284,108 @@ void GraphWidget::onSeverSelectedEdge() {
         return;
     }
 
+    // Remember this sever so the admin can undo it this session.
+    m_hasUndoSever = true;
+    m_undoRelId = edge->relationshipId();
+    m_undoRelType = edge->relationshipType();
+    m_undoSrcType = edge->sourceNode()->isPersonNode() ? "Person"
+                     : (edge->sourceNode()->nodeType() == NodeItem::Group ? "Group" : "Household");
+    m_undoTgtType = edge->targetNode()->isPersonNode() ? "Person"
+                     : (edge->targetNode()->nodeType() == NodeItem::Group ? "Group" : "Household");
+    m_undoSrcId = edge->sourceNode()->id();
+    m_undoTgtId = edge->targetNode()->id();
+    if (m_btnUndoSever) m_btnUndoSever->setEnabled(true);
+
     m_scene->removeItem(edge);
     m_edges.removeOne(edge);
     delete edge;
     m_selectedEdgeForDetails = nullptr;
 
     updateDetailsPanelForEmpty();
+    m_scene->update();
+}
+
+void GraphWidget::onGroupSuggest() {
+    if (!m_selectedNodeForDetails || m_selectedNodeForDetails->nodeType() != NodeItem::Group) return;
+    const int gid = m_selectedNodeForDetails->id();
+
+    MatchDialog dlg(gid, this);
+    connect(&dlg, &MatchDialog::openProfile, this, [this](int personId) {
+        emit navigateToProfile("Person", personId);
+    });
+    dlg.exec();
+    if (!dlg.addedPersonIds().isEmpty()) {
+        loadGraph(); // roster + graph reflect the new members
+    }
+}
+
+void GraphWidget::onLogContact() {
+    if (!m_selectedNodeForDetails || !m_selectedNodeForDetails->isPersonNode()) return;
+    const int pid = m_selectedNodeForDetails->id();
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, follow_up_done) "
+              "VALUES (?, 'Contact Attempt', date('now', 'localtime'), 'Logged from Connection Graph', 0)");
+    q.addBindValue(pid);
+    if (!q.exec()) {
+        QMessageBox::critical(this, "Database Error", "Failed to log contact: " + q.lastError().text());
+        return;
+    }
+    // Ensure the person is flagged for follow-up.
+    QSqlQuery flag(db);
+    flag.prepare("UPDATE people SET care_flag = 'Needs Contact' "
+                 "WHERE id = ? AND (care_flag IS NULL OR care_flag = '' OR care_flag = 'Normal')");
+    flag.addBindValue(pid);
+    flag.exec();
+
+    m_selectedNodeForDetails->setCareFlag("Needs Contact");
+    m_lblLogContactStatus->setText("✓ Contact attempt logged — flagged 'Needs Contact' for follow-up.");
+    m_lblLogContactStatus->show();
+    m_scene->update();
+}
+
+void GraphWidget::onUndoSever() {
+    if (!m_hasUndoSever) return;
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QSqlQuery q(db);
+    if (m_undoRelType == "Parent of") {
+        q.prepare("UPDATE groups SET parent_id = ? WHERE id = ?");
+        q.addBindValue(m_undoSrcId); // source = parent
+        q.addBindValue(m_undoTgtId); // target = child
+    } else {
+        q.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                  "VALUES (?, ?, ?, ?, ?)");
+        q.addBindValue(m_undoSrcType);
+        q.addBindValue(m_undoSrcId);
+        q.addBindValue(m_undoTgtType);
+        q.addBindValue(m_undoTgtId);
+        q.addBindValue(m_undoRelType);
+    }
+    if (q.exec()) {
+        m_hasUndoSever = false;
+        if (m_btnUndoSever) m_btnUndoSever->setEnabled(false);
+        loadGraph();
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to undo: " + q.lastError().text());
+    }
+}
+
+void GraphWidget::onToggleStatusCluster() {
+    m_statusClustering = !m_statusClustering;
+    if (m_statusClustering) {
+        QColor cMember("#a6e3a1"), cAttender("#89b4fa"), cVisitor("#74c7ec"), cOther("#f9e2af");
+        for (NodeItem* n : m_nodes) {
+            if (!n->isPersonNode()) continue;
+            const QString status = m_personStatusMap.value(n->id(), QString());
+            if (status == "Member") n->setStatusColor(cMember);
+            else if (status == "Regular Attender" || status == "Attender") n->setStatusColor(cAttender);
+            else if (status == "Visitor") n->setStatusColor(cVisitor);
+            else n->setStatusColor(cOther);
+        }
+    } else {
+        for (NodeItem* n : m_nodes) n->clearStatusColor();
+    }
     m_scene->update();
 }
 
@@ -2453,6 +2664,20 @@ void GraphWidget::onFilterToggled() {
     for (EdgeItem* e : m_edges) {
         e->setVisible(e->sourceNode()->isVisible() && e->targetNode()->isVisible());
     }
+
+    // Persist the working view so it survives restarts.
+    QSettings s("OpenEkklesia", "CHMS");
+    s.setValue("graphFilters/people", m_filterPeopleActive);
+    s.setValue("graphFilters/households", m_filterHouseholdsActive);
+    s.setValue("graphFilters/groups", m_filterGroupsActive);
+    s.setValue("graphFilters/burnout", m_filterBurnoutActive);
+    s.setValue("graphFilters/isolation", m_filterIsolationActive);
+    s.setValue("graphFilters/hygiene", m_filterHygieneActive);
+    s.setValue("graphFilters/bridge", m_filterBridgeActive);
+    s.setValue("graphFilters/family", m_filterFamilyActive);
+    s.setValue("graphFilters/layout", (int)m_layoutMode);
+
+    resumePhysics(); // visibility changed — let the remaining nodes re-settle
 }
 
 void GraphWidget::onGraphSearchChanged(const QString& text) {
@@ -2524,11 +2749,21 @@ void GraphWidget::runBFSPathfind() {
 
     resetHighlight();
     if (found) {
+        // Count the chain length (degrees of separation) as we walk back.
+        int degrees = 0;
         NodeItem* step = m_pathEndNode;
         while (step) {
             step->setHovered(true);
             step = parentMap.value(step, nullptr);
+            if (step) ++degrees;
         }
+        if (m_lblPathStatus) {
+            m_lblPathStatus->setText(QString("✅ Path found — %1 connection(s) between %2 and %3.")
+                                         .arg(degrees)
+                                         .arg(m_pathStartNode->name(), m_pathEndNode->name()));
+        }
+    } else if (m_lblPathStatus) {
+        m_lblPathStatus->setText("No path between the selected nodes (with current filters).");
     }
 }
 
@@ -2624,17 +2859,70 @@ void GraphWidget::onExportJSON() {
 void GraphWidget::onRunAudit() {
     QDialog dlg(this);
     dlg.setWindowTitle("📊 Congregation Connection & Health Audit");
-    dlg.resize(480, 360);
+    dlg.resize(520, 420);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
 
     int totalPeople = 0;
     int totalGroups = 0;
     int isolatedCount = m_isolatedPersonIds.size();
     int burnoutCount = 0;
+    int edgeCount = m_edges.size();
+    int bridgeCount = m_bridgeNodeIds.size();
     for (NodeItem* n : m_nodes) {
         if (n->isPersonNode()) ++totalPeople;
         if (n->nodeType() == NodeItem::Group) ++totalGroups;
         if (n->burnoutGroupCount() >= m_burnoutThreshold) ++burnoutCount;
+    }
+
+    // Hygiene gaps (phone/email) for the snapshot.
+    int missingPhone = 0, missingEmail = 0;
+    QSqlQuery hq;
+    if (hq.exec("SELECT SUM(CASE WHEN phone_number IS NULL OR phone_number = '' THEN 1 ELSE 0 END), "
+                "       SUM(CASE WHEN email IS NULL OR email = '' THEN 1 ELSE 0 END) FROM people")) {
+        if (hq.next()) {
+            missingPhone = hq.value(0).toInt();
+            missingEmail = hq.value(1).toInt();
+        }
+    }
+
+    // Save a connection-health snapshot for trend comparison.
+    const double density = (totalPeople > 1) ? (2.0 * edgeCount) / (totalPeople * (totalPeople - 1)) : 0.0;
+    int avgConnections = 0;
+    int peopleWithEdges = 0;
+    for (NodeItem* n : m_nodes) {
+        if (n->isPersonNode() && n->connectionCount() > 0) {
+            avgConnections += n->connectionCount();
+            ++peopleWithEdges;
+        }
+    }
+    avgConnections = peopleWithEdges > 0 ? (avgConnections / peopleWithEdges) : 0;
+
+    QSqlQuery snap;
+    snap.prepare("INSERT INTO graph_snapshots (node_count, edge_count, density, avg_connections, "
+                 "bridge_count, isolated_count, missing_phone, missing_email) "
+                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    snap.addBindValue(totalPeople);
+    snap.addBindValue(edgeCount);
+    snap.addBindValue(density);
+    snap.addBindValue(avgConnections);
+    snap.addBindValue(bridgeCount);
+    snap.addBindValue(isolatedCount);
+    snap.addBindValue(missingPhone);
+    snap.addBindValue(missingEmail);
+    snap.exec();
+
+    // Trend vs the previous snapshot (isolation is the headline metric).
+    QString trend;
+    QSqlQuery prev;
+    if (prev.exec("SELECT isolated_count, node_count FROM graph_snapshots "
+                  "ORDER BY id DESC LIMIT 1 OFFSET 1")) {
+        if (prev.next()) {
+            const int prevIsolated = prev.value(0).toInt();
+            const int delta = isolatedCount - prevIsolated;
+            trend = QString("\n\n📈 vs previous audit: isolation %1 (%2)")
+                        .arg(delta <= 0 ? "improved" : "worsened")
+                        .arg(delta > 0 ? "+" + QString::number(delta) : QString::number(delta));
+        }
     }
 
     QLabel* title = new QLabel("Congregation Relational Diagnostics", &dlg);
@@ -2643,24 +2931,98 @@ void GraphWidget::onRunAudit() {
 
     QLabel* stats = new QLabel(QString("• Total Tracked Members: %1\n"
                                       "• Active Ministry Groups: %2\n"
-                                      "• Unconnected / Isolated Members: %3 (%4%)\n"
-                                      "• Relational Bridge Connectors: %5\n"
-                                      "• Volunteers in Burnout Danger (>=%6 groups): %7\n")
+                                      "• Relationships (edges): %3\n"
+                                      "• Unconnected / Isolated Members: %4 (%5%)\n"
+                                      "• Relational Bridge Connectors: %6\n"
+                                      "• Volunteers in Burnout Danger (>=%7 groups): %8\n"
+                                      "• Missing phone / email: %9 / %10%11")
                                    .arg(totalPeople)
                                    .arg(totalGroups)
+                                   .arg(edgeCount)
                                    .arg(isolatedCount)
                                    .arg(totalPeople > 0 ? (isolatedCount * 100 / totalPeople) : 0)
-                                   .arg(m_bridgeNodeIds.size())
+                                   .arg(bridgeCount)
                                    .arg(m_burnoutThreshold)
-                                   .arg(burnoutCount), &dlg);
+                                   .arg(burnoutCount)
+                                   .arg(missingPhone)
+                                   .arg(missingEmail)
+                                   .arg(trend), &dlg);
     stats->setStyleSheet("font-size: 12px; line-height: 1.5;");
     lay->addWidget(stats);
 
+    QHBoxLayout* btnRow = new QHBoxLayout();
+    QPushButton* btnExport = new QPushButton("📤 Export CSV", &dlg);
+    btnExport->setObjectName("secondaryBtn");
+    btnRow->addWidget(btnExport);
+    btnRow->addStretch();
     QPushButton* btnClose = new QPushButton("Close", &dlg);
-    lay->addWidget(btnClose);
+    btnClose->setObjectName("secondaryBtn");
+    btnRow->addWidget(btnClose);
+    lay->addLayout(btnRow);
+
     connect(btnClose, &QPushButton::clicked, &dlg, &QDialog::accept);
+    connect(btnExport, &QPushButton::clicked, &dlg, [&]() {
+        QString fileName = QFileDialog::getSaveFileName(&dlg, "Export Audit CSV", "graph_audit.csv", "CSV Files (*.csv)");
+        if (fileName.isEmpty()) return;
+        QFile f(fileName);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            out << "metric,value\n"
+                << "members," << totalPeople << "\n"
+                << "groups," << totalGroups << "\n"
+                << "edges," << edgeCount << "\n"
+                << "isolated," << isolatedCount << "\n"
+                << "bridges," << bridgeCount << "\n"
+                << "burnout," << burnoutCount << "\n"
+                << "missing_phone," << missingPhone << "\n"
+                << "missing_email," << missingEmail << "\n"
+                << "density," << QString::number(density, 'f', 6) << "\n"
+                << "avg_connections," << avgConnections << "\n";
+            f.close();
+        }
+    });
 
     dlg.exec();
+}
+
+// Moves the selection to the connected neighbor whose position best aligns
+// with the pressed arrow direction (falls back to nearest node when nothing
+// is selected).
+void GraphWidget::selectNeighborInDirection(const QPointF& dir) {
+    NodeItem* current = m_selectedNodeForDetails;
+    if (!current) {
+        for (NodeItem* n : m_nodes) {
+            if (n->isSelected()) { current = n; break; }
+        }
+    }
+    if (!current) return;
+
+    NodeItem* best = nullptr;
+    double bestDot = -1.0;
+    for (EdgeItem* e : m_edges) {
+        NodeItem* other = (e->sourceNode() == current) ? e->targetNode()
+                        : (e->targetNode() == current) ? e->sourceNode() : nullptr;
+        if (!other || !other->isVisible()) continue;
+        QPointF rel = other->pos() - current->pos();
+        const double len = std::hypot(rel.x(), rel.y());
+        if (len < 1.0) continue;
+        const double dot = (rel.x() / len) * dir.x() + (rel.y() / len) * dir.y();
+        if (dot > bestDot) {
+            bestDot = dot;
+            best = other;
+        }
+    }
+    if (best) {
+        focusAndSelectNode(best);
+        m_canvasView->centerOn(best);
+    }
+}
+
+void GraphWidget::clearSceneSelection() {
+    m_scene->clearSelection();
+    selectNodeForDetails(nullptr);
+    selectEdgeForDetails(nullptr);
+    resetHighlight();
 }
 
 void GraphWidget::onZoomIn() {
@@ -2681,6 +3043,7 @@ void GraphWidget::onZoomReset() {
 void GraphWidget::applyForceDirectedLayout() {
     const double kIdealDistance = 140.0;
     const double kMaxSpeed = 5.0;
+    m_lastMaxDisplacement = 0.0;
 
     for (NodeItem* n1 : m_nodes) {
         if (!n1->isVisible() || n1->isBeingDragged) continue;
@@ -2734,6 +3097,7 @@ void GraphWidget::applyForceDirectedLayout() {
         if (speed > 0.04) {
             n1->setPos(n1->pos() + n1->velocity);
         }
+        m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, speed);
     }
 }
 
@@ -2774,14 +3138,28 @@ void GraphWidget::updatePhysics() {
         return;
     }
     applyForceDirectedLayout();
+
+    // Auto-freeze: once the layout has settled, stop the timer entirely so
+    // the graph doesn't burn CPU at 30 FPS while nothing moves. Any filter
+    // toggle, drag, or layout switch resumes it.
+    if (m_lastMaxDisplacement < 0.05) {
+        if (++m_settleTicks >= 90) m_timer->stop();
+    } else {
+        m_settleTicks = 0;
+    }
 }
 
 void GraphWidget::pausePhysics() {
     m_physicsRunning = false;
+    m_timer->stop();
 }
 
 void GraphWidget::resumePhysics() {
     m_physicsRunning = true;
+    m_settleTicks = 0;
+    if (!m_nodes.isEmpty() && !m_timer->isActive()) {
+        m_timer->start(33);
+    }
 }
 
 void GraphWidget::setRepulsionStrength(double val) {
@@ -2795,6 +3173,59 @@ void GraphWidget::applyRole(const QString& role) {
 void GraphWidget::applyTheme(const ThemeTokens& tok) {
     if (m_scene) m_scene->update();
     restyleChrome(tok);
+}
+
+// Restores the admin's working view (filter toggles + layout mode) from
+// QSettings — saved by onFilterToggled on every change.
+void GraphWidget::restoreFilterState() {
+    QSettings s("OpenEkklesia", "CHMS");
+    m_filterPeopleActive = s.value("graphFilters/people", true).toBool();
+    m_filterHouseholdsActive = s.value("graphFilters/households", true).toBool();
+    m_filterGroupsActive = s.value("graphFilters/groups", true).toBool();
+    m_filterBurnoutActive = s.value("graphFilters/burnout", false).toBool();
+    m_filterIsolationActive = s.value("graphFilters/isolation", false).toBool();
+    m_filterHygieneActive = s.value("graphFilters/hygiene", false).toBool();
+    m_filterBridgeActive = s.value("graphFilters/bridge", false).toBool();
+    m_filterFamilyActive = s.value("graphFilters/family", false).toBool();
+    m_layoutMode = (LayoutMode)s.value("graphFilters/layout", (int)ForceDirected).toInt();
+
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    if (m_btnTogglePeople) {
+        m_btnTogglePeople->setChecked(m_filterPeopleActive);
+        styleFilterButton(m_btnTogglePeople, m_filterPeopleActive, tok.accentPrimary);
+    }
+    if (m_btnToggleHouseholds) {
+        m_btnToggleHouseholds->setChecked(m_filterHouseholdsActive);
+        styleFilterButton(m_btnToggleHouseholds, m_filterHouseholdsActive, tok.accentPrimary);
+    }
+    if (m_btnToggleGroups) {
+        m_btnToggleGroups->setChecked(m_filterGroupsActive);
+        styleFilterButton(m_btnToggleGroups, m_filterGroupsActive, tok.accentPrimary);
+    }
+    if (m_btnToggleBurnout) {
+        m_btnToggleBurnout->setChecked(m_filterBurnoutActive);
+        styleFilterButton(m_btnToggleBurnout, m_filterBurnoutActive, tok.accentWarning);
+    }
+    if (m_btnToggleIsolation) {
+        m_btnToggleIsolation->setChecked(m_filterIsolationActive);
+        styleFilterButton(m_btnToggleIsolation, m_filterIsolationActive, tok.accentDanger);
+    }
+    if (m_btnToggleHygiene) {
+        m_btnToggleHygiene->setChecked(m_filterHygieneActive);
+        styleFilterButton(m_btnToggleHygiene, m_filterHygieneActive, tok.accentSuccess);
+    }
+    if (m_btnToggleBridgeNodes) {
+        m_btnToggleBridgeNodes->setChecked(m_filterBridgeActive);
+        styleFilterButton(m_btnToggleBridgeNodes, m_filterBridgeActive, QColor("#cba6f7"));
+    }
+    if (m_btnToggleFamilyDynasty) {
+        m_btnToggleFamilyDynasty->setChecked(m_filterFamilyActive);
+        styleFilterButton(m_btnToggleFamilyDynasty, m_filterFamilyActive, tok.accentWarning);
+    }
+    if (m_btnToggleLayout) {
+        m_btnToggleLayout->setText(m_layoutMode == Clustered ? "🧩 Clustered" : "⚡ Force-Directed");
+    }
+    onFilterToggled();
 }
 
 // Re-applies token-based colors to the chrome (dock, floating controls) so a
@@ -2811,6 +3242,12 @@ void GraphWidget::restyleChrome(const ThemeTokens& tok) {
         m_floatingZoomBar->setStyleSheet(QString(
             "QWidget { background-color: %1; border: 1px solid %2; border-radius: 8px; }"
             "QPushButton { background-color: transparent; color: %3; border: none; font-size: 14px; padding: 2px 6px; }"
+        ).arg(tok.bgOverlay.name(), tok.borderColor.name(), tok.textPrimary.name()));
+    }
+    if (m_legendOverlay) {
+        m_legendOverlay->setStyleSheet(QString(
+            "QWidget#legendOverlay { background-color: %1; border: 1px solid %2; border-radius: 8px; color: %3; }"
+            "QWidget#legendOverlay QLabel { color: %3; }"
         ).arg(tok.bgOverlay.name(), tok.borderColor.name(), tok.textPrimary.name()));
     }
     if (m_scene) m_scene->update();

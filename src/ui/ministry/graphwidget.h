@@ -13,6 +13,7 @@
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneContextMenuEvent>
+#include <QKeyEvent>
 #include <QColor>
 #include <QSet>
 #include <QComboBox>
@@ -74,6 +75,10 @@ public:
 
     void setCategoryColor(const QColor& c) { m_categoryColor = c; QGraphicsItem::update(); }
     QColor categoryColor() const { return m_categoryColor; }
+    // Status-cluster view: overrides the person border color while active.
+    void setStatusColor(const QColor& c) { m_statusColor = c; QGraphicsItem::update(); }
+    QColor statusColor() const { return m_statusColor; }
+    void clearStatusColor() { m_statusColor = QColor(); QGraphicsItem::update(); }
 
     QString careFlag() const { return m_careFlag; }
     void setCareFlag(const QString& cf) { m_careFlag = cf; }
@@ -138,6 +143,7 @@ private:
     QPointF m_dragStartPos;
     HealthStatus m_healthStatus;
     QColor m_categoryColor;
+    QColor m_statusColor;
 };
 
 class EdgeItem : public QGraphicsItem {
@@ -203,6 +209,7 @@ public:
 protected:
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
     void drawForeground(QPainter* painter, const QRectF& rect) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -245,6 +252,8 @@ public:
     void spotlightHygieneNodes();
     void spotlightBridgeNodes();
     void spotlightFamilyDynasties();
+    void clearSceneSelection();
+    void selectNeighborInDirection(const QPointF& dir);
 
     bool isHygieneActive() const { return m_filterHygieneActive; }
     bool isBridgeActive() const { return m_filterBridgeActive; }
@@ -289,6 +298,10 @@ private slots:
     void onBatchExportCSV();
     void onBatchAssignGroup();
     void onConnectSmartBridge(int personId, int groupId, const QString& role);
+    void onGroupSuggest();
+    void onLogContact();
+    void onUndoSever();
+    void onToggleStatusCluster();
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -298,6 +311,7 @@ protected:
 private:
     void setupUI();
     void restyleChrome(const ThemeTokens& tok);
+    void restoreFilterState();
     void applyForceDirectedLayout();
     void applyClusteredLayout();
     void runBFSPathfind();
@@ -331,6 +345,7 @@ private:
     QPushButton* m_btnToggleBridgeNodes;
     QPushButton* m_btnToggleFamilyDynasty;
     QPushButton* m_btnToggleLayout;
+    QPushButton* m_btnToggleStatusCluster;
     QPushButton* m_btnIsolatedBanner;
     QPushButton* m_btnLegendToggle;
     QLineEdit* m_graphSearchEdit;
@@ -359,6 +374,9 @@ private:
     bool m_filterBridgeActive;
     bool m_filterFamilyActive;
     bool m_isSelectMode;
+    bool m_statusClustering = false; // recolor person nodes by membership status
+    int m_settleTicks = 0;           // consecutive low-movement ticks for auto-freeze
+    double m_lastMaxDisplacement = 1.0;
     LayoutMode m_layoutMode;
     int m_selectedMinistryParentId;
 
@@ -405,6 +423,20 @@ private:
     QListWidget* m_lstRoster;
     QPushButton* m_btnGroupAddMember;
     QPushButton* m_btnGroupCopyEmails;
+    QPushButton* m_btnGroupSuggest;
+    QLabel* m_lblGroupTasks;
+
+    // Page 0: Person Details — reconnect workflow
+    QPushButton* m_btnLogContact;
+    QLabel* m_lblLogContactStatus;
+
+    // Undo-one-sever (in-memory, this session)
+    QPushButton* m_btnUndoSever;
+    bool m_hasUndoSever = false;
+    int m_undoRelId = 0;
+    QString m_undoRelType;
+    QString m_undoSrcType, m_undoTgtType;
+    int m_undoSrcId = 0, m_undoTgtId = 0;
 
     // Page 2: Edge / Relationship Details
     QWidget* m_pageEdge;
@@ -438,6 +470,7 @@ private:
     QSet<int> m_isolatedPersonIds;
     QSet<int> m_bridgeNodeIds;
     QMap<int, QStringList> m_bridgeGroupsMap;
+    QMap<int, QString> m_personStatusMap; // person id -> membership_status (status clustering)
     QMap<int, QString> m_groupFamilyConcentrationMap;
     QMap<int, QString> m_burnoutDetailsMap;
 

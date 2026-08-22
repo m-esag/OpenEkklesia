@@ -1618,6 +1618,119 @@ bool test_comprehensiveSettingsRoundTrip() {
     return true;
 }
 
+bool test_givingBatchesAndMultiFundSplits() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Create a giving batch
+    QSqlQuery q(d);
+    q.prepare("INSERT INTO giving_batches (batch_name, batch_date, status, created_by) "
+              "VALUES ('Sunday Test Batch', '2026-08-23', 'In Progress', 'Tester')");
+    CHECK(q.exec());
+    int batchId = q.lastInsertId().toInt();
+    CHECK(batchId > 0);
+
+    // 2. Insert multi-fund split contribution into the batch
+    int personId = 1;
+    int fund1Id = 1;
+    int fund2Id = 2;
+
+    q.prepare("INSERT INTO contributions (batch_id, person_id, fund_id, amount, contribution_date, payment_method, check_number, note) "
+              "VALUES (?, ?, ?, 15000, '2026-08-23', 'Check', '1042', 'Split 1/2')");
+    q.addBindValue(batchId);
+    q.addBindValue(personId);
+    q.addBindValue(fund1Id);
+    CHECK(q.exec());
+
+    q.prepare("INSERT INTO contributions (batch_id, person_id, fund_id, amount, contribution_date, payment_method, check_number, note) "
+              "VALUES (?, ?, ?, 10000, '2026-08-23', 'Check', '1042', 'Split 2/2')");
+    q.addBindValue(batchId);
+    q.addBindValue(personId);
+    q.addBindValue(fund2Id);
+    CHECK(q.exec());
+
+    // 3. Verify total for the batch equals 25000 cents ($250.00)
+    QSqlQuery qBatchSum(d);
+    qBatchSum.prepare("SELECT COUNT(*), SUM(amount) FROM contributions WHERE batch_id = ?");
+    qBatchSum.addBindValue(batchId);
+    CHECK(qBatchSum.exec() && qBatchSum.next());
+    CHECK_EQ(qBatchSum.value(0).toInt(), 2);
+    CHECK_EQ(qBatchSum.value(1).toInt(), 25000);
+
+    // 4. Commit the batch
+    q.prepare("UPDATE giving_batches SET status = 'Committed' WHERE id = ?");
+    q.addBindValue(batchId);
+    CHECK(q.exec());
+
+    QSqlQuery qStatus(d);
+    qStatus.prepare("SELECT status FROM giving_batches WHERE id = ?");
+    qStatus.addBindValue(batchId);
+    CHECK(qStatus.exec() && qStatus.next());
+    CHECK_EQ(qStatus.value(0).toString().toStdString(), std::string("Committed"));
+
+    d.rollback();
+    return true;
+}
+
+bool test_graphHealthFeatures() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Connection-health snapshots: the audit trend query (previous row).
+    QSqlQuery ins(d);
+    ins.prepare("INSERT INTO graph_snapshots (node_count, edge_count, isolated_count) VALUES (?, ?, ?)");
+    ins.addBindValue(100);
+    ins.addBindValue(40);
+    ins.addBindValue(12);
+    CHECK(ins.exec());
+    ins.addBindValue(100);
+    ins.addBindValue(45);
+    ins.addBindValue(9);
+    CHECK(ins.exec());
+
+    QSqlQuery trend(d);
+    CHECK(trend.exec("SELECT isolated_count FROM graph_snapshots ORDER BY id DESC LIMIT 1 OFFSET 1"));
+    CHECK(trend.next());
+    CHECK_EQ(trend.value(0).toInt(), 12); // the previous snapshot
+
+    // 2. Group prep-task slipping query (the graph group panel uses this).
+    QSqlQuery gq(d);
+    CHECK(gq.exec("INSERT INTO groups (name, category) VALUES ('Prep Test Team', 'Serving Team')"));
+    const int gid = gq.lastInsertId().toInt();
+    QSqlQuery task(d);
+    task.prepare("INSERT INTO ministry_tasks (team, title, owner, status, start_day, duration_days, "
+                 "start_month, duration_months, team_id, start_date, end_date) "
+                 "VALUES ('Prep Test Team', 'Easter Prep', 'Jane', 'In-Progress', 1, 1, 1, 1, ?, ?, ?)");
+    task.addBindValue(gid);
+    task.addBindValue(QDate(2000, 1, 1).toString(Qt::ISODate)); // long past
+    task.addBindValue(QDate(2000, 2, 1).toString(Qt::ISODate)); // long past -> slipping
+    CHECK(task.exec());
+    QSqlQuery slip(d);
+    slip.prepare("SELECT COUNT(*) FROM ministry_tasks "
+                 "WHERE team_id = ? AND end_date < date('now') AND COALESCE(status, 'In-Progress') != 'Completed'");
+    slip.addBindValue(gid);
+    CHECK(slip.exec() && slip.next());
+    CHECK_EQ(slip.value(0).toInt(), 1);
+
+    // 3. Reconnect workflow: the log-contact insert the graph button performs.
+    QSqlQuery person(d);
+    CHECK(person.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Iso', 'Lated', 'Member')"));
+    const int pid = person.lastInsertId().toInt();
+    QSqlQuery contact(d);
+    contact.prepare("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes, follow_up_done) "
+                    "VALUES (?, 'Contact Attempt', date('now', 'localtime'), 'Logged from Connection Graph', 0)");
+    contact.addBindValue(pid);
+    CHECK(contact.exec());
+    QSqlQuery verify(d);
+    verify.prepare("SELECT activity_type FROM pastoral_activities WHERE person_id = ? AND notes = 'Logged from Connection Graph'");
+    verify.addBindValue(pid);
+    CHECK(verify.exec() && verify.next());
+    CHECK_EQ(verify.value(0).toString().toStdString(), std::string("Contact Attempt"));
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1675,11 +1788,13 @@ int main(int argc, char** argv) {
         {"graph_dual_panel_and_data_hygiene", test_graphDualPanelAndDataHygiene},
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
+        {"graph_health_features", test_graphHealthFeatures},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
         {"facilities_conflict_engine", test_facilitiesConflictEngine},
         {"contributions_split_and_anonymous", test_contributionsSplitAndAnonymous},
         {"comprehensive_settings_round_trip", test_comprehensiveSettingsRoundTrip},
+        {"giving_batches_and_multi_fund_splits", test_givingBatchesAndMultiFundSplits},
     };
 
     for (const Test& t : tests) {
