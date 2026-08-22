@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QSet>
+#include <QIODevice>
+#include <QDate>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -87,6 +89,37 @@ bool DatabaseManager::initialize(const QString& dbPath) {
         QString autoBackupPath = QString("%1/auto_backup_%2.db").arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
         if (QFile::copy(resolvedPath, autoBackupPath)) {
             qInfo() << "Automated weekly database backup created at:" << autoBackupPath;
+
+            // The vault holds the actual documents; a DB-only backup would
+            // preserve records pointing at missing files. Copy the vault dir
+            // alongside the weekly .db snapshot. Only the newest vault
+            // snapshot is kept (documents are large and change little);
+            // older *_vault dirs are pruned.
+            const QString vaultDir = vaultDirPath();
+            if (QDir(vaultDir).exists()) {
+                const QString vaultBackupDir = QString("%1/auto_backup_%2_vault")
+                                                   .arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
+                QDir().mkpath(vaultBackupDir);
+                const auto files = QDir(vaultDir).entryInfoList(QDir::Files);
+                bool allCopied = true;
+                for (const QFileInfo& fi : files) {
+                    const QString dest = vaultBackupDir + "/" + fi.fileName();
+                    QFile::remove(dest);
+                    if (!QFile::copy(fi.absoluteFilePath(), dest)) allCopied = false;
+                }
+                if (!allCopied) {
+                    qWarning() << "Weekly vault backup incomplete for" << vaultBackupDir;
+                }
+                // Prune older vault snapshots (keep only today's).
+                const auto backupDirs = QDir(backupDir).entryList(
+                    QStringList() << "auto_backup_*_vault", QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const QString& d : backupDirs) {
+                    if (d != QFileInfo(vaultBackupDir).fileName()) {
+                        QDir(backupDir + "/" + d).removeRecursively();
+                    }
+                }
+            }
+
             QFile f(lastBackupDateFile);
             if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 f.write(QDate::currentDate().toString("yyyy-MM-dd").toUtf8());
@@ -172,11 +205,37 @@ bool DatabaseManager::exportBackup(const QString& destPath) {
     q.exec("PRAGMA wal_checkpoint(TRUNCATE)");
 
     QFile::remove(destPath);
-    return QFile::copy(dbPath, destPath);
+    if (!QFile::copy(dbPath, destPath)) return false;
+
+    // Documents live outside the DB; export them to a sibling folder so a
+    // manual backup is complete on its own. Failure here is a warning, not a
+    // failed backup — the DB copy already succeeded.
+    const QString vaultDir = vaultDirPath();
+    if (QDir(vaultDir).exists()) {
+        QString base = destPath;
+        if (base.endsWith(".db", Qt::CaseInsensitive)) base.chop(3);
+        const QString vaultDest = base + "_vault";
+        QDir().mkpath(vaultDest);
+        const auto files = QDir(vaultDir).entryInfoList(QDir::Files);
+        for (const QFileInfo& fi : files) {
+            const QString dest = vaultDest + "/" + fi.fileName();
+            QFile::remove(dest);
+            if (!QFile::copy(fi.absoluteFilePath(), dest)) {
+                qWarning() << "Vault file not exported:" << fi.fileName();
+            }
+        }
+        qInfo() << "Vault documents exported to" << vaultDest;
+    }
+    return true;
 }
 
 QSqlDatabase DatabaseManager::database() const {
     return QSqlDatabase::database(m_db.connectionName());
+}
+
+QString DatabaseManager::vaultDirPath() {
+    const QString dbPath = instance().m_db.databaseName();
+    return QFileInfo(dbPath).absolutePath() + "/vault";
 }
 
 bool DatabaseManager::createTables() {
@@ -380,7 +439,12 @@ bool DatabaseManager::createTables() {
         "  title TEXT NOT NULL,"
         "  meeting_date TEXT NOT NULL,"
         "  category TEXT NOT NULL,"
-        "  file_path TEXT NOT NULL"
+        "  file_path TEXT NOT NULL,"
+        "  person_id INTEGER,"
+        "  group_id INTEGER,"
+        "  added_at TEXT DEFAULT (datetime('now')),"
+        "  FOREIGN KEY(person_id) REFERENCES people(id),"
+        "  FOREIGN KEY(group_id) REFERENCES groups(id)"
         ");";
     if (!query.exec(createVault)) {
         qCritical() << "Failed to create vault_documents table:" << query.lastError().text();
@@ -1468,6 +1532,57 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 14 applied successfully.";
+    }
+
+    // --- Schema Migration 15: link vault documents to people & groups ---
+    // Membership applications belong to a person, sign-up sheets to a
+    // ministry group. The optional links make documents findable from the
+    // profile/group instead of by remembered filenames. added_at records when
+    // the document was filed.
+    if (current < 15) {
+        qInfo() << "Applying schema migration 15: vault_documents person/group links";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 15: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery check(m_db);
+        check.exec("PRAGMA table_info(vault_documents)");
+        bool hasPerson = false, hasGroup = false, hasAddedAt = false;
+        while (check.next()) {
+            const QString col = check.value(1).toString();
+            if (col == "person_id") hasPerson = true;
+            else if (col == "group_id") hasGroup = true;
+            else if (col == "added_at") hasAddedAt = true;
+        }
+
+        QSqlQuery migQ(m_db);
+        if (!hasPerson && !migQ.exec("ALTER TABLE vault_documents ADD COLUMN person_id INTEGER REFERENCES people(id);")) {
+            qCritical() << "Migration 15: add person_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!hasGroup && !migQ.exec("ALTER TABLE vault_documents ADD COLUMN group_id INTEGER REFERENCES groups(id);")) {
+            qCritical() << "Migration 15: add group_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!hasAddedAt && !migQ.exec("ALTER TABLE vault_documents ADD COLUMN added_at TEXT DEFAULT (datetime('now'));")) {
+            qCritical() << "Migration 15: add added_at failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 15: commit failed";
+            m_db.rollback();
+            return false;
+        }
+
+        if (!recordSchemaVersion(15)) {
+            return false;
+        }
+        qInfo() << "Schema migration 15 applied successfully.";
     }
 
     return true;

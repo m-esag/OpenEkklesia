@@ -23,6 +23,7 @@
 #include <QPrinter>
 #include <QTextDocument>
 #include <QSettings>
+#include <QSet>
 
 VaultWidget::VaultWidget(QWidget *parent)
     : QWidget(parent)
@@ -34,12 +35,37 @@ VaultWidget::VaultWidget(QWidget *parent)
 
 VaultWidget::~VaultWidget() {}
 
-QString VaultWidget::vaultDirPath() const {
-    QString path = QDir::homePath() + "/.local/share/openekklesia/vault";
+QString VaultWidget::vaultDirPath() {
+    // Base path comes from DatabaseManager (the DB's own directory + /vault)
+    // so documents always share the app's data root. A hardcoded path
+    // previously created a case-sensitive sibling directory
+    // (~/.local/share/openekklesia vs OpenEkklesia), and
+    // QStandardPaths::AppDataLocation can nest differently (<org>/<app>) —
+    // anchoring to the DB file sidesteps both failure modes.
+    QString path = DatabaseManager::vaultDirPath();
     QDir dir(path);
     if (!dir.exists()) {
         dir.mkpath(".");
     }
+
+    // One-time adoption: move files from the old lowercase location so no
+    // document is left behind. rename() is safe because both directories
+    // live under ~/.local/share on the same filesystem.
+    const QString legacy = QDir::homePath() + "/.local/share/openekklesia/vault";
+    if (legacy != path && QDir(legacy).exists()) {
+        const auto files = QDir(legacy).entryInfoList(QDir::Files);
+        for (const QFileInfo& fi : files) {
+            const QString dest = path + "/" + fi.fileName();
+            if (!QFile::exists(dest)) {
+                QFile::rename(fi.absoluteFilePath(), dest);
+            }
+        }
+        QDir(legacy).removeRecursively(); // no-op if collisions left files
+    }
+
+    // The vault holds private records (membership applications, minutes);
+    // keep the directory readable only by this user.
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
     return path;
 }
 
@@ -84,6 +110,12 @@ void VaultWidget::setupUI() {
     m_btnDelete->setObjectName("dangerBtn");
     connect(m_btnDelete, &QPushButton::clicked, this, &VaultWidget::onDeleteClicked);
     controls->addWidget(m_btnDelete);
+
+    m_btnSweep = new QPushButton("🧹 Sweep Orphans", this);
+    m_btnSweep->setObjectName("secondaryBtn");
+    m_btnSweep->setToolTip("Find files in the vault folder that no database record references (demo leftovers, record-only removals) and offer to delete them.");
+    connect(m_btnSweep, &QPushButton::clicked, this, &VaultWidget::onSweepOrphans);
+    controls->addWidget(m_btnSweep);
 
     controls->addStretch();
     vaultLay->addLayout(controls);
@@ -138,31 +170,40 @@ void VaultWidget::setupUI() {
 }
 
 void VaultWidget::refreshVault() {
+    // Person/group links are optional (NULL for general documents); LEFT
+    // JOINs keep unlinked rows visible.
     m_queryModel->setQuery(
         "SELECT id AS \"ID\", "
         "       title AS \"Document Title\", "
         "       meeting_date AS \"Date\", "
         "       category AS \"Category\", "
+        "       COALESCE(p.first_name || ' ' || p.last_name, '—') AS \"Person\", "
+        "       COALESCE(g.name, '—') AS \"Group\", "
         "       file_path AS \"Filename\" "
-        "FROM vault_documents "
-        "ORDER BY meeting_date DESC"
+        "FROM vault_documents v "
+        "LEFT JOIN people p ON v.person_id = p.id "
+        "LEFT JOIN groups g ON v.group_id = g.id "
+        "ORDER BY v.meeting_date DESC"
     );
     m_tableView->hideColumn(0); // Hide ID column
 }
 
 void VaultWidget::onUploadClicked() {
-    QString selectedFile = QFileDialog::getOpenFileName(this, "Upload PDF", QString(), "PDF Files (*.pdf)");
+    // Signup sheets are often photographed rather than scanned, so accept
+    // images alongside PDFs.
+    QString selectedFile = QFileDialog::getOpenFileName(
+        this, "Upload Document", QString(), "Documents (*.pdf *.jpg *.jpeg *.png)");
     if (selectedFile.isEmpty()) return;
 
     QDialog dlg(this);
     dlg.setWindowTitle("Document Metadata");
-    dlg.resize(350, 220);
+    dlg.resize(400, 300);
 
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
     QFormLayout* form = new QFormLayout();
 
     QLineEdit* titleEdit = new QLineEdit(&dlg);
-    titleEdit->setPlaceholderText("E.g. Q2 Elder Minutes...");
+    titleEdit->setPlaceholderText("Auto-generated — edit if you like");
     form->addRow("Title:", titleEdit);
 
     QDateEdit* dateEdit = new QDateEdit(QDate::currentDate(), &dlg);
@@ -170,8 +211,57 @@ void VaultWidget::onUploadClicked() {
     form->addRow("Document Date:", dateEdit);
 
     QComboBox* categoryBox = new QComboBox(&dlg);
-    categoryBox->addItems({"Board Minutes", "Financial Bylaws", "Legal Documents", "Other"});
+    categoryBox->addItems({"Membership", "Meeting Minutes", "Legal", "Financial", "Sign-up Sheets", "Other"});
     form->addRow("Category:", categoryBox);
+
+    // Optional links: membership documents belong to a person, sign-up
+    // sheets to a ministry. Rows show/hide with the category.
+    QComboBox* personCombo = new QComboBox(&dlg);
+    personCombo->addItem("— none —", 0);
+    {
+        QSqlQuery pq;
+        pq.exec("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name");
+        while (pq.next()) personCombo->addItem(pq.value(1).toString(), pq.value(0).toInt());
+    }
+    const int personRow = form->rowCount();
+    form->addRow("Person:", personCombo);
+
+    QComboBox* groupCombo = new QComboBox(&dlg);
+    groupCombo->addItem("— none —", 0);
+    {
+        QSqlQuery gq;
+        gq.exec("SELECT id, name FROM groups ORDER BY name");
+        while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
+    }
+    const int groupRow = form->rowCount();
+    form->addRow("Group:", groupCombo);
+
+    // Auto-title ("Category — Person/Group — date") unless the user edits it.
+    bool titleTouched = false;
+    connect(titleEdit, &QLineEdit::textEdited, [&titleTouched]() { titleTouched = true; });
+    auto refreshDefaultTitle = [=]() {
+        if (titleTouched) return;
+        QString who;
+        if (categoryBox->currentText() == "Membership" && personCombo->currentData().toInt() > 0)
+            who = personCombo->currentText();
+        else if (categoryBox->currentText() == "Sign-up Sheets" && groupCombo->currentData().toInt() > 0)
+            who = groupCombo->currentText();
+        titleEdit->setText(who.isEmpty()
+            ? QString("%1 — %2").arg(categoryBox->currentText(), dateEdit->date().toString("yyyy-MM-dd"))
+            : QString("%1 — %2 — %3").arg(categoryBox->currentText(), who, dateEdit->date().toString("yyyy-MM-dd")));
+    };
+    auto updateLinkRows = [=]() {
+        const QString cat = categoryBox->currentText();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+        form->setRowVisible(personRow, cat == "Membership");
+        form->setRowVisible(groupRow, cat == "Sign-up Sheets");
+#endif
+        refreshDefaultTitle();
+    };
+    connect(categoryBox, &QComboBox::currentTextChanged, &dlg, updateLinkRows);
+    connect(personCombo, &QComboBox::currentIndexChanged, &dlg, refreshDefaultTitle);
+    connect(groupCombo, &QComboBox::currentIndexChanged, &dlg, refreshDefaultTitle);
+    updateLinkRows();
 
     lay->addLayout(form);
     lay->addSpacing(15);
@@ -207,11 +297,16 @@ void VaultWidget::onUploadClicked() {
         QString finalFilename = QFileInfo(destPath).fileName();
         QSqlDatabase db = DatabaseManager::instance().database();
         QSqlQuery insert(db);
-        insert.prepare("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES (?, ?, ?, ?)");
+        insert.prepare("INSERT INTO vault_documents (title, meeting_date, category, file_path, person_id, group_id) "
+                       "VALUES (?, ?, ?, ?, ?, ?)");
         insert.addBindValue(title);
         insert.addBindValue(dateEdit->date().toString("yyyy-MM-dd"));
         insert.addBindValue(categoryBox->currentText());
         insert.addBindValue(finalFilename);
+        const int personId = personCombo->currentData().toInt();
+        const int groupId = groupCombo->currentData().toInt();
+        insert.addBindValue(personId > 0 ? QVariant(personId) : QVariant(QMetaType(QMetaType::Int)));
+        insert.addBindValue(groupId > 0 ? QVariant(groupId) : QVariant(QMetaType(QMetaType::Int)));
 
         if (insert.exec()) {
             dlg.accept();
@@ -235,9 +330,9 @@ void VaultWidget::onOpenClicked() {
         return;
     }
 
-    // Retrieve file_path (column 4)
+    // Column order: ID, Title, Date, Category, Person, Group, Filename
     int row = current.row();
-    QString fileName = m_queryModel->index(row, 4).data().toString();
+    QString fileName = m_queryModel->index(row, 6).data().toString();
     QString absolutePath = vaultDirPath() + "/" + fileName;
 
     if (!QFile::exists(absolutePath)) {
@@ -257,22 +352,78 @@ void VaultWidget::onDeleteClicked() {
         return;
     }
 
-    auto res = QMessageBox::question(this, "Remove Document", "Are you sure you want to remove this document registration? (Physical file remains safe in Vault).", QMessageBox::Yes | QMessageBox::No);
-    if (res == QMessageBox::No) return;
-
     int row = current.row();
-    int id = m_queryModel->index(row, 0).data().toInt();
+    const int id = m_queryModel->index(row, 0).data().toInt();
+    const QString title = m_queryModel->index(row, 1).data().toString();
+    const QString fileName = m_queryModel->index(row, 6).data().toString();
+
+    // Two exits: keep the file for record-only removals, or delete both.
+    // (The old behavior was record-only with no way to ever remove a file,
+    // which orphaned everything over time.)
+    QMessageBox box(this);
+    box.setWindowTitle("Remove Document");
+    box.setText(QString("Remove '%1'?\n\nChoose whether the stored file should also be deleted.").arg(title));
+    QPushButton* keepFile = box.addButton("Remove record only (keep file)", QMessageBox::ActionRole);
+    QPushButton* deleteFile = box.addButton("Remove record + delete file", QMessageBox::DestructiveRole);
+    box.addButton(QMessageBox::Cancel);
+    box.exec();
+
+    const bool alsoDeleteFile = (box.clickedButton() == deleteFile);
+    if (!alsoDeleteFile && box.clickedButton() != keepFile) return; // cancelled
 
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery query(db);
     query.prepare("DELETE FROM vault_documents WHERE id = ?");
     query.addBindValue(id);
-    
+
     if (query.exec()) {
+        if (alsoDeleteFile) {
+            const QString abs = vaultDirPath() + "/" + fileName;
+            if (QFile::exists(abs) && !QFile::remove(abs)) {
+                QMessageBox::warning(this, "File Not Removed",
+                    QString("The record was removed but the file could not be deleted:\n%1\nUse Sweep Orphans later.").arg(abs));
+            }
+        }
+        DatabaseManager::logAudit("vault_documents", id, "record", title,
+                                  alsoDeleteFile ? "DELETED (record + file)" : "DELETED (record only)", "admin");
         refreshVault();
     } else {
         QMessageBox::critical(this, "DB Error", "Failed to delete document: " + query.lastError().text());
     }
+}
+
+void VaultWidget::onSweepOrphans() {
+    // Files on disk with no DB row: leftovers from demo purges and from
+    // record-only removals. Offer to delete them in one pass.
+    QSet<QString> referenced;
+    QSqlQuery q;
+    q.exec("SELECT file_path FROM vault_documents");
+    while (q.next()) referenced.insert(q.value(0).toString());
+
+    const QString dir = vaultDirPath();
+    QStringList orphans;
+    const auto files = QDir(dir).entryInfoList(QDir::Files);
+    for (const QFileInfo& fi : files) {
+        if (!referenced.contains(fi.fileName())) orphans.append(fi.fileName());
+    }
+
+    if (orphans.isEmpty()) {
+        QMessageBox::information(this, "Sweep Orphans", "No orphaned files — every file in the vault is linked to a record. 🎉");
+        return;
+    }
+
+    const auto res = QMessageBox::question(this, "Sweep Orphans",
+        QString("Found %1 file(s) on disk with no database record:\n\n%2\n\nDelete these files permanently?")
+            .arg(QString::number(orphans.size()), orphans.join("\n")),
+        QMessageBox::Yes | QMessageBox::No);
+    if (res != QMessageBox::Yes) return;
+
+    int removed = 0;
+    for (const QString& name : orphans) {
+        if (QFile::remove(dir + "/" + name)) removed++;
+    }
+    QMessageBox::information(this, "Sweep Orphans",
+        QString("Deleted %1 of %2 orphaned file(s).").arg(QString::number(removed), QString::number(orphans.size())));
 }
 
 void VaultWidget::applyRole(const QString& role) {

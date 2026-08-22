@@ -17,18 +17,24 @@ public:
     void refreshBoardMinutes();
     void applyRole(const QString& role);
 
+    // Canonical vault directory: derived from the database location so the
+    // documents always live under the same data root as the DB. Adopts the
+    // old lowercase pre-refactor location on first call and keeps the
+    // directory private (0700). Shared with PeopleWidget's document section.
+    static QString vaultDirPath();
+
 private slots:
     void onUploadClicked();
     void onOpenClicked();
     void onDeleteClicked();
     void onSearchChanged(const QString& text);
+    void onSweepOrphans();
     void onAddBoardMinutes();
     void onDeleteMinutes();
     void onExportMinutesPDF();
 
 private:
     void setupUI();
-    QString vaultDirPath() const;
 
     QLineEdit* m_searchEdit;
     QTableView* m_tableView;
@@ -40,6 +46,7 @@ private:
     QPushButton* m_btnUpload;
     QPushButton* m_btnOpen;
     QPushButton* m_btnDelete;
+    QPushButton* m_btnSweep;
     QPushButton* m_btnAddMinutes;
     QPushButton* m_btnDeleteMinutes;
     QPushButton* m_btnExportMinutesPDF;
