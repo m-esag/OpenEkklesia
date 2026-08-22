@@ -18,12 +18,16 @@
 #include <QLineEdit>
 #include <QDateEdit>
 #include <QComboBox>
+#include <QTableWidget>
 #include <QHeaderView>
 #include <QTextStream>
-#include <QPrinter>
 #include <QTextDocument>
+#include <QPrinter>
+#include <QPageLayout>
+#include <QPageSize>
 #include <QSettings>
 #include <QSet>
+#include <QMenu>
 
 VaultWidget::VaultWidget(QWidget *parent)
     : QWidget(parent)
@@ -127,6 +131,45 @@ void VaultWidget::setupUI() {
     m_tableView->setAlternatingRowColors(true);
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tableView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_tableView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tableView, &QTableView::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QModelIndex idx = m_tableView->indexAt(pos);
+        if (!idx.isValid()) return;
+        int row = idx.row();
+        m_tableView->selectRow(row);
+        int docId = m_queryModel->index(row, 0).data().toInt();
+
+        QMenu menu(this);
+        QAction* actOpen = menu.addAction("👁️ Open / View Document");
+        QAction* actExport = menu.addAction("💾 Save Copy to Local Disk...");
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction("🗑️ Remove Document Record");
+
+        QAction* sel = menu.exec(m_tableView->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actOpen) {
+            onOpenClicked();
+        } else if (sel == actExport) {
+            QSqlQuery q;
+            q.prepare("SELECT file_path FROM documents WHERE id = ?");
+            q.addBindValue(docId);
+            if (q.exec() && q.next()) {
+                QString relPath = q.value(0).toString();
+                QString fullPath = vaultDirPath() + "/" + relPath;
+                if (QFile::exists(fullPath)) {
+                    QFileInfo fi(fullPath);
+                    QString savePath = QFileDialog::getSaveFileName(this, "Export Document", fi.fileName(), "All Files (*.*)");
+                    if (!savePath.isEmpty()) {
+                        QFile::copy(fullPath, savePath);
+                        QMessageBox::information(this, "Success", "Document copy saved!");
+                    }
+                }
+            }
+        } else if (sel == actDelete) {
+            onDeleteClicked();
+        }
+    });
     vaultLay->addWidget(m_tableView);
 
     tabs->addTab(tabVault, "📁 Document Vault");
@@ -162,6 +205,23 @@ void VaultWidget::setupUI() {
     m_minutesView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_minutesView->setAlternatingRowColors(true);
     m_minutesView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_minutesView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_minutesView, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QModelIndex idx = m_minutesView->indexAt(pos);
+        if (!idx.isValid()) return;
+        m_minutesView->selectRow(idx.row());
+
+        QMenu menu(this);
+        QAction* actExport = menu.addAction("📄 Export Board Minutes (PDF)");
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction("🗑️ Remove Motion Entry");
+
+        QAction* sel = menu.exec(m_minutesView->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actExport) onExportMinutesPDF();
+        else if (sel == actDelete) onDeleteMinutes();
+    });
     minLay->addWidget(m_minutesView);
 
     tabs->addTab(tabMinutes, "📜 Board Minutes & Motion Tracker");

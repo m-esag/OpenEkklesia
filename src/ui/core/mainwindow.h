@@ -61,6 +61,11 @@ public slots:
     void onAnalyticsClicked();
     void onPlanningClicked();
     void onShepherdClicked();
+    // Groups-tree context-menu actions (right-click on a group).
+    void onEditGroup();
+    void onAddGroup();
+    void onArchiveGroup();
+    void onDeleteGroup();
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;

@@ -15,6 +15,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QMenu>
 #include <QFileDialog>
 #include <QFile>
@@ -141,6 +142,42 @@ void ShepherdWidget::setupUI() {
     m_timelineList = new QListWidget(tabMember);
     m_timelineList->setObjectName("historyList");
     m_timelineList->setAlternatingRowColors(true);
+    m_timelineList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_timelineList, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_timelineList->itemAt(pos);
+        if (!item) return;
+        int actId = item->data(Qt::UserRole).toInt();
+        if (actId <= 0) return;
+
+        QMenu menu(this);
+        QAction* actEdit = menu.addAction("✏️ Edit Activity Notes...");
+        QAction* actDelete = menu.addAction("🗑️ Delete Activity Log");
+
+        QAction* sel = menu.exec(m_timelineList->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actEdit) {
+            bool ok = false;
+            QString curNotes = item->toolTip();
+            QString newNotes = QInputDialog::getMultiLineText(this, "Edit Activity Notes", "Notes:", curNotes, &ok);
+            if (ok && !newNotes.trimmed().isEmpty()) {
+                QSqlQuery uq;
+                uq.prepare("UPDATE pastoral_activities SET notes = ? WHERE id = ?");
+                uq.addBindValue(newNotes.trimmed());
+                uq.addBindValue(actId);
+                uq.exec();
+                refreshTimeline();
+            }
+        } else if (sel == actDelete) {
+            if (QMessageBox::question(this, "Confirm Delete", "Delete this pastoral activity record?") == QMessageBox::Yes) {
+                QSqlQuery dq;
+                dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
+                dq.addBindValue(actId);
+                dq.exec();
+                refreshAll();
+            }
+        }
+    });
     memberLay->addWidget(m_timelineList);
     m_tabs->addTab(tabMember, "👤 Member Care Timeline");
 
@@ -151,6 +188,49 @@ void ShepherdWidget::setupUI() {
 
     m_prayerList = new QListWidget(tabPrayer);
     m_prayerList->setAlternatingRowColors(true);
+    m_prayerList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_prayerList, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_prayerList->itemAt(pos);
+        if (!item) return;
+        int pId = item->data(Qt::UserRole).toInt();
+        if (pId <= 0) return;
+
+        QMenu menu(this);
+        QAction* actAnswer = menu.addAction("✅ Mark Prayer Answered");
+        QAction* actEdit = menu.addAction("✏️ Edit Prayer Request...");
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction("🗑️ Delete Prayer Request");
+
+        QAction* sel = menu.exec(m_prayerList->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actAnswer) {
+            QSqlQuery q;
+            q.prepare("UPDATE pastoral_activities SET follow_up_done = 1 WHERE id = ?");
+            q.addBindValue(pId);
+            q.exec();
+            refreshPrayerList();
+        } else if (sel == actEdit) {
+            bool ok = false;
+            QString newNotes = QInputDialog::getMultiLineText(this, "Edit Prayer Request", "Prayer details / updates:", item->toolTip(), &ok);
+            if (ok && !newNotes.trimmed().isEmpty()) {
+                QSqlQuery uq;
+                uq.prepare("UPDATE pastoral_activities SET notes = ? WHERE id = ?");
+                uq.addBindValue(newNotes.trimmed());
+                uq.addBindValue(pId);
+                uq.exec();
+                refreshPrayerList();
+            }
+        } else if (sel == actDelete) {
+            if (QMessageBox::question(this, "Confirm Delete", "Delete this prayer request?") == QMessageBox::Yes) {
+                QSqlQuery dq;
+                dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
+                dq.addBindValue(pId);
+                dq.exec();
+                refreshPrayerList();
+            }
+        }
+    });
     prayerLay->addWidget(m_prayerList);
 
     QHBoxLayout* prayerBtns = new QHBoxLayout();
@@ -325,25 +405,27 @@ void ShepherdWidget::refreshTimeline() {
 
     QSqlQuery q;
     q.prepare(
-        "SELECT activity_date, activity_type, notes, outcome, follow_up_date, follow_up_done "
+        "SELECT id, activity_date, activity_type, notes, outcome, follow_up_date, follow_up_done "
         "FROM pastoral_activities WHERE person_id = ? ORDER BY activity_date DESC, id DESC");
     q.addBindValue(personId);
     if (!q.exec()) return;
 
     while (q.next()) {
-        QString line = QString("%1 • %2").arg(q.value(0).toString(), q.value(1).toString());
-        if (!q.value(4).toString().isEmpty()) {
+        int actId = q.value(0).toInt();
+        QString line = QString("%1 • %2").arg(q.value(1).toString(), q.value(2).toString());
+        if (!q.value(5).toString().isEmpty()) {
             line += QString(" (follow-up %1%2)")
-                        .arg(q.value(4).toString(),
-                             q.value(5).toInt() == 0 ? " ⏳" : " ✅");
+                        .arg(q.value(5).toString(),
+                             q.value(6).toInt() == 0 ? " ⏳" : " ✅");
         }
-        QString detail = q.value(2).toString();
-        if (!q.value(3).toString().isEmpty()) {
-            detail = detail.isEmpty() ? q.value(3).toString() : detail + " — " + q.value(3).toString();
+        QString detail = q.value(3).toString();
+        if (!q.value(4).toString().isEmpty()) {
+            detail = detail.isEmpty() ? q.value(4).toString() : detail + " — " + q.value(4).toString();
         }
         if (!detail.isEmpty()) line += "\n      " + detail;
         QListWidgetItem* item = new QListWidgetItem(line, m_timelineList);
-        item->setToolTip(line);
+        item->setData(Qt::UserRole, actId);
+        item->setToolTip(detail.isEmpty() ? line : detail);
     }
     if (m_timelineList->count() == 0) {
         m_timelineList->addItem("No pastoral activities logged for this member yet.");

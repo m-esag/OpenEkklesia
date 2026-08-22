@@ -858,6 +858,8 @@ void MainWindow::populatePages() {
         QAction* sel = menu.exec(m_groupsTreeWidget->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
+        m_selectedGroupId = groupId; // the right-clicked row is the target
+
         if (sel == actEdit) {
             onEditGroup();
         } else if (sel == actAddSub) {
@@ -2695,6 +2697,75 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
                 QMessageBox::critical(this, "Database Error", "Failed to create group: " + ins.lastError().text());
             }
         }
+    }
+}
+
+// --- Groups-tree context-menu actions (right-click on a group) ---
+
+void MainWindow::onEditGroup() {
+    if (m_selectedGroupId > 0) {
+        showGroupDialog(m_selectedGroupId, false);
+    } else {
+        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+    }
+}
+
+void MainWindow::onAddGroup() {
+    showGroupDialog(0, false); // parent chosen in the dialog (cycle-safe)
+}
+
+void MainWindow::onArchiveGroup() {
+    if (m_selectedGroupId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        return;
+    }
+    QSqlQuery q;
+    q.prepare("UPDATE groups SET is_archived = CASE WHEN is_archived = 1 THEN 0 ELSE 1 END WHERE id = ?");
+    q.addBindValue(m_selectedGroupId);
+    if (q.exec()) {
+        refreshGroupsTree();
+        refreshGroupDetailPanel(m_selectedGroupId);
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to toggle archive status: " + q.lastError().text());
+    }
+}
+
+void MainWindow::onDeleteGroup() {
+    if (m_selectedGroupId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        return;
+    }
+    QSqlQuery nameQ;
+    nameQ.prepare("SELECT name FROM groups WHERE id = ?");
+    nameQ.addBindValue(m_selectedGroupId);
+    QString name = (nameQ.exec() && nameQ.next()) ? nameQ.value(0).toString() : QString("Group #%1").arg(m_selectedGroupId);
+
+    if (QMessageBox::question(this, "Delete Group",
+                              QString("Delete '%1' and its sub-groups? Members are kept — only the group links are removed.")
+                                  .arg(name),
+                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    db.transaction();
+    QSqlQuery q(db);
+    // Detach sub-groups and remove member links first (FK-safe).
+    q.exec("UPDATE groups SET parent_id = NULL WHERE parent_id = " + QString::number(m_selectedGroupId));
+    q.prepare("DELETE FROM entity_relationships WHERE target_type = 'Group' AND target_id = ?");
+    q.addBindValue(m_selectedGroupId);
+    q.exec();
+    q.prepare("DELETE FROM groups WHERE id = ?");
+    q.addBindValue(m_selectedGroupId);
+    const bool ok = q.exec();
+    if (ok) {
+        db.commit();
+        refreshGroupsTree();
+        refreshGroupDetailPanel(0);
+        if (m_graphWidget) m_graphWidget->loadGraph();
+    } else {
+        db.rollback();
+        QMessageBox::critical(this, "Database Error", "Failed to delete group: " + q.lastError().text());
     }
 }
 
