@@ -565,12 +565,19 @@ GraphWidget::GraphWidget(QWidget* parent)
 
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &GraphWidget::updatePhysics);
+    {
+        QSettings s("OpenEkklesia", "CHMS");
+        m_physicsRunning = s.value("graphPhysicsEnabled", true).toBool();
+    }
     m_timer->start(33);
 
     loadGraph();
 }
 
-GraphWidget::~GraphWidget() {}
+GraphWidget::~GraphWidget() {
+    if (m_timer) m_timer->stop();
+    saveNodePositions(); // positions may be unsaved if the app closed without hideEvent
+}
 
 void GraphWidget::styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor) {
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
@@ -1138,6 +1145,19 @@ void GraphWidget::showEvent(QShowEvent* event) {
     updateDetailsPanelForEmpty();
     refreshMinistryBranches();
     updateFloatingControlsPosition();
+    // Resume physics when the page becomes visible again (see hideEvent).
+    if (m_physicsRunning && !m_timer->isActive() && !m_nodes.isEmpty()) {
+        m_timer->start(33);
+    }
+}
+
+void GraphWidget::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    // Stop the 30 FPS force loop while the graph page is hidden — it would
+    // otherwise burn CPU on every other page of the app.
+    m_timer->stop();
+    // Persist node positions after any dragging this session.
+    saveNodePositions();
 }
 
 void GraphWidget::updateFloatingControlsPosition() {
@@ -1577,11 +1597,16 @@ void GraphWidget::computeSmartBridge(NodeItem* personNode) {
             }
         }
 
-        Candidate c;
-        c.groupNode = gn;
-        c.score = qBound(45, score, 98);
-        c.reason = primaryReason;
-        candidates.append(c);
+        QSettings s("OpenEkklesia", "CHMS");
+        const int minScore = s.value("smartBridgeMinScore", 40).toInt();
+        int boundedScore = qBound(30, score, 98);
+        if (boundedScore >= minScore) {
+            Candidate c;
+            c.groupNode = gn;
+            c.score = boundedScore;
+            c.reason = primaryReason;
+            candidates.append(c);
+        }
     }
 
     std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
@@ -1820,6 +1845,7 @@ void GraphWidget::loadGraph() {
     QMap<int, QStringList> personActiveRoles;
     QMap<int, QSet<int>> personConnectedGroupIds;
     QMap<int, QStringList> personConnectedGroupNames;
+    QMap<int, int> groupMemberCount; // total people per group (for the family scan below)
 
     if (q.exec("SELECT er.source_id, er.relationship_type, er.target_id, g.name "
                "FROM entity_relationships er JOIN groups g ON er.target_id = g.id "
@@ -1833,6 +1859,7 @@ void GraphWidget::loadGraph() {
             personActiveGroupCount[pid]++;
             personActiveRoles[pid].append(role.isEmpty() ? "Member" : role);
             personConnectedGroupIds[pid].insert(gid);
+            groupMemberCount[gid]++;
             if (!personConnectedGroupNames[pid].contains(gName)) {
                 personConnectedGroupNames[pid].append(gName);
             }
@@ -1868,13 +1895,7 @@ void GraphWidget::loadGraph() {
             QString hName = q.value(3).toString();
             int familyCount = q.value(4).toInt();
 
-            int totalGroupMembers = 0;
-            for (NodeItem* gn : m_nodes) {
-                if (gn->nodeType() == NodeItem::Group && gn->id() == gid) {
-                    totalGroupMembers = gn->connectionCount();
-                    break;
-                }
-            }
+            int totalGroupMembers = groupMemberCount.value(gid, 0);
             if (totalGroupMembers <= 0) totalGroupMembers = familyCount;
 
             int pct = (familyCount * 100) / qMax(1, totalGroupMembers);
@@ -1893,7 +1914,24 @@ void GraphWidget::loadGraph() {
         }
     }
 
-    // 3. Edges creation
+    // 3. Edges creation — O(1) node lookup via type-indexed hashes (was an
+    //    O(edges x nodes) scan on every load).
+    QHash<int, NodeItem*> personNodesById;
+    QHash<int, NodeItem*> groupNodesById;
+    QHash<int, NodeItem*> householdNodesById;
+    for (NodeItem* n : m_nodes) {
+        if (n->isPersonNode()) personNodesById.insert(n->id(), n);
+        else if (n->nodeType() == NodeItem::Group) groupNodesById.insert(n->id(), n);
+        else if (n->nodeType() == NodeItem::Household) householdNodesById.insert(n->id(), n);
+    }
+
+    auto resolveNode = [&](const QString& type, int id) -> NodeItem* {
+        if (type == "Person") return personNodesById.value(id, nullptr);
+        if (type == "Group") return groupNodesById.value(id, nullptr);
+        if (type == "Household") return householdNodesById.value(id, nullptr);
+        return nullptr;
+    };
+
     if (q.exec("SELECT id, source_type, source_id, target_type, target_id, relationship_type FROM entity_relationships")) {
         while (q.next()) {
             int relId = q.value("id").toInt();
@@ -1903,26 +1941,8 @@ void GraphWidget::loadGraph() {
             int tId = q.value("target_id").toInt();
             QString rType = q.value("relationship_type").toString();
 
-            NodeItem* sNode = nullptr;
-            NodeItem* tNode = nullptr;
-
-            for (NodeItem* n : m_nodes) {
-                if (n->id() == sId) {
-                    if ((sType == "Person" && n->isPersonNode()) ||
-                        (sType == "Group" && n->nodeType() == NodeItem::Group) ||
-                        (sType == "Household" && n->nodeType() == NodeItem::Household)) {
-                        sNode = n;
-                    }
-                }
-                if (n->id() == tId) {
-                    if ((tType == "Person" && n->isPersonNode()) ||
-                        (tType == "Group" && n->nodeType() == NodeItem::Group) ||
-                        (tType == "Household" && n->nodeType() == NodeItem::Household)) {
-                        tNode = n;
-                    }
-                }
-                if (sNode && tNode) break;
-            }
+            NodeItem* sNode = resolveNode(sType, sId);
+            NodeItem* tNode = resolveNode(tType, tId);
 
             if (sNode && tNode) {
                 bool isBurnout = (sNode->burnoutGroupCount() >= m_burnoutThreshold || tNode->burnoutGroupCount() >= m_burnoutThreshold);
@@ -1940,14 +1960,8 @@ void GraphWidget::loadGraph() {
         while (q.next()) {
             int childId = q.value(0).toInt();
             int parentId = q.value(1).toInt();
-            NodeItem* parentNode = nullptr;
-            NodeItem* childNode = nullptr;
-            for (NodeItem* n : m_nodes) {
-                if (n->nodeType() == NodeItem::Group) {
-                    if (n->id() == parentId) parentNode = n;
-                    if (n->id() == childId) childNode = n;
-                }
-            }
+            NodeItem* parentNode = groupNodesById.value(parentId, nullptr);
+            NodeItem* childNode = groupNodesById.value(childId, nullptr);
             if (parentNode && childNode) {
                 EdgeItem* edge = new EdgeItem(parentNode, childNode, "Parent of", 0, false);
                 m_scene->addItem(edge);
@@ -2109,31 +2123,55 @@ void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
 void GraphWidget::onSeverSelectedEdge() {
     if (!m_selectedEdgeForDetails) return;
 
-    QString srcName = m_selectedEdgeForDetails->sourceNode()->name();
-    QString tgtName = m_selectedEdgeForDetails->targetNode()->name();
+    EdgeItem* edge = m_selectedEdgeForDetails;
+    QString srcName = edge->sourceNode()->name();
+    QString tgtName = edge->targetNode()->name();
 
     auto reply = QMessageBox::question(this, "Sever Connection",
                                        QString("Are you sure you want to remove the connection between %1 and %2?").arg(srcName, tgtName),
                                        QMessageBox::Yes | QMessageBox::No);
     if (reply != QMessageBox::Yes) return;
 
-    int relId = m_selectedEdgeForDetails->relationshipId();
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
-    if (relId > 0) {
+    bool removed = false;
+
+    if (edge->relationshipType() == "Parent of") {
+        // Hierarchy links live in groups.parent_id, not entity_relationships.
+        q.prepare("UPDATE groups SET parent_id = NULL WHERE id = ?");
+        q.addBindValue(edge->targetNode()->id()); // target = child
+        removed = q.exec();
+    } else if (edge->relationshipId() > 0) {
         q.prepare("DELETE FROM entity_relationships WHERE id = ?");
-        q.addBindValue(relId);
-        q.exec();
+        q.addBindValue(edge->relationshipId());
+        removed = q.exec();
     } else {
-        q.prepare("DELETE FROM entity_relationships WHERE source_id = ? AND target_id = ?");
-        q.addBindValue(m_selectedEdgeForDetails->sourceNode()->id());
-        q.addBindValue(m_selectedEdgeForDetails->targetNode()->id());
-        q.exec();
+        // Type-scoped fallback so numeric id collisions can never delete an
+        // unrelated relationship (e.g. person 3 <-> group 5 vs group 3 <-> ...).
+        auto typeStr = [](NodeItem* n) {
+            if (n->isPersonNode()) return QStringLiteral("Person");
+            if (n->nodeType() == NodeItem::Group) return QStringLiteral("Group");
+            return QStringLiteral("Household");
+        };
+        q.prepare("DELETE FROM entity_relationships "
+                  "WHERE source_type = ? AND source_id = ? "
+                  "AND target_type = ? AND target_id = ? AND relationship_type = ?");
+        q.addBindValue(typeStr(edge->sourceNode()));
+        q.addBindValue(edge->sourceNode()->id());
+        q.addBindValue(typeStr(edge->targetNode()));
+        q.addBindValue(edge->targetNode()->id());
+        q.addBindValue(edge->relationshipType());
+        removed = q.exec();
     }
 
-    m_scene->removeItem(m_selectedEdgeForDetails);
-    m_edges.removeOne(m_selectedEdgeForDetails);
-    delete m_selectedEdgeForDetails;
+    if (!removed) {
+        QMessageBox::critical(this, "Database Error", "Failed to sever connection: " + q.lastError().text());
+        return;
+    }
+
+    m_scene->removeItem(edge);
+    m_edges.removeOne(edge);
+    delete edge;
     m_selectedEdgeForDetails = nullptr;
 
     updateDetailsPanelForEmpty();
@@ -2373,8 +2411,15 @@ void GraphWidget::onFilterToggled() {
     QSet<int> branchPersonIds;
     if (m_selectedMinistryParentId > 0) {
         branchGroupIds.insert(m_selectedMinistryParentId);
+        // Follow the whole subtree, not just direct children (deep nesting is
+        // supported via the cycle-safe groups.parent_id hierarchy).
         QSqlQuery q;
-        q.prepare("SELECT id FROM groups WHERE parent_id = ?");
+        q.prepare(
+            "WITH RECURSIVE descendants(id) AS ("
+            "  SELECT id FROM groups WHERE parent_id = ? "
+            "  UNION ALL "
+            "  SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id"
+            ") SELECT id FROM descendants");
         q.addBindValue(m_selectedMinistryParentId);
         if (q.exec()) {
             while (q.next()) branchGroupIds.insert(q.value(0).toInt());
@@ -2398,8 +2443,11 @@ void GraphWidget::onFilterToggled() {
         if (n->isPersonNode() && !m_filterPeopleActive) visible = false;
         if (n->nodeType() == NodeItem::Household && !m_filterHouseholdsActive) visible = false;
         if (n->nodeType() == NodeItem::Group && !m_filterGroupsActive) visible = false;
-        if (m_filterBurnoutActive && n->burnoutGroupCount() < m_burnoutThreshold) visible = false;
-        if (m_filterIsolationActive && !m_isolatedPersonIds.contains(n->id())) visible = false;
+        // Burnout spotlight: hide non-flagged PEOPLE but keep groups and
+        // households as context so the at-risk members' connections stay
+        // visible instead of floating alone.
+        if (m_filterBurnoutActive && n->isPersonNode() && n->burnoutGroupCount() < m_burnoutThreshold) visible = false;
+        if (m_filterIsolationActive && n->isPersonNode() && !m_isolatedPersonIds.contains(n->id())) visible = false;
         n->setVisible(visible);
     }
     for (EdgeItem* e : m_edges) {
@@ -2408,17 +2456,18 @@ void GraphWidget::onFilterToggled() {
 }
 
 void GraphWidget::onGraphSearchChanged(const QString& text) {
-    if (text.trimmed().isEmpty()) {
-        resetHighlight();
-        return;
-    }
     resetHighlight();
+    if (text.trimmed().isEmpty()) return;
+
+    NodeItem* first = nullptr;
     for (NodeItem* n : m_nodes) {
         if (n->name().contains(text, Qt::CaseInsensitive)) {
             n->setHovered(true);
-            m_canvasView->centerOn(n);
+            if (!first) first = n;
         }
     }
+    // Center on the FIRST match so the view doesn't jump per keystroke.
+    if (first) m_canvasView->centerOn(first);
 }
 
 void GraphWidget::onPathfindToggle() {
@@ -2492,13 +2541,18 @@ void GraphWidget::onSaveNotes() {
     if (m_selectedNodeForDetails->isPersonNode()) {
         q.prepare("UPDATE people SET admin_notes = ? WHERE id = ?");
     } else if (m_selectedNodeForDetails->nodeType() == NodeItem::Group) {
-        q.prepare("UPDATE groups SET description = ? WHERE id = ?");
+        q.prepare("UPDATE groups SET notes = ? WHERE id = ?");
+    } else {
+        return; // households carry no free-text notes here
     }
     q.addBindValue(notes);
     q.addBindValue(m_selectedNodeForDetails->id());
-    q.exec();
-
-    QMessageBox::information(this, "Notes Saved", "Pastoral care notes saved successfully.");
+    if (!q.exec()) {
+        QMessageBox::critical(this, "Database Error", "Failed to save notes: " + q.lastError().text());
+        return;
+    }
+    // Silent success — the dock already shows the updated text.
+    m_scene->update();
 }
 
 void GraphWidget::onCareFlagChanged(int) {
@@ -2528,7 +2582,44 @@ void GraphWidget::onExportPNG() {
     QMessageBox::information(this, "Export Complete", "Graph image exported successfully.");
 }
 
-void GraphWidget::onExportJSON() {}
+void GraphWidget::onExportJSON() {
+    // Dump the current graph (nodes + edges) as JSON for external analysis.
+    QJsonArray nodesArr;
+    for (NodeItem* n : m_nodes) {
+        QJsonObject o;
+        o["id"] = n->id();
+        o["name"] = n->name();
+        o["type"] = n->isPersonNode() ? "Person"
+                     : (n->nodeType() == NodeItem::Group ? "Group" : "Household");
+        o["x"] = n->pos().x();
+        o["y"] = n->pos().y();
+        nodesArr.append(o);
+    }
+    QJsonArray edgesArr;
+    for (EdgeItem* e : m_edges) {
+        QJsonObject o;
+        o["source"] = e->sourceNode()->id();
+        o["target"] = e->targetNode()->id();
+        o["type"] = e->relationshipType();
+        edgesArr.append(o);
+    }
+    QJsonObject root;
+    root["nodes"] = nodesArr;
+    root["edges"] = edgesArr;
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Graph JSON", "connections_graph.json", "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson());
+        file.close();
+        QMessageBox::information(this, "Export Complete",
+                                 QString("Exported %1 nodes and %2 edges.").arg(nodesArr.size()).arg(edgesArr.size()));
+    } else {
+        QMessageBox::critical(this, "File Error", "Could not write JSON: " + file.errorString());
+    }
+}
 
 void GraphWidget::onRunAudit() {
     QDialog dlg(this);
@@ -2677,9 +2768,12 @@ void GraphWidget::applyClusteredLayout() {
 }
 
 void GraphWidget::updatePhysics() {
-    if (m_physicsRunning && m_layoutMode == ForceDirected) {
-        applyForceDirectedLayout();
+    if (!m_physicsRunning || m_layoutMode != ForceDirected) return;
+    if (m_nodes.isEmpty()) {
+        m_timer->stop(); // nothing to simulate — don't idle at 30 FPS
+        return;
     }
+    applyForceDirectedLayout();
 }
 
 void GraphWidget::pausePhysics() {
@@ -2698,12 +2792,33 @@ void GraphWidget::applyRole(const QString& role) {
     m_userRole = role;
 }
 
-void GraphWidget::applyTheme(const ThemeTokens&) {
+void GraphWidget::applyTheme(const ThemeTokens& tok) {
+    if (m_scene) m_scene->update();
+    restyleChrome(tok);
+}
+
+// Re-applies token-based colors to the chrome (dock, floating controls) so a
+// runtime theme switch restyles everything, not just the canvas.
+void GraphWidget::restyleChrome(const ThemeTokens& tok) {
+    if (m_detailsDock) {
+        m_detailsDock->setStyleSheet(QString(
+            "QWidget#detailsDock { background-color: %1; border-left: 1px solid %2; color: %3; }"
+            "QWidget#detailsDock QLabel { color: %3; }"
+            "QLineEdit, QComboBox, QPlainTextEdit, QListWidget, QTableWidget { background-color: %4; color: %3; border: 1px solid %2; border-radius: 4px; }"
+        ).arg(tok.bgSurface.name(), tok.borderColor.name(), tok.textPrimary.name(), tok.bgInput.name()));
+    }
+    if (m_floatingZoomBar) {
+        m_floatingZoomBar->setStyleSheet(QString(
+            "QWidget { background-color: %1; border: 1px solid %2; border-radius: 8px; }"
+            "QPushButton { background-color: transparent; color: %3; border: none; font-size: 14px; padding: 2px 6px; }"
+        ).arg(tok.bgOverlay.name(), tok.borderColor.name(), tok.textPrimary.name()));
+    }
     if (m_scene) m_scene->update();
 }
 
 void GraphWidget::saveNodePositions() {
     QSqlDatabase db = DatabaseManager::instance().database();
+    if (!db.isOpen() || m_nodes.isEmpty()) return;
     db.transaction();
     QSqlQuery clearQ(db);
     clearQ.exec("DELETE FROM graph_layout");

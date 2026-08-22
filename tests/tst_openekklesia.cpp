@@ -1204,7 +1204,7 @@ bool test_serviceBuilderTier3() {
     CHECK(ics.contains("DTSTART:20260823T100000"));
     CHECK(ics.contains("UID:oe-vol-1-20260823"));
     CHECK_EQ(ics.count("BEGIN:VEVENT"), 2);
-    CHECK(ics.contains("TRIGGER:-PT60M")); // reminder alarm
+    CHECK(ics.contains("TRIGGER:-PT")); // reminder alarm (minutes configurable via QSettings)
 
     // 2. Element usage stats across saved run sheets. Start from a clean
     //    services table so earlier tests' leftovers cannot skew the counts.
@@ -1441,13 +1441,197 @@ bool test_planningRelationalLinks() {
     return true;
 }
 
+bool test_vaultAndSettingsIntegrity() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // Test vault_documents schema and insertion
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) "
+                 "VALUES ('Annual Budget 2026', '2026-01-15', 'Financial', 'budget_2026.pdf')"));
+    int docId = q.lastInsertId().toInt();
+    CHECK(docId > 0);
+
+    // Test board motions table and query
+    CHECK(q.exec("INSERT INTO board_motions (meeting_date, motion_title, moved_by, seconded_by, vote_result, details) "
+                 "VALUES ('2026-02-01', 'Q1 Expansion', 'Elder John', 'Elder Mary', 'Passed Unanimously', 'Approved ministry expansion.')"));
+    int minId = q.lastInsertId().toInt();
+    CHECK(minId > 0);
+
+    QSqlQuery qFetch(d);
+    CHECK(qFetch.exec("SELECT title, category FROM vault_documents WHERE id = " + QString::number(docId)));
+    CHECK(qFetch.next());
+    CHECK_EQ(qFetch.value(0).toString().toStdString(), std::string("Annual Budget 2026"));
+
+    d.rollback();
+    return true;
+}
+
+bool test_facilitiesConflictEngine() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Insert existing booking: Fellowship Hall 18:00 - 20:00 on 2026-09-01
+    QSqlQuery q(d);
+    q.prepare("INSERT INTO facility_reservations (facility_name, event_name, reservation_date, start_time, end_time, reserved_by) "
+              "VALUES (?, ?, ?, ?, ?, ?)");
+    q.addBindValue("Fellowship Hall & Kitchen");
+    q.addBindValue("Community Dinner");
+    q.addBindValue("2026-09-01");
+    q.addBindValue("18:00");
+    q.addBindValue("20:00");
+    q.addBindValue("Leader A");
+    CHECK(q.exec());
+
+    // 2. Conflict test: Overlapping window (19:00 - 21:00) should CONFLICT
+    QSqlQuery qConflict(d);
+    qConflict.prepare(
+        "SELECT event_name FROM facility_reservations "
+        "WHERE facility_name = ? AND reservation_date = ? "
+        "  AND NOT (end_time <= ? OR start_time >= ?)");
+    qConflict.addBindValue("Fellowship Hall & Kitchen");
+    qConflict.addBindValue("2026-09-01");
+    qConflict.addBindValue("19:00");
+    qConflict.addBindValue("21:00");
+    CHECK(qConflict.exec() && qConflict.next());
+    CHECK_EQ(qConflict.value(0).toString().toStdString(), std::string("Community Dinner"));
+
+    // 3. Non-conflict test: Non-overlapping window (20:00 - 22:00) should PASS
+    QSqlQuery qNoConflict(d);
+    qNoConflict.prepare(
+        "SELECT event_name FROM facility_reservations "
+        "WHERE facility_name = ? AND reservation_date = ? "
+        "  AND NOT (end_time <= ? OR start_time >= ?)");
+    qNoConflict.addBindValue("Fellowship Hall & Kitchen");
+    qNoConflict.addBindValue("2026-09-01");
+    qNoConflict.addBindValue("20:00");
+    qNoConflict.addBindValue("22:00");
+    CHECK(qNoConflict.exec() && !qNoConflict.next());
+
+    // 4. Non-conflict test: Different space (Sanctuary at same time) should PASS
+    QSqlQuery qDiffSpace(d);
+    qDiffSpace.prepare(
+        "SELECT event_name FROM facility_reservations "
+        "WHERE facility_name = ? AND reservation_date = ? "
+        "  AND NOT (end_time <= ? OR start_time >= ?)");
+    qDiffSpace.addBindValue("Sanctuary / Main Worship Center");
+    qDiffSpace.addBindValue("2026-09-01");
+    qDiffSpace.addBindValue("18:00");
+    qDiffSpace.addBindValue("20:00");
+    CHECK(qDiffSpace.exec() && !qDiffSpace.next());
+
+    d.rollback();
+    return true;
+}
+
+bool test_contributionsSplitAndAnonymous() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // Ensure default funds exist
+    QSqlQuery qFund(d);
+    qFund.exec("INSERT OR IGNORE INTO funds (fund_name) VALUES ('General Fund')");
+    CHECK(qFund.exec("SELECT id FROM funds WHERE fund_name = 'General Fund'") && qFund.next());
+    int fund1Id = qFund.value(0).toInt();
+
+    qFund.exec("INSERT OR IGNORE INTO funds (fund_name) VALUES ('Building Fund')");
+    CHECK(qFund.exec("SELECT id FROM funds WHERE fund_name = 'Building Fund'") && qFund.next());
+    int fund2Id = qFund.value(0).toInt();
+
+    // 1. Insert anonymous plate donation (person_id = NULL)
+    QSqlQuery q(d);
+    q.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
+              "VALUES (NULL, ?, 50000, '2026-08-23', 'Cash plate offering')");
+    q.addBindValue(fund1Id);
+    CHECK(q.exec());
+    int anonId = q.lastInsertId().toInt();
+    CHECK(anonId > 0);
+
+    // 2. Insert member split contribution
+    CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Donor', 'Test', 'Member')"));
+    int donorId = q.lastInsertId().toInt();
+
+    q.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
+              "VALUES (?, ?, 30000, '2026-08-23', 'Split gift 1/2')");
+    q.addBindValue(donorId);
+    q.addBindValue(fund1Id);
+    CHECK(q.exec());
+
+    q.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
+              "VALUES (?, ?, 20000, '2026-08-23', 'Split gift 2/2')");
+    q.addBindValue(donorId);
+    q.addBindValue(fund2Id);
+    CHECK(q.exec());
+
+    // 3. Verify total giving by person (should equal 50000 cents = $500.00)
+    QSqlQuery qSum(d);
+    qSum.prepare("SELECT SUM(amount) FROM contributions WHERE person_id = ?");
+    qSum.addBindValue(donorId);
+    CHECK(qSum.exec() && qSum.next());
+    CHECK_EQ(qSum.value(0).toInt(), 50000);
+
+    // 4. Verify anonymous giving query
+    QSqlQuery qAnonSum(d);
+    CHECK(qAnonSum.exec("SELECT SUM(amount) FROM contributions WHERE person_id IS NULL"));
+    CHECK(qAnonSum.next());
+    CHECK(qAnonSum.value(0).toInt() >= 50000);
+
+    d.rollback();
+    return true;
+}
+
+bool test_comprehensiveSettingsRoundTrip() {
+    QSettings s("OpenEkklesia", "CHMS");
+
+    // 1. Service Planning defaults
+    s.setValue("defaultServiceTime", "11:15");
+    s.setValue("targetServiceDuration", 85);
+    s.setValue("volunteerAlarmMinutes", 45);
+
+    CHECK_EQ(s.value("defaultServiceTime").toString().toStdString(), std::string("11:15"));
+    CHECK_EQ(s.value("targetServiceDuration").toInt(), 85);
+    CHECK_EQ(s.value("volunteerAlarmMinutes").toInt(), 45);
+
+    // 2. Pastoral & Graph Thresholds
+    s.setValue("inactivityDays", 60);
+    s.setValue("smartBridgeMinScore", 55);
+    s.setValue("graphPhysicsEnabled", false);
+
+    CHECK_EQ(s.value("inactivityDays").toInt(), 60);
+    CHECK_EQ(s.value("smartBridgeMinScore").toInt(), 55);
+    CHECK_EQ(s.value("graphPhysicsEnabled").toBool(), false);
+
+    // 3. Kiosk & Security
+    s.setValue("kioskTimeoutSeconds", 30);
+    s.setValue("kioskRequirePin", true);
+
+    CHECK_EQ(s.value("kioskTimeoutSeconds").toInt(), 30);
+    CHECK_EQ(s.value("kioskRequirePin").toBool(), true);
+
+    // 4. Data & Backup Lifecycle
+    s.setValue("autoBackupSchedule", "daily");
+    s.setValue("backupRetentionCount", 15);
+
+    CHECK_EQ(s.value("autoBackupSchedule").toString().toStdString(), std::string("daily"));
+    CHECK_EQ(s.value("backupRetentionCount").toInt(), 15);
+
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("openekklesia_tests");
 
-    // Fresh, unique database file in the temp directory.
+    // Fresh, unique database file in the temp directory. Move the CWD into a
+    // scratch dir first so DatabaseManager's "adopt legacy CWD database"
+    // fallback never copies the developer's workspace open_ekklesia.db into
+    // the test run (which would also skip the demo seed).
+    QDir workDir(QDir::tempPath() + "/oe_test_work");
+    workDir.mkpath(".");
+    QDir::setCurrent(workDir.absolutePath());
+
     g_dbPath = QDir::tempPath() + QString("/oe_test_%1.db").arg(QCoreApplication::applicationPid());
     QFile::remove(g_dbPath);
 
@@ -1492,6 +1676,10 @@ int main(int argc, char** argv) {
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
+        {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
+        {"facilities_conflict_engine", test_facilitiesConflictEngine},
+        {"contributions_split_and_anonymous", test_contributionsSplitAndAnonymous},
+        {"comprehensive_settings_round_trip", test_comprehensiveSettingsRoundTrip},
     };
 
     for (const Test& t : tests) {

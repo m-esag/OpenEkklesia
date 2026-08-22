@@ -1567,10 +1567,16 @@ bool DatabaseManager::migrateSchema() {
             m_db.rollback();
             return false;
         }
-        if (!hasAddedAt && !migQ.exec("ALTER TABLE vault_documents ADD COLUMN added_at TEXT DEFAULT (datetime('now'));")) {
+        // SQLite forbids non-constant defaults in ALTER TABLE ADD COLUMN
+        // (e.g. DEFAULT (datetime('now'))), so add a plain column and
+        // backfill existing rows afterwards.
+        if (!hasAddedAt && !migQ.exec("ALTER TABLE vault_documents ADD COLUMN added_at TEXT;")) {
             qCritical() << "Migration 15: add added_at failed:" << migQ.lastError().text();
             m_db.rollback();
             return false;
+        }
+        if (!hasAddedAt) {
+            migQ.exec("UPDATE vault_documents SET added_at = datetime('now') WHERE added_at IS NULL;");
         }
 
         if (!m_db.commit()) {
