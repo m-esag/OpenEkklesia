@@ -449,13 +449,11 @@ void SettingsWidget::setupUI() {
 
     QGroupBox* grpModFin = new QGroupBox("💰 Finance, Operations & Kiosk", pageModules);
     QVBoxLayout* layModFin = new QVBoxLayout(grpModFin);
-    m_chkModGiving = new QCheckBox("Giving & Donations (Offering batch entry, funds, tax receipts, Planning Center import)", pageModules);
-    m_chkModLedger = new QCheckBox("Double-Entry Ledger (Chart of accounts, splits, budgets — leave OFF if you use GnuCash)", pageModules);
+    m_chkModGiving = new QCheckBox("Giving & Sunday Batches (Offering batches, multi-fund splits, GnuCash export)", pageModules);
     m_chkModInventory = new QCheckBox("Asset & Equipment Inventory (Barcodes, item locations, check-outs)", pageModules);
     m_chkModVault = new QCheckBox("Private Document Vault (Membership forms, meeting minutes, legal records)", pageModules);
     m_chkModKiosk = new QCheckBox("Self-Service Nursery Check-In Kiosk (Full-screen checkin & barcode badging)", pageModules);
     layModFin->addWidget(m_chkModGiving);
-    layModFin->addWidget(m_chkModLedger);
     layModFin->addWidget(m_chkModInventory);
     layModFin->addWidget(m_chkModVault);
     layModFin->addWidget(m_chkModKiosk);
@@ -471,7 +469,6 @@ void SettingsWidget::setupUI() {
         m_chkModPlanning->setChecked(true);
         m_chkModFacilities->setChecked(true);
         m_chkModGiving->setChecked(true);
-        m_chkModLedger->setChecked(true);
         m_chkModInventory->setChecked(true);
         m_chkModVault->setChecked(true);
         m_chkModKiosk->setChecked(true);
@@ -488,7 +485,6 @@ void SettingsWidget::setupUI() {
         m_chkModPlanning->setChecked(false);
         m_chkModFacilities->setChecked(false);
         m_chkModGiving->setChecked(true);
-        m_chkModLedger->setChecked(false);
         m_chkModInventory->setChecked(false);
         m_chkModVault->setChecked(true);
         m_chkModKiosk->setChecked(true);
@@ -505,7 +501,6 @@ void SettingsWidget::setupUI() {
         m_chkModPlanning->setChecked(false);
         m_chkModFacilities->setChecked(false);
         m_chkModGiving->setChecked(false);
-        m_chkModLedger->setChecked(false);
         m_chkModInventory->setChecked(false);
         m_chkModVault->setChecked(false);
         m_chkModKiosk->setChecked(false);
@@ -522,7 +517,6 @@ void SettingsWidget::setupUI() {
     connect(m_chkModPlanning, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModFacilities, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModGiving, &QCheckBox::toggled, this, trackMod);
-    connect(m_chkModLedger, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModInventory, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModVault, &QCheckBox::toggled, this, trackMod);
     connect(m_chkModKiosk, &QCheckBox::toggled, this, trackMod);
@@ -1220,7 +1214,6 @@ void SettingsWidget::loadSettings() {
     m_chkModPlanning->setChecked(s.value("modules/planning", true).toBool());
     m_chkModFacilities->setChecked(s.value("modules/facilities", true).toBool());
     m_chkModGiving->setChecked(s.value("modules/giving", s.value("modules/finance", true).toBool()).toBool());
-    m_chkModLedger->setChecked(s.value("modules/ledger", false).toBool());
     m_chkModInventory->setChecked(s.value("modules/inventory", true).toBool());
     m_chkModVault->setChecked(s.value("modules/vault", true).toBool());
     m_chkModKiosk->setChecked(s.value("modules/kiosk", true).toBool());
@@ -1312,7 +1305,6 @@ void SettingsWidget::saveSettings() {
     s.setValue("modules/planning", m_chkModPlanning->isChecked());
     s.setValue("modules/facilities", m_chkModFacilities->isChecked());
     s.setValue("modules/giving", m_chkModGiving->isChecked());
-    s.setValue("modules/ledger", m_chkModLedger->isChecked());
     s.setValue("modules/inventory", m_chkModInventory->isChecked());
     s.setValue("modules/vault", m_chkModVault->isChecked());
     s.setValue("modules/kiosk", m_chkModKiosk->isChecked());

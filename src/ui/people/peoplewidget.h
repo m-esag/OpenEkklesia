@@ -111,6 +111,8 @@ private slots:
     void onSortByChanged(int index);
     void onLogCareEntry();
     void onOpenPersonDocument(QListWidgetItem* item);
+    void onPeopleTableContextMenu(const QPoint& pos);
+    void onTimelineContextMenu(const QPoint& pos);
 
 private:
     void setupUI();

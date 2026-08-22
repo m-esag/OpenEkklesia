@@ -498,19 +498,17 @@ CMakeFiles/OpenEkklesia.dir/src/ui/finance/contributionswidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qcoreapplication_platform.h \
  /usr/lib64/qt6/include/QtGui/qinputmethod.h \
  /usr/lib64/qt6/include/QtGui/qguiapplication_platform.h \
- /usr/lib64/qt6/include/QtWidgets/QProgressBar \
- /usr/lib64/qt6/include/QtWidgets/qprogressbar.h \
  /usr/lib64/qt6/include/QtWidgets/QPushButton \
  /usr/lib64/qt6/include/QtWidgets/qpushbutton.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
- /home/manuel/Documents/OpenEkklesia/src/common/../database/databasemanager.h \
- /usr/lib64/qt6/include/QtCore/QString \
- /usr/lib64/qt6/include/QtCore/qstring.h \
- /usr/lib64/qt6/include/QtSql/QSqlDatabase \
- /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
- /usr/lib64/qt6/include/QtCore/QSettings \
- /usr/lib64/qt6/include/QtCore/qsettings.h \
- /home/manuel/Documents/OpenEkklesia/src/common/../common/appcurrency.h \
+ /usr/lib64/qt6/include/QtWidgets/QListWidget \
+ /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+ /usr/lib64/qt6/include/QtWidgets/QLabel \
+ /usr/lib64/qt6/include/QtWidgets/qlabel.h \
+ /usr/lib64/qt6/include/QtGui/qpicture.h \
+ /usr/lib64/qt6/include/QtWidgets/QScrollArea \
+ /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
  /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
  /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
  /usr/lib64/qt6/include/QtWidgets/qlayout.h \
@@ -518,15 +516,38 @@ CMakeFiles/OpenEkklesia.dir/src/ui/finance/contributionswidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
  /usr/lib64/qt6/include/QtWidgets/qgridlayout.h \
  /usr/lib64/qt6/include/QtWidgets/QVBoxLayout \
+ /usr/lib64/qt6/include/QtWidgets/QFrame \
+ /usr/lib64/qt6/include/QtWidgets/qframe.h \
+ /home/manuel/Documents/OpenEkklesia/src/common/../database/databasemanager.h \
+ /usr/lib64/qt6/include/QtCore/QString \
+ /usr/lib64/qt6/include/QtCore/qstring.h \
+ /usr/lib64/qt6/include/QtSql/QSqlDatabase \
+ /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
+ /home/manuel/Documents/OpenEkklesia/src/common/../common/appcurrency.h \
+ /usr/lib64/qt6/include/QtCore/QSettings \
+ /usr/lib64/qt6/include/QtCore/qsettings.h \
+ /home/manuel/Documents/OpenEkklesia/src/ui/core/thememanager.h \
+ /usr/lib64/qt6/include/QtCore/QObject /usr/lib64/qt6/include/QtCore/QMap \
+ /usr/lib64/qt6/include/QtCore/qmap.h /usr/lib64/qt6/include/QtGui/QColor \
+ /usr/lib64/qt6/include/QtGui/qcolor.h \
+ /usr/lib64/qt6/include/QtCore/QJsonObject \
+ /usr/lib64/qt6/include/QtCore/qjsonobject.h \
+ /usr/lib64/qt6/include/QtCore/qjsonvalue.h \
+ /usr/lib64/qt6/include/QtCore/qcborvalue.h \
+ /usr/lib64/qt6/include/QtCore/qcborcommon.h \
+ /usr/lib64/qt6/include/QtCore/quuid.h \
+ /usr/lib64/qt6/include/QtCore/qjsondocument.h \
+ /usr/lib64/qt6/include/QtCore/qjsonparseerror.h \
+ /usr/lib64/qt6/include/QtGui/QPalette \
+ /usr/lib64/qt6/include/QtGui/qpalette.h \
+ /usr/lib64/qt6/include/QtCore/QStringList \
+ /usr/lib64/qt6/include/QtCore/qstringlist.h \
  /usr/lib64/qt6/include/QtWidgets/QFormLayout \
  /usr/lib64/qt6/include/QtWidgets/qformlayout.h \
  /usr/lib64/qt6/include/QtWidgets/QLayout \
  /usr/lib64/qt6/include/QtWidgets/qlayout.h \
  /usr/lib64/qt6/include/QtWidgets/QHeaderView \
  /usr/lib64/qt6/include/QtWidgets/qheaderview.h \
- /usr/lib64/qt6/include/QtWidgets/QLabel \
- /usr/lib64/qt6/include/QtWidgets/qlabel.h \
- /usr/lib64/qt6/include/QtGui/qpicture.h \
  /usr/lib64/qt6/include/QtWidgets/QMessageBox \
  /usr/lib64/qt6/include/QtWidgets/qmessagebox.h \
  /usr/lib64/qt6/include/QtWidgets/qdialog.h \
@@ -546,14 +567,6 @@ CMakeFiles/OpenEkklesia.dir/src/ui/finance/contributionswidget.cpp.o: \
  /usr/include/c++/15.2.1/bits/fs_dir.h \
  /usr/include/c++/15.2.1/bits/fs_ops.h \
  /usr/lib64/qt6/include/QtCore/qfileinfo.h \
- /usr/lib64/qt6/include/QtGui/QPdfWriter \
- /usr/lib64/qt6/include/QtGui/qpdfwriter.h \
- /usr/lib64/qt6/include/QtGui/qpagedpaintdevice.h \
- /usr/lib64/qt6/include/QtGui/qpagelayout.h \
- /usr/lib64/qt6/include/QtGui/qpagesize.h \
- /usr/lib64/qt6/include/QtGui/qpageranges.h \
- /usr/lib64/qt6/include/QtGui/QTextDocument \
- /usr/lib64/qt6/include/QtGui/qtextdocument.h \
  /usr/lib64/qt6/include/QtCore/QCoreApplication \
  /usr/lib64/qt6/include/QtCore/qcoreapplication.h \
  /usr/lib64/qt6/include/QtCore/QDebug \
@@ -563,17 +576,16 @@ CMakeFiles/OpenEkklesia.dir/src/ui/finance/contributionswidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/qlineedit.h \
  /usr/lib64/qt6/include/QtWidgets/QMenu \
  /usr/lib64/qt6/include/QtWidgets/qmenu.h \
- /usr/lib64/qt6/include/QtWidgets/QListWidget \
- /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
- /usr/lib64/qt6/include/QtWidgets/qlistview.h \
  /usr/lib64/qt6/include/QtWidgets/QCheckBox \
  /usr/lib64/qt6/include/QtWidgets/qcheckbox.h \
  /usr/lib64/qt6/include/QtWidgets/QDialogButtonBox \
  /usr/lib64/qt6/include/QtWidgets/qdialogbuttonbox.h \
  /usr/lib64/qt6/include/QtCore/QTextStream \
  /usr/lib64/qt6/include/QtCore/qtextstream.h \
- /usr/lib64/qt6/include/QtGui/QColor \
- /usr/lib64/qt6/include/QtGui/qcolor.h \
  /usr/lib64/qt6/include/QtWidgets/QFileDialog \
  /usr/lib64/qt6/include/QtWidgets/qfiledialog.h \
- /usr/lib64/qt6/include/QtCore/qdir.h
+ /usr/lib64/qt6/include/QtCore/qdir.h \
+ /usr/lib64/qt6/include/QtWidgets/QSplitter \
+ /usr/lib64/qt6/include/QtWidgets/qsplitter.h \
+ /usr/lib64/qt6/include/QtWidgets/QGroupBox \
+ /usr/lib64/qt6/include/QtWidgets/qgroupbox.h

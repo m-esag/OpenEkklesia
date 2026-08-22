@@ -358,6 +358,7 @@
   /usr/lib64/qt6/include/QtCore/qbytearrayalgorithms.h \
   /usr/lib64/qt6/include/QtCore/qbytearraylist.h \
   /usr/lib64/qt6/include/QtCore/qbytearrayview.h \
+  /usr/lib64/qt6/include/QtCore/qcalendar.h \
   /usr/lib64/qt6/include/QtCore/qchar.h \
   /usr/lib64/qt6/include/QtCore/qcheckedint_impl.h \
   /usr/lib64/qt6/include/QtCore/qcompare.h \
@@ -372,6 +373,7 @@
   /usr/lib64/qt6/include/QtCore/qcontiguouscache.h \
   /usr/lib64/qt6/include/QtCore/qdarwinhelpers.h \
   /usr/lib64/qt6/include/QtCore/qdatastream.h \
+  /usr/lib64/qt6/include/QtCore/qdatetime.h \
   /usr/lib64/qt6/include/QtCore/qdebug.h \
   /usr/lib64/qt6/include/QtCore/qendian.h \
   /usr/lib64/qt6/include/QtCore/qexceptionhandling.h \
@@ -450,6 +452,7 @@
   /usr/lib64/qt6/include/QtCore/qtenvironmentvariables.h \
   /usr/lib64/qt6/include/QtCore/qtextstream.h \
   /usr/lib64/qt6/include/QtCore/qtformat_impl.h \
+  /usr/lib64/qt6/include/QtCore/qtimezone.h \
   /usr/lib64/qt6/include/QtCore/qtmetamacros.h \
   /usr/lib64/qt6/include/QtCore/qtnoop.h \
   /usr/lib64/qt6/include/QtCore/qtpreprocessorsupport.h \
@@ -508,6 +511,7 @@
   /usr/lib64/qt6/include/QtWidgets/QPushButton \
   /usr/lib64/qt6/include/QtWidgets/QSpinBox \
   /usr/lib64/qt6/include/QtWidgets/QStackedWidget \
+  /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
   /usr/lib64/qt6/include/QtWidgets/QWidget \
   /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
@@ -517,6 +521,7 @@
   /usr/lib64/qt6/include/QtWidgets/qabstractspinbox.h \
   /usr/lib64/qt6/include/QtWidgets/qcheckbox.h \
   /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
+  /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
   /usr/lib64/qt6/include/QtWidgets/qframe.h \
   /usr/lib64/qt6/include/QtWidgets/qlabel.h \
   /usr/lib64/qt6/include/QtWidgets/qlineedit.h \

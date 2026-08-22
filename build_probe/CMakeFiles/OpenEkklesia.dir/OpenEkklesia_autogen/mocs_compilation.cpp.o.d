@@ -490,6 +490,9 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qabstractitemmodel.h \
  /usr/lib64/qt6/include/QtWidgets/QSpinBox \
  /usr/lib64/qt6/include/QtWidgets/qspinbox.h \
+ /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
+ /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
+ /usr/lib64/qt6/include/QtCore/qtimezone.h \
  /usr/lib64/qt6/include/QtWidgets/QListWidget \
  /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
  /usr/lib64/qt6/include/QtWidgets/qlistview.h \
@@ -541,8 +544,6 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/QDataWidgetMapper \
  /usr/lib64/qt6/include/QtWidgets/qdatawidgetmapper.h \
  /usr/lib64/qt6/include/QtWidgets/QDateEdit \
- /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
- /usr/lib64/qt6/include/QtCore/qtimezone.h \
  /usr/lib64/qt6/include/QtWidgets/QButtonGroup \
  /usr/lib64/qt6/include/QtWidgets/qbuttongroup.h \
  /usr/lib64/qt6/include/QtWidgets/QRadioButton \
@@ -586,9 +587,22 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /home/manuel/Documents/OpenEkklesia/src/ui/finance/contributionswidget.h \
  /usr/lib64/qt6/include/QtWidgets/QDoubleSpinBox \
  /usr/lib64/qt6/include/QtGui/QKeyEvent \
+ /usr/lib64/qt6/include/QtWidgets/QScrollArea \
+ /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
+ /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
+ /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
+ /usr/lib64/qt6/include/QtWidgets/qlayout.h \
+ /usr/lib64/qt6/include/QtWidgets/qlayoutitem.h \
+ /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
+ /usr/lib64/qt6/include/QtWidgets/qgridlayout.h \
+ /usr/lib64/qt6/include/QtWidgets/QVBoxLayout \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/servicebuilderwidget.h \
  /usr/lib64/qt6/include/QtCore/QDate \
  /usr/lib64/qt6/include/QtCore/qdatetime.h \
+ /usr/lib64/qt6/include/QtCore/QTime /usr/lib64/qt6/include/QtCore/QPair \
+ /usr/lib64/qt6/include/QtCore/qpair.h \
+ /usr/lib64/qt6/include/QtSql/QSqlDatabase \
+ /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/graphwidget.h \
  /usr/lib64/qt6/include/QtWidgets/QGraphicsView \
  /usr/lib64/qt6/include/QtWidgets/qgraphicsview.h \
@@ -608,6 +622,8 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qvector.h \
  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneHoverEvent \
  /usr/lib64/qt6/include/QtWidgets/qgraphicssceneevent.h \
+ /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneMouseEvent \
+ /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneContextMenuEvent \
  /usr/lib64/qt6/include/QtGui/QColor \
  /usr/lib64/qt6/include/QtGui/qcolor.h /usr/lib64/qt6/include/QtCore/QSet \
  /usr/lib64/qt6/include/QtCore/qset.h \
@@ -620,15 +636,6 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qglyphrun.h \
  /usr/lib64/qt6/include/QtGui/qrawfont.h \
  /usr/lib64/qt6/include/QtGui/qfontdatabase.h \
- /usr/lib64/qt6/include/QtWidgets/QScrollArea \
- /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
- /usr/lib64/qt6/include/QtWidgets/QVBoxLayout \
- /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
- /usr/lib64/qt6/include/QtWidgets/qlayout.h \
- /usr/lib64/qt6/include/QtWidgets/qlayoutitem.h \
- /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
- /usr/lib64/qt6/include/QtWidgets/qgridlayout.h \
- /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
  /home/manuel/Documents/OpenEkklesia/src/ui/core/thememanager.h \
  /usr/lib64/qt6/include/QtCore/QMap /usr/lib64/qt6/include/QtCore/qmap.h \
  /usr/lib64/qt6/include/QtGui/QPalette \
@@ -643,7 +650,6 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /home/manuel/Documents/OpenEkklesia/src/ui/admin/vaultwidget.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/admin/settingswidget.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/facilitieswidget.h \
- /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
  /home/manuel/Documents/OpenEkklesia/src/ui/people/pastoralanalyticswidget.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/people/../core/thememanager.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/planningwidget.h \
@@ -694,8 +700,6 @@ CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.o: \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/moc_matchdialog.cpp \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/../../../src/ui/ministry/matchdialog.h \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/../../../src/ui/ministry/ministrymatch.h \
- /usr/lib64/qt6/include/QtSql/QSqlDatabase \
- /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/moc_planningwidget.cpp \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/../../../src/ui/ministry/planningwidget.h \
  /home/manuel/Documents/OpenEkklesia/build_probe/OpenEkklesia_autogen/TCVCQ6SNO3/moc_servicebuilderwidget.cpp \

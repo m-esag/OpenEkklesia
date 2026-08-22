@@ -259,7 +259,10 @@ template <> constexpr inline auto PeopleWidget::qt_create_metaobjectdata<qt_meta
         "id",
         "onSortByChanged",
         "index",
-        "onLogCareEntry"
+        "onLogCareEntry",
+        "onOpenPersonDocument",
+        "QListWidgetItem*",
+        "item"
     };
 
     QtMocHelpers::UintData qt_methods {
@@ -299,6 +302,10 @@ template <> constexpr inline auto PeopleWidget::qt_create_metaobjectdata<qt_meta
         }}),
         // Slot 'onLogCareEntry'
         QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onOpenPersonDocument'
+        QtMocHelpers::SlotData<void(QListWidgetItem *)>(22, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 23, 24 },
+        }}),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -336,6 +343,7 @@ void PeopleWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
         case 11: _t->onStatusFilterChanged((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
         case 12: _t->onSortByChanged((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
         case 13: _t->onLogCareEntry(); break;
+        case 14: _t->onOpenPersonDocument((*reinterpret_cast<std::add_pointer_t<QListWidgetItem*>>(_a[1]))); break;
         default: ;
         }
     }
@@ -360,14 +368,14 @@ int PeopleWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 14)
+        if (_id < 15)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 14;
+        _id -= 15;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 14)
+        if (_id < 15)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 14;
+        _id -= 15;
     }
     return _id;
 }

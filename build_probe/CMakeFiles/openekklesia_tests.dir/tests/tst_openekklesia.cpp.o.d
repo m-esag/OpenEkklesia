@@ -487,7 +487,7 @@ CMakeFiles/openekklesia_tests.dir/tests/tst_openekklesia.cpp.o: \
  /home/manuel/Documents/OpenEkklesia/tests/../src/ui/ministry/ministrymatch.h \
  /usr/lib64/qt6/include/QtCore/QList \
  /usr/lib64/qt6/include/QtCore/qlist.h \
- /home/manuel/Documents/OpenEkklesia/tests/../src/ui/ministry/servicebuilderwidget.h \
+ /home/manuel/Documents/OpenEkklesia/tests/../src/ui/ministry/planningwidget.h \
  /usr/lib64/qt6/include/QtWidgets/QWidget \
  /usr/lib64/qt6/include/QtWidgets/qwidget.h \
  /usr/lib64/qt6/include/QtGui/qaction.h \
@@ -499,9 +499,9 @@ CMakeFiles/openekklesia_tests.dir/tests/tst_openekklesia.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qfontinfo.h \
  /usr/lib64/qt6/include/QtGui/qfontvariableaxis.h \
  /usr/lib64/qt6/include/QtWidgets/qsizepolicy.h \
- /usr/lib64/qt6/include/QtWidgets/QListWidget \
- /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
- /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+ /usr/lib64/qt6/include/QtWidgets/QTableWidget \
+ /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qtableview.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractitemview.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
  /usr/lib64/qt6/include/QtWidgets/qframe.h \
@@ -521,8 +521,16 @@ CMakeFiles/openekklesia_tests.dir/tests/tst_openekklesia.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/QPushButton \
  /usr/lib64/qt6/include/QtWidgets/qpushbutton.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
+ /usr/lib64/qt6/include/QtWidgets/QComboBox \
+ /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtWidgets/QDateEdit \
  /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
+ /home/manuel/Documents/OpenEkklesia/tests/../src/ui/ministry/servicebuilderwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/QListWidget \
+ /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+ /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
+ /usr/lib64/qt6/include/QtCore/QTime \
  /usr/lib64/qt6/include/QtWidgets/QLabel \
  /usr/lib64/qt6/include/QtWidgets/qlabel.h \
  /usr/lib64/qt6/include/QtGui/qpicture.h \
@@ -535,12 +543,9 @@ CMakeFiles/openekklesia_tests.dir/tests/tst_openekklesia.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qtextoption.h \
  /usr/lib64/qt6/include/QtCore/QJsonArray \
  /usr/lib64/qt6/include/QtCore/qjsonarray.h \
+ /usr/lib64/qt6/include/QtCore/QPair \
+ /usr/lib64/qt6/include/QtCore/qpair.h \
  /home/manuel/Documents/OpenEkklesia/tests/../src/ui/ministry/shepherdwidget.h \
- /usr/lib64/qt6/include/QtWidgets/QTableWidget \
- /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
- /usr/lib64/qt6/include/QtWidgets/qtableview.h \
- /usr/lib64/qt6/include/QtWidgets/QComboBox \
- /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtWidgets/QTabWidget \
  /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
  /home/manuel/Documents/OpenEkklesia/tests/../src/ui/people/pastoralanalyticswidget.h \

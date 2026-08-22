@@ -51,14 +51,17 @@ template <> constexpr inline auto ServiceBuilderWidget::qt_create_metaobjectdata
         "date",
         "onExportRunSheet",
         "updateDurationCalculator",
-        "onSaveServiceDetails",
         "onAddElement",
         "onEditElement",
         "QListWidgetItem*",
         "item",
         "onRemoveElement",
         "onSaveTemplate",
-        "onApplyTemplate"
+        "onApplyTemplate",
+        "onMarkAttended",
+        "onCoverageCheck",
+        "onExportIcal",
+        "onElementUsage"
     };
 
     QtMocHelpers::UintData qt_methods {
@@ -82,20 +85,26 @@ template <> constexpr inline auto ServiceBuilderWidget::qt_create_metaobjectdata
         QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'updateDurationCalculator'
         QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onSaveServiceDetails'
-        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onAddElement'
-        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onEditElement'
-        QtMocHelpers::SlotData<void(QListWidgetItem *)>(14, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { 0x80000000 | 15, 16 },
+        QtMocHelpers::SlotData<void(QListWidgetItem *)>(13, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 14, 15 },
         }}),
         // Slot 'onRemoveElement'
-        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onSaveTemplate'
-        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onApplyTemplate'
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onMarkAttended'
         QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onCoverageCheck'
+        QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onExportIcal'
+        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onElementUsage'
+        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -128,12 +137,15 @@ void ServiceBuilderWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c,
         case 6: _t->onServiceDateChanged((*reinterpret_cast<std::add_pointer_t<QDate>>(_a[1]))); break;
         case 7: _t->onExportRunSheet(); break;
         case 8: _t->updateDurationCalculator(); break;
-        case 9: _t->onSaveServiceDetails(); break;
-        case 10: _t->onAddElement(); break;
-        case 11: _t->onEditElement((*reinterpret_cast<std::add_pointer_t<QListWidgetItem*>>(_a[1]))); break;
-        case 12: _t->onRemoveElement(); break;
-        case 13: _t->onSaveTemplate(); break;
-        case 14: _t->onApplyTemplate(); break;
+        case 9: _t->onAddElement(); break;
+        case 10: _t->onEditElement((*reinterpret_cast<std::add_pointer_t<QListWidgetItem*>>(_a[1]))); break;
+        case 11: _t->onRemoveElement(); break;
+        case 12: _t->onSaveTemplate(); break;
+        case 13: _t->onApplyTemplate(); break;
+        case 14: _t->onMarkAttended(); break;
+        case 15: _t->onCoverageCheck(); break;
+        case 16: _t->onExportIcal(); break;
+        case 17: _t->onElementUsage(); break;
         default: ;
         }
     }
@@ -158,14 +170,14 @@ int ServiceBuilderWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 15)
+        if (_id < 18)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 15;
+        _id -= 18;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 15)
+        if (_id < 18)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 15;
+        _id -= 18;
     }
     return _id;
 }

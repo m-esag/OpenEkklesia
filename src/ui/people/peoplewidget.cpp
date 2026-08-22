@@ -40,6 +40,8 @@
 #include <QKeySequence>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
+#include <QMenu>
+#include <QDialogButtonBox>
 #include "../common/appcurrency.h"
 
 // ============================================================================
@@ -292,6 +294,8 @@ void PeopleWidget::setupUI() {
     m_peopleTable->verticalHeader()->setDefaultSectionSize(34);
     m_peopleTable->setAlternatingRowColors(true);
     m_peopleTable->setSortingEnabled(true);
+    m_peopleTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_peopleTable, &QTableView::customContextMenuRequested, this, &PeopleWidget::onPeopleTableContextMenu);
     leftLayout->addWidget(m_peopleTable);
 
     // Action Toolbar Row 1
@@ -689,6 +693,8 @@ void PeopleWidget::setupUI() {
     m_historyList = new QListWidget(cardTimeline);
     m_historyList->setObjectName("historyList");
     m_historyList->setMinimumHeight(140);
+    m_historyList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_historyList, &QListWidget::customContextMenuRequested, this, &PeopleWidget::onTimelineContextMenu);
     layCardTimeline->addWidget(m_historyList);
     layPagePastoral->addWidget(cardTimeline);
     layPagePastoral->addStretch();
@@ -1535,21 +1541,23 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
 
     QSqlQuery qHist;
     qHist.prepare(
-        "SELECT timestamp, type, text, follow_up FROM ("
-        "  SELECT timestamp, activity_type AS type, details AS text, 0 AS follow_up "
+        "SELECT id, timestamp, type, text, follow_up, src FROM ("
+        "  SELECT id, timestamp, activity_type AS type, details AS text, 0 AS follow_up, 'member_history' AS src "
         "  FROM member_history WHERE person_id = ? "
         "  UNION ALL "
-        "  SELECT timestamp, care_type AS type, notes AS text, follow_up "
+        "  SELECT id, timestamp, care_type AS type, notes AS text, follow_up, 'care_logs' AS src "
         "  FROM care_logs WHERE person_id = ?"
         ") ORDER BY timestamp DESC LIMIT 20");
     qHist.addBindValue(personId);
     qHist.addBindValue(personId);
     if (qHist.exec()) {
         while (qHist.next()) {
-            QString ts = qHist.value(0).toString();
-            QString type = qHist.value(1).toString();
-            QString text = qHist.value(2).toString();
-            bool followUp = qHist.value(3).toInt() != 0;
+            int logId = qHist.value(0).toInt();
+            QString ts = qHist.value(1).toString();
+            QString type = qHist.value(2).toString();
+            QString text = qHist.value(3).toString();
+            bool followUp = qHist.value(4).toInt() != 0;
+            QString srcTable = qHist.value(5).toString();
 
             QString badge = "🕊️ " + type;
             if (type == "Counseling") badge = "💬 " + type;
@@ -1562,6 +1570,9 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
                 .arg(badge, ts, (followUp ? "  [🔔 Follow-up Needed]" : ""), text);
 
             QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
+            item->setData(Qt::UserRole, logId);
+            item->setData(Qt::UserRole + 1, srcTable);
+            item->setData(Qt::UserRole + 2, text);
             if (followUp) {
                 item->setForeground(QColor("#fab387"));
             }
@@ -2391,25 +2402,154 @@ void PeopleWidget::onImportCSV() {
     QMessageBox::information(this, "Success", QString("Successfully imported %1 members!").arg(importedCount));
 }
 
-void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& val) {
-    if (type == "status") {
-        if (val == "Visitor") m_statusFilterGroup->button(1)->setChecked(true);
-        else if (val == "Regular Attender") m_statusFilterGroup->button(2)->setChecked(true);
-        else if (val == "Member") m_statusFilterGroup->button(3)->setChecked(true);
-        else if (val == "Inactive") m_statusFilterGroup->button(4)->setChecked(true);
-        else m_statusFilterGroup->button(0)->setChecked(true);
-        m_searchEdit->clear();
-        reapplyFilter();
-    } else if (type == "care_flag") {
-        m_statusFilterGroup->button(0)->setChecked(true);
-        m_searchEdit->setText(val);
-    } else if (type == "unconnected") {
-        m_statusFilterGroup->button(0)->setChecked(true);
-        m_searchEdit->clear();
-        m_peopleModel->setFilter("id NOT IN (SELECT DISTINCT source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group')");
+void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
+    QModelIndex proxyIdx = m_peopleTable->indexAt(pos);
+    if (!proxyIdx.isValid()) return;
+
+    QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
+    int row = srcIdx.row();
+    int personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
+    QString firstName = m_peopleModel->data(m_peopleModel->index(row, 1)).toString();
+    QString lastName = m_peopleModel->data(m_peopleModel->index(row, 2)).toString();
+    QString phone = m_peopleModel->data(m_peopleModel->index(row, 3)).toString();
+    QString email = m_peopleModel->data(m_peopleModel->index(row, 4)).toString();
+    QString fullName = QString("%1 %2").arg(firstName, lastName).trimmed();
+
+    QMenu menu(this);
+    QAction* actProfile = menu.addAction(QString("👤 View %1's Dossier").arg(fullName));
+    QAction* actCareNote = menu.addAction("✍️ Log Pastoral Care Note...");
+    QAction* actAssignGroup = menu.addAction("➕ Assign to Small Group...");
+    
+    QMenu* menuCare = menu.addMenu("🚩 Set Pastoral Flag");
+    QAction* actFlagNormal = menuCare->addAction("Normal / None");
+    QAction* actFlagLeader = menuCare->addAction("Leader");
+    QAction* actFlagRisk = menuCare->addAction("At-Risk");
+    QAction* actFlagContact = menuCare->addAction("Needs Contact");
+    QAction* actFlagGrief = menuCare->addAction("Grief Support");
+
+    QMenu* menuStatus = menu.addMenu("🏷️ Set Membership Status");
+    QAction* actStatMember = menuStatus->addAction("Member");
+    QAction* actStatAttender = menuStatus->addAction("Regular Attender");
+    QAction* actStatVisitor = menuStatus->addAction("Visitor");
+    QAction* actStatInactive = menuStatus->addAction("Inactive");
+
+    menu.addSeparator();
+    QAction* actCopyPhone = nullptr;
+    if (!phone.isEmpty()) actCopyPhone = menu.addAction(QString("📞 Copy Phone (%1)").arg(phone));
+    QAction* actCopyEmail = nullptr;
+    if (!email.isEmpty()) actCopyEmail = menu.addAction(QString("✉️ Copy Email (%1)").arg(email));
+
+    menu.addSeparator();
+    QAction* actDelete = menu.addAction("🗑️ Delete Profile...");
+
+    QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actProfile) {
+        selectPerson(personId);
+    } else if (selected == actCareNote) {
+        selectPerson(personId);
+        onLogCareEntry();
+    } else if (selected == actAssignGroup) {
+        QDialog dlg(this);
+        dlg.setWindowTitle(QString("Assign %1 to Group").arg(fullName));
+        dlg.resize(320, 140);
+        QFormLayout* form = new QFormLayout(&dlg);
+        QComboBox* groupCombo = new QComboBox(&dlg);
+        QSqlQuery gq("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name");
+        while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
+        QLineEdit* roleEdit = new QLineEdit("Member", &dlg);
+        form->addRow("Group:", groupCombo);
+        form->addRow("Role:", roleEdit);
+        QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        form->addRow(bb);
+        if (dlg.exec() == QDialog::Accepted && groupCombo->count() > 0) {
+            int gid = groupCombo->currentData().toInt();
+            QSqlQuery ins;
+            ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
+                        "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
+            ins.addBindValue(personId);
+            ins.addBindValue(gid);
+            ins.addBindValue(roleEdit->text().trimmed());
+            ins.exec();
+            QMessageBox::information(this, "Success", QString("%1 assigned to %2").arg(fullName, groupCombo->currentText()));
+        }
+    } else if (menuCare->actions().contains(selected)) {
+        QString flag = selected->text();
+        if (selected == actFlagNormal) flag = "Normal";
+        QSqlQuery uq;
+        uq.prepare("UPDATE people SET care_flag = ? WHERE id = ?");
+        uq.addBindValue(flag);
+        uq.addBindValue(personId);
+        uq.exec();
         m_peopleModel->select();
-    } else {
-        m_statusFilterGroup->button(0)->setChecked(true);
-        m_searchEdit->setText(val);
+        reapplyFilter();
+        if (m_currentPersonId == personId) selectPerson(personId);
+    } else if (menuStatus->actions().contains(selected)) {
+        QString st = selected->text();
+        QSqlQuery uq;
+        uq.prepare("UPDATE people SET membership_status = ? WHERE id = ?");
+        uq.addBindValue(st);
+        uq.addBindValue(personId);
+        uq.exec();
+        m_peopleModel->select();
+        reapplyFilter();
+        if (m_currentPersonId == personId) selectPerson(personId);
+    } else if (selected == actCopyPhone && !phone.isEmpty()) {
+        QGuiApplication::clipboard()->setText(phone);
+    } else if (selected == actCopyEmail && !email.isEmpty()) {
+        QGuiApplication::clipboard()->setText(email);
+    } else if (selected == actDelete) {
+        selectPerson(personId);
+        onDeletePerson();
+    }
+}
+
+void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
+    QListWidgetItem* item = m_historyList->itemAt(pos);
+    if (!item) return;
+
+    int logId = item->data(Qt::UserRole).toInt();
+    QString srcTable = item->data(Qt::UserRole + 1).toString();
+    QString noteText = item->data(Qt::UserRole + 2).toString();
+
+    if (logId <= 0 || srcTable.isEmpty()) return;
+
+    QMenu menu(this);
+    QAction* actEdit = menu.addAction("✏️ Edit Log Note...");
+    QAction* actDelete = menu.addAction("🗑️ Delete Log Entry");
+
+    QAction* selected = menu.exec(m_historyList->viewport()->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actEdit) {
+        bool ok = false;
+        QString newText = QInputDialog::getMultiLineText(this, "Edit Care Note", "Notes / Details:", noteText, &ok);
+        if (ok && !newText.trimmed().isEmpty()) {
+            QSqlQuery uq;
+            if (srcTable == "care_logs") {
+                uq.prepare("UPDATE care_logs SET notes = ? WHERE id = ?");
+            } else {
+                uq.prepare("UPDATE member_history SET details = ? WHERE id = ?");
+            }
+            uq.addBindValue(newText.trimmed());
+            uq.addBindValue(logId);
+            uq.exec();
+            updateHistoryTimeline(m_currentPersonId);
+        }
+    } else if (selected == actDelete) {
+        if (QMessageBox::question(this, "Delete Log Entry", "Are you sure you want to delete this care timeline entry?") == QMessageBox::Yes) {
+            QSqlQuery dq;
+            if (srcTable == "care_logs") {
+                dq.prepare("DELETE FROM care_logs WHERE id = ?");
+            } else {
+                dq.prepare("DELETE FROM member_history WHERE id = ?");
+            }
+            dq.addBindValue(logId);
+            dq.exec();
+            updateHistoryTimeline(m_currentPersonId);
+        }
     }
 }

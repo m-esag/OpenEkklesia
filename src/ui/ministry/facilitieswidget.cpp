@@ -70,7 +70,8 @@ void FacilitiesWidget::refreshReservations() {
     QString dateStr = m_dateFilter->date().toString("yyyy-MM-dd");
     QSqlDatabase db = DatabaseManager::instance().database();
 
-    QString queryStr = QString(
+    QSqlQuery q(db);
+    q.prepare(
         "SELECT id AS \"ID\", "
         "       facility_name AS \"Space / Equipment\", "
         "       event_name AS \"Event Purpose\", "
@@ -78,9 +79,11 @@ void FacilitiesWidget::refreshReservations() {
         "       (start_time || ' - ' || end_time) AS \"Time Window\", "
         "       reserved_by AS \"Reserved By\" "
         "FROM facility_reservations "
-        "WHERE reservation_date = '%1' "
-        "ORDER BY start_time ASC").arg(dateStr);
-    m_model->setQuery(queryStr, db);
+        "WHERE reservation_date = ? "
+        "ORDER BY start_time ASC");
+    q.addBindValue(dateStr);
+    q.exec();
+    m_model->setQuery(std::move(q));
     m_table->hideColumn(0);
 }
 

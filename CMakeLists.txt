@@ -157,3 +157,32 @@ target_link_libraries(openekklesia_tests PRIVATE
 )
 
 add_test(NAME openekklesia_tests COMMAND openekklesia_tests)
+
+# --- High-Resolution Performance Benchmark Suite ---
+add_executable(openekklesia_benchmarks
+    tests/benchmarks.cpp
+    src/database/databasemanager.cpp
+    src/database/databasemanager.h
+    src/database/datasharing.cpp
+    src/database/datasharing.h
+    src/ui/core/thememanager.cpp
+    src/ui/core/thememanager.h
+    src/ui/ministry/ministrymatch.cpp
+    src/ui/ministry/ministrymatch.h
+)
+
+target_include_directories(openekklesia_benchmarks PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/database
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
+)
+
+target_link_libraries(openekklesia_benchmarks PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::PrintSupport
+)

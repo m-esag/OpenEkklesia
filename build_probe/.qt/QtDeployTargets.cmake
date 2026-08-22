@@ -2,3 +2,5 @@ set(__QT_DEPLOY_TARGET_OpenEkklesia_FILE /home/manuel/Documents/OpenEkklesia/bui
 set(__QT_DEPLOY_TARGET_OpenEkklesia_TYPE EXECUTABLE)
 set(__QT_DEPLOY_TARGET_openekklesia_tests_FILE /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests)
 set(__QT_DEPLOY_TARGET_openekklesia_tests_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_openekklesia_benchmarks_FILE /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_benchmarks)
+set(__QT_DEPLOY_TARGET_openekklesia_benchmarks_TYPE EXECUTABLE)

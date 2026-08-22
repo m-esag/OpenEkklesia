@@ -534,4 +534,5 @@ CMakeFiles/OpenEkklesia.dir/src/ui/admin/vaultwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/QTextDocument \
  /usr/lib64/qt6/include/QtGui/qtextdocument.h \
  /usr/lib64/qt6/include/QtCore/QSettings \
- /usr/lib64/qt6/include/QtCore/qsettings.h
+ /usr/lib64/qt6/include/QtCore/qsettings.h \
+ /usr/lib64/qt6/include/QtCore/QSet /usr/lib64/qt6/include/QtCore/qset.h

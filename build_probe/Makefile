@@ -153,6 +153,19 @@ openekklesia_tests/fast:
 .PHONY : openekklesia_tests/fast
 
 #=============================================================================
+# Target rules for targets named openekklesia_benchmarks
+
+# Build rule for target.
+openekklesia_benchmarks: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 openekklesia_benchmarks
+.PHONY : openekklesia_benchmarks
+
+# fast build rule for target.
+openekklesia_benchmarks/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/build
+.PHONY : openekklesia_benchmarks/fast
+
+#=============================================================================
 # Target rules for targets named OpenEkklesia_autogen_timestamp_deps
 
 # Build rule for target.
@@ -204,6 +217,32 @@ openekklesia_tests_autogen/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests_autogen.dir/build.make CMakeFiles/openekklesia_tests_autogen.dir/build
 .PHONY : openekklesia_tests_autogen/fast
 
+#=============================================================================
+# Target rules for targets named openekklesia_benchmarks_autogen_timestamp_deps
+
+# Build rule for target.
+openekklesia_benchmarks_autogen_timestamp_deps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 openekklesia_benchmarks_autogen_timestamp_deps
+.PHONY : openekklesia_benchmarks_autogen_timestamp_deps
+
+# fast build rule for target.
+openekklesia_benchmarks_autogen_timestamp_deps/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks_autogen_timestamp_deps.dir/build.make CMakeFiles/openekklesia_benchmarks_autogen_timestamp_deps.dir/build
+.PHONY : openekklesia_benchmarks_autogen_timestamp_deps/fast
+
+#=============================================================================
+# Target rules for targets named openekklesia_benchmarks_autogen
+
+# Build rule for target.
+openekklesia_benchmarks_autogen: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 openekklesia_benchmarks_autogen
+.PHONY : openekklesia_benchmarks_autogen
+
+# fast build rule for target.
+openekklesia_benchmarks_autogen/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks_autogen.dir/build.make CMakeFiles/openekklesia_benchmarks_autogen.dir/build
+.PHONY : openekklesia_benchmarks_autogen/fast
+
 OpenEkklesia_autogen/mocs_compilation.o: OpenEkklesia_autogen/mocs_compilation.cpp.o
 .PHONY : OpenEkklesia_autogen/mocs_compilation.o
 
@@ -227,6 +266,30 @@ OpenEkklesia_autogen/mocs_compilation.s: OpenEkklesia_autogen/mocs_compilation.c
 OpenEkklesia_autogen/mocs_compilation.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/OpenEkklesia_autogen/mocs_compilation.cpp.s
 .PHONY : OpenEkklesia_autogen/mocs_compilation.cpp.s
+
+openekklesia_benchmarks_autogen/mocs_compilation.o: openekklesia_benchmarks_autogen/mocs_compilation.cpp.o
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.o
+
+# target to build an object file
+openekklesia_benchmarks_autogen/mocs_compilation.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/openekklesia_benchmarks_autogen/mocs_compilation.cpp.o
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.cpp.o
+
+openekklesia_benchmarks_autogen/mocs_compilation.i: openekklesia_benchmarks_autogen/mocs_compilation.cpp.i
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.i
+
+# target to preprocess a source file
+openekklesia_benchmarks_autogen/mocs_compilation.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/openekklesia_benchmarks_autogen/mocs_compilation.cpp.i
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.cpp.i
+
+openekklesia_benchmarks_autogen/mocs_compilation.s: openekklesia_benchmarks_autogen/mocs_compilation.cpp.s
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.s
+
+# target to generate assembly for a file
+openekklesia_benchmarks_autogen/mocs_compilation.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/openekklesia_benchmarks_autogen/mocs_compilation.cpp.s
+.PHONY : openekklesia_benchmarks_autogen/mocs_compilation.cpp.s
 
 openekklesia_tests_autogen/mocs_compilation.o: openekklesia_tests_autogen/mocs_compilation.cpp.o
 .PHONY : openekklesia_tests_autogen/mocs_compilation.o
@@ -259,6 +322,7 @@ src/database/databasemanager.o: src/database/databasemanager.cpp.o
 src/database/databasemanager.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/databasemanager.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/databasemanager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/databasemanager.cpp.o
 .PHONY : src/database/databasemanager.cpp.o
 
 src/database/databasemanager.i: src/database/databasemanager.cpp.i
@@ -268,6 +332,7 @@ src/database/databasemanager.i: src/database/databasemanager.cpp.i
 src/database/databasemanager.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/databasemanager.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/databasemanager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/databasemanager.cpp.i
 .PHONY : src/database/databasemanager.cpp.i
 
 src/database/databasemanager.s: src/database/databasemanager.cpp.s
@@ -277,6 +342,7 @@ src/database/databasemanager.s: src/database/databasemanager.cpp.s
 src/database/databasemanager.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/databasemanager.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/databasemanager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/databasemanager.cpp.s
 .PHONY : src/database/databasemanager.cpp.s
 
 src/database/datasharing.o: src/database/datasharing.cpp.o
@@ -286,6 +352,7 @@ src/database/datasharing.o: src/database/datasharing.cpp.o
 src/database/datasharing.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/datasharing.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/datasharing.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/datasharing.cpp.o
 .PHONY : src/database/datasharing.cpp.o
 
 src/database/datasharing.i: src/database/datasharing.cpp.i
@@ -295,6 +362,7 @@ src/database/datasharing.i: src/database/datasharing.cpp.i
 src/database/datasharing.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/datasharing.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/datasharing.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/datasharing.cpp.i
 .PHONY : src/database/datasharing.cpp.i
 
 src/database/datasharing.s: src/database/datasharing.cpp.s
@@ -304,6 +372,7 @@ src/database/datasharing.s: src/database/datasharing.cpp.s
 src/database/datasharing.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/database/datasharing.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/database/datasharing.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/database/datasharing.cpp.s
 .PHONY : src/database/datasharing.cpp.s
 
 src/integrations/planningcenterclient.o: src/integrations/planningcenterclient.cpp.o
@@ -505,6 +574,7 @@ src/ui/core/thememanager.o: src/ui/core/thememanager.cpp.o
 src/ui/core/thememanager.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/core/thememanager.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/core/thememanager.cpp.o
 .PHONY : src/ui/core/thememanager.cpp.o
 
 src/ui/core/thememanager.i: src/ui/core/thememanager.cpp.i
@@ -514,6 +584,7 @@ src/ui/core/thememanager.i: src/ui/core/thememanager.cpp.i
 src/ui/core/thememanager.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/core/thememanager.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/core/thememanager.cpp.i
 .PHONY : src/ui/core/thememanager.cpp.i
 
 src/ui/core/thememanager.s: src/ui/core/thememanager.cpp.s
@@ -523,6 +594,7 @@ src/ui/core/thememanager.s: src/ui/core/thememanager.cpp.s
 src/ui/core/thememanager.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/core/thememanager.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/core/thememanager.cpp.s
 .PHONY : src/ui/core/thememanager.cpp.s
 
 src/ui/finance/contributionswidget.o: src/ui/finance/contributionswidget.cpp.o
@@ -676,6 +748,7 @@ src/ui/ministry/ministrymatch.o: src/ui/ministry/ministrymatch.cpp.o
 src/ui/ministry/ministrymatch.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/ministrymatch.cpp.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/ministry/ministrymatch.cpp.o
 .PHONY : src/ui/ministry/ministrymatch.cpp.o
 
 src/ui/ministry/ministrymatch.i: src/ui/ministry/ministrymatch.cpp.i
@@ -685,6 +758,7 @@ src/ui/ministry/ministrymatch.i: src/ui/ministry/ministrymatch.cpp.i
 src/ui/ministry/ministrymatch.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/ministrymatch.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/ministry/ministrymatch.cpp.i
 .PHONY : src/ui/ministry/ministrymatch.cpp.i
 
 src/ui/ministry/ministrymatch.s: src/ui/ministry/ministrymatch.cpp.s
@@ -694,6 +768,7 @@ src/ui/ministry/ministrymatch.s: src/ui/ministry/ministrymatch.cpp.s
 src/ui/ministry/ministrymatch.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/ministrymatch.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/src/ui/ministry/ministrymatch.cpp.s
 .PHONY : src/ui/ministry/ministrymatch.cpp.s
 
 src/ui/ministry/planningwidget.o: src/ui/ministry/planningwidget.cpp.o
@@ -702,6 +777,7 @@ src/ui/ministry/planningwidget.o: src/ui/ministry/planningwidget.cpp.o
 # target to build an object file
 src/ui/ministry/planningwidget.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/planningwidget.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o
 .PHONY : src/ui/ministry/planningwidget.cpp.o
 
 src/ui/ministry/planningwidget.i: src/ui/ministry/planningwidget.cpp.i
@@ -710,6 +786,7 @@ src/ui/ministry/planningwidget.i: src/ui/ministry/planningwidget.cpp.i
 # target to preprocess a source file
 src/ui/ministry/planningwidget.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/planningwidget.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.i
 .PHONY : src/ui/ministry/planningwidget.cpp.i
 
 src/ui/ministry/planningwidget.s: src/ui/ministry/planningwidget.cpp.s
@@ -718,6 +795,7 @@ src/ui/ministry/planningwidget.s: src/ui/ministry/planningwidget.cpp.s
 # target to generate assembly for a file
 src/ui/ministry/planningwidget.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/OpenEkklesia.dir/build.make CMakeFiles/OpenEkklesia.dir/src/ui/ministry/planningwidget.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.s
 .PHONY : src/ui/ministry/planningwidget.cpp.s
 
 src/ui/ministry/servicebuilderwidget.o: src/ui/ministry/servicebuilderwidget.cpp.o
@@ -828,6 +906,30 @@ src/ui/people/peoplewidget.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_tests.dir/build.make CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.s
 .PHONY : src/ui/people/peoplewidget.cpp.s
 
+tests/benchmarks.o: tests/benchmarks.cpp.o
+.PHONY : tests/benchmarks.o
+
+# target to build an object file
+tests/benchmarks.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/tests/benchmarks.cpp.o
+.PHONY : tests/benchmarks.cpp.o
+
+tests/benchmarks.i: tests/benchmarks.cpp.i
+.PHONY : tests/benchmarks.i
+
+# target to preprocess a source file
+tests/benchmarks.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/tests/benchmarks.cpp.i
+.PHONY : tests/benchmarks.cpp.i
+
+tests/benchmarks.s: tests/benchmarks.cpp.s
+.PHONY : tests/benchmarks.s
+
+# target to generate assembly for a file
+tests/benchmarks.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/openekklesia_benchmarks.dir/build.make CMakeFiles/openekklesia_benchmarks.dir/tests/benchmarks.cpp.s
+.PHONY : tests/benchmarks.cpp.s
+
 tests/tst_openekklesia.o: tests/tst_openekklesia.cpp.o
 .PHONY : tests/tst_openekklesia.o
 
@@ -863,13 +965,19 @@ help:
 	@echo "... test"
 	@echo "... OpenEkklesia_autogen"
 	@echo "... OpenEkklesia_autogen_timestamp_deps"
+	@echo "... openekklesia_benchmarks_autogen"
+	@echo "... openekklesia_benchmarks_autogen_timestamp_deps"
 	@echo "... openekklesia_tests_autogen"
 	@echo "... openekklesia_tests_autogen_timestamp_deps"
 	@echo "... OpenEkklesia"
+	@echo "... openekklesia_benchmarks"
 	@echo "... openekklesia_tests"
 	@echo "... OpenEkklesia_autogen/mocs_compilation.o"
 	@echo "... OpenEkklesia_autogen/mocs_compilation.i"
 	@echo "... OpenEkklesia_autogen/mocs_compilation.s"
+	@echo "... openekklesia_benchmarks_autogen/mocs_compilation.o"
+	@echo "... openekklesia_benchmarks_autogen/mocs_compilation.i"
+	@echo "... openekklesia_benchmarks_autogen/mocs_compilation.s"
 	@echo "... openekklesia_tests_autogen/mocs_compilation.o"
 	@echo "... openekklesia_tests_autogen/mocs_compilation.i"
 	@echo "... openekklesia_tests_autogen/mocs_compilation.s"
@@ -942,6 +1050,9 @@ help:
 	@echo "... src/ui/people/peoplewidget.o"
 	@echo "... src/ui/people/peoplewidget.i"
 	@echo "... src/ui/people/peoplewidget.s"
+	@echo "... tests/benchmarks.o"
+	@echo "... tests/benchmarks.i"
+	@echo "... tests/benchmarks.s"
 	@echo "... tests/tst_openekklesia.o"
 	@echo "... tests/tst_openekklesia.i"
 	@echo "... tests/tst_openekklesia.s"

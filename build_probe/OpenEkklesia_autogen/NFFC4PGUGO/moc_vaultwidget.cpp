@@ -45,6 +45,7 @@ template <> constexpr inline auto VaultWidget::qt_create_metaobjectdata<qt_meta_
         "onDeleteClicked",
         "onSearchChanged",
         "text",
+        "onSweepOrphans",
         "onAddBoardMinutes",
         "onDeleteMinutes",
         "onExportMinutesPDF"
@@ -61,12 +62,14 @@ template <> constexpr inline auto VaultWidget::qt_create_metaobjectdata<qt_meta_
         QtMocHelpers::SlotData<void(const QString &)>(5, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QString, 6 },
         }}),
-        // Slot 'onAddBoardMinutes'
+        // Slot 'onSweepOrphans'
         QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onDeleteMinutes'
+        // Slot 'onAddBoardMinutes'
         QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onExportMinutesPDF'
+        // Slot 'onDeleteMinutes'
         QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onExportMinutesPDF'
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -94,9 +97,10 @@ void VaultWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id,
         case 1: _t->onOpenClicked(); break;
         case 2: _t->onDeleteClicked(); break;
         case 3: _t->onSearchChanged((*reinterpret_cast<std::add_pointer_t<QString>>(_a[1]))); break;
-        case 4: _t->onAddBoardMinutes(); break;
-        case 5: _t->onDeleteMinutes(); break;
-        case 6: _t->onExportMinutesPDF(); break;
+        case 4: _t->onSweepOrphans(); break;
+        case 5: _t->onAddBoardMinutes(); break;
+        case 6: _t->onDeleteMinutes(); break;
+        case 7: _t->onExportMinutesPDF(); break;
         default: ;
         }
     }
@@ -121,14 +125,14 @@ int VaultWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 7)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 7;
+        _id -= 8;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 7)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 7;
+        _id -= 8;
     }
     return _id;
 }

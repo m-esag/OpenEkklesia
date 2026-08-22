@@ -41,6 +41,7 @@ template <> constexpr inline auto PlanningWidget::qt_create_metaobjectdata<qt_me
         "PlanningWidget",
         "onAddTask",
         "",
+        "onEditTask",
         "onDeleteTask",
         "onTabChanged",
         "index"
@@ -49,11 +50,13 @@ template <> constexpr inline auto PlanningWidget::qt_create_metaobjectdata<qt_me
     QtMocHelpers::UintData qt_methods {
         // Slot 'onAddTask'
         QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onDeleteTask'
+        // Slot 'onEditTask'
         QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onDeleteTask'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onTabChanged'
-        QtMocHelpers::SlotData<void(int)>(4, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 5 },
+        QtMocHelpers::SlotData<void(int)>(5, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 6 },
         }}),
     };
     QtMocHelpers::UintData qt_properties {
@@ -79,8 +82,9 @@ void PlanningWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
         case 0: _t->onAddTask(); break;
-        case 1: _t->onDeleteTask(); break;
-        case 2: _t->onTabChanged((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
+        case 1: _t->onEditTask(); break;
+        case 2: _t->onDeleteTask(); break;
+        case 3: _t->onTabChanged((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
         default: ;
         }
     }
@@ -105,14 +109,14 @@ int PlanningWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 3)
+        if (_id < 4)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 3;
+        _id -= 4;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 3)
+        if (_id < 4)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 3;
+        _id -= 4;
     }
     return _id;
 }

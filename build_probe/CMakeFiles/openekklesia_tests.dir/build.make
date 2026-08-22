@@ -191,10 +191,24 @@ CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.s: cm
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.s"
 	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/manuel/Documents/OpenEkklesia/src/ui/ministry/servicebuilderwidget.cpp -o CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.s
 
+CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o: CMakeFiles/openekklesia_tests.dir/flags.make
+CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o: /home/manuel/Documents/OpenEkklesia/src/ui/ministry/planningwidget.cpp
+CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o: CMakeFiles/openekklesia_tests.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o"
+	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o -MF CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o.d -o CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o -c /home/manuel/Documents/OpenEkklesia/src/ui/ministry/planningwidget.cpp
+
+CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.i"
+	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/manuel/Documents/OpenEkklesia/src/ui/ministry/planningwidget.cpp > CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.i
+
+CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.s"
+	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/manuel/Documents/OpenEkklesia/src/ui/ministry/planningwidget.cpp -o CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.s
+
 CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o: CMakeFiles/openekklesia_tests.dir/flags.make
 CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o: /home/manuel/Documents/OpenEkklesia/src/ui/people/pastoralanalyticswidget.cpp
 CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o: CMakeFiles/openekklesia_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o"
 	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o -MF CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o.d -o CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o -c /home/manuel/Documents/OpenEkklesia/src/ui/people/pastoralanalyticswidget.cpp
 
 CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.i: cmake_force
@@ -208,7 +222,7 @@ CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.s: c
 CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o: CMakeFiles/openekklesia_tests.dir/flags.make
 CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o: /home/manuel/Documents/OpenEkklesia/src/ui/people/peoplewidget.cpp
 CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o: CMakeFiles/openekklesia_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o"
 	/usr/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o -MF CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o.d -o CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o -c /home/manuel/Documents/OpenEkklesia/src/ui/people/peoplewidget.cpp
 
 CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.i: cmake_force
@@ -229,6 +243,7 @@ openekklesia_tests_OBJECTS = \
 "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o" \
 "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/shepherdwidget.cpp.o" \
 "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.o" \
+"CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o" \
 "CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o" \
 "CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o"
 
@@ -243,6 +258,7 @@ openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.c
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/ministry/shepherdwidget.cpp.o
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.o
+openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/people/pastoralanalyticswidget.cpp.o
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/build.make
@@ -254,7 +270,7 @@ openekklesia_tests: /usr/lib64/libGLX.so
 openekklesia_tests: /usr/lib64/libOpenGL.so
 openekklesia_tests: /usr/lib64/qt6/lib/libQt6Core.so.6.10.2
 openekklesia_tests: CMakeFiles/openekklesia_tests.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX executable openekklesia_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/manuel/Documents/OpenEkklesia/build_probe/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX executable openekklesia_tests"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/openekklesia_tests.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

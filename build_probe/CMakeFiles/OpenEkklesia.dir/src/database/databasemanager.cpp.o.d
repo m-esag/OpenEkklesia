@@ -421,4 +421,8 @@ CMakeFiles/OpenEkklesia.dir/src/database/databasemanager.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qfileinfo.h \
  /usr/lib64/qt6/include/QtCore/QStandardPaths \
  /usr/lib64/qt6/include/QtCore/qstandardpaths.h \
- /usr/lib64/qt6/include/QtCore/QSet /usr/lib64/qt6/include/QtCore/qset.h
+ /usr/lib64/qt6/include/QtCore/QSet /usr/lib64/qt6/include/QtCore/qset.h \
+ /usr/lib64/qt6/include/QtCore/QIODevice \
+ /usr/lib64/qt6/include/QtCore/qiodevice.h \
+ /usr/lib64/qt6/include/QtCore/QDate \
+ /usr/lib64/qt6/include/QtCore/qdatetime.h

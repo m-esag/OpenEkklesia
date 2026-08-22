@@ -336,6 +336,8 @@
   /usr/lib64/gcc/x86_64-openmandriva-linux-gnu/15.2.1/include/stddef.h \
   /usr/lib64/qt6/include/QtCore/QDate \
   /usr/lib64/qt6/include/QtCore/QJsonArray \
+  /usr/lib64/qt6/include/QtCore/QPair \
+  /usr/lib64/qt6/include/QtCore/QTime \
   /usr/lib64/qt6/include/QtCore/q17memory.h \
   /usr/lib64/qt6/include/QtCore/q20functional.h \
   /usr/lib64/qt6/include/QtCore/q20iterator.h \
@@ -410,6 +412,7 @@
   /usr/lib64/qt6/include/QtCore/qmargins.h \
   /usr/lib64/qt6/include/QtCore/qmath.h \
   /usr/lib64/qt6/include/QtCore/qmetacontainer.h \
+  /usr/lib64/qt6/include/QtCore/qmetaobject.h \
   /usr/lib64/qt6/include/QtCore/qmetatype.h \
   /usr/lib64/qt6/include/QtCore/qminmax.h \
   /usr/lib64/qt6/include/QtCore/qnamespace.h \
@@ -511,11 +514,19 @@
   /usr/lib64/qt6/include/QtGui/qtransform.h \
   /usr/lib64/qt6/include/QtGui/qvalidator.h \
   /usr/lib64/qt6/include/QtGui/qwindowdefs.h \
+  /usr/lib64/qt6/include/QtSql/QSqlDatabase \
+  /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
+  /usr/lib64/qt6/include/QtSql/qtsql-config.h \
+  /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
+  /usr/lib64/qt6/include/QtSql/qtsqlglobal.h \
+  /usr/lib64/qt6/include/QtWidgets/QComboBox \
   /usr/lib64/qt6/include/QtWidgets/QDateEdit \
   /usr/lib64/qt6/include/QtWidgets/QLabel \
   /usr/lib64/qt6/include/QtWidgets/QLineEdit \
   /usr/lib64/qt6/include/QtWidgets/QListWidget \
   /usr/lib64/qt6/include/QtWidgets/QPushButton \
+  /usr/lib64/qt6/include/QtWidgets/QTableWidget \
+  /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
   /usr/lib64/qt6/include/QtWidgets/QWidget \
   /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
@@ -523,6 +534,7 @@
   /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractslider.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractspinbox.h \
+  /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
   /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
   /usr/lib64/qt6/include/QtWidgets/qframe.h \
   /usr/lib64/qt6/include/QtWidgets/qlabel.h \
@@ -536,6 +548,8 @@
   /usr/lib64/qt6/include/QtWidgets/qstyle.h \
   /usr/lib64/qt6/include/QtWidgets/qstyleoption.h \
   /usr/lib64/qt6/include/QtWidgets/qtabbar.h \
+  /usr/lib64/qt6/include/QtWidgets/qtableview.h \
+  /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
   /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
   /usr/lib64/qt6/include/QtWidgets/qtwidgets-config.h \
   /usr/lib64/qt6/include/QtWidgets/qtwidgetsexports.h \

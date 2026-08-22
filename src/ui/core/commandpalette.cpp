@@ -146,12 +146,15 @@ void CommandPaletteDialog::populateItems() {
     addPaletteItem("⚙ Navigation: Go to Dashboard", "Command", 1);
     addPaletteItem("👥 Navigation: Go to People Directory (CRM)", "Command", 2);
     addPaletteItem("🏷 Navigation: Go to Small Groups / Ministries List", "Command", 3);
-    addPaletteItem("💰 Navigation: Go to Contributions Offering batch entry", "Command", 4);
+    addPaletteItem("💰 Navigation: Go to Giving & Sunday Batches", "Command", 4);
     addPaletteItem("📜 Navigation: Go to Sunday Service Run-Sheet Builder", "Command", 5);
     addPaletteItem("📊 Navigation: Go to Connections Relationship Graph", "Command", 6);
-    addPaletteItem("📓 Navigation: Go to Double-Entry General Ledger", "Command", 7);
     addPaletteItem("📦 Navigation: Go to Asset Inventory & Checkouts", "Command", 8);
     addPaletteItem("🔒 Navigation: Go to Elder Board Document Vault", "Command", 9);
+    addPaletteItem("⛪ Navigation: Go to Shepherd's Care Workbench", "Command", 12);
+    addPaletteItem("📅 Navigation: Go to Ministry Planning & Roadmaps", "Command", 13);
+    addPaletteItem("🏢 Navigation: Go to Facilities & Room Reservations", "Command", 14);
+    addPaletteItem("⚙️ Navigation: Go to Settings & Preferences", "Command", 15);
 
     // 2. Control Commands
     addPaletteItem("🌓 Theme: Toggle Light / Dark Stylesheet Mode", "Command", 10);
@@ -221,11 +224,14 @@ void CommandPaletteDialog::onItemSelected(QListWidgetItem* item) {
                 case 4: mainWin->onContributionsClicked(); break;
                 case 5: mainWin->onServiceClicked(); break;
                 case 6: mainWin->onGraphClicked(); break;
-                case 7: mainWin->onLedgerClicked(); break;
                 case 8: mainWin->onInventoryClicked(); break;
                 case 9: mainWin->onVaultClicked(); break;
                 case 10: mainWin->toggleTheme(); break;
                 case 11: mainWin->launchKiosk(); break;
+                case 12: mainWin->onShepherdClicked(); break;
+                case 13: mainWin->onPlanningClicked(); break;
+                case 14: mainWin->onFacilitiesClicked(); break;
+                case 15: mainWin->onSettingsClicked(); break;
             }
         } else if (type == "Person") {
             mainWin->selectPerson(id);

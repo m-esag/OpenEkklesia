@@ -10,53 +10,114 @@
 #include <QSqlQueryModel>
 #include <QKeyEvent>
 #include <QPushButton>
+#include <QListWidget>
+#include <QLabel>
+#include <QScrollArea>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QFrame>
+
+struct FundSplitRow {
+    QWidget* container = nullptr;
+    QDoubleSpinBox* amountSpin = nullptr;
+    QComboBox* fundCombo = nullptr;
+    QPushButton* btnRemove = nullptr;
+};
 
 class ContributionsWidget : public QWidget {
     Q_OBJECT
 
 public:
     explicit ContributionsWidget(QWidget *parent = nullptr);
-    ~ContributionsWidget();
+    ~ContributionsWidget() override;
 
     void applyRole(const QString& role);
     void refreshContributions();
+    void loadBatch(int batchId);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
     void onSaveContribution();
+    void onResetDonationForm();
+    void onAddSplitRow(double initialAmount = 0.0, int fundId = -1);
+    void onRemoveSplitRow(QWidget* container);
+    void onUpdateSplitTotals();
     void onHistoryContextMenu(const QPoint& pos);
     void onManageFunds();
     void onExportGnuCashCsv();
+    void onNewBatchClicked();
+    void onDeleteBatchClicked();
+    void onToggleBatchCommit();
+    void onBatchDefaultsClicked();
+    void onBatchFilterChanged();
+    void onBatchSelected(QListWidgetItem* item);
+    void onSaveBatchHeaderDetails();
 
 private:
     void setupUI();
     void setupModels();
     void refreshHistoryModel();
-    void refreshFundCombo();
+    void refreshFundCombos();
+    void refreshBatchesList();
+    void refreshFundPills();
+    void applyBatchDefaultsToEntry();
+    void updateTabOrder();
 
-    // Index of the "— Anonymous —" entry in the person combo (item 0).
     static constexpr int kAnonymousIndex = 0;
 
-    // Inputs (Left Panel)
-    QDateEdit* m_dateEdit;
-    QComboBox* m_personCombo;
-    QDoubleSpinBox* m_amountSpin;
-    QComboBox* m_fundCombo;
-    QLineEdit* m_noteEdit;
-    QPushButton* m_btnSave;
-    QPushButton* m_btnManageFunds;
-    QPushButton* m_btnGnuCashExport;
+    // --- State ---
+    int m_currentBatchId = -1;
+    QString m_batchStatus = "In Progress";
     QString m_userRole;
-    
-    // History Table (Right Panel)
-    QTableView* m_historyTable;
-    QSqlQueryModel* m_historyModel;
-
-    // Database structures
     QList<QPair<int, QString>> m_peopleList; // id, name
     QList<QPair<int, QString>> m_fundsList;  // id, name
+    QList<FundSplitRow> m_splitRows;
+
+    // --- Left/Main Batch Workspace ---
+    // Batch Header Bar
+    QLineEdit* m_txtBatchName;
+    QDateEdit* m_batchDateEdit;
+    QLabel* m_lblBatchStatusBadge;
+    QLabel* m_lblBatchMeta;
+    QPushButton* m_btnBatchDefaults;
+    QPushButton* m_btnDeleteBatch;
+    QPushButton* m_btnCommitBatch;
+
+    // Inline Donation Entry Card (Planning Center Style)
+    QFrame* m_entryCard;
+    QComboBox* m_personCombo;
+    QLabel* m_lblTotalHeadline;
+    QWidget* m_splitsContainer;
+    QVBoxLayout* m_splitsLayout;
+    QPushButton* m_btnAddSplit;
+    QDateEdit* m_dateEdit;
+    QComboBox* m_methodCombo;
+    QLineEdit* m_checkNumEdit;
+    QLineEdit* m_noteEdit;
+    QPushButton* m_btnSave;
+    QPushButton* m_btnClearForm;
+
+    // Real-Time Fund Aggregation Pill Strip
+    QWidget* m_pillsContainer;
+    QHBoxLayout* m_pillsLayout;
+
+    // Batch Donations Ledger Table
+    QTableView* m_historyTable;
+    QSqlQueryModel* m_historyModel;
+    QLabel* m_lblBatchTotalSummary;
+
+    // Footer Actions
+    QPushButton* m_btnManageFunds;
+    QPushButton* m_btnGnuCashExport;
+
+    // --- Right Drawer: Batches Navigation ---
+    QPushButton* m_tabInProgress;
+    QPushButton* m_tabCommitted;
+    QPushButton* m_btnNewBatch;
+    QLineEdit* m_txtBatchSearch;
+    QListWidget* m_batchesList;
 };
 
 #endif // CONTRIBUTIONSWIDGET_H

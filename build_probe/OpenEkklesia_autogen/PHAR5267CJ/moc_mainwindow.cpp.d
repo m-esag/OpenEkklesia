@@ -369,6 +369,7 @@
   /usr/lib64/qt6/include/QtCore/QMap \
   /usr/lib64/qt6/include/QtCore/QMargins \
   /usr/lib64/qt6/include/QtCore/QObject \
+  /usr/lib64/qt6/include/QtCore/QPair \
   /usr/lib64/qt6/include/QtCore/QPointF \
   /usr/lib64/qt6/include/QtCore/QRect \
   /usr/lib64/qt6/include/QtCore/QSet \
@@ -377,6 +378,7 @@
   /usr/lib64/qt6/include/QtCore/QSortFilterProxyModel \
   /usr/lib64/qt6/include/QtCore/QString \
   /usr/lib64/qt6/include/QtCore/QStringList \
+  /usr/lib64/qt6/include/QtCore/QTime \
   /usr/lib64/qt6/include/QtCore/QTimer \
   /usr/lib64/qt6/include/QtCore/QVariant \
   /usr/lib64/qt6/include/QtCore/QVector \
@@ -598,6 +600,7 @@
   /usr/lib64/qt6/include/QtGui/qvector2d.h \
   /usr/lib64/qt6/include/QtGui/qvectornd.h \
   /usr/lib64/qt6/include/QtGui/qwindowdefs.h \
+  /usr/lib64/qt6/include/QtSql/QSqlDatabase \
   /usr/lib64/qt6/include/QtSql/QSqlQueryModel \
   /usr/lib64/qt6/include/QtSql/QSqlRelationalTableModel \
   /usr/lib64/qt6/include/QtSql/QSqlTableModel \
@@ -618,7 +621,9 @@
   /usr/lib64/qt6/include/QtWidgets/QFrame \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsItem \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsScene \
+  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneContextMenuEvent \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneHoverEvent \
+  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneMouseEvent \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsView \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsWidget \
   /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \

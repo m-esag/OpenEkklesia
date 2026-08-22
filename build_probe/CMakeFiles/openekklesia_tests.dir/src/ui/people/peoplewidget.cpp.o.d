@@ -531,6 +531,9 @@ CMakeFiles/openekklesia_tests.dir/src/ui/people/peoplewidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qstring.h \
  /usr/lib64/qt6/include/QtSql/QSqlDatabase \
  /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
+ /usr/lib64/qt6/include/QtGui/QDesktopServices \
+ /usr/lib64/qt6/include/QtGui/qdesktopservices.h \
+ /usr/lib64/qt6/include/QtCore/QUrl /usr/lib64/qt6/include/QtCore/qurl.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/people/../core/thememanager.h \
  /usr/lib64/qt6/include/QtCore/QObject /usr/lib64/qt6/include/QtCore/QMap \
  /usr/lib64/qt6/include/QtCore/qmap.h /usr/lib64/qt6/include/QtGui/QColor \

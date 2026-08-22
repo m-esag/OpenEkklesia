@@ -434,8 +434,8 @@ CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cp
  /usr/lib64/qt6/include/QtCore/qtmochelpers.h \
  /usr/lib64/qt6/include/QtCore/qtmocconstants.h \
  /usr/lib64/qt6/include/QtCore/q20algorithm.h \
- /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/moc_servicebuilderwidget.cpp \
- /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/../../../src/ui/ministry/servicebuilderwidget.h \
+ /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/moc_planningwidget.cpp \
+ /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/../../../src/ui/ministry/planningwidget.h \
  /usr/lib64/qt6/include/QtWidgets/QWidget \
  /usr/lib64/qt6/include/QtWidgets/qwidget.h \
  /usr/lib64/qt6/include/QtWidgets/qtwidgetsglobal.h \
@@ -452,9 +452,9 @@ CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cp
  /usr/lib64/qt6/include/QtWidgets/qsizepolicy.h \
  /usr/lib64/qt6/include/QtGui/qcursor.h \
  /usr/lib64/qt6/include/QtGui/qbitmap.h \
- /usr/lib64/qt6/include/QtWidgets/QListWidget \
- /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
- /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+ /usr/lib64/qt6/include/QtWidgets/QTableWidget \
+ /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qtableview.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractitemview.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
  /usr/lib64/qt6/include/QtWidgets/qframe.h \
@@ -474,11 +474,20 @@ CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cp
  /usr/lib64/qt6/include/QtWidgets/QPushButton \
  /usr/lib64/qt6/include/QtWidgets/qpushbutton.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
+ /usr/lib64/qt6/include/QtWidgets/QComboBox \
+ /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtWidgets/QDateEdit \
  /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
  /usr/lib64/qt6/include/QtCore/qtimezone.h \
+ /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/moc_servicebuilderwidget.cpp \
+ /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/../../../src/ui/ministry/servicebuilderwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/QListWidget \
+ /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+ /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
  /usr/lib64/qt6/include/QtCore/QDate \
  /usr/lib64/qt6/include/QtCore/qdatetime.h \
+ /usr/lib64/qt6/include/QtCore/QTime \
  /usr/lib64/qt6/include/QtWidgets/QLabel \
  /usr/lib64/qt6/include/QtWidgets/qlabel.h \
  /usr/lib64/qt6/include/QtGui/qpicture.h \
@@ -492,13 +501,16 @@ CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cp
  /usr/lib64/qt6/include/QtGui/qtextoption.h \
  /usr/lib64/qt6/include/QtCore/QJsonArray \
  /usr/lib64/qt6/include/QtCore/qjsonarray.h \
+ /usr/lib64/qt6/include/QtCore/QPair \
+ /usr/lib64/qt6/include/QtCore/qpair.h \
+ /usr/lib64/qt6/include/QtSql/QSqlDatabase \
+ /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
+ /usr/lib64/qt6/include/QtSql/qtsqlglobal.h \
+ /usr/lib64/qt6/include/QtSql/qtsql-config.h \
+ /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
+ /usr/lib64/qt6/include/QtCore/qmetaobject.h \
  /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/moc_shepherdwidget.cpp \
  /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/TCVCQ6SNO3/../../../src/ui/ministry/shepherdwidget.h \
- /usr/lib64/qt6/include/QtWidgets/QTableWidget \
- /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
- /usr/lib64/qt6/include/QtWidgets/qtableview.h \
- /usr/lib64/qt6/include/QtWidgets/QComboBox \
- /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtWidgets/QTabWidget \
  /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
  /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/N2TQDGORCA/moc_pastoralanalyticswidget.cpp \
@@ -540,12 +552,8 @@ CMakeFiles/openekklesia_tests.dir/openekklesia_tests_autogen/mocs_compilation.cp
  /home/manuel/Documents/OpenEkklesia/build_probe/openekklesia_tests_autogen/N2TQDGORCA/../../../src/ui/people/peoplewidget.h \
  /usr/lib64/qt6/include/QtSql/QSqlRelationalTableModel \
  /usr/lib64/qt6/include/QtSql/qsqlrelationaltablemodel.h \
- /usr/lib64/qt6/include/QtSql/qtsqlglobal.h \
- /usr/lib64/qt6/include/QtSql/qtsql-config.h \
- /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
  /usr/lib64/qt6/include/QtSql/qsqltablemodel.h \
  /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
- /usr/lib64/qt6/include/QtCore/qmetaobject.h \
  /usr/lib64/qt6/include/QtSql/qsqlquerymodel.h \
  /usr/lib64/qt6/include/QtCore/QSortFilterProxyModel \
  /usr/lib64/qt6/include/QtCore/qsortfilterproxymodel.h \

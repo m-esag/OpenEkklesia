@@ -12,6 +12,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/openekklesia_tests.dir/src/ui/core/thememanager.cpp.o.d"
   "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o"
   "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/ministrymatch.cpp.o.d"
+  "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o"
+  "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/planningwidget.cpp.o.d"
   "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.o"
   "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/servicebuilderwidget.cpp.o.d"
   "CMakeFiles/openekklesia_tests.dir/src/ui/ministry/shepherdwidget.cpp.o"

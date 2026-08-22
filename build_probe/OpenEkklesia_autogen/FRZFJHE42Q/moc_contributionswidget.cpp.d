@@ -507,6 +507,7 @@
   /usr/lib64/qt6/include/QtGui/qpaintdevice.h \
   /usr/lib64/qt6/include/QtGui/qpalette.h \
   /usr/lib64/qt6/include/QtGui/qpen.h \
+  /usr/lib64/qt6/include/QtGui/qpicture.h \
   /usr/lib64/qt6/include/QtGui/qpixelformat.h \
   /usr/lib64/qt6/include/QtGui/qpixmap.h \
   /usr/lib64/qt6/include/QtGui/qpointingdevice.h \
@@ -537,10 +538,15 @@
   /usr/lib64/qt6/include/QtWidgets/QComboBox \
   /usr/lib64/qt6/include/QtWidgets/QDateEdit \
   /usr/lib64/qt6/include/QtWidgets/QDoubleSpinBox \
+  /usr/lib64/qt6/include/QtWidgets/QFrame \
+  /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
+  /usr/lib64/qt6/include/QtWidgets/QLabel \
   /usr/lib64/qt6/include/QtWidgets/QLineEdit \
-  /usr/lib64/qt6/include/QtWidgets/QProgressBar \
+  /usr/lib64/qt6/include/QtWidgets/QListWidget \
   /usr/lib64/qt6/include/QtWidgets/QPushButton \
+  /usr/lib64/qt6/include/QtWidgets/QScrollArea \
   /usr/lib64/qt6/include/QtWidgets/QTableView \
+  /usr/lib64/qt6/include/QtWidgets/QVBoxLayout \
   /usr/lib64/qt6/include/QtWidgets/QWidget \
   /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
@@ -548,13 +554,20 @@
   /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractslider.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractspinbox.h \
+  /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
   /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
   /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
   /usr/lib64/qt6/include/QtWidgets/qframe.h \
+  /usr/lib64/qt6/include/QtWidgets/qgridlayout.h \
+  /usr/lib64/qt6/include/QtWidgets/qlabel.h \
+  /usr/lib64/qt6/include/QtWidgets/qlayout.h \
+  /usr/lib64/qt6/include/QtWidgets/qlayoutitem.h \
   /usr/lib64/qt6/include/QtWidgets/qlineedit.h \
-  /usr/lib64/qt6/include/QtWidgets/qprogressbar.h \
+  /usr/lib64/qt6/include/QtWidgets/qlistview.h \
+  /usr/lib64/qt6/include/QtWidgets/qlistwidget.h \
   /usr/lib64/qt6/include/QtWidgets/qpushbutton.h \
   /usr/lib64/qt6/include/QtWidgets/qrubberband.h \
+  /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
   /usr/lib64/qt6/include/QtWidgets/qsizepolicy.h \
   /usr/lib64/qt6/include/QtWidgets/qslider.h \
   /usr/lib64/qt6/include/QtWidgets/qspinbox.h \

@@ -44,9 +44,6 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         "",
         "onMembersClicked",
         "onGroupsClicked",
-        "onAccountsClicked",
-        "onLedgerClicked",
-        "onSetBudget",
         "onContributionsClicked",
         "onServiceClicked",
         "onGraphClicked",
@@ -66,32 +63,26 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onGroupsClicked'
         QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'onAccountsClicked'
-        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'onLedgerClicked'
-        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'onSetBudget'
-        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onContributionsClicked'
-        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onServiceClicked'
-        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onGraphClicked'
-        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onInventoryClicked'
-        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onVaultClicked'
-        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onSettingsClicked'
-        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onFacilitiesClicked'
-        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onAnalyticsClicked'
-        QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onPlanningClicked'
-        QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onShepherdClicked'
-        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPublic, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -118,19 +109,16 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 0: _t->onDashboardClicked(); break;
         case 1: _t->onMembersClicked(); break;
         case 2: _t->onGroupsClicked(); break;
-        case 3: _t->onAccountsClicked(); break;
-        case 4: _t->onLedgerClicked(); break;
-        case 5: _t->onSetBudget(); break;
-        case 6: _t->onContributionsClicked(); break;
-        case 7: _t->onServiceClicked(); break;
-        case 8: _t->onGraphClicked(); break;
-        case 9: _t->onInventoryClicked(); break;
-        case 10: _t->onVaultClicked(); break;
-        case 11: _t->onSettingsClicked(); break;
-        case 12: _t->onFacilitiesClicked(); break;
-        case 13: _t->onAnalyticsClicked(); break;
-        case 14: _t->onPlanningClicked(); break;
-        case 15: _t->onShepherdClicked(); break;
+        case 3: _t->onContributionsClicked(); break;
+        case 4: _t->onServiceClicked(); break;
+        case 5: _t->onGraphClicked(); break;
+        case 6: _t->onInventoryClicked(); break;
+        case 7: _t->onVaultClicked(); break;
+        case 8: _t->onSettingsClicked(); break;
+        case 9: _t->onFacilitiesClicked(); break;
+        case 10: _t->onAnalyticsClicked(); break;
+        case 11: _t->onPlanningClicked(); break;
+        case 12: _t->onShepherdClicked(); break;
         default: ;
         }
     }
@@ -156,14 +144,14 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 16)
+        if (_id < 13)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 16;
+        _id -= 13;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 16)
+        if (_id < 13)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 16;
+        _id -= 13;
     }
     return _id;
 }

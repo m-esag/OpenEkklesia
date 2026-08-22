@@ -449,6 +449,11 @@ CMakeFiles/OpenEkklesia.dir/src/ui/admin/settingswidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qabstractitemmodel.h \
  /usr/lib64/qt6/include/QtWidgets/QSpinBox \
  /usr/lib64/qt6/include/QtWidgets/qspinbox.h \
+ /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
+ /usr/lib64/qt6/include/QtWidgets/qdatetimeedit.h \
+ /usr/lib64/qt6/include/QtCore/qtimezone.h \
+ /usr/lib64/qt6/include/QtCore/qdatetime.h \
+ /usr/lib64/qt6/include/QtCore/qcalendar.h \
  /usr/lib64/qt6/include/QtWidgets/QCheckBox \
  /usr/lib64/qt6/include/QtWidgets/qcheckbox.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
@@ -481,8 +486,6 @@ CMakeFiles/OpenEkklesia.dir/src/ui/admin/settingswidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qjsonvalue.h \
  /usr/lib64/qt6/include/QtCore/qcborvalue.h \
  /usr/lib64/qt6/include/QtCore/qcborcommon.h \
- /usr/lib64/qt6/include/QtCore/qdatetime.h \
- /usr/lib64/qt6/include/QtCore/qcalendar.h \
  /usr/lib64/qt6/include/QtCore/quuid.h \
  /usr/lib64/qt6/include/QtCore/qjsondocument.h \
  /usr/lib64/qt6/include/QtCore/qjsonparseerror.h \
@@ -536,7 +539,6 @@ CMakeFiles/OpenEkklesia.dir/src/ui/admin/settingswidget.cpp.o: \
  /usr/include/c++/15.2.1/bits/fs_dir.h \
  /usr/include/c++/15.2.1/bits/fs_ops.h \
  /usr/lib64/qt6/include/QtCore/qfileinfo.h \
- /usr/lib64/qt6/include/QtCore/qtimezone.h \
  /usr/lib64/qt6/include/QtWidgets/QColorDialog \
  /usr/lib64/qt6/include/QtWidgets/qcolordialog.h \
  /usr/lib64/qt6/include/QtWidgets/QInputDialog \

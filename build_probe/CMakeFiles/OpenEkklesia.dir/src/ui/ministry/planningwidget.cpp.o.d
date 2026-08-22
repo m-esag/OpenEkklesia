@@ -499,6 +499,8 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/planningwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qtextoption.h \
  /usr/lib64/qt6/include/QtWidgets/QSpinBox \
  /usr/lib64/qt6/include/QtWidgets/qspinbox.h \
+ /usr/lib64/qt6/include/QtCore/QLocale \
+ /usr/lib64/qt6/include/QtCore/qlocale.h \
  /home/manuel/Documents/OpenEkklesia/src/common/../database/databasemanager.h \
  /usr/lib64/qt6/include/QtCore/QString \
  /usr/lib64/qt6/include/QtCore/qstring.h \

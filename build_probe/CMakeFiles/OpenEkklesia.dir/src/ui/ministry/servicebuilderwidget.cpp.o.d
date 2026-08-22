@@ -443,6 +443,9 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/qtabbar.h \
  /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
  /usr/lib64/qt6/include/QtWidgets/qrubberband.h \
+ /usr/lib64/qt6/include/QtWidgets/QTableWidget \
+ /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qtableview.h \
  /usr/lib64/qt6/include/QtWidgets/QPushButton \
  /usr/lib64/qt6/include/QtWidgets/qpushbutton.h \
  /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
@@ -451,8 +454,10 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qtimezone.h \
  /usr/lib64/qt6/include/QtCore/qdatetime.h \
  /usr/lib64/qt6/include/QtCore/qcalendar.h \
+ /usr/lib64/qt6/include/QtWidgets/QTimeEdit \
  /usr/lib64/qt6/include/QtCore/QDate \
  /usr/lib64/qt6/include/QtCore/qdatetime.h \
+ /usr/lib64/qt6/include/QtCore/QTime \
  /usr/lib64/qt6/include/QtWidgets/QLabel \
  /usr/lib64/qt6/include/QtWidgets/qlabel.h \
  /usr/lib64/qt6/include/QtGui/qpicture.h \
@@ -465,6 +470,8 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qtextformat.h \
  /usr/lib64/qt6/include/QtGui/qpen.h \
  /usr/lib64/qt6/include/QtGui/qtextoption.h \
+ /usr/lib64/qt6/include/QtWidgets/QComboBox \
+ /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtCore/QJsonArray \
  /usr/lib64/qt6/include/QtCore/qjsonarray.h \
  /usr/lib64/qt6/include/QtCore/qjsonvalue.h \
@@ -473,6 +480,14 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/quuid.h \
  /usr/lib64/qt6/include/QtCore/qjsondocument.h \
  /usr/lib64/qt6/include/QtCore/qjsonparseerror.h \
+ /usr/lib64/qt6/include/QtCore/QPair \
+ /usr/lib64/qt6/include/QtCore/qpair.h \
+ /usr/lib64/qt6/include/QtSql/QSqlDatabase \
+ /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
+ /usr/lib64/qt6/include/QtSql/qtsqlglobal.h \
+ /usr/lib64/qt6/include/QtSql/qtsql-config.h \
+ /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
+ /usr/lib64/qt6/include/QtCore/qmetaobject.h \
  /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
  /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
  /usr/lib64/qt6/include/QtWidgets/qlayout.h \
@@ -495,6 +510,8 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/QMessageBox \
  /usr/lib64/qt6/include/QtWidgets/qmessagebox.h \
  /usr/lib64/qt6/include/QtWidgets/qdialogbuttonbox.h \
+ /usr/lib64/qt6/include/QtCore/QSettings \
+ /usr/lib64/qt6/include/QtCore/qsettings.h \
  /usr/lib64/qt6/include/QtCore/QJsonDocument \
  /usr/lib64/qt6/include/QtCore/qjsondocument.h \
  /usr/lib64/qt6/include/QtCore/QJsonObject \
@@ -503,15 +520,9 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qfile.h \
  /usr/lib64/qt6/include/QtSql/QSqlQuery \
  /usr/lib64/qt6/include/QtSql/qsqlquery.h \
- /usr/lib64/qt6/include/QtSql/qtsqlglobal.h \
- /usr/lib64/qt6/include/QtSql/qtsql-config.h \
- /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
  /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
- /usr/lib64/qt6/include/QtCore/qmetaobject.h \
  /usr/lib64/qt6/include/QtSql/QSqlError \
  /usr/lib64/qt6/include/QtSql/qsqlerror.h \
- /usr/lib64/qt6/include/QtWidgets/QComboBox \
- /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
  /usr/lib64/qt6/include/QtWidgets/QSpinBox \
  /usr/lib64/qt6/include/QtWidgets/qspinbox.h \
  /usr/lib64/qt6/include/QtWidgets/QFormLayout \
@@ -531,13 +542,53 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/servicebuilderwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qpageranges.h \
  /usr/lib64/qt6/include/QtGui/QTextDocument \
  /usr/lib64/qt6/include/QtGui/qtextdocument.h \
+ /usr/lib64/qt6/include/QtCore/QTextStream \
+ /usr/lib64/qt6/include/QtCore/qtextstream.h \
+ /usr/lib64/qt6/include/QtCore/QDateTime \
+ /usr/lib64/qt6/include/QtWidgets/QHeaderView \
+ /usr/lib64/qt6/include/QtWidgets/qheaderview.h \
+ /usr/lib64/qt6/include/QtWidgets/QMenu \
+ /usr/lib64/qt6/include/QtWidgets/qmenu.h \
+ /usr/lib64/qt6/include/QtGui/QPainter \
+ /usr/lib64/qt6/include/QtGui/qpainter.h \
+ /usr/lib64/qt6/include/QtGui/QPen /usr/lib64/qt6/include/QtGui/qpen.h \
+ /usr/lib64/qt6/include/QtGui/QDragEnterEvent \
+ /usr/lib64/qt6/include/QtGui/qevent.h \
+ /usr/lib64/qt6/include/QtCore/qcoreevent.h \
+ /usr/lib64/qt6/include/QtCore/qbasictimer.h \
+ /usr/lib64/qt6/include/QtCore/qabstracteventdispatcher.h \
+ /usr/lib64/qt6/include/QtCore/qeventloop.h \
+ /usr/lib64/qt6/include/QtCore/qdeadlinetimer.h \
+ /usr/lib64/qt6/include/QtGui/qeventpoint.h \
+ /usr/lib64/qt6/include/QtGui/qvector2d.h \
+ /usr/lib64/qt6/include/QtGui/qvectornd.h \
+ /usr/lib64/qt6/include/QtGui/qpointingdevice.h \
+ /usr/lib64/qt6/include/QtGui/qinputdevice.h \
+ /usr/lib64/qt6/include/QtGui/qscreen.h \
+ /usr/lib64/qt6/include/QtCore/QList \
+ /usr/lib64/qt6/include/QtCore/qlist.h \
+ /usr/lib64/qt6/include/QtCore/QObject \
+ /usr/lib64/qt6/include/QtCore/qobject.h \
+ /usr/lib64/qt6/include/QtCore/QRect \
+ /usr/lib64/qt6/include/QtCore/qrect.h \
+ /usr/lib64/qt6/include/QtCore/QSize \
+ /usr/lib64/qt6/include/QtCore/qsize.h \
+ /usr/lib64/qt6/include/QtCore/QSizeF \
+ /usr/lib64/qt6/include/QtGui/QTransform \
+ /usr/lib64/qt6/include/QtGui/qtransform.h \
+ /usr/lib64/qt6/include/QtCore/qnativeinterface.h \
+ /usr/lib64/qt6/include/QtGui/qscreen_platform.h \
+ /usr/lib64/qt6/include/QtGui/qguiapplication.h \
+ /usr/lib64/qt6/include/QtCore/qcoreapplication.h \
+ /usr/lib64/qt6/include/QtCore/qcoreapplication_platform.h \
+ /usr/lib64/qt6/include/QtGui/qinputmethod.h \
+ /usr/lib64/qt6/include/QtGui/qguiapplication_platform.h \
+ /usr/lib64/qt6/include/QtGui/QDragLeaveEvent \
+ /usr/lib64/qt6/include/QtGui/QDropEvent \
  /home/manuel/Documents/OpenEkklesia/src/common/../database/databasemanager.h \
  /usr/lib64/qt6/include/QtCore/QString \
  /usr/lib64/qt6/include/QtCore/qstring.h \
- /usr/lib64/qt6/include/QtSql/QSqlDatabase \
- /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/ministrymatch.h \
  /usr/lib64/qt6/include/QtCore/QStringList \
  /usr/lib64/qt6/include/QtCore/qstringlist.h \
- /usr/lib64/qt6/include/QtCore/QList \
- /usr/lib64/qt6/include/QtCore/qlist.h
+ /usr/lib64/qt6/include/QtCore/QList

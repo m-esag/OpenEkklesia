@@ -2,8 +2,8 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/graphwidget.cpp \
  /usr/include/stdc-predef.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/ministry/graphwidget.h \
- /usr/lib64/qt6/include/QtWidgets/QGraphicsView \
- /usr/lib64/qt6/include/QtWidgets/qgraphicsview.h \
+ /usr/lib64/qt6/include/QtWidgets/QWidget \
+ /usr/lib64/qt6/include/QtWidgets/qwidget.h \
  /usr/lib64/qt6/include/QtWidgets/qtwidgetsglobal.h \
  /usr/lib64/qt6/include/QtGui/qtguiglobal.h \
  /usr/lib64/qt6/include/QtCore/qglobal.h \
@@ -200,9 +200,8 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/qtguiexports.h \
  /usr/lib64/qt6/include/QtWidgets/qtwidgets-config.h \
  /usr/lib64/qt6/include/QtWidgets/qtwidgetsexports.h \
- /usr/lib64/qt6/include/QtCore/qmetatype.h \
- /usr/lib64/qt6/include/QtCore/qbytearray.h \
- /usr/lib64/qt6/include/QtCore/qrefcount.h \
+ /usr/lib64/qt6/include/QtGui/qwindowdefs.h \
+ /usr/lib64/qt6/include/QtCore/qobjectdefs.h \
  /usr/lib64/qt6/include/QtCore/qnamespace.h \
  /usr/lib64/qt6/include/QtCore/qcompare.h \
  /usr/lib64/qt6/include/QtCore/qstdlibdetection.h \
@@ -234,14 +233,13 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/c++/15.2.1/bits/stl_bvector.h \
  /usr/include/c++/15.2.1/bits/vector.tcc /usr/include/c++/15.2.1/array \
  /usr/lib64/qt6/include/QtCore/qtmetamacros.h \
- /usr/lib64/qt6/include/QtCore/qarraydata.h \
- /usr/lib64/qt6/include/QtCore/qpair.h /usr/include/string.h \
- /usr/include/strings.h /usr/lib64/qt6/include/QtCore/qarraydatapointer.h \
- /usr/lib64/qt6/include/QtCore/qarraydataops.h \
- /usr/lib64/qt6/include/QtCore/qcontainertools_impl.h \
- /usr/lib64/qt6/include/QtCore/qxptype_traits.h \
- /usr/include/c++/15.2.1/cstring /usr/include/c++/15.2.1/iterator \
- /usr/include/c++/15.2.1/bits/stream_iterator.h \
+ /usr/lib64/qt6/include/QtCore/qobjectdefs_impl.h \
+ /usr/lib64/qt6/include/QtCore/qfunctionaltools_impl.h \
+ /usr/include/c++/15.2.1/memory \
+ /usr/include/c++/15.2.1/bits/stl_raw_storage_iter.h \
+ /usr/include/c++/15.2.1/bits/align.h \
+ /usr/include/c++/15.2.1/bits/unique_ptr.h \
+ /usr/include/c++/15.2.1/bits/ostream.h /usr/include/c++/15.2.1/ios \
  /usr/include/c++/15.2.1/iosfwd /usr/include/c++/15.2.1/bits/stringfwd.h \
  /usr/include/c++/15.2.1/bits/postypes.h /usr/include/c++/15.2.1/cwchar \
  /usr/include/wchar.h \
@@ -249,8 +247,7 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/bits/types/wint_t.h /usr/include/bits/types/mbstate_t.h \
  /usr/include/bits/types/__mbstate_t.h /usr/include/bits/types/__FILE.h \
  /usr/include/bits/types/FILE.h \
- /usr/include/c++/15.2.1/bits/streambuf_iterator.h \
- /usr/include/c++/15.2.1/streambuf \
+ /usr/include/c++/15.2.1/bits/char_traits.h \
  /usr/include/c++/15.2.1/bits/localefwd.h \
  /usr/include/c++/15.2.1/x86_64-openmandriva-linux-gnu/bits/c++locale.h \
  /usr/include/c++/15.2.1/clocale /usr/include/locale.h \
@@ -261,7 +258,6 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/sys/single_threaded.h \
  /usr/include/c++/15.2.1/bits/locale_classes.h \
  /usr/include/c++/15.2.1/string \
- /usr/include/c++/15.2.1/bits/char_traits.h \
  /usr/include/c++/15.2.1/bits/ostream_insert.h \
  /usr/include/c++/15.2.1/bits/cxxabi_forced.h \
  /usr/include/c++/15.2.1/bits/basic_string.h \
@@ -277,18 +273,14 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/c++/15.2.1/bits/locale_classes.tcc \
  /usr/include/c++/15.2.1/system_error \
  /usr/include/c++/15.2.1/x86_64-openmandriva-linux-gnu/bits/error_constants.h \
- /usr/include/c++/15.2.1/stdexcept \
+ /usr/include/c++/15.2.1/stdexcept /usr/include/c++/15.2.1/streambuf \
  /usr/include/c++/15.2.1/bits/streambuf.tcc \
- /usr/include/c++/15.2.1/memory \
- /usr/include/c++/15.2.1/bits/stl_raw_storage_iter.h \
- /usr/include/c++/15.2.1/bits/align.h \
- /usr/include/c++/15.2.1/bits/unique_ptr.h \
- /usr/include/c++/15.2.1/bits/ostream.h /usr/include/c++/15.2.1/ios \
  /usr/include/c++/15.2.1/bits/basic_ios.h \
  /usr/include/c++/15.2.1/bits/locale_facets.h \
  /usr/include/c++/15.2.1/cwctype /usr/include/wctype.h \
  /usr/include/bits/wctype-wchar.h \
  /usr/include/c++/15.2.1/x86_64-openmandriva-linux-gnu/bits/ctype_base.h \
+ /usr/include/c++/15.2.1/bits/streambuf_iterator.h \
  /usr/include/c++/15.2.1/x86_64-openmandriva-linux-gnu/bits/ctype_inline.h \
  /usr/include/c++/15.2.1/bits/locale_facets.tcc \
  /usr/include/c++/15.2.1/bits/basic_ios.tcc \
@@ -300,6 +292,20 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/c++/15.2.1/backward/auto_ptr.h \
  /usr/include/c++/15.2.1/bits/ranges_uninitialized.h \
  /usr/include/c++/15.2.1/pstl/glue_memory_defs.h \
+ /usr/lib64/qt6/include/QtCore/qobject.h \
+ /usr/lib64/qt6/include/QtCore/qstring.h \
+ /usr/lib64/qt6/include/QtCore/qchar.h \
+ /usr/lib64/qt6/include/QtCore/qstringview.h \
+ /usr/lib64/qt6/include/QtCore/qbytearray.h \
+ /usr/lib64/qt6/include/QtCore/qrefcount.h \
+ /usr/lib64/qt6/include/QtCore/qarraydata.h \
+ /usr/lib64/qt6/include/QtCore/qpair.h /usr/include/string.h \
+ /usr/include/strings.h /usr/lib64/qt6/include/QtCore/qarraydatapointer.h \
+ /usr/lib64/qt6/include/QtCore/qarraydataops.h \
+ /usr/lib64/qt6/include/QtCore/qcontainertools_impl.h \
+ /usr/lib64/qt6/include/QtCore/qxptype_traits.h \
+ /usr/include/c++/15.2.1/cstring /usr/include/c++/15.2.1/iterator \
+ /usr/include/c++/15.2.1/bits/stream_iterator.h \
  /usr/lib64/qt6/include/QtCore/q20functional.h \
  /usr/lib64/qt6/include/QtCore/q20memory.h \
  /usr/lib64/qt6/include/QtCore/q17memory.h \
@@ -307,15 +313,7 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qbytearrayview.h \
  /usr/lib64/qt6/include/QtCore/qstringfwd.h \
  /usr/include/c++/15.2.1/stdlib.h \
- /usr/lib64/qt6/include/QtCore/qdatastream.h \
- /usr/lib64/qt6/include/QtCore/qchar.h \
- /usr/lib64/qt6/include/QtCore/qstringview.h \
  /usr/lib64/qt6/include/QtCore/qstringalgorithms.h \
- /usr/lib64/qt6/include/QtCore/qiodevicebase.h \
- /usr/lib64/qt6/include/QtCore/qscopedpointer.h \
- /usr/lib64/qt6/include/QtCore/qfloat16.h \
- /usr/lib64/qt6/include/QtCore/qhashfunctions.h \
- /usr/lib64/qt6/include/QtCore/qstring.h \
  /usr/lib64/qt6/include/QtCore/qlatin1stringview.h \
  /usr/lib64/qt6/include/QtCore/qanystringview.h \
  /usr/lib64/qt6/include/QtCore/qutf8stringview.h \
@@ -324,11 +322,23 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qstringbuilder.h \
  /usr/lib64/qt6/include/QtCore/qstringconverter.h \
  /usr/lib64/qt6/include/QtCore/qstringconverter_base.h \
+ /usr/lib64/qt6/include/QtCore/qlist.h \
+ /usr/lib64/qt6/include/QtCore/qhashfunctions.h \
  /usr/include/c++/15.2.1/numeric \
  /usr/include/c++/15.2.1/bits/stl_numeric.h \
  /usr/include/c++/15.2.1/pstl/glue_numeric_defs.h \
- /usr/lib64/qt6/include/QtCore/qmath.h \
+ /usr/lib64/qt6/include/QtCore/qiterator.h /usr/include/c++/15.2.1/ranges \
+ /usr/include/c++/15.2.1/span \
+ /usr/lib64/qt6/include/QtCore/qbytearraylist.h \
+ /usr/lib64/qt6/include/QtCore/qstringlist.h \
  /usr/lib64/qt6/include/QtCore/qalgorithms.h \
+ /usr/lib64/qt6/include/QtCore/qstringmatcher.h \
+ /usr/lib64/qt6/include/QtCore/qscopedpointer.h \
+ /usr/lib64/qt6/include/QtCore/qmetatype.h \
+ /usr/lib64/qt6/include/QtCore/qdatastream.h \
+ /usr/lib64/qt6/include/QtCore/qiodevicebase.h \
+ /usr/lib64/qt6/include/QtCore/qfloat16.h \
+ /usr/lib64/qt6/include/QtCore/qmath.h \
  /usr/lib64/qt6/include/QtCore/qtformat_impl.h \
  /usr/include/c++/15.2.1/format /usr/include/c++/15.2.1/charconv \
  /usr/include/c++/15.2.1/locale \
@@ -338,7 +348,7 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/c++/15.2.1/x86_64-openmandriva-linux-gnu/bits/messages_members.h \
  /usr/include/libintl.h /usr/include/c++/15.2.1/bits/codecvt.h \
  /usr/include/c++/15.2.1/bits/locale_facets_nonio.tcc \
- /usr/include/c++/15.2.1/bits/locale_conv.h /usr/include/c++/15.2.1/span \
+ /usr/include/c++/15.2.1/bits/locale_conv.h \
  /usr/include/c++/15.2.1/bits/formatfwd.h \
  /usr/include/c++/15.2.1/bits/unicode.h \
  /usr/include/c++/15.2.1/bits/unicode-data.h \
@@ -346,56 +356,12 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qtaggedpointer.h \
  /usr/lib64/qt6/include/QtCore/qmetacontainer.h \
  /usr/lib64/qt6/include/QtCore/qcontainerinfo.h \
- /usr/lib64/qt6/include/QtCore/qobjectdefs.h \
- /usr/lib64/qt6/include/QtCore/qobjectdefs_impl.h \
- /usr/lib64/qt6/include/QtCore/qfunctionaltools_impl.h \
  /usr/lib64/qt6/include/QtCore/qscopeguard.h /usr/include/c++/15.2.1/list \
  /usr/include/c++/15.2.1/bits/stl_list.h \
  /usr/include/c++/15.2.1/bits/list.tcc /usr/include/c++/15.2.1/map \
  /usr/include/c++/15.2.1/bits/stl_tree.h \
  /usr/include/c++/15.2.1/bits/stl_map.h \
  /usr/include/c++/15.2.1/bits/stl_multimap.h \
- /usr/lib64/qt6/include/QtGui/qpainter.h \
- /usr/lib64/qt6/include/QtCore/qrect.h \
- /usr/lib64/qt6/include/QtCore/qcheckedint_impl.h \
- /usr/lib64/qt6/include/QtCore/qmargins.h \
- /usr/lib64/qt6/include/QtCore/q23utility.h \
- /usr/lib64/qt6/include/QtCore/q20utility.h \
- /usr/lib64/qt6/include/QtCore/qsize.h \
- /usr/lib64/qt6/include/QtCore/qpoint.h \
- /usr/lib64/qt6/include/QtGui/qpixmap.h \
- /usr/lib64/qt6/include/QtGui/qpaintdevice.h \
- /usr/lib64/qt6/include/QtGui/qwindowdefs.h \
- /usr/lib64/qt6/include/QtGui/qcolor.h \
- /usr/lib64/qt6/include/QtGui/qrgb.h \
- /usr/lib64/qt6/include/QtCore/qstringlist.h \
- /usr/lib64/qt6/include/QtCore/qlist.h \
- /usr/lib64/qt6/include/QtCore/qiterator.h /usr/include/c++/15.2.1/ranges \
- /usr/lib64/qt6/include/QtCore/qbytearraylist.h \
- /usr/lib64/qt6/include/QtCore/qstringmatcher.h \
- /usr/lib64/qt6/include/QtGui/qrgba64.h \
- /usr/lib64/qt6/include/QtCore/qshareddata.h \
- /usr/lib64/qt6/include/QtGui/qimage.h \
- /usr/lib64/qt6/include/QtGui/qpixelformat.h \
- /usr/lib64/qt6/include/QtGui/qtransform.h \
- /usr/lib64/qt6/include/QtGui/qpolygon.h \
- /usr/lib64/qt6/include/QtGui/qregion.h \
- /usr/lib64/qt6/include/QtCore/qspan.h /usr/include/c++/15.2.1/cassert \
- /usr/lib64/qt6/include/QtCore/q20iterator.h \
- /usr/lib64/qt6/include/QtCore/qline.h \
- /usr/lib64/qt6/include/QtGui/qtextoption.h \
- /usr/lib64/qt6/include/QtGui/qpen.h \
- /usr/lib64/qt6/include/QtGui/qbrush.h \
- /usr/lib64/qt6/include/QtGui/qfontinfo.h \
- /usr/lib64/qt6/include/QtGui/qfont.h \
- /usr/lib64/qt6/include/QtCore/qendian.h \
- /usr/lib64/qt6/include/QtGui/qfontvariableaxis.h \
- /usr/lib64/qt6/include/QtGui/qfontmetrics.h \
- /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
- /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
- /usr/lib64/qt6/include/QtWidgets/qframe.h \
- /usr/lib64/qt6/include/QtWidgets/qwidget.h \
- /usr/lib64/qt6/include/QtCore/qobject.h \
  /usr/lib64/qt6/include/QtCore/qobject_impl.h \
  /usr/lib64/qt6/include/QtCore/qbindingstorage.h \
  /usr/include/c++/15.2.1/chrono /usr/include/c++/15.2.1/bits/chrono.h \
@@ -406,9 +372,30 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/include/c++/15.2.1/bits/sstream.tcc \
  /usr/include/c++/15.2.1/bits/chrono_io.h /usr/include/c++/15.2.1/iomanip \
  /usr/include/c++/15.2.1/bits/quoted_string.h \
+ /usr/lib64/qt6/include/QtCore/qmargins.h \
+ /usr/lib64/qt6/include/QtCore/qcheckedint_impl.h \
+ /usr/lib64/qt6/include/QtCore/q23utility.h \
+ /usr/lib64/qt6/include/QtCore/q20utility.h \
  /usr/lib64/qt6/include/QtGui/qaction.h \
  /usr/lib64/qt6/include/QtGui/qkeysequence.h \
  /usr/lib64/qt6/include/QtGui/qicon.h \
+ /usr/lib64/qt6/include/QtCore/qsize.h \
+ /usr/lib64/qt6/include/QtGui/qpixmap.h \
+ /usr/lib64/qt6/include/QtGui/qpaintdevice.h \
+ /usr/lib64/qt6/include/QtCore/qrect.h \
+ /usr/lib64/qt6/include/QtCore/qpoint.h \
+ /usr/lib64/qt6/include/QtGui/qcolor.h \
+ /usr/lib64/qt6/include/QtGui/qrgb.h \
+ /usr/lib64/qt6/include/QtGui/qrgba64.h \
+ /usr/lib64/qt6/include/QtCore/qshareddata.h \
+ /usr/lib64/qt6/include/QtGui/qimage.h \
+ /usr/lib64/qt6/include/QtGui/qpixelformat.h \
+ /usr/lib64/qt6/include/QtGui/qtransform.h \
+ /usr/lib64/qt6/include/QtGui/qpolygon.h \
+ /usr/lib64/qt6/include/QtGui/qregion.h \
+ /usr/lib64/qt6/include/QtCore/qspan.h /usr/include/c++/15.2.1/cassert \
+ /usr/lib64/qt6/include/QtCore/q20iterator.h \
+ /usr/lib64/qt6/include/QtCore/qline.h \
  /usr/lib64/qt6/include/QtCore/qvariant.h \
  /usr/lib64/qt6/include/QtCore/qdebug.h \
  /usr/lib64/qt6/include/QtCore/qtextstream.h \
@@ -426,9 +413,24 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qvarlengtharray.h \
  /usr/lib64/qt6/include/QtCore/qalloc.h \
  /usr/lib64/qt6/include/QtGui/qpalette.h \
+ /usr/lib64/qt6/include/QtGui/qbrush.h \
+ /usr/lib64/qt6/include/QtGui/qfont.h \
+ /usr/lib64/qt6/include/QtCore/qendian.h \
+ /usr/lib64/qt6/include/QtGui/qfontmetrics.h \
+ /usr/lib64/qt6/include/QtGui/qfontinfo.h \
+ /usr/lib64/qt6/include/QtGui/qfontvariableaxis.h \
  /usr/lib64/qt6/include/QtWidgets/qsizepolicy.h \
  /usr/lib64/qt6/include/QtGui/qcursor.h \
  /usr/lib64/qt6/include/QtGui/qbitmap.h \
+ /usr/lib64/qt6/include/QtWidgets/QGraphicsView \
+ /usr/lib64/qt6/include/QtWidgets/qgraphicsview.h \
+ /usr/lib64/qt6/include/QtGui/qpainter.h \
+ /usr/lib64/qt6/include/QtGui/qtextoption.h \
+ /usr/lib64/qt6/include/QtGui/qpen.h \
+ /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
+ /usr/lib64/qt6/include/QtWidgets/qabstractscrollarea.h \
+ /usr/lib64/qt6/include/QtWidgets/qframe.h \
+ /usr/lib64/qt6/include/QtWidgets/qwidget.h \
  /usr/lib64/qt6/include/QtWidgets/qgraphicsscene.h \
  /usr/lib64/qt6/include/QtWidgets/QGraphicsScene \
  /usr/lib64/qt6/include/QtWidgets/qgraphicsscene.h \
@@ -457,31 +459,9 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneHoverEvent \
  /usr/lib64/qt6/include/QtWidgets/qgraphicssceneevent.h \
  /usr/lib64/qt6/include/QtCore/qcoreevent.h \
- /usr/lib64/qt6/include/QtGui/QColor \
- /usr/lib64/qt6/include/QtGui/qcolor.h /usr/lib64/qt6/include/QtCore/QSet \
- /usr/lib64/qt6/include/QtCore/qset.h \
- /usr/lib64/qt6/include/QtWidgets/QComboBox \
- /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
- /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
- /usr/lib64/qt6/include/QtWidgets/qstyleoption.h \
- /usr/lib64/qt6/include/QtCore/qlocale.h \
- /usr/lib64/qt6/include/QtWidgets/qabstractspinbox.h \
- /usr/lib64/qt6/include/QtGui/qvalidator.h \
- /usr/lib64/qt6/include/QtCore/qregularexpression.h \
- /usr/lib64/qt6/include/QtWidgets/qslider.h \
- /usr/lib64/qt6/include/QtWidgets/qabstractslider.h \
- /usr/lib64/qt6/include/QtWidgets/qstyle.h \
- /usr/lib64/qt6/include/QtWidgets/qtabbar.h \
- /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
- /usr/lib64/qt6/include/QtWidgets/qrubberband.h \
- /usr/lib64/qt6/include/QtCore/qabstractitemmodel.h \
- /usr/lib64/qt6/include/QtWidgets/QPlainTextEdit \
- /usr/lib64/qt6/include/QtWidgets/qplaintextedit.h \
- /usr/lib64/qt6/include/QtWidgets/qtextedit.h \
- /usr/lib64/qt6/include/QtGui/qtextcursor.h \
- /usr/lib64/qt6/include/QtGui/qtextformat.h \
- /usr/lib64/qt6/include/QtGui/qabstracttextdocumentlayout.h \
- /usr/lib64/qt6/include/QtGui/qtextlayout.h \
+ /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneMouseEvent \
+ /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneContextMenuEvent \
+ /usr/lib64/qt6/include/QtGui/QKeyEvent \
  /usr/lib64/qt6/include/QtGui/qevent.h \
  /usr/lib64/qt6/include/QtGui/qeventpoint.h \
  /usr/lib64/qt6/include/QtGui/qvector2d.h \
@@ -506,7 +486,33 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtCore/qcoreapplication.h \
  /usr/lib64/qt6/include/QtCore/qcoreapplication_platform.h \
  /usr/lib64/qt6/include/QtGui/qinputmethod.h \
+ /usr/lib64/qt6/include/QtCore/qlocale.h \
  /usr/lib64/qt6/include/QtGui/qguiapplication_platform.h \
+ /usr/lib64/qt6/include/QtGui/QColor \
+ /usr/lib64/qt6/include/QtGui/qcolor.h /usr/lib64/qt6/include/QtCore/QSet \
+ /usr/lib64/qt6/include/QtCore/qset.h \
+ /usr/lib64/qt6/include/QtWidgets/QComboBox \
+ /usr/lib64/qt6/include/QtWidgets/qcombobox.h \
+ /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
+ /usr/lib64/qt6/include/QtWidgets/qstyleoption.h \
+ /usr/lib64/qt6/include/QtWidgets/qabstractspinbox.h \
+ /usr/lib64/qt6/include/QtGui/qvalidator.h \
+ /usr/lib64/qt6/include/QtCore/qregularexpression.h \
+ /usr/lib64/qt6/include/QtWidgets/qslider.h \
+ /usr/lib64/qt6/include/QtWidgets/qabstractslider.h \
+ /usr/lib64/qt6/include/QtWidgets/qstyle.h \
+ /usr/lib64/qt6/include/QtWidgets/qtabbar.h \
+ /usr/lib64/qt6/include/QtWidgets/qtabwidget.h \
+ /usr/lib64/qt6/include/QtWidgets/qrubberband.h \
+ /usr/lib64/qt6/include/QtCore/qabstractitemmodel.h \
+ /usr/lib64/qt6/include/QtWidgets/QPlainTextEdit \
+ /usr/lib64/qt6/include/QtWidgets/qplaintextedit.h \
+ /usr/lib64/qt6/include/QtWidgets/qtextedit.h \
+ /usr/lib64/qt6/include/QtGui/qtextcursor.h \
+ /usr/lib64/qt6/include/QtGui/qtextformat.h \
+ /usr/lib64/qt6/include/QtGui/qabstracttextdocumentlayout.h \
+ /usr/lib64/qt6/include/QtGui/qtextlayout.h \
+ /usr/lib64/qt6/include/QtGui/qevent.h \
  /usr/lib64/qt6/include/QtGui/qglyphrun.h \
  /usr/lib64/qt6/include/QtGui/qrawfont.h \
  /usr/lib64/qt6/include/QtGui/qfontdatabase.h \
@@ -526,6 +532,10 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/qboxlayout.h \
  /usr/lib64/qt6/include/QtWidgets/qgridlayout.h \
  /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
+ /usr/lib64/qt6/include/QtWidgets/QSplitter \
+ /usr/lib64/qt6/include/QtWidgets/qsplitter.h \
+ /usr/lib64/qt6/include/QtWidgets/QStackedWidget \
+ /usr/lib64/qt6/include/QtWidgets/qstackedwidget.h \
  /home/manuel/Documents/OpenEkklesia/src/ui/core/thememanager.h \
  /usr/lib64/qt6/include/QtCore/QObject \
  /usr/lib64/qt6/include/QtCore/QString \
@@ -552,9 +562,15 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtSql/qtsql-config.h \
  /usr/lib64/qt6/include/QtSql/qtsqlexports.h \
  /usr/lib64/qt6/include/QtCore/qmetaobject.h \
+ /home/manuel/Documents/OpenEkklesia/src/ui/ministry/matchdialog.h \
+ /usr/lib64/qt6/include/QtWidgets/QDialog \
+ /usr/lib64/qt6/include/QtWidgets/qdialog.h \
+ /usr/lib64/qt6/include/QtCore/QList \
+ /home/manuel/Documents/OpenEkklesia/src/ui/ministry/ministrymatch.h \
  /usr/lib64/qt6/include/QtGui/QPainter \
  /usr/lib64/qt6/include/QtGui/qpainter.h \
- /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneMouseEvent \
+ /usr/lib64/qt6/include/QtGui/QPainterPathStroker \
+ /usr/lib64/qt6/include/QtGui/qpainterpath.h \
  /usr/lib64/qt6/include/QtSql/QSqlQuery \
  /usr/lib64/qt6/include/QtSql/qsqlquery.h \
  /usr/lib64/qt6/include/QtSql/qsqldatabase.h \
@@ -598,9 +614,6 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtGui/QAction \
  /usr/lib64/qt6/include/QtGui/qaction.h \
  /usr/lib64/qt6/include/QtGui/QWheelEvent \
- /usr/lib64/qt6/include/QtGui/qevent.h \
- /usr/lib64/qt6/include/QtWidgets/QDialog \
- /usr/lib64/qt6/include/QtWidgets/qdialog.h \
  /usr/lib64/qt6/include/QtWidgets/QFormLayout \
  /usr/lib64/qt6/include/QtWidgets/qformlayout.h \
  /usr/lib64/qt6/include/QtWidgets/QLayout \
@@ -614,4 +627,10 @@ CMakeFiles/OpenEkklesia.dir/src/ui/ministry/graphwidget.cpp.o: \
  /usr/lib64/qt6/include/QtWidgets/QTableWidget \
  /usr/lib64/qt6/include/QtWidgets/qtablewidget.h \
  /usr/lib64/qt6/include/QtWidgets/qtableview.h \
- /usr/lib64/qt6/include/QtWidgets/QTableWidgetItem
+ /usr/lib64/qt6/include/QtWidgets/QTableWidgetItem \
+ /usr/lib64/qt6/include/QtGui/QGuiApplication \
+ /usr/lib64/qt6/include/QtGui/qguiapplication.h \
+ /usr/lib64/qt6/include/QtGui/QClipboard \
+ /usr/lib64/qt6/include/QtGui/qclipboard.h \
+ /usr/lib64/qt6/include/QtCore/QTextStream \
+ /usr/lib64/qt6/include/QtCore/qtextstream.h

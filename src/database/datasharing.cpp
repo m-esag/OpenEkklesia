@@ -17,8 +17,8 @@ namespace {
 // All user tables in FK-safe (parent-first) import order.
 QStringList allTables() {
     return {
-        "households", "groups", "people", "accounts", "funds", "transactions",
-        "services", "splits", "contributions", "entity_relationships",
+        "households", "groups", "people", "accounts", "funds", "giving_batches",
+        "transactions", "services", "splits", "contributions", "entity_relationships",
         "member_skills", "attendance", "member_history", "care_logs",
         "pastoral_activities", "service_volunteers", "account_budgets", "assets",
         "checkout_logs", "vault_documents", "board_motions", "ministry_tasks",

@@ -356,10 +356,8 @@ private:
     QPushButton* m_btnExportPNG;
     QPushButton* m_btnExportJSON;
 
-    // Prominent Zoom Buttons in Toolbar
-    QPushButton* m_btnZoomIn;
-    QPushButton* m_btnZoomOut;
-    QPushButton* m_btnZoomReset;
+    // Zoom controls live in the floating bar (bottom-right of the canvas);
+    // the top-bar trio was removed to avoid duplicate controls.
 
     // Floating Glass Canvas Zoom Overlay
     QWidget* m_floatingZoomBar;

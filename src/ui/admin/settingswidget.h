@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QSpinBox>
+#include <QTimeEdit>
 #include <QCheckBox>
 #include <QPushButton>
 #include <QLabel>
@@ -104,7 +105,6 @@ private:
     QCheckBox* m_chkModPeople;
     QCheckBox* m_chkModGroups;
     QCheckBox* m_chkModGiving;
-    QCheckBox* m_chkModLedger;
     QCheckBox* m_chkModService;
     QCheckBox* m_chkModGraph;
     QCheckBox* m_chkModInventory;
@@ -115,19 +115,34 @@ private:
     QCheckBox* m_chkModShepherd;
     QCheckBox* m_chkModKiosk;
 
-    // --- Page 4: Localization & Region ---
+    // --- Page 4: Service & Liturgy Defaults ---
+    QTimeEdit* m_timeDefaultService;
+    QSpinBox* m_spnTargetDuration;
+    QSpinBox* m_spnIcalAlarmMins;
+
+    // --- Page 5: Localization & Region ---
     QComboBox* m_cmbCurrency;
     QComboBox* m_cmbDateFormat;
     QComboBox* m_cmbStartOfWeek;
     QComboBox* m_cmbTimezone;
 
-    // --- Page 5: Pastoral & Graph Thresholds ---
+    // --- Page 6: Pastoral & Graph Thresholds ---
+    QSpinBox* m_spnInactivityDays;
     QSpinBox* m_spnBurnoutThreshold;
     QSpinBox* m_spnFamilyDominancePercent;
     QSpinBox* m_spnFollowUpDays;
+    QCheckBox* m_chkGraphPhysicsDamping;
+    QSpinBox* m_spnSmartBridgeThreshold;
 
-    // --- Page 6: Data & Backup ---
+    // --- Page 7: Kiosk & Nursery Security ---
+    QSpinBox* m_spnKioskTimeout;
+    QCheckBox* m_chkKioskRequirePin;
+
+    // --- Page 8: Data & Backup ---
     QLabel* m_lblDbPath;
+    QComboBox* m_cmbAutoBackupSchedule;
+    QSpinBox* m_spnBackupRetention;
+    QLabel* m_lblPcoStatusBadge;
     QPushButton* m_btnBackupDb;
     QPushButton* m_btnRestoreDb;
     QPushButton* m_btnCompactDb;
@@ -135,7 +150,7 @@ private:
     QPushButton* m_btnSelectiveShare;
     QPushButton* m_btnPlanningCenter;
 
-    // --- Page 7: Danger Zone ---
+    // --- Page 9: Danger Zone ---
     QPushButton* m_btnPurgeDemoData;
     QPushButton* m_btnResetAppDefaults;
 };

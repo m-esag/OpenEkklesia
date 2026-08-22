@@ -501,6 +501,7 @@
   /usr/lib64/qt6/include/QtCore/qxptype_traits.h \
   /usr/lib64/qt6/include/QtCore/qyieldcpu.h \
   /usr/lib64/qt6/include/QtGui/QColor \
+  /usr/lib64/qt6/include/QtGui/QKeyEvent \
   /usr/lib64/qt6/include/QtGui/QPalette \
   /usr/lib64/qt6/include/QtGui/QTransform \
   /usr/lib64/qt6/include/QtGui/qabstracttextdocumentlayout.h \
@@ -556,7 +557,9 @@
   /usr/lib64/qt6/include/QtWidgets/QComboBox \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsItem \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsScene \
+  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneContextMenuEvent \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneHoverEvent \
+  /usr/lib64/qt6/include/QtWidgets/QGraphicsSceneMouseEvent \
   /usr/lib64/qt6/include/QtWidgets/QGraphicsView \
   /usr/lib64/qt6/include/QtWidgets/QHBoxLayout \
   /usr/lib64/qt6/include/QtWidgets/QLabel \
@@ -565,7 +568,10 @@
   /usr/lib64/qt6/include/QtWidgets/QPlainTextEdit \
   /usr/lib64/qt6/include/QtWidgets/QPushButton \
   /usr/lib64/qt6/include/QtWidgets/QScrollArea \
+  /usr/lib64/qt6/include/QtWidgets/QSplitter \
+  /usr/lib64/qt6/include/QtWidgets/QStackedWidget \
   /usr/lib64/qt6/include/QtWidgets/QVBoxLayout \
+  /usr/lib64/qt6/include/QtWidgets/QWidget \
   /usr/lib64/qt6/include/QtWidgets/qabstractbutton.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractitemdelegate.h \
   /usr/lib64/qt6/include/QtWidgets/qabstractitemview.h \
@@ -592,6 +598,8 @@
   /usr/lib64/qt6/include/QtWidgets/qscrollarea.h \
   /usr/lib64/qt6/include/QtWidgets/qsizepolicy.h \
   /usr/lib64/qt6/include/QtWidgets/qslider.h \
+  /usr/lib64/qt6/include/QtWidgets/qsplitter.h \
+  /usr/lib64/qt6/include/QtWidgets/qstackedwidget.h \
   /usr/lib64/qt6/include/QtWidgets/qstyle.h \
   /usr/lib64/qt6/include/QtWidgets/qstyleoption.h \
   /usr/lib64/qt6/include/QtWidgets/qtabbar.h \
