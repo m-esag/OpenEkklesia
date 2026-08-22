@@ -106,6 +106,9 @@ public:
     void setHealthStatus(HealthStatus hs) { m_healthStatus = hs; QGraphicsItem::update(); }
     HealthStatus healthStatus() const { return m_healthStatus; }
 
+    bool isPinned() const { return m_isPinned; }
+    void setPinned(bool pinned) { m_isPinned = pinned; QGraphicsItem::update(); }
+
     QPointF velocity;
     bool isBeingDragged;
 
@@ -136,6 +139,7 @@ private:
     QString m_adminNotes;
     bool m_isHovered;
     bool m_thresholdLabeling;
+    bool m_isPinned = false;
     QString m_phone;
     QString m_email;
     QString m_servingRole;
@@ -209,6 +213,7 @@ public:
 protected:
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
     void drawForeground(QPainter* painter, const QRectF& rect) override;
@@ -221,6 +226,7 @@ private:
 
 class GraphWidget : public QWidget {
     Q_OBJECT
+    friend class GraphCanvasView;
 
 signals:
     void navigateToProfile(const QString& entityType, int entityId);
@@ -258,6 +264,7 @@ public:
     bool isHygieneActive() const { return m_filterHygieneActive; }
     bool isBridgeActive() const { return m_filterBridgeActive; }
     bool isFamilyActive() const { return m_filterFamilyActive; }
+    bool isPhysicsRunning() const { return m_physicsRunning; }
     QGraphicsScene* scene() const { return m_scene; }
     GraphCanvasView* canvasView() const { return m_canvasView; }
 
@@ -345,6 +352,7 @@ private:
     QPushButton* m_btnToggleBridgeNodes;
     QPushButton* m_btnToggleFamilyDynasty;
     QPushButton* m_btnToggleLayout;
+    QPushButton* m_btnToggleFreeze;
     QPushButton* m_btnToggleStatusCluster;
     QPushButton* m_btnIsolatedBanner;
     QPushButton* m_btnLegendToggle;

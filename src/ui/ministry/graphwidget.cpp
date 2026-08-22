@@ -522,6 +522,31 @@ void GraphCanvasView::mousePressEvent(QMouseEvent* event) {
     }
 }
 
+void GraphCanvasView::contextMenuEvent(QContextMenuEvent* event) {
+    if (itemAt(event->pos())) {
+        QGraphicsView::contextMenuEvent(event);
+        return;
+    }
+    if (!m_graphWidget) return;
+
+    QMenu menu(this);
+    QAction* actResetPhysics = menu.addAction("🔄 Unfreeze Physics & Re-center");
+    QAction* actExportPng = menu.addAction("📸 Export High-Res Canvas (PNG)...");
+    QAction* actFit = menu.addAction("🔍 Fit Graph to View");
+
+    QAction* sel = menu.exec(event->globalPos());
+    if (!sel) return;
+
+    if (sel == actResetPhysics) {
+        m_graphWidget->resumePhysics();
+        m_graphWidget->loadGraph();
+    } else if (sel == actExportPng) {
+        m_graphWidget->onExportPNG();
+    } else if (sel == actFit) {
+        if (scene()) fitInView(scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+    }
+}
+
 // Keyboard navigation: arrows move the selection to a connected neighbor in
 // that direction; Esc clears the selection/highlight.
 void GraphCanvasView::keyPressEvent(QKeyEvent* event) {
