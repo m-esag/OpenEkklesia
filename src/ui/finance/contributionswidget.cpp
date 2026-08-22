@@ -1,7 +1,7 @@
 #include "contributionswidget.h"
 #include "../database/databasemanager.h"
-#include <QSettings>
 #include "../common/appcurrency.h"
+#include "thememanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -23,158 +23,438 @@
 #include <QTextStream>
 #include <QColor>
 #include <QFileDialog>
+#include <QSplitter>
+#include <QGroupBox>
+#include <QSettings>
 
 ContributionsWidget::ContributionsWidget(QWidget *parent)
     : QWidget(parent)
 {
     setupUI();
     setupModels();
-    refreshHistoryModel();
+    refreshBatchesList();
 }
 
 ContributionsWidget::~ContributionsWidget() {}
 
 void ContributionsWidget::setupUI() {
-    QHBoxLayout* mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
-    mainLayout->setSpacing(20);
+    QHBoxLayout* rootLayout = new QHBoxLayout(this);
+    rootLayout->setContentsMargins(12, 12, 12, 12);
+    rootLayout->setSpacing(14);
 
-    // Left Panel (Rapid Batch Entry Form)
-    QWidget* formPanel = new QWidget(this);
-    formPanel->setObjectName("formPanel");
-    
-    QVBoxLayout* formLayout = new QVBoxLayout(formPanel);
-    formLayout->setContentsMargins(20, 20, 20, 20);
-    formLayout->setSpacing(15);
+    QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->setHandleWidth(4);
 
-    QLabel* titleLabel = new QLabel("Rapid Contributions Batch Entry", this);
-    titleLabel->setObjectName("detailHeader");
-    formLayout->addWidget(titleLabel);
+    // =========================================================================
+    // LEFT MAIN CANVAS (Batch Workspace)
+    // =========================================================================
+    QWidget* mainWorkspace = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(mainWorkspace);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(12);
 
-    QFormLayout* form = new QFormLayout();
-    form->setSpacing(12);
+    // 1. Top Batch Header Bar
+    QFrame* headerCard = new QFrame(mainWorkspace);
+    headerCard->setObjectName("card");
+    headerCard->setStyleSheet("QFrame#card { border-radius: 8px; padding: 10px; }");
+    QVBoxLayout* headerLayout = new QVBoxLayout(headerCard);
+    headerLayout->setContentsMargins(14, 12, 14, 12);
+    headerLayout->setSpacing(10);
 
-    // Default to previous Sunday
-    QDate today = QDate::currentDate();
-    // Most-recent Sunday; on Sunday itself that is today (dayOfWeek 7 -> 0).
-    int daysToSubtract = today.dayOfWeek() % 7;
-    QDate prevSunday = today.addDays(-daysToSubtract);
-    m_dateEdit = new QDateEdit(prevSunday, this);
+    QHBoxLayout* titleRow = new QHBoxLayout();
+    m_txtBatchName = new QLineEdit(headerCard);
+    m_txtBatchName->setPlaceholderText("Batch Name (e.g. Sunday Morning Service)");
+    m_txtBatchName->setStyleSheet("font-size: 16px; font-weight: bold; padding: 6px 10px; border-radius: 6px;");
+    connect(m_txtBatchName, &QLineEdit::editingFinished, this, &ContributionsWidget::onSaveBatchHeaderDetails);
+
+    m_batchDateEdit = new QDateEdit(QDate::currentDate(), headerCard);
+    m_batchDateEdit->setCalendarPopup(true);
+    m_batchDateEdit->setDisplayFormat("yyyy-MM-dd");
+    m_batchDateEdit->setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px 10px; border-radius: 6px;");
+    connect(m_batchDateEdit, &QDateEdit::dateChanged, this, &ContributionsWidget::onSaveBatchHeaderDetails);
+
+    m_lblBatchStatusBadge = new QLabel("🟡 In Progress", headerCard);
+    m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(249, 226, 175, 0.2); color: #f9e2af;");
+
+    titleRow->addWidget(m_txtBatchName, 3);
+    titleRow->addWidget(m_batchDateEdit, 1);
+    titleRow->addWidget(m_lblBatchStatusBadge);
+    titleRow->addStretch();
+
+    m_btnBatchDefaults = new QPushButton("⚙️ Defaults", headerCard);
+    m_btnBatchDefaults->setObjectName("secondaryBtn");
+    m_btnBatchDefaults->setToolTip("Configure default date, payment method, and fund for this batch");
+    connect(m_btnBatchDefaults, &QPushButton::clicked, this, &ContributionsWidget::onBatchDefaultsClicked);
+
+    m_btnDeleteBatch = new QPushButton("🗑️ Delete Batch", headerCard);
+    m_btnDeleteBatch->setObjectName("dangerBtn");
+    connect(m_btnDeleteBatch, &QPushButton::clicked, this, &ContributionsWidget::onDeleteBatchClicked);
+
+    m_btnCommitBatch = new QPushButton("📦 Commit Batch", headerCard);
+    m_btnCommitBatch->setObjectName("saveBtn");
+    connect(m_btnCommitBatch, &QPushButton::clicked, this, &ContributionsWidget::onToggleBatchCommit);
+
+    titleRow->addWidget(m_btnBatchDefaults);
+    titleRow->addWidget(m_btnDeleteBatch);
+    titleRow->addWidget(m_btnCommitBatch);
+
+    headerLayout->addLayout(titleRow);
+
+    m_lblBatchMeta = new QLabel("Batch Details • 0 donations recorded", headerCard);
+    m_lblBatchMeta->setStyleSheet("color: #a6adc8; font-size: 12px;");
+    headerLayout->addWidget(m_lblBatchMeta);
+
+    mainLayout->addWidget(headerCard);
+
+    // 2. Planning Center-Style Inline Multi-Fund Donation Entry Card
+    m_entryCard = new QFrame(mainWorkspace);
+    m_entryCard->setObjectName("card");
+    m_entryCard->setStyleSheet("QFrame#card { border-radius: 8px; padding: 14px; }");
+    QVBoxLayout* entryLayout = new QVBoxLayout(m_entryCard);
+    entryLayout->setContentsMargins(16, 14, 16, 14);
+    entryLayout->setSpacing(12);
+
+    QHBoxLayout* donorRow = new QHBoxLayout();
+    QLabel* lblDonor = new QLabel("👤 Contributor:", m_entryCard);
+    lblDonor->setStyleSheet("font-weight: bold; font-size: 13px;");
+    m_personCombo = new QComboBox(m_entryCard);
+    m_personCombo->setEditable(true);
+    m_personCombo->setStyleSheet("padding: 6px 10px; font-size: 13px;");
+
+    m_lblTotalHeadline = new QLabel(appCurrencySymbol() + " 0.00", m_entryCard);
+    m_lblTotalHeadline->setStyleSheet("font-size: 22px; font-weight: bold; color: #a6e3a1; padding-left: 15px;");
+
+    donorRow->addWidget(lblDonor);
+    donorRow->addWidget(m_personCombo, 1);
+    donorRow->addWidget(m_lblTotalHeadline);
+    entryLayout->addLayout(donorRow);
+
+    // Dynamic Multi-Fund Split Lines Container
+    m_splitsContainer = new QWidget(m_entryCard);
+    m_splitsLayout = new QVBoxLayout(m_splitsContainer);
+    m_splitsLayout->setContentsMargins(0, 0, 0, 0);
+    m_splitsLayout->setSpacing(6);
+    entryLayout->addWidget(m_splitsContainer);
+
+    QHBoxLayout* splitActionsRow = new QHBoxLayout();
+    m_btnAddSplit = new QPushButton("➕ Add Fund Split", m_entryCard);
+    m_btnAddSplit->setObjectName("secondaryBtn");
+    m_btnAddSplit->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+    connect(m_btnAddSplit, &QPushButton::clicked, this, [this]() { onAddSplitRow(0.0, -1); });
+    splitActionsRow->addWidget(m_btnAddSplit);
+    splitActionsRow->addStretch();
+    entryLayout->addLayout(splitActionsRow);
+
+    // Metadata Row: Date, Method, Check #, Note
+    QHBoxLayout* metaRow = new QHBoxLayout();
+    metaRow->setSpacing(10);
+
+    m_dateEdit = new QDateEdit(QDate::currentDate(), m_entryCard);
     m_dateEdit->setCalendarPopup(true);
     m_dateEdit->setDisplayFormat("yyyy-MM-dd");
 
-    m_personCombo = new QComboBox(this);
-    m_personCombo->setEditable(true);
+    m_methodCombo = new QComboBox(m_entryCard);
+    m_methodCombo->addItems({"Check", "Cash", "Card / Online", "Bank Transfer / ACH"});
 
-    m_amountSpin = new QDoubleSpinBox(this);
-    m_amountSpin->setRange(0.00, 999999.00);
-    m_amountSpin->setDecimals(2);
-    m_amountSpin->setPrefix(appCurrencySymbol() + " ");
+    m_checkNumEdit = new QLineEdit(m_entryCard);
+    m_checkNumEdit->setPlaceholderText("Check # (optional)");
+    m_checkNumEdit->setMaximumWidth(140);
 
-    m_fundCombo = new QComboBox(this);
+    m_noteEdit = new QLineEdit(m_entryCard);
+    m_noteEdit->setPlaceholderText("Optional note / envelope memo");
 
-    // The entry form is deliberately minimal for Sunday-morning speed:
-    // Date / Person / Amount / Fund / optional Note. Payment method and
-    // check number are no longer captured here — the Planning Center import
-    // still records them for online/check gifts, and bank reconciliation
-    // lives in GnuCash.
-    m_noteEdit = new QLineEdit(this);
-    m_noteEdit->setPlaceholderText("Optional note (e.g. 'in memory of...')");
+    metaRow->addWidget(new QLabel("Date:", m_entryCard));
+    metaRow->addWidget(m_dateEdit);
+    metaRow->addWidget(new QLabel("Method:", m_entryCard));
+    metaRow->addWidget(m_methodCombo);
+    metaRow->addWidget(m_checkNumEdit);
+    metaRow->addWidget(m_noteEdit, 1);
 
-    form->addRow("Date:", m_dateEdit);
-    form->addRow("Person:", m_personCombo);
-    form->addRow("Amount:", m_amountSpin);
-    form->addRow("Fund:", m_fundCombo);
-    form->addRow("Note:", m_noteEdit);
+    entryLayout->addLayout(metaRow);
 
-    formLayout->addLayout(form);
-
-    m_btnSave = new QPushButton("Save Entry (Enter)", this);
-    m_btnSave->setObjectName("saveBtn");
+    QHBoxLayout* entryActions = new QHBoxLayout();
+    m_btnSave = new QPushButton("💾 Save & Next Donation (Enter)", m_entryCard);
+    m_btnSave->setObjectName("primaryBtn");
+    m_btnSave->setMinimumHeight(36);
+    m_btnSave->setStyleSheet("font-weight: bold; font-size: 13px; padding: 8px 18px;");
     connect(m_btnSave, &QPushButton::clicked, this, &ContributionsWidget::onSaveContribution);
-    formLayout->addWidget(m_btnSave);
 
-    formLayout->addSpacing(15);
+    m_btnClearForm = new QPushButton("🧹 Clear Form (Esc)", m_entryCard);
+    m_btnClearForm->setObjectName("secondaryBtn");
+    m_btnClearForm->setMinimumHeight(36);
+    connect(m_btnClearForm, &QPushButton::clicked, this, &ContributionsWidget::onResetDonationForm);
 
-    // Fund administration — funds are the organizing concept for giving, so
-    // they can be added/renamed/deactivated without leaving this page.
-    QLabel* fundsLabel = new QLabel("Funds & Accounting Export", this);
-    fundsLabel->setObjectName("detailSubHeader");
-    formLayout->addWidget(fundsLabel);
+    entryActions->addWidget(m_btnSave);
+    entryActions->addWidget(m_btnClearForm);
+    entryActions->addStretch();
+    entryLayout->addLayout(entryActions);
 
-    m_btnManageFunds = new QPushButton("Manage Funds", this);
-    m_btnManageFunds->setObjectName("secondaryBtn");
-    connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
-    formLayout->addWidget(m_btnManageFunds);
+    mainLayout->addWidget(m_entryCard);
 
-    m_btnGnuCashExport = new QPushButton("Export for GnuCash (CSV)", this);
-    m_btnGnuCashExport->setObjectName("accentBtnCyan");
-    m_btnGnuCashExport->setToolTip("Export recorded giving for a date range as CSV, ready to import into GnuCash as income transactions.");
-    connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
-    formLayout->addWidget(m_btnGnuCashExport);
+    // 3. Real-Time Fund Allocation Pill Strip
+    m_pillsContainer = new QWidget(mainWorkspace);
+    m_pillsLayout = new QHBoxLayout(m_pillsContainer);
+    m_pillsLayout->setContentsMargins(0, 0, 0, 0);
+    m_pillsLayout->setSpacing(8);
+    mainLayout->addWidget(m_pillsContainer);
 
-    formLayout->addStretch();
-    mainLayout->addWidget(formPanel, 2);
+    // 4. Batch Donations Ledger Table
+    QFrame* tableCard = new QFrame(mainWorkspace);
+    tableCard->setObjectName("card");
+    QVBoxLayout* tableLay = new QVBoxLayout(tableCard);
+    tableLay->setContentsMargins(10, 10, 10, 10);
+    tableLay->setSpacing(8);
 
-    // Right Panel (Running Log Table)
-    QWidget* logPanel = new QWidget(this);
-    QVBoxLayout* logLayout = new QVBoxLayout(logPanel);
-    logLayout->setContentsMargins(0, 0, 0, 0);
-    logLayout->setSpacing(12);
-
-    QLabel* logLabel = new QLabel("Recent Contributions Log", this);
-    logLabel->setObjectName("detailHeader");
-    logLayout->addWidget(logLabel);
-
-    m_historyTable = new QTableView(this);
+    m_historyTable = new QTableView(tableCard);
     m_historyTable->setContextMenuPolicy(Qt::CustomContextMenu);
     m_historyTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_historyTable->verticalHeader()->setVisible(false);
+    m_historyTable->setAlternatingRowColors(true);
     connect(m_historyTable, &QTableView::customContextMenuRequested, this, &ContributionsWidget::onHistoryContextMenu);
-    logLayout->addWidget(m_historyTable);
+    tableLay->addWidget(m_historyTable, 1);
 
-    mainLayout->addWidget(logPanel, 3);
+    QHBoxLayout* tableFooter = new QHBoxLayout();
+    m_lblBatchTotalSummary = new QLabel("0 donations recorded in this batch", tableCard);
+    m_lblBatchTotalSummary->setStyleSheet("font-weight: bold; font-size: 13px; color: #a6e3a1;");
+    tableFooter->addWidget(m_lblBatchTotalSummary);
+    tableFooter->addStretch();
+
+    m_btnManageFunds = new QPushButton("🏦 Manage Funds", tableCard);
+    m_btnManageFunds->setObjectName("secondaryBtn");
+    connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
+    tableFooter->addWidget(m_btnManageFunds);
+
+    m_btnGnuCashExport = new QPushButton("📊 Export for GnuCash (CSV)", tableCard);
+    m_btnGnuCashExport->setObjectName("accentBtnCyan");
+    connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
+    tableFooter->addWidget(m_btnGnuCashExport);
+
+    tableLay->addLayout(tableFooter);
+    mainLayout->addWidget(tableCard, 1);
+
+    splitter->addWidget(mainWorkspace);
+
+    // =========================================================================
+    // RIGHT DRAWER (Batches Navigation Drawer)
+    // =========================================================================
+    QWidget* rightDrawer = new QWidget(this);
+    rightDrawer->setMinimumWidth(280);
+    rightDrawer->setMaximumWidth(360);
+    QVBoxLayout* drawerLayout = new QVBoxLayout(rightDrawer);
+    drawerLayout->setContentsMargins(0, 0, 0, 0);
+    drawerLayout->setSpacing(10);
+
+    QFrame* drawerCard = new QFrame(rightDrawer);
+    drawerCard->setObjectName("card");
+    QVBoxLayout* drawerCardLay = new QVBoxLayout(drawerCard);
+    drawerCardLay->setContentsMargins(12, 12, 12, 12);
+    drawerCardLay->setSpacing(10);
+
+    // Tabs: In Progress vs Committed
+    QHBoxLayout* tabLayout = new QHBoxLayout();
+    m_tabInProgress = new QPushButton("🟡 In Progress", drawerCard);
+    m_tabCommitted = new QPushButton("🟢 Committed", drawerCard);
+    m_tabInProgress->setCheckable(true);
+    m_tabCommitted->setCheckable(true);
+    m_tabInProgress->setChecked(true);
+    m_tabInProgress->setStyleSheet("font-weight: bold; background-color: #89b4fa; color: #11111b; border-radius: 6px; padding: 6px;");
+    m_tabCommitted->setStyleSheet("padding: 6px; border-radius: 6px;");
+
+    tabLayout->addWidget(m_tabInProgress);
+    tabLayout->addWidget(m_tabCommitted);
+    drawerCardLay->addLayout(tabLayout);
+
+    m_btnNewBatch = new QPushButton("➕ New Batch", drawerCard);
+    m_btnNewBatch->setObjectName("primaryBtn");
+    m_btnNewBatch->setMinimumHeight(34);
+    connect(m_btnNewBatch, &QPushButton::clicked, this, &ContributionsWidget::onNewBatchClicked);
+    drawerCardLay->addWidget(m_btnNewBatch);
+
+    m_txtBatchSearch = new QLineEdit(drawerCard);
+    m_txtBatchSearch->setPlaceholderText("🔍 Filter batches...");
+    m_txtBatchSearch->setClearButtonEnabled(true);
+    connect(m_txtBatchSearch, &QLineEdit::textChanged, this, &ContributionsWidget::onBatchFilterChanged);
+    drawerCardLay->addWidget(m_txtBatchSearch);
+
+    // Create batches list widget BEFORE wireup
+    m_batchesList = new QListWidget(drawerCard);
+    m_batchesList->setStyleSheet("QListWidget { border: none; background: transparent; }"
+                                 "QListWidget::item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.05); }"
+                                 "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
+                                 "QListWidget::item:hover:!selected { background-color: rgba(255,255,255,0.06); }");
+    connect(m_batchesList, &QListWidget::itemClicked, this, &ContributionsWidget::onBatchSelected);
+    m_batchesList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_batchesList, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_batchesList->itemAt(pos);
+        if (!item) return;
+        int bId = item->data(Qt::UserRole).toInt();
+        if (bId <= 0) return;
+        m_batchesList->setCurrentItem(item);
+        loadBatch(bId);
+
+        QMenu menu(this);
+        QAction* actToggleCommit = menu.addAction(m_batchStatus == "Committed" ? "🔓 Reopen Batch for Editing" : "📦 Commit & Lock Batch");
+        QAction* actRename = menu.addAction("✏️ Rename Batch...");
+        QAction* actExport = menu.addAction("📊 Export Batch to GnuCash CSV");
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction("🗑️ Delete Batch...");
+
+        QAction* sel = menu.exec(m_batchesList->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actToggleCommit) {
+            onToggleBatchCommit();
+        } else if (sel == actRename) {
+            bool ok = false;
+            QString curName = m_txtBatchName ? m_txtBatchName->text() : "Batch";
+            QString newName = QInputDialog::getText(this, "Rename Batch", "Batch Name:", QLineEdit::Normal, curName, &ok);
+            if (ok && !newName.trimmed().isEmpty()) {
+                QSqlQuery uq;
+                uq.prepare("UPDATE giving_batches SET batch_name = ? WHERE id = ?");
+                uq.addBindValue(newName.trimmed());
+                uq.addBindValue(bId);
+                uq.exec();
+                loadBatch(bId);
+                refreshBatchesList();
+            }
+        } else if (sel == actExport) {
+            onExportGnuCashCsv();
+        } else if (sel == actDelete) {
+            onDeleteBatchClicked();
+        }
+    });
+    drawerCardLay->addWidget(m_batchesList, 1);
+
+    auto updateTabs = [this](bool inProgress) {
+        if (!m_batchesList || !m_tabInProgress || !m_tabCommitted) return;
+        m_tabInProgress->setChecked(inProgress);
+        m_tabCommitted->setChecked(!inProgress);
+        m_tabInProgress->setStyleSheet(inProgress ? "font-weight: bold; background-color: #89b4fa; color: #11111b; border-radius: 6px; padding: 6px;" : "padding: 6px; border-radius: 6px;");
+        m_tabCommitted->setStyleSheet(!inProgress ? "font-weight: bold; background-color: #a6e3a1; color: #11111b; border-radius: 6px; padding: 6px;" : "padding: 6px; border-radius: 6px;");
+        refreshBatchesList();
+    };
+
+    connect(m_tabInProgress, &QPushButton::clicked, this, [updateTabs]() { updateTabs(true); });
+    connect(m_tabCommitted, &QPushButton::clicked, this, [updateTabs]() { updateTabs(false); });
+
+    drawerLayout->addWidget(drawerCard);
+    splitter->addWidget(rightDrawer);
+
+    splitter->setSizes({700, 300});
+    rootLayout->addWidget(splitter);
 }
 
 void ContributionsWidget::setupModels() {
-    QSqlQuery query;
-
-    // Load active people
-    if (query.exec("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name")) {
-        while (query.next()) {
-            int id = query.value(0).toInt();
-            QString name = query.value(1).toString();
-            m_peopleList.append({id, name});
-            m_personCombo->addItem(name, id);
-        }
-    }
-
-    // Add autocomplete to Person combo
-    m_personCombo->setEditable(true);
-    QCompleter* completer = new QCompleter(this);
-    completer->setFilterMode(Qt::MatchContains);
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setModel(m_personCombo->model());
-    m_personCombo->setCompleter(completer);
-
-    // Anonymous plate offerings: item at kAnonymousIndex, bound to no person.
-    m_personCombo->insertItem(kAnonymousIndex, "— Anonymous (plate offering) —");
-
-    // Load active funds
-    if (query.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
-        while (query.next()) {
-            int id = query.value(0).toInt();
-            QString name = query.value(1).toString();
-            m_fundsList.append({id, name});
-            m_fundCombo->addItem(name, id);
-        }
-    }
-
     m_historyModel = new QSqlQueryModel(this);
     m_historyTable->setModel(m_historyModel);
+
+    // Initial split row
+    onAddSplitRow(0.0, -1);
+    refreshContributions();
+}
+
+void ContributionsWidget::onAddSplitRow(double initialAmount, int fundId) {
+    if (!m_splitsContainer || !m_splitsLayout) return;
+
+    FundSplitRow row;
+    row.container = new QWidget(m_splitsContainer);
+    QHBoxLayout* rowLay = new QHBoxLayout(row.container);
+    rowLay->setContentsMargins(0, 0, 0, 0);
+    rowLay->setSpacing(8);
+
+    row.amountSpin = new QDoubleSpinBox(row.container);
+    row.amountSpin->setRange(0.00, 999999.00);
+    row.amountSpin->setDecimals(2);
+    row.amountSpin->setPrefix(appCurrencySymbol() + " ");
+    row.amountSpin->setValue(initialAmount);
+    row.amountSpin->setMinimumWidth(140);
+    connect(row.amountSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &ContributionsWidget::onUpdateSplitTotals);
+
+    row.fundCombo = new QComboBox(row.container);
+    for (const auto& f : m_fundsList) {
+        row.fundCombo->addItem(f.second, f.first);
+    }
+    if (fundId > 0) {
+        int idx = row.fundCombo->findData(fundId);
+        if (idx >= 0) row.fundCombo->setCurrentIndex(idx);
+    }
+
+    row.btnRemove = new QPushButton("🗑️", row.container);
+    row.btnRemove->setToolTip("Remove this split line");
+    row.btnRemove->setMaximumWidth(36);
+    QWidget* c = row.container;
+    connect(row.btnRemove, &QPushButton::clicked, this, [this, c]() { onRemoveSplitRow(c); });
+
+    rowLay->addWidget(row.amountSpin);
+    rowLay->addWidget(new QLabel("to", row.container));
+    rowLay->addWidget(row.fundCombo, 1);
+    rowLay->addWidget(row.btnRemove);
+
+    m_splitsLayout->addWidget(row.container);
+    m_splitRows.append(row);
+
+    // Only show delete button if multiple splits exist
+    for (auto& r : m_splitRows) {
+        if (r.btnRemove) r.btnRemove->setVisible(m_splitRows.size() > 1);
+    }
+
+    onUpdateSplitTotals();
+    updateTabOrder();
+}
+
+void ContributionsWidget::onRemoveSplitRow(QWidget* container) {
+    for (int i = 0; i < m_splitRows.size(); ++i) {
+        if (m_splitRows[i].container == container) {
+            m_splitsLayout->removeWidget(container);
+            container->deleteLater();
+            m_splitRows.removeAt(i);
+            break;
+        }
+    }
+    for (auto& r : m_splitRows) {
+        if (r.btnRemove) r.btnRemove->setVisible(m_splitRows.size() > 1);
+    }
+    onUpdateSplitTotals();
+    updateTabOrder();
+}
+
+void ContributionsWidget::onUpdateSplitTotals() {
+    double total = 0.0;
+    for (const auto& r : m_splitRows) {
+        if (r.amountSpin) total += r.amountSpin->value();
+    }
+    if (m_lblTotalHeadline) {
+        m_lblTotalHeadline->setText(QString("%1 %2").arg(appCurrencySymbol(), QString::number(total, 'f', 2)));
+    }
+}
+
+void ContributionsWidget::onResetDonationForm() {
+    while (m_splitRows.size() > 1) {
+        FundSplitRow r = m_splitRows.takeLast();
+        if (r.container) {
+            m_splitsLayout->removeWidget(r.container);
+            r.container->deleteLater();
+        }
+    }
+    if (!m_splitRows.isEmpty() && m_splitRows[0].amountSpin) {
+        m_splitRows[0].amountSpin->setValue(0.00);
+        if (m_splitRows[0].btnRemove) m_splitRows[0].btnRemove->setVisible(false);
+    }
+
+    if (m_personCombo) {
+        m_personCombo->setCurrentIndex(-1);
+        if (m_personCombo->lineEdit()) m_personCombo->lineEdit()->clear();
+        m_personCombo->setFocus();
+    }
+    if (m_checkNumEdit) m_checkNumEdit->clear();
+    if (m_noteEdit) m_noteEdit->clear();
+    onUpdateSplitTotals();
+    updateTabOrder();
 }
 
 void ContributionsWidget::refreshContributions() {
+    if (!m_personCombo) return;
+
     m_personCombo->blockSignals(true);
     m_personCombo->clear();
     m_peopleList.clear();
@@ -191,65 +471,392 @@ void ContributionsWidget::refreshContributions() {
     m_personCombo->blockSignals(false);
     m_personCombo->insertItem(kAnonymousIndex, "— Anonymous (plate offering) —");
 
-    m_fundCombo->blockSignals(true);
-    m_fundCombo->clear();
+    // Completer for person
+    QCompleter* completer = new QCompleter(this);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setModel(m_personCombo->model());
+    m_personCombo->setCompleter(completer);
+
+    connect(completer, QOverload<const QModelIndex&>::of(&QCompleter::activated), this, [this](const QModelIndex&) {
+        if (!m_splitRows.isEmpty() && m_splitRows[0].amountSpin) {
+            m_splitRows[0].amountSpin->setFocus();
+            m_splitRows[0].amountSpin->selectAll();
+        }
+    });
+
+    connect(m_personCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int) {
+        if (!m_splitRows.isEmpty() && m_splitRows[0].amountSpin) {
+            m_splitRows[0].amountSpin->setFocus();
+            m_splitRows[0].amountSpin->selectAll();
+        }
+    });
+
+    // Refresh funds list
     m_fundsList.clear();
     if (q.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
         while (q.next()) {
             int id = q.value(0).toInt();
             QString name = q.value(1).toString();
             m_fundsList.append({id, name});
-            m_fundCombo->addItem(name, id);
         }
     }
-    m_fundCombo->blockSignals(false);
+    refreshFundCombos();
+    updateTabOrder();
+}
+
+void ContributionsWidget::updateTabOrder() {
+    if (!m_personCombo || m_splitRows.isEmpty()) return;
+
+    QWidget* prev = m_personCombo;
+    if (m_personCombo->isEditable() && m_personCombo->lineEdit()) {
+        prev = m_personCombo->lineEdit();
+    }
+
+    for (int i = 0; i < m_splitRows.size(); ++i) {
+        auto& row = m_splitRows[i];
+        if (row.amountSpin) {
+            QWidget::setTabOrder(prev, row.amountSpin);
+            prev = row.amountSpin;
+        }
+        if (row.fundCombo) {
+            QWidget::setTabOrder(prev, row.fundCombo);
+            prev = row.fundCombo;
+        }
+        if (row.btnRemove && row.btnRemove->isVisible()) {
+            QWidget::setTabOrder(prev, row.btnRemove);
+            prev = row.btnRemove;
+        }
+    }
+
+    if (m_btnAddSplit) {
+        QWidget::setTabOrder(prev, m_btnAddSplit);
+        prev = m_btnAddSplit;
+    }
+    if (m_dateEdit) {
+        QWidget::setTabOrder(prev, m_dateEdit);
+        prev = m_dateEdit;
+    }
+    if (m_methodCombo) {
+        QWidget::setTabOrder(prev, m_methodCombo);
+        prev = m_methodCombo;
+    }
+    if (m_checkNumEdit) {
+        QWidget::setTabOrder(prev, m_checkNumEdit);
+        prev = m_checkNumEdit;
+    }
+    if (m_noteEdit) {
+        QWidget::setTabOrder(prev, m_noteEdit);
+        prev = m_noteEdit;
+    }
+    if (m_btnSave) {
+        QWidget::setTabOrder(prev, m_btnSave);
+        prev = m_btnSave;
+    }
+    if (m_btnClearForm) {
+        QWidget::setTabOrder(prev, m_btnClearForm);
+        prev = m_btnClearForm;
+    }
+}
+
+void ContributionsWidget::refreshFundCombos() {
+    for (auto& r : m_splitRows) {
+        if (!r.fundCombo) continue;
+        int curId = r.fundCombo->currentData().toInt();
+        r.fundCombo->blockSignals(true);
+        r.fundCombo->clear();
+        for (const auto& f : m_fundsList) {
+            r.fundCombo->addItem(f.second, f.first);
+        }
+        int idx = r.fundCombo->findData(curId);
+        if (idx >= 0) r.fundCombo->setCurrentIndex(idx);
+        r.fundCombo->blockSignals(false);
+    }
+}
+
+void ContributionsWidget::refreshBatchesList() {
+    if (!m_batchesList || !m_tabInProgress) return;
+
+    m_batchesList->blockSignals(true);
+    m_batchesList->clear();
+
+    const bool showInProgress = m_tabInProgress->isChecked();
+    const QString statusFilter = showInProgress ? "In Progress" : "Committed";
+
+    QSqlQuery q;
+    q.prepare("SELECT b.id, b.batch_name, b.batch_date, b.status, "
+              "       COUNT(c.id) AS donation_count, "
+              "       COALESCE(SUM(c.amount), 0) AS total_cents "
+              "FROM giving_batches b "
+              "LEFT JOIN contributions c ON c.batch_id = b.id "
+              "WHERE b.status = ? "
+              "GROUP BY b.id "
+              "ORDER BY b.batch_date DESC, b.id DESC");
+    q.addBindValue(statusFilter);
+
+    int targetRow = -1;
+    int currentRow = 0;
+
+    if (q.exec()) {
+        while (q.next()) {
+            int bId = q.value(0).toInt();
+            QString bName = q.value(1).toString();
+            QString bDate = q.value(2).toString();
+            int count = q.value(4).toInt();
+            double dollars = q.value(5).toDouble() / 100.0;
+
+            QString label = QString("Batch #%1 — %2\n%3 • %4 gifts • %5%6")
+                                .arg(QString::number(bId), bDate, bName,
+                                     QString::number(count), appCurrencySymbol(),
+                                     QString::number(dollars, 'f', 2));
+
+            QListWidgetItem* item = new QListWidgetItem(label, m_batchesList);
+            item->setData(Qt::UserRole, bId);
+            item->setData(Qt::UserRole + 1, bName);
+            item->setData(Qt::UserRole + 2, bDate);
+
+            if (bId == m_currentBatchId) {
+                targetRow = currentRow;
+            }
+            currentRow++;
+        }
+    }
+    m_batchesList->blockSignals(false);
+
+    if (targetRow >= 0) {
+        m_batchesList->setCurrentRow(targetRow);
+    } else if (m_batchesList->count() > 0) {
+        m_batchesList->setCurrentRow(0);
+        int firstId = m_batchesList->item(0)->data(Qt::UserRole).toInt();
+        loadBatch(firstId);
+    } else {
+        if (showInProgress) {
+            // Auto-create initial batch silently in DB without blocking popup
+            QDate date = QDate::currentDate();
+            int defaultFundId = m_fundsList.isEmpty() ? 1 : m_fundsList[0].first;
+            QSqlQuery qCreate;
+            qCreate.prepare("INSERT INTO giving_batches (batch_name, batch_date, status, default_fund_id, default_payment_method, created_by) "
+                            "VALUES ('Sunday Service Offering', ?, 'In Progress', ?, 'Check', 'Admin')");
+            qCreate.addBindValue(date.toString("yyyy-MM-dd"));
+            qCreate.addBindValue(defaultFundId);
+            if (qCreate.exec()) {
+                int newId = qCreate.lastInsertId().toInt();
+                loadBatch(newId);
+                QListWidgetItem* item = new QListWidgetItem(
+                    QString("Batch #%1 — %2\nSunday Service Offering • 0 gifts • %30.00")
+                        .arg(QString::number(newId), date.toString("yyyy-MM-dd"), appCurrencySymbol()),
+                    m_batchesList);
+                item->setData(Qt::UserRole, newId);
+                m_batchesList->setCurrentRow(0);
+            }
+        } else {
+            m_currentBatchId = -1;
+            if (m_txtBatchName) m_txtBatchName->clear();
+            if (m_lblBatchMeta) m_lblBatchMeta->setText("No committed batches found.");
+            if (m_historyModel) m_historyModel->clear();
+            if (m_lblBatchTotalSummary) m_lblBatchTotalSummary->setText("0 donations");
+        }
+    }
+}
+
+void ContributionsWidget::onBatchSelected(QListWidgetItem* item) {
+    if (!item) return;
+    int bId = item->data(Qt::UserRole).toInt();
+    if (bId > 0 && bId != m_currentBatchId) {
+        loadBatch(bId);
+    }
+}
+
+void ContributionsWidget::loadBatch(int batchId) {
+    m_currentBatchId = batchId;
+    if (batchId <= 0) return;
+
+    QSqlQuery q;
+    q.prepare("SELECT batch_name, batch_date, status, default_fund_id, default_payment_method, created_by, batch_note "
+              "FROM giving_batches WHERE id = ?");
+    q.addBindValue(batchId);
+
+    if (q.exec() && q.next()) {
+        if (m_txtBatchName) {
+            m_txtBatchName->blockSignals(true);
+            m_txtBatchName->setText(q.value(0).toString());
+            m_txtBatchName->blockSignals(false);
+        }
+        if (m_batchDateEdit) {
+            m_batchDateEdit->blockSignals(true);
+            m_batchDateEdit->setDate(QDate::fromString(q.value(1).toString(), "yyyy-MM-dd"));
+            m_batchDateEdit->blockSignals(false);
+        }
+
+        m_batchStatus = q.value(2).toString();
+        int defFund = q.value(3).toInt();
+        QString defMethod = q.value(4).toString();
+        QString createdBy = q.value(5).toString();
+
+        const bool isCommitted = (m_batchStatus == "Committed");
+        if (m_lblBatchStatusBadge) {
+            if (isCommitted) {
+                m_lblBatchStatusBadge->setText("🟢 Committed (Locked)");
+                m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(166, 227, 161, 0.2); color: #a6e3a1;");
+            } else {
+                m_lblBatchStatusBadge->setText("🟡 In Progress");
+                m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(249, 226, 175, 0.2); color: #f9e2af;");
+            }
+        }
+
+        if (m_btnCommitBatch) {
+            if (isCommitted) {
+                m_btnCommitBatch->setText("🔓 Reopen Batch");
+                m_btnCommitBatch->setObjectName("secondaryBtn");
+            } else {
+                m_btnCommitBatch->setText("📦 Commit Batch");
+                m_btnCommitBatch->setObjectName("saveBtn");
+            }
+        }
+
+        if (m_entryCard) {
+            m_entryCard->setEnabled(!isCommitted && m_userRole != "readonly");
+        }
+
+        // Apply defaults to entry card
+        if (m_dateEdit && m_batchDateEdit) {
+            m_dateEdit->setDate(m_batchDateEdit->date());
+        }
+        if (m_methodCombo && !defMethod.isEmpty()) {
+            int mIdx = m_methodCombo->findText(defMethod);
+            if (mIdx >= 0) m_methodCombo->setCurrentIndex(mIdx);
+        }
+        if (defFund > 0 && !m_splitRows.isEmpty() && m_splitRows[0].fundCombo) {
+            int fIdx = m_splitRows[0].fundCombo->findData(defFund);
+            if (fIdx >= 0) m_splitRows[0].fundCombo->setCurrentIndex(fIdx);
+        }
+
+        if (m_lblBatchMeta && m_batchDateEdit) {
+            m_lblBatchMeta->setText(QString("Batch #%1 • Created by %2 • Date: %3")
+                                        .arg(QString::number(batchId), createdBy, m_batchDateEdit->date().toString("yyyy-MM-dd")));
+        }
+    }
 
     refreshHistoryModel();
+    refreshFundPills();
 }
 
 void ContributionsWidget::refreshHistoryModel() {
-    // person_id is nullable (anonymous plate offerings); payment_method is
-    // only written by the Planning Center import these days — coalesce both
-    // so rows never render blank.
+    if (!m_historyModel || !m_historyTable) return;
+    if (m_currentBatchId <= 0) {
+        m_historyModel->clear();
+        return;
+    }
+
     QString queryStr = QString(
         "SELECT c.id AS \"ID\", "
         "       c.contribution_date AS \"Date\", "
         "       COALESCE(p.first_name || ' ' || p.last_name, '— Anonymous —') AS \"Contributor\", "
         "       f.fund_name AS \"Fund\", "
-        "       printf('%1%.2f', c.amount / 100.0) AS \"Amount\", "
         "       COALESCE(NULLIF(c.payment_method, ''), '—') AS \"Method\", "
+        "       COALESCE(NULLIF(c.check_number, ''), '—') AS \"Check #\", "
+        "       printf('%1%.2f', c.amount / 100.0) AS \"Amount\", "
         "       COALESCE(c.note, '') AS \"Note\" "
         "FROM contributions c "
         "LEFT JOIN people p ON c.person_id = p.id "
         "JOIN funds f ON c.fund_id = f.id "
-        "ORDER BY c.id DESC LIMIT 50").arg(appCurrencySymbol());
+        "WHERE c.batch_id = %2 "
+        "ORDER BY c.id DESC").arg(appCurrencySymbol(), QString::number(m_currentBatchId));
+
     m_historyModel->setQuery(queryStr);
     m_historyTable->hideColumn(0);
+
+    QSqlQuery sumQ;
+    sumQ.prepare("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM contributions WHERE batch_id = ?");
+    sumQ.addBindValue(m_currentBatchId);
+    if (sumQ.exec() && sumQ.next()) {
+        int count = sumQ.value(0).toInt();
+        double dollars = sumQ.value(1).toDouble() / 100.0;
+        if (m_lblBatchTotalSummary) {
+            m_lblBatchTotalSummary->setText(
+                QString("%1 donations recorded  •  Batch Total: %2%3")
+                    .arg(QString::number(count), appCurrencySymbol(), QString::number(dollars, 'f', 2)));
+        }
+    }
 }
 
-void ContributionsWidget::keyPressEvent(QKeyEvent *event) {
-    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
-        onSaveContribution();
-        event->accept();
-    } else {
-        QWidget::keyPressEvent(event);
+void ContributionsWidget::refreshFundPills() {
+    if (!m_pillsLayout || !m_pillsContainer) return;
+
+    QLayoutItem* item;
+    while ((item = m_pillsLayout->takeAt(0)) != nullptr) {
+        if (item->widget()) delete item->widget();
+        delete item;
     }
+
+    if (m_currentBatchId <= 0) return;
+
+    QSqlQuery q;
+    q.prepare("SELECT f.fund_name, SUM(c.amount) FROM contributions c "
+              "JOIN funds f ON c.fund_id = f.id "
+              "WHERE c.batch_id = ? "
+              "GROUP BY f.id ORDER BY f.fund_name");
+    q.addBindValue(m_currentBatchId);
+
+    const QString colors[] = {"#89b4fa", "#a6e3a1", "#f9e2af", "#cba6f7", "#fab387", "#94e2d5"};
+    int cIdx = 0;
+
+    QLabel* lblHeader = new QLabel("🏷️ Batch Funds:", m_pillsContainer);
+    lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #a6adc8;");
+    m_pillsLayout->addWidget(lblHeader);
+
+    bool hasPills = false;
+    if (q.exec()) {
+        while (q.next()) {
+            hasPills = true;
+            QString fName = q.value(0).toString();
+            double dollars = q.value(1).toDouble() / 100.0;
+            QString color = colors[cIdx % 6];
+            cIdx++;
+
+            QLabel* pill = new QLabel(QString("%1%2  %3")
+                                          .arg(appCurrencySymbol(), QString::number(dollars, 'f', 2), fName),
+                                      m_pillsContainer);
+            pill->setStyleSheet(QString(
+                "QLabel { background-color: rgba(255,255,255,0.06); border: 1px solid %1; "
+                "color: %1; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 10px; }")
+                .arg(color));
+            m_pillsLayout->addWidget(pill);
+        }
+    }
+    if (!hasPills) {
+        QLabel* empty = new QLabel("(No donations recorded yet in this batch)", m_pillsContainer);
+        empty->setStyleSheet("color: #6c7086; font-size: 11px; font-style: italic;");
+        m_pillsLayout->addWidget(empty);
+    }
+    m_pillsLayout->addStretch();
 }
 
 void ContributionsWidget::onSaveContribution() {
-    if (m_amountSpin->value() <= 0.00) {
-        QMessageBox::warning(this, "Validation Error", "Please enter a positive contribution amount.");
+    if (m_currentBatchId <= 0) {
+        QMessageBox::warning(this, "No Batch Selected", "Please select or create a batch first.");
+        return;
+    }
+    if (m_batchStatus == "Committed") {
+        QMessageBox::warning(this, "Batch Locked", "This batch has been committed. Reopen it to add more donations.");
         return;
     }
 
-    // Anonymous selection is a deliberate choice (plate offering with no
-    // envelope/name); anything else that fails to resolve is a typo.
+    double totalAmount = 0.0;
+    for (const auto& r : m_splitRows) {
+        if (!r.amountSpin || r.amountSpin->value() <= 0.0) continue;
+        totalAmount += r.amountSpin->value();
+    }
+    if (totalAmount <= 0.00) {
+        QMessageBox::warning(this, "Validation Error", "Please enter a positive donation amount in at least one fund split.");
+        return;
+    }
+
     const bool anonymous = (m_personCombo->currentIndex() == kAnonymousIndex);
     int personId = 0;
     if (!anonymous) {
         personId = m_personCombo->currentData().toInt();
         if (personId == 0) {
-            // Find text match if typed
             QString typedText = m_personCombo->currentText();
             for (const auto& person : m_peopleList) {
                 if (person.second.compare(typedText, Qt::CaseInsensitive) == 0) {
@@ -265,12 +872,6 @@ void ContributionsWidget::onSaveContribution() {
         }
     }
 
-    int fundId = m_fundCombo->currentData().toInt();
-    int amountCents = static_cast<int>(m_amountSpin->value() * 100.0 + 0.5);
-    QString note = m_noteEdit->text().trimmed();
-
-    // First-gift milestone: detect before inserting so a person's earliest
-    // recorded gift is celebrated in their pastoral timeline.
     bool firstGift = false;
     if (!anonymous) {
         QSqlQuery cnt;
@@ -279,66 +880,221 @@ void ContributionsWidget::onSaveContribution() {
         if (cnt.exec() && cnt.next()) firstGift = (cnt.value(0).toInt() == 0);
     }
 
-    QSqlDatabase db = QSqlDatabase::database();
+    QSqlDatabase db = DatabaseManager::instance().database();
     db.transaction();
 
-    QSqlQuery query;
-    query.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
-                  "VALUES (?, ?, ?, ?, ?)");
-    query.addBindValue(anonymous ? QVariant(QMetaType(QMetaType::Int)) : QVariant(personId));
-    query.addBindValue(fundId);
-    query.addBindValue(amountCents);
-    query.addBindValue(m_dateEdit->date().toString("yyyy-MM-dd"));
-    query.addBindValue(note.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(note));
+    QString dateStr = m_dateEdit->date().toString("yyyy-MM-dd");
+    QString method = m_methodCombo->currentText();
+    QString checkNum = m_checkNumEdit->text().trimmed();
+    QString baseNote = m_noteEdit->text().trimmed();
 
-    if (query.exec()) {
-        db.commit();
-        QString fundName;
-        for (const auto& f : m_fundsList) {
-            if (f.first == fundId) { fundName = f.second; break; }
+    bool allOk = true;
+    for (const auto& r : m_splitRows) {
+        if (!r.amountSpin || r.amountSpin->value() <= 0.0) continue;
+        int amountCents = static_cast<int>(r.amountSpin->value() * 100.0 + 0.5);
+        int fundId = r.fundCombo ? r.fundCombo->currentData().toInt() : 1;
+
+        QSqlQuery q(db);
+        q.prepare("INSERT INTO contributions (batch_id, person_id, fund_id, amount, contribution_date, payment_method, check_number, note) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        q.addBindValue(m_currentBatchId);
+        q.addBindValue(anonymous ? QVariant(QMetaType(QMetaType::Int)) : QVariant(personId));
+        q.addBindValue(fundId);
+        q.addBindValue(amountCents);
+        q.addBindValue(dateStr);
+        q.addBindValue(method);
+        q.addBindValue(checkNum.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(checkNum));
+        q.addBindValue(baseNote.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(baseNote));
+
+        if (!q.exec()) {
+            allOk = false;
+            break;
         }
-        if (fundName.isEmpty()) fundName = QString("Fund #%1").arg(fundId);
-        const QString amountStr = QString("%1%2").arg(appCurrencySymbol(),
-                                                      QString::number(amountCents / 100.0, 'f', 2));
+    }
+
+    if (allOk) {
+        db.commit();
         if (!anonymous) {
+            const QString amountStr = QString("%1%2").arg(appCurrencySymbol(), QString::number(totalAmount, 'f', 2));
             if (firstGift) {
                 DatabaseManager::logMemberHistory(personId, "First Gift",
-                    QString("First recorded contribution: %1 to %2.").arg(amountStr, fundName));
+                    QString("First recorded contribution: %1 (%2).").arg(amountStr, method));
             }
             DatabaseManager::logMemberHistory(personId, "Contribution",
-                QString("Contributed %1 to %2").arg(amountStr, fundName));
+                QString("Contributed %1 (%2)").arg(amountStr, method));
         }
-        DatabaseManager::logAudit("contributions", query.lastInsertId().toInt(), "amount", "", QString::number(amountCents), "finance");
-        refreshHistoryModel();
 
-        // Rapid batch UX: clear amount/note & person, refocus person
-        m_amountSpin->setValue(0.00);
-        m_noteEdit->clear();
-        m_personCombo->setCurrentIndex(-1);
-        m_personCombo->lineEdit()->clear();
-        m_personCombo->setFocus();
+        refreshHistoryModel();
+        refreshFundPills();
+        refreshBatchesList();
+        onResetDonationForm();
     } else {
         db.rollback();
-        QMessageBox::critical(this, "Database Error", "Failed to save contribution: " + query.lastError().text());
+        QMessageBox::critical(this, "Database Error", "Failed to save donation splits.");
+    }
+}
+
+void ContributionsWidget::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        onSaveContribution();
+        event->accept();
+    } else if (event->key() == Qt::Key_Escape) {
+        onResetDonationForm();
+        event->accept();
+    } else {
+        QWidget::keyPressEvent(event);
+    }
+}
+
+void ContributionsWidget::onNewBatchClicked() {
+    bool ok;
+    QString name = QInputDialog::getText(this, "New Giving Batch", "Batch name:", QLineEdit::Normal,
+                                         "Sunday Morning Service", &ok).trimmed();
+    if (!ok || name.isEmpty()) return;
+
+    QDate date = QDate::currentDate();
+    int defaultFundId = m_fundsList.isEmpty() ? 1 : m_fundsList[0].first;
+
+    QSqlQuery q;
+    q.prepare("INSERT INTO giving_batches (batch_name, batch_date, status, default_fund_id, default_payment_method, created_by) "
+              "VALUES (?, ?, 'In Progress', ?, 'Check', 'Admin')");
+    q.addBindValue(name);
+    q.addBindValue(date.toString("yyyy-MM-dd"));
+    q.addBindValue(defaultFundId);
+
+    if (q.exec()) {
+        int newId = q.lastInsertId().toInt();
+        if (m_tabInProgress) m_tabInProgress->setChecked(true);
+        refreshBatchesList();
+        loadBatch(newId);
+    } else {
+        QMessageBox::critical(this, "Error", "Could not create new batch: " + q.lastError().text());
+    }
+}
+
+void ContributionsWidget::onDeleteBatchClicked() {
+    if (m_currentBatchId <= 0) return;
+    auto res = QMessageBox::question(this, "Delete Batch",
+                                     QString("Are you sure you want to delete Batch #%1 ('%2')?\n\nDonations in this batch will be removed.")
+                                         .arg(QString::number(m_currentBatchId), m_txtBatchName ? m_txtBatchName->text() : ""),
+                                     QMessageBox::Yes | QMessageBox::No);
+    if (res != QMessageBox::Yes) return;
+
+    QSqlQuery q;
+    q.prepare("DELETE FROM giving_batches WHERE id = ?");
+    q.addBindValue(m_currentBatchId);
+    if (q.exec()) {
+        m_currentBatchId = -1;
+        refreshBatchesList();
+    } else {
+        QMessageBox::critical(this, "Error", "Failed to delete batch: " + q.lastError().text());
+    }
+}
+
+void ContributionsWidget::onToggleBatchCommit() {
+    if (m_currentBatchId <= 0) return;
+    const bool willCommit = (m_batchStatus == "In Progress");
+
+    if (willCommit) {
+        auto res = QMessageBox::question(this, "Commit Batch",
+                                         "Committing this batch will finalize and lock all donation entries.\nContinue?",
+                                         QMessageBox::Yes | QMessageBox::No);
+        if (res != QMessageBox::Yes) return;
+    }
+
+    QString nextStatus = willCommit ? "Committed" : "In Progress";
+    QSqlQuery q;
+    q.prepare("UPDATE giving_batches SET status = ? WHERE id = ?");
+    q.addBindValue(nextStatus);
+    q.addBindValue(m_currentBatchId);
+
+    if (q.exec()) {
+        loadBatch(m_currentBatchId);
+        refreshBatchesList();
+    } else {
+        QMessageBox::critical(this, "Error", "Could not update batch status: " + q.lastError().text());
+    }
+}
+
+void ContributionsWidget::onSaveBatchHeaderDetails() {
+    if (m_currentBatchId <= 0 || m_batchStatus == "Committed" || !m_txtBatchName || !m_batchDateEdit) return;
+    QSqlQuery q;
+    q.prepare("UPDATE giving_batches SET batch_name = ?, batch_date = ? WHERE id = ?");
+    q.addBindValue(m_txtBatchName->text().trimmed());
+    q.addBindValue(m_batchDateEdit->date().toString("yyyy-MM-dd"));
+    q.addBindValue(m_currentBatchId);
+    q.exec();
+}
+
+void ContributionsWidget::onBatchDefaultsClicked() {
+    if (m_currentBatchId <= 0 || !m_batchDateEdit || !m_methodCombo) return;
+    QDialog dlg(this);
+    dlg.setWindowTitle("Batch Defaults");
+    dlg.resize(380, 220);
+
+    QFormLayout* form = new QFormLayout(&dlg);
+    form->setSpacing(12);
+
+    QDateEdit* defDate = new QDateEdit(m_batchDateEdit->date(), &dlg);
+    defDate->setCalendarPopup(true);
+    defDate->setDisplayFormat("yyyy-MM-dd");
+
+    QComboBox* defMethod = new QComboBox(&dlg);
+    defMethod->addItems({"Check", "Cash", "Card / Online", "Bank Transfer / ACH"});
+    defMethod->setCurrentText(m_methodCombo->currentText());
+
+    QComboBox* defFund = new QComboBox(&dlg);
+    for (const auto& f : m_fundsList) {
+        defFund->addItem(f.second, f.first);
+    }
+
+    form->addRow("Default Donation Date:", defDate);
+    form->addRow("Default Payment Method:", defMethod);
+    form->addRow("Default Primary Fund:", defFund);
+
+    QDialogButtonBox* btns = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    form->addRow(btns);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        QSqlQuery q;
+        q.prepare("UPDATE giving_batches SET batch_date = ?, default_fund_id = ?, default_payment_method = ? WHERE id = ?");
+        q.addBindValue(defDate->date().toString("yyyy-MM-dd"));
+        q.addBindValue(defFund->currentData().toInt());
+        q.addBindValue(defMethod->currentText());
+        q.addBindValue(m_currentBatchId);
+        if (q.exec()) {
+            loadBatch(m_currentBatchId);
+        }
+    }
+}
+
+void ContributionsWidget::onBatchFilterChanged() {
+    if (!m_txtBatchSearch || !m_batchesList) return;
+    QString filter = m_txtBatchSearch->text().trimmed().toLower();
+    for (int i = 0; i < m_batchesList->count(); ++i) {
+        QListWidgetItem* item = m_batchesList->item(i);
+        item->setHidden(!filter.isEmpty() && !item->text().toLower().contains(filter));
     }
 }
 
 void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
-    if (m_userRole == "readonly") return;
+    if (m_userRole == "readonly" || m_batchStatus == "Committed" || !m_historyTable || !m_historyModel) return;
 
     QModelIndex index = m_historyTable->indexAt(pos);
     if (!index.isValid()) return;
 
     int row = index.row();
     int contributionId = m_historyModel->index(row, 0).data().toInt();
-    QString date = m_historyModel->index(row, 1).data().toString();
     QString name = m_historyModel->index(row, 2).data().toString();
     QString fundName = m_historyModel->index(row, 3).data().toString();
-    QString amountStr = m_historyModel->index(row, 4).data().toString();
-    QString method = m_historyModel->index(row, 5).data().toString();
+    QString amountStr = m_historyModel->index(row, 6).data().toString();
 
     QMenu menu(this);
-    QAction* actEdit = menu.addAction("✏️ Edit Amount");
+    QAction* actEdit = menu.addAction("✏️ Edit Amount...");
+    QAction* actMoveFund = menu.addAction("🏷️ Move to Another Fund...");
+    menu.addSeparator();
     QAction* actDelete = menu.addAction("❌ Delete Giving Record");
 
     QAction* selected = menu.exec(m_historyTable->viewport()->mapToGlobal(pos));
@@ -346,7 +1102,32 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
 
     QSqlDatabase db = DatabaseManager::instance().database();
 
-    if (selected == actEdit) {
+    if (selected == actMoveFund) {
+        QDialog dlg(this);
+        dlg.setWindowTitle("Move to Another Fund");
+        dlg.resize(300, 120);
+        QFormLayout* form = new QFormLayout(&dlg);
+        QComboBox* fCombo = new QComboBox(&dlg);
+        for (const auto& f : m_fundsList) {
+            fCombo->addItem(f.second, f.first);
+        }
+        form->addRow("Destination Fund:", fCombo);
+        QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        form->addRow(bb);
+        if (dlg.exec() == QDialog::Accepted && fCombo->count() > 0) {
+            int newFundId = fCombo->currentData().toInt();
+            QSqlQuery uq;
+            uq.prepare("UPDATE contributions SET fund_id = ? WHERE id = ?");
+            uq.addBindValue(newFundId);
+            uq.addBindValue(contributionId);
+            uq.exec();
+            refreshHistoryModel();
+            refreshFundPills();
+            refreshBatchesList();
+        }
+    } else if (selected == actEdit) {
         bool ok;
         double currentAmount = amountStr.replace(appCurrencySymbol(), "").toDouble();
         double newAmount = QInputDialog::getDouble(this, "Edit Contribution", 
@@ -362,15 +1143,14 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
             if (query.exec()) {
                 DatabaseManager::logAudit("contributions", contributionId, "amount", QString::number(currentAmountCents), QString::number(newAmountCents), "finance");
                 refreshHistoryModel();
-                QMessageBox::information(this, "Saved", "Contribution updated successfully.");
-            } else {
-                QMessageBox::warning(this, "Error", "Failed to update record: " + query.lastError().text());
+                refreshFundPills();
+                refreshBatchesList();
             }
         }
     } else if (selected == actDelete) {
-        QMessageBox::StandardButton reply = QMessageBox::question(this, "Confirm Delete", 
-                                                                  QString("Are you sure you want to delete this contribution of %1 from %2?").arg(amountStr, name),
-                                                                  QMessageBox::Yes | QMessageBox::No);
+        auto reply = QMessageBox::question(this, "Confirm Delete", 
+                                           QString("Delete this gift of %1 from %2?").arg(amountStr, name),
+                                           QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
             QSqlQuery query(db);
             query.prepare("DELETE FROM contributions WHERE id = ?");
@@ -378,28 +1158,11 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
             if (query.exec()) {
                 DatabaseManager::logAudit("contributions", contributionId, "amount", amountStr, "DELETED", "finance");
                 refreshHistoryModel();
-                QMessageBox::information(this, "Deleted", "Contribution deleted successfully.");
-            } else {
-                QMessageBox::warning(this, "Error", "Failed to delete record: " + query.lastError().text());
+                refreshFundPills();
+                refreshBatchesList();
             }
         }
     }
-}
-
-void ContributionsWidget::refreshFundCombo() {
-    m_fundCombo->blockSignals(true);
-    m_fundCombo->clear();
-    m_fundsList.clear();
-    QSqlQuery q;
-    if (q.exec("SELECT id, fund_name FROM funds WHERE is_active = 1 ORDER BY fund_name")) {
-        while (q.next()) {
-            int id = q.value(0).toInt();
-            QString name = q.value(1).toString();
-            m_fundsList.append({id, name});
-            m_fundCombo->addItem(name, id);
-        }
-    }
-    m_fundCombo->blockSignals(false);
 }
 
 void ContributionsWidget::onManageFunds() {
@@ -436,9 +1199,6 @@ void ContributionsWidget::onManageFunds() {
     QPushButton* btnToggle = btns->addButton("Deactivate / Reactivate", QDialogButtonBox::ActionRole);
     lay->addWidget(btns);
 
-    // Funds are referenced by existing contributions, so they are never
-    // hard-deleted — deactivation removes them from the entry form while
-    // preserving historical giving and tax statements.
     connect(btnAdd, &QPushButton::clicked, this, [this, &refreshList]() {
         bool ok;
         QString name = QInputDialog::getText(this, "New Fund", "Fund name:", QLineEdit::Normal, "", &ok).trimmed();
@@ -448,9 +1208,7 @@ void ContributionsWidget::onManageFunds() {
         q.addBindValue(name);
         if (q.exec()) {
             refreshList();
-            refreshFundCombo();
-        } else {
-            QMessageBox::warning(this, "Error", "Could not add fund (duplicate name?): " + q.lastError().text());
+            refreshContributions();
         }
     });
 
@@ -468,8 +1226,9 @@ void ContributionsWidget::onManageFunds() {
         q.addBindValue(id);
         if (q.exec()) {
             refreshList();
-            refreshFundCombo();
+            refreshContributions();
             refreshHistoryModel();
+            refreshFundPills();
         }
     });
 
@@ -482,7 +1241,7 @@ void ContributionsWidget::onManageFunds() {
         q.addBindValue(id);
         if (q.exec()) {
             refreshList();
-            refreshFundCombo();
+            refreshContributions();
         }
     });
 
@@ -525,9 +1284,6 @@ void ContributionsWidget::onExportGnuCashCsv() {
         return;
     }
 
-    // Proper CSV quoting: wrap fields containing commas/quotes/newlines and
-    // double embedded quotes (RFC 4180), since fund and donor names are free
-    // text. GnuCash's CSV import maps these columns to a transaction.
     auto csv = [](const QString& s) {
         QString v = s;
         if (v.contains(',') || v.contains('"') || v.contains('\n'))
@@ -592,23 +1348,21 @@ void ContributionsWidget::onExportGnuCashCsv() {
     file.close();
 
     QMessageBox::information(this, "Export Complete",
-        QString("Exported %1 rows totaling %2%3.\n\nIn GnuCash: File → Import → Import CSV... and map "
-                "the Deposit column to your income account splits.")
+        QString("Exported %1 rows totaling %2%3.\n\nReady to import into GnuCash.")
             .arg(QString::number(rowCount), appCurrencySymbol(), QString::number(totalCents / 100.0, 'f', 2)));
 }
 
 void ContributionsWidget::applyRole(const QString& role) {
     m_userRole = role;
-    // Feature visibility is controlled by the Modules system; roles only
-    // distinguish full access from read-only (Guest). A pastor/admin/finance
-    // user gets the full finance form.
     const bool readOnly = (role == "readonly");
-    m_btnSave->setEnabled(!readOnly);
-    m_btnManageFunds->setEnabled(!readOnly);
-    m_btnGnuCashExport->setEnabled(!readOnly);
-    m_dateEdit->setEnabled(!readOnly);
-    m_personCombo->setEnabled(!readOnly);
-    m_amountSpin->setEnabled(!readOnly);
-    m_fundCombo->setEnabled(!readOnly);
-    m_noteEdit->setReadOnly(readOnly);
+    if (m_btnSave) m_btnSave->setEnabled(!readOnly && m_batchStatus != "Committed");
+    if (m_btnAddSplit) m_btnAddSplit->setEnabled(!readOnly && m_batchStatus != "Committed");
+    if (m_btnManageFunds) m_btnManageFunds->setEnabled(!readOnly);
+    if (m_btnGnuCashExport) m_btnGnuCashExport->setEnabled(!readOnly);
+    if (m_btnNewBatch) m_btnNewBatch->setEnabled(!readOnly);
+    if (m_btnDeleteBatch) m_btnDeleteBatch->setEnabled(!readOnly);
+    if (m_btnCommitBatch) m_btnCommitBatch->setEnabled(!readOnly);
+    if (m_btnBatchDefaults) m_btnBatchDefaults->setEnabled(!readOnly);
+    if (m_txtBatchName) m_txtBatchName->setReadOnly(readOnly);
+    if (m_batchDateEdit) m_batchDateEdit->setEnabled(!readOnly);
 }

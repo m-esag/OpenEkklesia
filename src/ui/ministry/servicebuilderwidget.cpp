@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSettings>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -23,6 +24,7 @@
 #include <QHeaderView>
 #include <QMenu>
 #include <QPainter>
+#include <QPen>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
@@ -267,6 +269,39 @@ void ServiceBuilderWidget::setupUI() {
     m_playlist->setDragDropMode(QAbstractItemView::DragDrop);
     m_playlist->setDefaultDropAction(Qt::CopyAction);
     m_playlist->setAlternatingRowColors(true);
+    m_playlist->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_playlist, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_playlist->itemAt(pos);
+        if (!item) return;
+        int row = m_playlist->row(item);
+
+        QMenu menu(this);
+        QAction* actUp = menu.addAction("⬆️ Move Earlier in Service");
+        actUp->setEnabled(row > 0);
+        QAction* actDown = menu.addAction("⬇️ Move Later in Service");
+        actDown->setEnabled(row < m_playlist->count() - 1);
+        QAction* actDup = menu.addAction("📋 Duplicate Element");
+        menu.addSeparator();
+        QAction* actRemove = menu.addAction("🗑️ Remove Element from Run Sheet");
+
+        QAction* sel = menu.exec(m_playlist->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actUp && row > 0) {
+            QListWidgetItem* taken = m_playlist->takeItem(row);
+            m_playlist->insertItem(row - 1, taken);
+            m_playlist->setCurrentItem(taken);
+        } else if (sel == actDown && row < m_playlist->count() - 1) {
+            QListWidgetItem* taken = m_playlist->takeItem(row);
+            m_playlist->insertItem(row + 1, taken);
+            m_playlist->setCurrentItem(taken);
+        } else if (sel == actDup) {
+            QListWidgetItem* dup = new QListWidgetItem(*item);
+            m_playlist->insertItem(row + 1, dup);
+        } else if (sel == actRemove) {
+            onRemoveItem();
+        }
+    });
     connect(m_playlist->model(), &QAbstractItemModel::rowsInserted, this, &ServiceBuilderWidget::updateDurationCalculator);
     connect(m_playlist->model(), &QAbstractItemModel::rowsRemoved, this, &ServiceBuilderWidget::updateDurationCalculator);
     playlistLayout->addWidget(m_playlist, 1);
@@ -365,7 +400,11 @@ void ServiceBuilderWidget::setupUI() {
     m_serviceTimeEdit = new QTimeEdit(this);
     m_serviceTimeEdit->setObjectName("serviceTimeEdit");
     m_serviceTimeEdit->setDisplayFormat("h:mm AP");
-    m_serviceTimeEdit->setTime(QTime(10, 0));
+    {
+        QSettings s("OpenEkklesia", "CHMS");
+        QTime defTime = QTime::fromString(s.value("defaultServiceTime", "10:00").toString(), "HH:mm");
+        m_serviceTimeEdit->setTime(defTime.isValid() ? defTime : QTime(10, 0));
+    }
     m_serviceTimeEdit->setToolTip("Service starts at — the run sheet shows each item's start time");
     dateLayout->addWidget(new QLabel("at:", this));
     dateLayout->addWidget(m_serviceTimeEdit);
@@ -418,6 +457,25 @@ void ServiceBuilderWidget::setupUI() {
     m_volunteerList->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_volunteerList->setSelectionMode(QAbstractItemView::SingleSelection);
     m_volunteerList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_volunteerList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_volunteerList, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        int r = m_volunteerList->rowAt(pos.y());
+        if (r < 0) return;
+        m_volunteerList->selectRow(r);
+
+        QMenu menu(this);
+        QAction* actIcal = menu.addAction("📅 Export Volunteer iCal (.ics)");
+        QAction* actAttended = menu.addAction("✅ Mark Volunteers Attended");
+        menu.addSeparator();
+        QAction* actUnschedule = menu.addAction("❌ Unassign Selected Volunteer");
+
+        QAction* sel = menu.exec(m_volunteerList->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actIcal) onExportIcal();
+        else if (sel == actAttended) onMarkAttended();
+        else if (sel == actUnschedule) onUnscheduleVolunteer();
+    });
     volunteerLayout->addWidget(m_volunteerList, 1);
 
     QHBoxLayout* volActions = new QHBoxLayout();
@@ -1097,10 +1155,10 @@ void ServiceBuilderWidget::updateDurationCalculator() {
         totalMins += qMax(0, mins);
     }
 
-    // Overrun guard: red past 90 minutes, amber past a 75-minute target so a
-    // coordinator sees they are running long for a typical slot.
-    const int kAmberLimit = 75;
-    const int kOverrunLimit = 90;
+    // Overrun guard: dynamically loaded from Settings targetServiceDuration
+    QSettings s("OpenEkklesia", "CHMS");
+    const int kAmberLimit = s.value("targetServiceDuration", 75).toInt();
+    const int kOverrunLimit = kAmberLimit + 15;
     if (totalMins > kOverrunLimit) {
         m_lblTotalDuration->setText(QString("⏱️ Total: %1 mins ⚠️ overruns by %2 min (limit %3)")
                                         .arg(totalMins).arg(totalMins - kOverrunLimit).arg(kOverrunLimit));
@@ -1279,9 +1337,11 @@ QString ServiceBuilderWidget::volunteerIcal(const QDate& date, const QTime& star
         out += QString("SUMMARY:Serve as %1 (%2)\n").arg(esc(rn.first), esc(rn.second));
         out += QString("DESCRIPTION:Volunteer schedule for %1 — %2\\nRole: %3\n")
                    .arg(date.toString("MMMM d, yyyy"), esc(rn.second), esc(rn.first));
+        QSettings s("OpenEkklesia", "CHMS");
+        const int alarmMins = s.value("volunteerAlarmMinutes", 60).toInt();
         out += "STATUS:CONFIRMED\n";
         out += "BEGIN:VALARM\n";
-        out += "TRIGGER:-PT60M\n";
+        out += QString("TRIGGER:-PT%1M\n").arg(alarmMins);
         out += "ACTION:DISPLAY\n";
         out += QString("DESCRIPTION:Reminder: %1 serves as %2\n").arg(esc(rn.second), esc(rn.first));
         out += "END:VALARM\n";

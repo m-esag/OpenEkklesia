@@ -838,6 +838,41 @@ void MainWindow::populatePages() {
     };
     m_groupsTreeWidget->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_groupsTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_groupsTreeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_groupsTreeWidget, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QTreeWidgetItem* item = m_groupsTreeWidget->itemAt(pos);
+        if (!item) return;
+        int groupId = item->data(0, Qt::UserRole).toInt();
+        QString groupName = item->text(0);
+        if (groupId <= 0) return;
+
+        QMenu menu(this);
+        QAction* actEdit = menu.addAction(QString("✏️ Edit '%1' Details...").arg(groupName));
+        QAction* actAddSub = menu.addAction("➕ Add Sub-Group / Sub-Ministry...");
+        QAction* actAddMember = menu.addAction("👥 Add Member to Group...");
+        QAction* actGraph = menu.addAction("🕸️ Highlight in Connection Graph");
+        menu.addSeparator();
+        QAction* actArchive = menu.addAction("🗄️ Toggle Archive Status");
+        QAction* actDelete = menu.addAction("🗑️ Delete Group...");
+
+        QAction* sel = menu.exec(m_groupsTreeWidget->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actEdit) {
+            onEditGroup();
+        } else if (sel == actAddSub) {
+            onAddGroup();
+        } else if (sel == actAddMember) {
+            m_selectedGroupId = groupId;
+            refreshGroupDetailPanel(groupId);
+        } else if (sel == actGraph) {
+            onGraphClicked();
+        } else if (sel == actArchive) {
+            onArchiveGroup();
+        } else if (sel == actDelete) {
+            onDeleteGroup();
+        }
+    });
     splitter->addWidget(m_groupsTreeWidget);
 
     connect(m_groupsTreeWidget, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* current, QTreeWidgetItem*) {
@@ -958,6 +993,50 @@ void MainWindow::populatePages() {
     m_groupRosterTable->horizontalHeader()->setMinimumSectionSize(70);
     m_groupRosterTable->horizontalHeader()->setDefaultSectionSize(100);
     m_groupRosterTable->horizontalHeader()->setStretchLastSection(false);
+    m_groupRosterTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_groupRosterTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        int r = m_groupRosterTable->rowAt(pos.y());
+        if (r < 0 || !m_groupRosterTable->item(r, 0)) return;
+        int personId = m_groupRosterTable->item(r, 0)->data(Qt::UserRole).toInt();
+        int relId = m_groupRosterTable->item(r, 0)->data(Qt::UserRole + 1).toInt();
+        QString memName = m_groupRosterTable->item(r, 0)->text();
+
+        QMenu menu(this);
+        QAction* actProfile = menu.addAction(QString("👤 View %1's Profile").arg(memName));
+        QAction* actCareNote = menu.addAction("✍️ Log Pastoral Care Note...");
+        QMenu* mRole = menu.addMenu("👑 Change Assigned Role");
+        QAction* rMember = mRole->addAction("Member");
+        QAction* rLeader = mRole->addAction("Leader");
+        QAction* rCoLeader = mRole->addAction("Co-Leader");
+
+        menu.addSeparator();
+        QAction* actRemove = menu.addAction(QString("❌ Remove %1 from Group").arg(memName));
+
+        QAction* sel = menu.exec(m_groupRosterTable->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actProfile) {
+            selectPerson(personId);
+        } else if (sel == actCareNote) {
+            onLogQuickPastoralNote(personId);
+        } else if (mRole->actions().contains(sel)) {
+            QString newRole = sel->text();
+            QSqlQuery up;
+            up.prepare("UPDATE entity_relationships SET relationship_type = ? WHERE id = ?");
+            up.addBindValue(newRole);
+            up.addBindValue(relId);
+            up.exec();
+            refreshGroupDetailPanel(m_selectedGroupId);
+            refreshGroupsTree();
+        } else if (sel == actRemove) {
+            QSqlQuery dq;
+            dq.prepare("DELETE FROM entity_relationships WHERE id = ?");
+            dq.addBindValue(relId);
+            dq.exec();
+            refreshGroupDetailPanel(m_selectedGroupId);
+            refreshGroupsTree();
+        }
+    });
     m_groupRosterTable->setWordWrap(false);
     m_groupRosterTable->verticalHeader()->setVisible(false);
     m_groupRosterTable->setAlternatingRowColors(true);
@@ -2262,6 +2341,8 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             QTableWidgetItem* nameItem = new QTableWidgetItem(memName);
             nameItem->setForeground(QBrush(tok.textPrimary));
             nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
+            nameItem->setData(Qt::UserRole, personId);
+            nameItem->setData(Qt::UserRole + 1, relId);
             m_groupRosterTable->setItem(r, 0, nameItem);
 
             // Role Combo

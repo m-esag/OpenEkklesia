@@ -734,25 +734,6 @@ void GraphWidget::setupUI() {
         m_scene->update();
     });
 
-    // Zoom buttons in Toolbar
-    m_btnZoomIn = new QPushButton("🔍+", this);
-    m_btnZoomIn->setToolTip("Zoom In");
-    m_btnZoomIn->setObjectName("secondaryBtn");
-    m_btnZoomIn->setStyleSheet("font-size: 11px; padding: 4px 8px; font-weight: bold;");
-    connect(m_btnZoomIn, &QPushButton::clicked, this, &GraphWidget::onZoomIn);
-
-    m_btnZoomOut = new QPushButton("🔍-", this);
-    m_btnZoomOut->setToolTip("Zoom Out");
-    m_btnZoomOut->setObjectName("secondaryBtn");
-    m_btnZoomOut->setStyleSheet("font-size: 11px; padding: 4px 8px; font-weight: bold;");
-    connect(m_btnZoomOut, &QPushButton::clicked, this, &GraphWidget::onZoomOut);
-
-    m_btnZoomReset = new QPushButton("⟲ Fit", this);
-    m_btnZoomReset->setToolTip("Fit / Reset Zoom");
-    m_btnZoomReset->setObjectName("secondaryBtn");
-    m_btnZoomReset->setStyleSheet("font-size: 11px; padding: 4px 8px;");
-    connect(m_btnZoomReset, &QPushButton::clicked, this, &GraphWidget::onZoomReset);
-
     row1->addWidget(m_cmbMinistryBranch);
     row1->addWidget(m_btnToggleSelectMode);
     row1->addWidget(m_btnTogglePeople);
@@ -764,9 +745,6 @@ void GraphWidget::setupUI() {
     row1->addWidget(m_btnToggleBridgeNodes);
     row1->addWidget(m_btnToggleFamilyDynasty);
     row1->addStretch();
-    row1->addWidget(m_btnZoomIn);
-    row1->addWidget(m_btnZoomOut);
-    row1->addWidget(m_btnZoomReset);
 
     m_btnToggleLayout = new QPushButton("⚡ Force-Directed", this);
     m_btnToggleLayout->setObjectName("secondaryBtn");
