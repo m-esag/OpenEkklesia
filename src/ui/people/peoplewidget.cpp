@@ -1,5 +1,7 @@
 #include "peoplewidget.h"
 #include "../database/databasemanager.h"
+#include <QDesktopServices>
+#include <QUrl>
 #include "../core/thememanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -604,6 +606,25 @@ void PeopleWidget::setupUI() {
     formMember->addRow("Join Date:", m_joinDateEdit);
     layCardMember->addLayout(formMember);
     layPageIdent->addWidget(cardMember);
+
+    // Documents Card: vault documents linked to this person (membership
+    // applications and similar records filed from the Document Vault).
+    QFrame* cardDocs = new QFrame(pageIdentity);
+    cardDocs->setObjectName("cardWidget");
+    QVBoxLayout* layCardDocs = new QVBoxLayout(cardDocs);
+    layCardDocs->setContentsMargins(12, 10, 12, 10);
+    layCardDocs->setSpacing(8);
+
+    QLabel* lblDocsTitle = new QLabel("📄 LINKED DOCUMENTS", cardDocs);
+    lblDocsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardDocs->addWidget(lblDocsTitle);
+
+    m_lstPersonDocs = new QListWidget(cardDocs);
+    m_lstPersonDocs->setMaximumHeight(95);
+    connect(m_lstPersonDocs, &QListWidget::itemDoubleClicked, this, &PeopleWidget::onOpenPersonDocument);
+    layCardDocs->addWidget(m_lstPersonDocs);
+
+    layPageIdent->addWidget(cardDocs);
     layPageIdent->addStretch();
 
     QScrollArea* scrollIdent = new QScrollArea();
@@ -1339,6 +1360,43 @@ void PeopleWidget::updateGivingSummary(int personId) {
     }
 }
 
+void PeopleWidget::updateDocumentsSection(int personId) {
+    if (!m_lstPersonDocs) return;
+    m_lstPersonDocs->clear();
+
+    QSqlQuery q;
+    q.prepare("SELECT id, category, title, meeting_date, file_path FROM vault_documents "
+              "WHERE person_id = ? ORDER BY meeting_date DESC");
+    q.addBindValue(personId);
+    if (q.exec()) {
+        while (q.next()) {
+            QListWidgetItem* item = new QListWidgetItem(
+                QString("📄 %1 — %2 (%3)").arg(q.value(1).toString(), q.value(2).toString(), q.value(3).toString()),
+                m_lstPersonDocs);
+            // Store the filename for the double-click open handler.
+            item->setData(Qt::UserRole, q.value(4).toString());
+            item->setToolTip("Double-click to open the stored document.");
+        }
+    }
+    if (m_lstPersonDocs->count() == 0) {
+        m_lstPersonDocs->addItem("No linked documents (file membership forms in the Document Vault).");
+    }
+}
+
+void PeopleWidget::onOpenPersonDocument(QListWidgetItem* item) {
+    if (!item) return;
+    const QString fileName = item->data(Qt::UserRole).toString();
+    if (fileName.isEmpty()) return; // placeholder row
+
+    const QString abs = DatabaseManager::vaultDirPath() + "/" + fileName;
+    if (!QFile::exists(abs)) {
+        QMessageBox::warning(this, "File Missing",
+            QString("The document was not found at:\n%1\n\nIt may have been removed or the vault moved.").arg(abs));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(abs));
+}
+
 void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIndex& previous) {
     Q_UNUSED(previous);
     if (!current.isValid()) {
@@ -1451,6 +1509,7 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
 
     // Update Giving Summary
     updateGivingSummary(personId);
+    updateDocumentsSection(personId);
 
     // Fetch Connections
     m_connectionsList->clear();

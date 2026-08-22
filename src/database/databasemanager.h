@@ -22,6 +22,11 @@ public:
 
     QSqlDatabase database() const;
 
+    // Canonical vault directory: always the DB's own directory + "/vault" so
+    // documents share the app data root regardless of how the DB path was
+    // resolved. Pure path computation — callers own mkdir/permissions.
+    static QString vaultDirPath();
+
     bool purgeDemoData();
 
     static void logAudit(const QString& tableName, int recordId, const QString& fieldName, const QString& oldValue, const QString& newValue, const QString& changedBy = "system");
@@ -29,7 +34,7 @@ public:
 
     // Highest schema version known to this build. migrateSchema() will run any
     // migrations between the DB's recorded version and this number, in order.
-    static constexpr int kLatestSchemaVersion = 14;
+    static constexpr int kLatestSchemaVersion = 15;
 
 private:
     DatabaseManager() = default;

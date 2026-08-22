@@ -110,6 +110,7 @@ private slots:
     void onStatusFilterChanged(int id);
     void onSortByChanged(int index);
     void onLogCareEntry();
+    void onOpenPersonDocument(QListWidgetItem* item);
 
 private:
     void setupUI();
@@ -132,6 +133,7 @@ private:
     // Caller owns the transaction. Returns true on success.
     bool deletePersonCascade(QSqlQuery& q, int personId);
     void updateGivingSummary(int personId);
+    void updateDocumentsSection(int personId);
     void setDirty(bool dirty);
     void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 
@@ -199,6 +201,9 @@ private:
     QLabel* m_lblGivingLastDate;
     QListWidget* m_lstRecentGiving;
     QPushButton* m_btnGenerateStatement;
+
+    // Tab 0: Linked Documents (vault records tied to this person)
+    QListWidget* m_lstPersonDocs;
 
     // Tab 4: Ministry Profile Chips & Tags
     QLineEdit* m_giftsEdit;

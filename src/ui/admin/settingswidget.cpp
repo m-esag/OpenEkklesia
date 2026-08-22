@@ -93,9 +93,11 @@ void SettingsWidget::setupUI() {
         "🏛️ General & Profile",
         "🎨 Appearance & Theme",
         "🧩 Modules & Features",
+        "🎵 Service & Liturgy Defaults",
         "🌍 Localization & Region",
         "🕸️ Pastoral & Graph",
-        "💾 Data & Backup",
+        "🖥️ Kiosk & Security",
+        "💾 Data, Backup & Integrations",
         "⚠️ Danger Zone"
     };
 
@@ -450,7 +452,7 @@ void SettingsWidget::setupUI() {
     m_chkModGiving = new QCheckBox("Giving & Donations (Offering batch entry, funds, tax receipts, Planning Center import)", pageModules);
     m_chkModLedger = new QCheckBox("Double-Entry Ledger (Chart of accounts, splits, budgets — leave OFF if you use GnuCash)", pageModules);
     m_chkModInventory = new QCheckBox("Asset & Equipment Inventory (Barcodes, item locations, check-outs)", pageModules);
-    m_chkModVault = new QCheckBox("Secure Document Vault (Encrypted bylaws, board minutes, contracts)", pageModules);
+    m_chkModVault = new QCheckBox("Private Document Vault (Membership forms, meeting minutes, legal records)", pageModules);
     m_chkModKiosk = new QCheckBox("Self-Service Nursery Check-In Kiosk (Full-screen checkin & barcode badging)", pageModules);
     layModFin->addWidget(m_chkModGiving);
     layModFin->addWidget(m_chkModLedger);
@@ -530,7 +532,44 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollModules);
 
     // -------------------------------------------------------------
-    // Page 3: Localization & Region
+    // Page 3: Service & Liturgy Defaults
+    // -------------------------------------------------------------
+    QScrollArea* scrollService = new QScrollArea(this);
+    scrollService->setWidgetResizable(true);
+    scrollService->setFrameShape(QFrame::NoFrame);
+    QWidget* pageService = new QWidget();
+    QVBoxLayout* layService = new QVBoxLayout(pageService);
+    layService->setContentsMargins(10, 0, 10, 10);
+    layService->setSpacing(16);
+
+    QGroupBox* grpServiceDefaults = new QGroupBox("🎵 Sunday Service Planning & Calendar Defaults", pageService);
+    QFormLayout* formService = new QFormLayout(grpServiceDefaults);
+    formService->setSpacing(12);
+
+    m_timeDefaultService = new QTimeEdit(QTime(10, 0), pageService);
+    m_timeDefaultService->setDisplayFormat("hh:mm AP");
+
+    m_spnTargetDuration = new QSpinBox(pageService);
+    m_spnTargetDuration->setRange(30, 240);
+    m_spnTargetDuration->setSuffix(" minutes");
+    m_spnTargetDuration->setValue(75);
+
+    m_spnIcalAlarmMins = new QSpinBox(pageService);
+    m_spnIcalAlarmMins->setRange(0, 720);
+    m_spnIcalAlarmMins->setSuffix(" mins prior");
+    m_spnIcalAlarmMins->setValue(60);
+
+    formService->addRow("Default Service Start Time:", m_timeDefaultService);
+    formService->addRow("Target Liturgy Run Time:", m_spnTargetDuration);
+    formService->addRow("Volunteer Calendar Reminder Alarm:", m_spnIcalAlarmMins);
+
+    layService->addWidget(grpServiceDefaults);
+    layService->addStretch();
+    scrollService->setWidget(pageService);
+    m_stackPages->addWidget(scrollService);
+
+    // -------------------------------------------------------------
+    // Page 4: Localization & Region
     // -------------------------------------------------------------
     QScrollArea* scrollLocale = new QScrollArea(this);
     scrollLocale->setWidgetResizable(true);
@@ -579,7 +618,7 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollLocale);
 
     // -------------------------------------------------------------
-    // Page 4: Pastoral & Graph Thresholds
+    // Page 5: Pastoral & Graph Thresholds
     // -------------------------------------------------------------
     QScrollArea* scrollPastoral = new QScrollArea(this);
     scrollPastoral->setWidgetResizable(true);
@@ -592,6 +631,11 @@ void SettingsWidget::setupUI() {
     QGroupBox* grpThresholds = new QGroupBox("🕸️ Connection Graph & Care Analytics", pagePastoral);
     QFormLayout* formGraph = new QFormLayout(grpThresholds);
     formGraph->setSpacing(12);
+
+    m_spnInactivityDays = new QSpinBox(pagePastoral);
+    m_spnInactivityDays->setRange(14, 365);
+    m_spnInactivityDays->setSuffix(" days");
+    m_spnInactivityDays->setValue(90);
 
     m_spnBurnoutThreshold = new QSpinBox(pagePastoral);
     m_spnBurnoutThreshold->setRange(2, 10);
@@ -607,9 +651,20 @@ void SettingsWidget::setupUI() {
     m_spnFollowUpDays->setSuffix(" days");
     m_spnFollowUpDays->setValue(14);
 
+    m_spnSmartBridgeThreshold = new QSpinBox(pagePastoral);
+    m_spnSmartBridgeThreshold->setRange(20, 90);
+    m_spnSmartBridgeThreshold->setSuffix("%");
+    m_spnSmartBridgeThreshold->setValue(40);
+
+    m_chkGraphPhysicsDamping = new QCheckBox("Enable Live Force-Directed Physics Animation", pagePastoral);
+    m_chkGraphPhysicsDamping->setChecked(true);
+
+    formGraph->addRow("Pastoral Inactivity Alert Window:", m_spnInactivityDays);
     formGraph->addRow("Volunteer Burnout Threshold (Group Count):", m_spnBurnoutThreshold);
     formGraph->addRow("Ministry Family Dominance Alert Percentage:", m_spnFamilyDominancePercent);
     formGraph->addRow("Default Pastoral Care Follow-up Window:", m_spnFollowUpDays);
+    formGraph->addRow("Smart Bridge Minimum Match Threshold:", m_spnSmartBridgeThreshold);
+    formGraph->addRow("Graph Dynamics:", m_chkGraphPhysicsDamping);
 
     layPastoral->addWidget(grpThresholds);
     layPastoral->addStretch();
@@ -617,7 +672,38 @@ void SettingsWidget::setupUI() {
     m_stackPages->addWidget(scrollPastoral);
 
     // -------------------------------------------------------------
-    // Page 5: Data & Backup
+    // Page 6: Kiosk & Nursery Security
+    // -------------------------------------------------------------
+    QScrollArea* scrollKiosk = new QScrollArea(this);
+    scrollKiosk->setWidgetResizable(true);
+    scrollKiosk->setFrameShape(QFrame::NoFrame);
+    QWidget* pageKiosk = new QWidget();
+    QVBoxLayout* layKiosk = new QVBoxLayout(pageKiosk);
+    layKiosk->setContentsMargins(10, 0, 10, 10);
+    layKiosk->setSpacing(16);
+
+    QGroupBox* grpKiosk = new QGroupBox("🖥️ Self-Service Kiosk & Child Safety", pageKiosk);
+    QFormLayout* formKiosk = new QFormLayout(grpKiosk);
+    formKiosk->setSpacing(12);
+
+    m_spnKioskTimeout = new QSpinBox(pageKiosk);
+    m_spnKioskTimeout->setRange(15, 300);
+    m_spnKioskTimeout->setSuffix(" seconds");
+    m_spnKioskTimeout->setValue(45);
+
+    m_chkKioskRequirePin = new QCheckBox("Require 4-digit Security PIN for Child Pickup & Badging", pageKiosk);
+    m_chkKioskRequirePin->setChecked(true);
+
+    formKiosk->addRow("Inactivity Screen Reset Timeout:", m_spnKioskTimeout);
+    formKiosk->addRow("Nursery Guardian Release Mode:", m_chkKioskRequirePin);
+
+    layKiosk->addWidget(grpKiosk);
+    layKiosk->addStretch();
+    scrollKiosk->setWidget(pageKiosk);
+    m_stackPages->addWidget(scrollKiosk);
+
+    // -------------------------------------------------------------
+    // Page 7: Data, Backup & Integrations
     // -------------------------------------------------------------
     QScrollArea* scrollData = new QScrollArea(this);
     scrollData->setWidgetResizable(true);
@@ -627,7 +713,7 @@ void SettingsWidget::setupUI() {
     layData->setContentsMargins(10, 0, 10, 10);
     layData->setSpacing(16);
 
-    QGroupBox* grpDb = new QGroupBox("💾 Database Operations & Maintenance", pageData);
+    QGroupBox* grpDb = new QGroupBox("💾 Database Operations & Lifecycle", pageData);
     QVBoxLayout* grpDbLay = new QVBoxLayout(grpDb);
     grpDbLay->setSpacing(12);
 
@@ -635,6 +721,31 @@ void SettingsWidget::setupUI() {
     m_lblDbPath->setWordWrap(true);
     m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: rgba(0, 0, 0, 0.2);");
     grpDbLay->addWidget(m_lblDbPath);
+
+    QFormLayout* formLifecycle = new QFormLayout();
+    formLifecycle->setSpacing(10);
+
+    m_cmbAutoBackupSchedule = new QComboBox(pageData);
+    m_cmbAutoBackupSchedule->addItem("Weekly (Recommended - Automated 7-Day Snapshots)", "weekly");
+    m_cmbAutoBackupSchedule->addItem("Daily (High Frequency Backup)", "daily");
+    m_cmbAutoBackupSchedule->addItem("Monthly (Low Frequency)", "monthly");
+    m_cmbAutoBackupSchedule->addItem("Disabled (Manual Export Only)", "disabled");
+
+    m_spnBackupRetention = new QSpinBox(pageData);
+    m_spnBackupRetention->setRange(3, 50);
+    m_spnBackupRetention->setSuffix(" snapshots");
+    m_spnBackupRetention->setValue(10);
+
+    formLifecycle->addRow("Automated Backup Schedule:", m_cmbAutoBackupSchedule);
+    formLifecycle->addRow("Backup Snapshot Retention:", m_spnBackupRetention);
+    grpDbLay->addLayout(formLifecycle);
+
+    QHBoxLayout* pcoRow = new QHBoxLayout();
+    m_lblPcoStatusBadge = new QLabel("⚪ Planning Center Online: Configured via API Dialog", pageData);
+    m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255,255,255,0.06);");
+    pcoRow->addWidget(m_lblPcoStatusBadge);
+    pcoRow->addStretch();
+    grpDbLay->addLayout(pcoRow);
 
     QHBoxLayout* dbActions = new QHBoxLayout();
     m_btnBackupDb = new QPushButton("📦 Export Database Backup (.db)", pageData);
@@ -913,13 +1024,23 @@ void SettingsWidget::setupUI() {
     connect(m_txtEmail, &QLineEdit::textChanged, this, trackChanges);
     connect(m_txtWebsite, &QLineEdit::textChanged, this, trackChanges);
     connect(m_txtTaxId, &QLineEdit::textChanged, this, trackChanges);
+    connect(m_timeDefaultService, &QTimeEdit::timeChanged, this, trackChanges);
+    connect(m_spnTargetDuration, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_spnIcalAlarmMins, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_cmbCurrency, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_cmbDateFormat, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_cmbStartOfWeek, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_cmbTimezone, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
+    connect(m_spnInactivityDays, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnBurnoutThreshold, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnFamilyDominancePercent, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnFollowUpDays, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_spnSmartBridgeThreshold, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_chkGraphPhysicsDamping, &QCheckBox::toggled, this, trackChanges);
+    connect(m_spnKioskTimeout, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_chkKioskRequirePin, &QCheckBox::toggled, this, trackChanges);
+    connect(m_cmbAutoBackupSchedule, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
+    connect(m_spnBackupRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_chkAutoCollapseSidebar, &QCheckBox::toggled, this, trackChanges);
 
     m_navList->setCurrentRow(0);
@@ -940,13 +1061,15 @@ void SettingsWidget::onSearchTextChanged(const QString& text) {
         } else {
             bool matches = item->text().toLower().contains(q);
             // Search inside category keywords
-            if (i == 0 && (q.contains("church") || q.contains("profile") || q.contains("email") || q.contains("phone") || q.contains("tax") || q.contains("address") || q.contains("denomination") || q.contains("name"))) matches = true;
-            if (i == 1 && (q.contains("theme") || q.contains("color") || q.contains("dark") || q.contains("light") || q.contains("font") || q.contains("radius") || q.contains("brand") || q.contains("preview"))) matches = true;
-            if (i == 2 && (q.contains("module") || q.contains("feature") || q.contains("toggle") || q.contains("plugin") || q.contains("kiosk") || q.contains("planning") || q.contains("facilities") || q.contains("vault") || q.contains("inventory") || q.contains("finance"))) matches = true;
-            if (i == 3 && (q.contains("currency") || q.contains("date") || q.contains("week") || q.contains("timezone") || q.contains("locale") || q.contains("format"))) matches = true;
-            if (i == 4 && (q.contains("graph") || q.contains("burnout") || q.contains("pastoral") || q.contains("care") || q.contains("dominance") || q.contains("follow"))) matches = true;
-            if (i == 5 && (q.contains("backup") || q.contains("compact") || q.contains("vacuum") || q.contains("audit") || q.contains("share") || q.contains("export") || q.contains("database"))) matches = true;
-            if (i == 6 && (q.contains("danger") || q.contains("purge") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
+            if (i == 0 && (q.contains("church") || q.contains("profile") || q.contains("email") || q.contains("phone") || q.contains("tax") || q.contains("address") || q.contains("denomination") || q.contains("name") || q.contains("logo"))) matches = true;
+            if (i == 1 && (q.contains("theme") || q.contains("color") || q.contains("dark") || q.contains("light") || q.contains("font") || q.contains("radius") || q.contains("brand") || q.contains("preview") || q.contains("contrast") || q.contains("gallery"))) matches = true;
+            if (i == 2 && (q.contains("module") || q.contains("feature") || q.contains("toggle") || q.contains("plugin") || q.contains("preset"))) matches = true;
+            if (i == 3 && (q.contains("service") || q.contains("liturgy") || q.contains("worship") || q.contains("time") || q.contains("duration") || q.contains("alarm") || q.contains("ical") || q.contains("calendar"))) matches = true;
+            if (i == 4 && (q.contains("currency") || q.contains("date") || q.contains("week") || q.contains("timezone") || q.contains("locale") || q.contains("format") || q.contains("symbol"))) matches = true;
+            if (i == 5 && (q.contains("graph") || q.contains("burnout") || q.contains("pastoral") || q.contains("care") || q.contains("dominance") || q.contains("inactivity") || q.contains("smart bridge") || q.contains("physics"))) matches = true;
+            if (i == 6 && (q.contains("kiosk") || q.contains("nursery") || q.contains("checkin") || q.contains("pin") || q.contains("timeout") || q.contains("security") || q.contains("child"))) matches = true;
+            if (i == 7 && (q.contains("backup") || q.contains("compact") || q.contains("vacuum") || q.contains("audit") || q.contains("share") || q.contains("export") || q.contains("database") || q.contains("pco") || q.contains("retention") || q.contains("planning center"))) matches = true;
+            if (i == 8 && (q.contains("danger") || q.contains("purge") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
             item->setHidden(!matches);
         }
     }
@@ -1114,9 +1237,35 @@ void SettingsWidget::loadSettings() {
     int tzIdx = m_cmbTimezone->findData(s.value("timezone", "local").toString());
     if (tzIdx >= 0) m_cmbTimezone->setCurrentIndex(tzIdx);
 
+    m_timeDefaultService->setTime(QTime::fromString(s.value("defaultServiceTime", "10:00").toString(), "HH:mm"));
+    if (!m_timeDefaultService->time().isValid()) m_timeDefaultService->setTime(QTime(10, 0));
+
+    m_spnTargetDuration->setValue(s.value("targetServiceDuration", 75).toInt());
+    m_spnIcalAlarmMins->setValue(s.value("volunteerAlarmMinutes", 60).toInt());
+
+    m_spnInactivityDays->setValue(s.value("inactivityDays", 90).toInt());
     m_spnBurnoutThreshold->setValue(s.value("burnoutThreshold", 3).toInt());
     m_spnFamilyDominancePercent->setValue(s.value("familyDominancePercent", 50).toInt());
     m_spnFollowUpDays->setValue(s.value("followUpDays", 14).toInt());
+    m_spnSmartBridgeThreshold->setValue(s.value("smartBridgeMinScore", 40).toInt());
+    m_chkGraphPhysicsDamping->setChecked(s.value("graphPhysicsEnabled", true).toBool());
+
+    m_spnKioskTimeout->setValue(s.value("kioskTimeoutSeconds", 45).toInt());
+    m_chkKioskRequirePin->setChecked(s.value("kioskRequirePin", true).toBool());
+
+    int schedIdx = m_cmbAutoBackupSchedule->findData(s.value("autoBackupSchedule", "weekly").toString());
+    if (schedIdx >= 0) m_cmbAutoBackupSchedule->setCurrentIndex(schedIdx);
+    m_spnBackupRetention->setValue(s.value("backupRetentionCount", 10).toInt());
+
+    // Update live PCO badge
+    const QString pcoId = s.value("pcoAppId").toString();
+    if (!pcoId.isEmpty()) {
+        m_lblPcoStatusBadge->setText(QString("🟢 Planning Center Online: Connected (App ID: %1)").arg(pcoId));
+        m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(166, 227, 161, 0.15); color: #a6e3a1;");
+    } else {
+        m_lblPcoStatusBadge->setText("⚪ Planning Center Online: Not Configured");
+        m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255, 255, 255, 0.06);");
+    }
 
     populateThemePresets(m_cmbThemeModeFilter->currentIndex());
 
@@ -1173,9 +1322,22 @@ void SettingsWidget::saveSettings() {
     s.setValue("startOfWeek", m_cmbStartOfWeek->currentData().toInt());
     s.setValue("timezone", m_cmbTimezone->currentData().toString());
 
+    s.setValue("defaultServiceTime", m_timeDefaultService->time().toString("HH:mm"));
+    s.setValue("targetServiceDuration", m_spnTargetDuration->value());
+    s.setValue("volunteerAlarmMinutes", m_spnIcalAlarmMins->value());
+
+    s.setValue("inactivityDays", m_spnInactivityDays->value());
     s.setValue("burnoutThreshold", m_spnBurnoutThreshold->value());
     s.setValue("familyDominancePercent", m_spnFamilyDominancePercent->value());
     s.setValue("followUpDays", m_spnFollowUpDays->value());
+    s.setValue("smartBridgeMinScore", m_spnSmartBridgeThreshold->value());
+    s.setValue("graphPhysicsEnabled", m_chkGraphPhysicsDamping->isChecked());
+
+    s.setValue("kioskTimeoutSeconds", m_spnKioskTimeout->value());
+    s.setValue("kioskRequirePin", m_chkKioskRequirePin->isChecked());
+
+    s.setValue("autoBackupSchedule", m_cmbAutoBackupSchedule->currentData().toString());
+    s.setValue("backupRetentionCount", m_spnBackupRetention->value());
 
     if (m_chkSyncSystemTheme->isChecked()) {
         ThemeManager::instance().loadTheme("system_auto");
