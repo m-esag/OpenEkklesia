@@ -48,8 +48,8 @@ void CommandPaletteDialog::setupUI() {
     frame->setObjectName("paletteFrame");
     frame->setStyleSheet(
         "QWidget#paletteFrame { "
-        "  background-color: #1e1e2e; "
-        "  border: 1px solid #313244; "
+        "  background-color: palette(base); "
+        "  border: 1px solid palette(mid); "
         "  border-radius: 12px; "
         "}"
     );
@@ -68,8 +68,8 @@ void CommandPaletteDialog::setupUI() {
     m_searchEdit->setPlaceholderText("Type a command or search entities (Ctrl+K)...");
     m_searchEdit->setStyleSheet(
         "QLineEdit { "
-        "  background-color: #11111b; "
-        "  border: 1px solid #313244; "
+        "  background-color: palette(base); "
+        "  border: 1px solid palette(mid); "
         "  border-radius: 8px; "
         "  color: palette(text); "
         "  font-size: 14px; "
@@ -93,7 +93,7 @@ void CommandPaletteDialog::setupUI() {
         "  border-radius: 6px; "
         "}"
         "QListWidget::item:hover { "
-        "  background-color: #313244; "
+        "  background-color: palette(mid); "
         "  color: palette(text); "
         "}"
         "QListWidget::item:selected { "

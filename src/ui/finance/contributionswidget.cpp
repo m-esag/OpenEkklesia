@@ -2,6 +2,7 @@
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
 #include "thememanager.h"
+#include "../core/iconmanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -81,16 +82,19 @@ void ContributionsWidget::setupUI() {
     titleRow->addWidget(m_lblBatchStatusBadge);
     titleRow->addStretch();
 
-    m_btnBatchDefaults = new QPushButton("⚙️ Defaults", headerCard);
+    m_btnBatchDefaults = new QPushButton(" Defaults", headerCard);
+    m_btnBatchDefaults->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
     m_btnBatchDefaults->setObjectName("secondaryBtn");
     m_btnBatchDefaults->setToolTip("Configure default date, payment method, and fund for this batch");
     connect(m_btnBatchDefaults, &QPushButton::clicked, this, &ContributionsWidget::onBatchDefaultsClicked);
 
-    m_btnDeleteBatch = new QPushButton("🗑️ Delete Batch", headerCard);
+    m_btnDeleteBatch = new QPushButton(" Delete Batch", headerCard);
+    m_btnDeleteBatch->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnDeleteBatch->setObjectName("dangerBtn");
     connect(m_btnDeleteBatch, &QPushButton::clicked, this, &ContributionsWidget::onDeleteBatchClicked);
 
-    m_btnCommitBatch = new QPushButton("📦 Commit Batch", headerCard);
+    m_btnCommitBatch = new QPushButton(" Commit Batch", headerCard);
+    m_btnCommitBatch->setIcon(IconManager::instance().getIcon("lock", QColor("#11111b"), 14));
     m_btnCommitBatch->setObjectName("saveBtn");
     connect(m_btnCommitBatch, &QPushButton::clicked, this, &ContributionsWidget::onToggleBatchCommit);
 
@@ -137,7 +141,8 @@ void ContributionsWidget::setupUI() {
     entryLayout->addWidget(m_splitsContainer);
 
     QHBoxLayout* splitActionsRow = new QHBoxLayout();
-    m_btnAddSplit = new QPushButton("➕ Add Fund Split", m_entryCard);
+    m_btnAddSplit = new QPushButton(" Add Fund Split", m_entryCard);
+    m_btnAddSplit->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
     m_btnAddSplit->setObjectName("secondaryBtn");
     m_btnAddSplit->setStyleSheet("font-size: 11px; padding: 4px 10px;");
     connect(m_btnAddSplit, &QPushButton::clicked, this, [this]() { onAddSplitRow(0.0, -1); });
@@ -173,13 +178,15 @@ void ContributionsWidget::setupUI() {
     entryLayout->addLayout(metaRow);
 
     QHBoxLayout* entryActions = new QHBoxLayout();
-    m_btnSave = new QPushButton("💾 Save & Next Donation (Enter)", m_entryCard);
+    m_btnSave = new QPushButton(" Save & Next Donation (Enter)", m_entryCard);
+    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 16));
     m_btnSave->setObjectName("primaryBtn");
     m_btnSave->setMinimumHeight(36);
     m_btnSave->setStyleSheet("font-weight: bold; font-size: 13px; padding: 8px 18px;");
     connect(m_btnSave, &QPushButton::clicked, this, &ContributionsWidget::onSaveContribution);
 
-    m_btnClearForm = new QPushButton("🧹 Clear Form (Esc)", m_entryCard);
+    m_btnClearForm = new QPushButton(" Clear Form (Esc)", m_entryCard);
+    m_btnClearForm->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#cdd6f4"), 14));
     m_btnClearForm->setObjectName("secondaryBtn");
     m_btnClearForm->setMinimumHeight(36);
     connect(m_btnClearForm, &QPushButton::clicked, this, &ContributionsWidget::onResetDonationForm);
@@ -219,12 +226,14 @@ void ContributionsWidget::setupUI() {
     tableFooter->addWidget(m_lblBatchTotalSummary);
     tableFooter->addStretch();
 
-    m_btnManageFunds = new QPushButton("🏦 Manage Funds", tableCard);
+    m_btnManageFunds = new QPushButton(" Manage Funds", tableCard);
+    m_btnManageFunds->setIcon(IconManager::instance().getIcon("tag", QColor("#cdd6f4"), 14));
     m_btnManageFunds->setObjectName("secondaryBtn");
     connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
     tableFooter->addWidget(m_btnManageFunds);
 
-    m_btnGnuCashExport = new QPushButton("📊 Export for GnuCash (CSV)", tableCard);
+    m_btnGnuCashExport = new QPushButton(" Export for GnuCash (CSV)", tableCard);
+    m_btnGnuCashExport->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnGnuCashExport->setObjectName("accentBtnCyan");
     connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
     tableFooter->addWidget(m_btnGnuCashExport);
@@ -252,8 +261,10 @@ void ContributionsWidget::setupUI() {
 
     // Tabs: In Progress vs Committed
     QHBoxLayout* tabLayout = new QHBoxLayout();
-    m_tabInProgress = new QPushButton("🟡 In Progress", drawerCard);
-    m_tabCommitted = new QPushButton("🟢 Committed", drawerCard);
+    m_tabInProgress = new QPushButton(" In Progress", drawerCard);
+    m_tabInProgress->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
+    m_tabCommitted = new QPushButton(" Committed", drawerCard);
+    m_tabCommitted->setIcon(IconManager::instance().getIcon("check", QColor("#a6e3a1"), 14));
     m_tabInProgress->setCheckable(true);
     m_tabCommitted->setCheckable(true);
     m_tabInProgress->setChecked(true);
@@ -264,7 +275,8 @@ void ContributionsWidget::setupUI() {
     tabLayout->addWidget(m_tabCommitted);
     drawerCardLay->addLayout(tabLayout);
 
-    m_btnNewBatch = new QPushButton("➕ New Batch", drawerCard);
+    m_btnNewBatch = new QPushButton(" New Batch", drawerCard);
+    m_btnNewBatch->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
     m_btnNewBatch->setObjectName("primaryBtn");
     m_btnNewBatch->setMinimumHeight(34);
     connect(m_btnNewBatch, &QPushButton::clicked, this, &ContributionsWidget::onNewBatchClicked);
@@ -697,7 +709,10 @@ void ContributionsWidget::loadBatch(int batchId) {
         if (m_lblBatchStatusBadge) {
             if (isCommitted) {
                 m_lblBatchStatusBadge->setText("🟢 Committed (Locked)");
-                m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(166, 227, 161, 0.2); color: #a6e3a1;");
+                const bool dark = ThemeManager::instance().currentTokens().isDark;
+                m_lblBatchStatusBadge->setStyleSheet(QString("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; "
+                    "background-color: %1; color: %2;").arg(dark ? "rgba(166, 227, 161, 0.2)" : "rgba(21, 128, 61, 0.10)",
+                    dark ? "#a6e3a1" : "#15803d"));
             } else {
                 m_lblBatchStatusBadge->setText("🟡 In Progress");
                 m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(249, 226, 175, 0.2); color: #f9e2af;");

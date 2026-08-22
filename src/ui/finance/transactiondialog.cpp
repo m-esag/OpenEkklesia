@@ -60,7 +60,7 @@ void TransactionDialog::setupUI() {
 
     QScrollArea* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
-    scrollArea->setStyleSheet("QScrollArea { border: 1px solid #313244; border-radius: 6px; background-color: #1e1e2e; }");
+    scrollArea->setStyleSheet("QScrollArea { border: 1px solid palette(mid); border-radius: 6px; background-color: palette(base); }");
     
     QWidget* scrollContent = new QWidget(scrollArea);
     m_splitsLayout = new QVBoxLayout(scrollContent);
@@ -107,13 +107,13 @@ void TransactionDialog::setupUI() {
 
     // Stylesheet adaptation for the dark theme
     QString style = 
-        "QDialog { background-color: #181825; color: palette(text); }"
+        "QDialog { background-color: palette(base); color: palette(text); }"
         "QLabel { color: palette(text); }"
-        "QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 6px; color: palette(text); padding: 6px; }"
-        "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 6px; color: palette(text); padding: 8px 15px; }"
+        "QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 6px; }"
+        "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 8px 15px; }"
         "QPushButton:hover { background-color: #45475a; }"
         "QPushButton#m_btnSave { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
-        "QPushButton:disabled { background-color: #11111b; color: #585b70; border: 1px solid #11111b; }";
+        "QPushButton:disabled { background-color: palette(base); color: #585b70; border: 1px solid #11111b; }";
     setStyleSheet(style);
 }
 

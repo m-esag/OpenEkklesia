@@ -3,6 +3,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include "../core/thememanager.h"
+#include "../core/iconmanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -301,11 +302,13 @@ void PeopleWidget::setupUI() {
     // Action Toolbar Row 1
     QHBoxLayout* row1 = new QHBoxLayout();
     row1->setSpacing(6);
-    m_btnAddPerson = new QPushButton("➕ Add Person (Ctrl+N)", this);
+    m_btnAddPerson = new QPushButton(" Add Person (Ctrl+N)", this);
+    m_btnAddPerson->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 16));
     m_btnAddPerson->setObjectName("primaryBtn");
     connect(m_btnAddPerson, &QPushButton::clicked, this, &PeopleWidget::onAddPerson);
 
-    m_btnAddHousehold = new QPushButton("🏠 Add Family", this);
+    m_btnAddHousehold = new QPushButton(" Add Family", this);
+    m_btnAddHousehold->setIcon(IconManager::instance().getIcon("users", QColor("#11111b"), 16));
     m_btnAddHousehold->setObjectName("accentBtnPink");
     connect(m_btnAddHousehold, &QPushButton::clicked, this, &PeopleWidget::onAddHousehold);
 
@@ -321,7 +324,8 @@ void PeopleWidget::setupUI() {
     QHBoxLayout* row2 = new QHBoxLayout();
     row2->setSpacing(6);
 
-    m_btnDeleteSelected = new QPushButton("🗑️ Delete Selected", this);
+    m_btnDeleteSelected = new QPushButton(" Delete Selected", this);
+    m_btnDeleteSelected->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnDeleteSelected->setObjectName("dangerGhostBtn");
     m_btnDeleteSelected->setStyleSheet(
         "QPushButton#dangerGhostBtn { background-color: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 10px; font-weight: bold; font-size: 11px; }"
@@ -329,11 +333,13 @@ void PeopleWidget::setupUI() {
     );
     connect(m_btnDeleteSelected, &QPushButton::clicked, this, &PeopleWidget::onDeleteSelectedMembers);
 
-    m_btnBatchStatus = new QPushButton("🏷️ Batch Status", this);
+    m_btnBatchStatus = new QPushButton(" Batch Status", this);
+    m_btnBatchStatus->setIcon(IconManager::instance().getIcon("tag", QColor("#cdd6f4"), 14));
     m_btnBatchStatus->setObjectName("secondaryBtn");
     connect(m_btnBatchStatus, &QPushButton::clicked, this, &PeopleWidget::onBatchSetStatus);
 
-    QPushButton* btnCopyRoster = new QPushButton("📋 Roster SMS", this);
+    QPushButton* btnCopyRoster = new QPushButton(" Roster SMS", this);
+    btnCopyRoster->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
     btnCopyRoster->setObjectName("secondaryBtn");
     connect(btnCopyRoster, &QPushButton::clicked, this, [this]() {
         QStringList phoneNumbers;
@@ -351,11 +357,13 @@ void PeopleWidget::setupUI() {
         }
     });
 
-    QPushButton* btnPrintDirectory = new QPushButton("🖨️ Print", this);
+    QPushButton* btnPrintDirectory = new QPushButton(" Print", this);
+    btnPrintDirectory->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
     btnPrintDirectory->setObjectName("secondaryBtn");
     connect(btnPrintDirectory, &QPushButton::clicked, this, &PeopleWidget::onPrintDirectory);
 
-    m_btnImportCSV = new QPushButton("📥 Import CSV", this);
+    m_btnImportCSV = new QPushButton(" Import CSV", this);
+    m_btnImportCSV->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
     m_btnImportCSV->setObjectName("secondaryBtn");
     connect(m_btnImportCSV, &QPushButton::clicked, this, &PeopleWidget::onImportCSV);
 
@@ -405,7 +413,7 @@ void PeopleWidget::setupUI() {
     // 1. PINNED DYNAMIC HEADER
     m_headerWidget = new QFrame(m_dossierContainer);
     m_headerWidget->setObjectName("cardWidget");
-    m_headerWidget->setStyleSheet("QFrame#cardWidget { background-color: #181825; border: 1px solid #313244; border-radius: 10px; }");
+    m_headerWidget->setStyleSheet("QFrame#cardWidget { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; }");
     QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
     headerLayout->setContentsMargins(14, 10, 14, 10);
     headerLayout->setSpacing(14);
@@ -456,9 +464,9 @@ void PeopleWidget::setupUI() {
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
-            "QPushButton { background-color: #181825; border: 1px solid #313244; border-radius: 6px; color: palette(placeholderText); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #313244; color: palette(text); border-color: #45475a; }"
-            "QPushButton:checked { background-color: #313244; color: #89b4fa; border: 1px solid #89b4fa; }"
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(placeholderText); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { background-color: palette(mid); color: palette(text); border-color: #45475a; }"
+            "QPushButton:checked { background-color: palette(mid); color: #89b4fa; border: 1px solid #89b4fa; }"
         );
         connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
             m_detailStack->setCurrentIndex(pageIdx);
@@ -755,7 +763,7 @@ void PeopleWidget::setupUI() {
 
     auto makeMetric = [](const QString& title, QLabel** outLabel, const QString& defVal) {
         QFrame* mBox = new QFrame();
-        mBox->setStyleSheet("QFrame { background-color: #11111b; border: 1px solid #313244; border-radius: 8px; padding: 6px; }");
+        mBox->setStyleSheet("QFrame { background-color: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 6px; }");
         QVBoxLayout* v = new QVBoxLayout(mBox);
         v->setContentsMargins(6, 6, 6, 6);
         v->setSpacing(2);
@@ -854,7 +862,7 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", g);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #89b4fa; color: #89b4fa; }"
             "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 1px solid #89b4fa; color: #89b4fa; }"
         );
@@ -894,9 +902,9 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", s);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; border: 1px solid #45475a; border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover { border: 1px solid #a6e3a1; color: #a6e3a1; }"
-            "QPushButton:checked { background-color: rgba(166, 227, 161, 0.25); border: 1px solid #a6e3a1; color: #a6e3a1; }"
+            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlighted-text); }"
         );
         connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
             QString raw = chip->property("rawName").toString();
@@ -952,7 +960,7 @@ void PeopleWidget::setupUI() {
     // 4. STICKY ACTION FOOTER BAR
     m_footerFrame = new QFrame(m_dossierContainer);
     m_footerFrame->setObjectName("footerFrame");
-    m_footerFrame->setStyleSheet("QFrame#footerFrame { background-color: #181825; border-top: 1px solid #313244; border-radius: 8px; }");
+    m_footerFrame->setStyleSheet("QFrame#footerFrame { background-color: palette(base); border-top: 1px solid palette(mid); border-radius: 8px; }");
     QHBoxLayout* footerLayout = new QHBoxLayout(m_footerFrame);
     footerLayout->setContentsMargins(12, 8, 12, 8);
     footerLayout->setSpacing(10);
@@ -963,13 +971,15 @@ void PeopleWidget::setupUI() {
     footerLayout->addWidget(m_lblDirtyIndicator);
     footerLayout->addStretch();
 
-    m_btnSave = new QPushButton("💾 Save Profile (Ctrl+S)", m_footerFrame);
+    m_btnSave = new QPushButton(" Save Profile (Ctrl+S)", m_footerFrame);
+    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 16));
     m_btnSave->setObjectName("primaryBtn");
     m_btnSave->setFixedHeight(34);
     connect(m_btnSave, &QPushButton::clicked, this, &PeopleWidget::onSaveProfile);
     footerLayout->addWidget(m_btnSave);
 
-    m_btnDeletePerson = new QPushButton("🗑️ Delete Profile", m_footerFrame);
+    m_btnDeletePerson = new QPushButton(" Delete Profile", m_footerFrame);
+    m_btnDeletePerson->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnDeletePerson->setObjectName("ghostDangerBtn");
     m_btnDeletePerson->setStyleSheet(
         "QPushButton#ghostDangerBtn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: bold; }"
@@ -1139,7 +1149,7 @@ void PeopleWidget::renderTagChips() {
 
         QPushButton* chip = new QPushButton(QString("%1  ✕").arg(tag), m_tagsChipsContainer);
         chip->setStyleSheet(
-            "QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
+            "QPushButton { background-color: palette(mid); color: #89b4fa; border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
             "QPushButton:hover { background-color: #f38ba8; color: #11111b; }"
         );
         connect(chip, &QPushButton::clicked, this, [this, tag]() {
@@ -2288,7 +2298,7 @@ void PeopleWidget::onPrintDirectory() {
                    "body { font-family: sans-serif; color: #11111b; }"
                    "h1 { color: #89b4fa; border-bottom: 2px solid #89b4fa; padding-bottom: 5px; }"
                    "table { width: 100%; border-collapse: collapse; margin-top: 15px; }"
-                   "th { background-color: #313244; color: #ffffff; padding: 8px; text-align: left; font-size: 11px; }"
+                   "th { background-color: palette(mid); color: #ffffff; padding: 8px; text-align: left; font-size: 11px; }"
                    "td { padding: 6px; border-bottom: 1px solid #cdd6f4; font-size: 10px; }"
                    "tr:nth-child(even) { background-color: #f2f4f8; }"
                    "</style></head><body>"
