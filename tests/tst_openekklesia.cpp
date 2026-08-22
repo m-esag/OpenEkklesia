@@ -24,6 +24,7 @@
 #include "../src/database/databasemanager.h"
 #include "../src/database/datasharing.h"
 #include "../src/ui/core/thememanager.h"
+#include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/ministry/ministrymatch.h"
 #include "../src/ui/ministry/planningwidget.h"
 #include "../src/ui/ministry/servicebuilderwidget.h"
@@ -1731,6 +1732,73 @@ bool test_graphHealthFeatures() {
     return true;
 }
 
+// The graph's filter toggles (e.g. "🏡 Households") must persist across
+// restarts: what the admin saved is what a fresh widget restores.
+bool test_graphFilterPersistence() {
+    QSettings s("OpenEkklesia", "CHMS");
+
+    // Simulate the admin having turned Households OFF (and People ON).
+    s.setValue("graphFilters/households", false);
+    s.setValue("graphFilters/people", true);
+    s.setValue("graphFilters/groups", true);
+    s.setValue("graphFilters/burnout", false);
+    s.setValue("graphFilters/isolation", false);
+    s.setValue("graphFilters/hygiene", false);
+    s.setValue("graphFilters/bridge", false);
+    s.setValue("graphFilters/family", false);
+    s.sync();
+
+    // This test runs after purge, so seed one of each entity for the scene.
+    QSqlDatabase d = db();
+    QSqlQuery seed(d);
+    CHECK(seed.exec("INSERT INTO households (id, family_name) VALUES (9001, 'Persistence Family')"));
+    CHECK(seed.exec("INSERT INTO groups (id, name, category) VALUES (9001, 'Persistence Team', 'Serving Team')"));
+    CHECK(seed.exec("INSERT INTO people (id, first_name, last_name, membership_status, household_id) "
+                    "VALUES (9001, 'Persist', 'Test', 'Member', 9001)"));
+    CHECK(seed.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                    "VALUES ('Person', 9001, 'Group', 9001, 'Member')"));
+
+    {
+        GraphWidget gw; // ctor: setupUI + restoreFilterState + loadGraph
+
+        QPushButton* hhBtn = nullptr;
+        QPushButton* ppBtn = nullptr;
+        for (QPushButton* b : gw.findChildren<QPushButton*>()) {
+            if (b->text() == "🏡 Households") hhBtn = b;
+            if (b->text() == "👤 People") ppBtn = b;
+        }
+        CHECK(hhBtn && ppBtn);
+        if (hhBtn) CHECK(!hhBtn->isChecked()); // restored as OFF
+        if (ppBtn) CHECK(ppBtn->isChecked());  // restored as ON
+
+        // Household nodes must actually be hidden; people visible.
+        int hhNodes = 0, hhVisible = 0, peopleVisible = 0;
+        for (QGraphicsItem* item : gw.scene()->items()) {
+            auto* n = dynamic_cast<NodeItem*>(item);
+            if (!n) continue;
+            if (n->nodeType() == NodeItem::Household) {
+                ++hhNodes;
+                if (n->isVisible()) ++hhVisible;
+            } else if (n->isPersonNode() && n->isVisible()) {
+                ++peopleVisible;
+            }
+        }
+        CHECK(hhNodes > 0);       // the seeded household became a node
+        CHECK_EQ(hhVisible, 0);   // and it is hidden by the restore
+        CHECK(peopleVisible > 0);
+    }
+
+    // Clean up the seeded data and restore defaults.
+    CHECK(seed.exec("DELETE FROM entity_relationships WHERE source_id = 9001"));
+    CHECK(seed.exec("DELETE FROM people WHERE id = 9001"));
+    CHECK(seed.exec("DELETE FROM groups WHERE id = 9001"));
+    CHECK(seed.exec("DELETE FROM households WHERE id = 9001"));
+    s.setValue("graphFilters/households", true);
+    s.setValue("graphFilters/people", true);
+    s.sync();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1789,6 +1857,7 @@ int main(int argc, char** argv) {
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
         {"graph_health_features", test_graphHealthFeatures},
+        {"graph_filter_persistence", test_graphFilterPersistence},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
         {"facilities_conflict_engine", test_facilitiesConflictEngine},
