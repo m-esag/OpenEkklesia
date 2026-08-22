@@ -302,12 +302,6 @@ void MainWindow::setupMenuBar() {
     m_actCont->setShortcut(QKeySequence("Ctrl+4"));
     connect(m_actCont, &QAction::triggered, this, &MainWindow::onContributionsClicked);
 
-    m_actAccounts = finMenu->addAction("📈 Chart of Accounts");
-    connect(m_actAccounts, &QAction::triggered, this, &MainWindow::onAccountsClicked);
-
-    m_actLedger = finMenu->addAction("📒 Double-Entry Ledger");
-    connect(m_actLedger, &QAction::triggered, this, &MainWindow::onLedgerClicked);
-
     finMenu->addSeparator();
 
     m_actInventory = finMenu->addAction("📦 Asset Inventory");
@@ -473,18 +467,8 @@ void MainWindow::setupUI() {
 
     m_btnContributions = new QPushButton("💸 Contributions", this);
     m_btnContributions->setObjectName("navButton");
-    m_btnContributions->setToolTip("Contributions: Record donations, select funds, and print tax receipts.");
+    m_btnContributions->setToolTip("Contributions: Record donations, select funds, and view batches.");
     layFin->addWidget(m_btnContributions);
-
-    m_btnAccounts = new QPushButton("🧾 Accounts (Chart)", this);
-    m_btnAccounts->setObjectName("navButton");
-    m_btnAccounts->setToolTip("Accounts: View chart of accounts, balance sheet, and budget targets.");
-    layFin->addWidget(m_btnAccounts);
-
-    m_btnLedger = new QPushButton("📖 Double-Entry Ledger", this);
-    m_btnLedger->setObjectName("navButton");
-    m_btnLedger->setToolTip("Ledger: View double-entry transactions and input splits.");
-    layFin->addWidget(m_btnLedger);
 
     m_btnInventory = new QPushButton("📦 Asset Inventory", this);
     m_btnInventory->setObjectName("navButton");
@@ -581,8 +565,6 @@ void MainWindow::setupUI() {
     connect(m_btnGraph, &QPushButton::clicked, this, &MainWindow::onGraphClicked);
     connect(m_btnInventory, &QPushButton::clicked, this, &MainWindow::onInventoryClicked);
     connect(m_btnVault, &QPushButton::clicked, this, &MainWindow::onVaultClicked);
-    connect(m_btnAccounts, &QPushButton::clicked, this, &MainWindow::onAccountsClicked);
-    connect(m_btnLedger, &QPushButton::clicked, this, &MainWindow::onLedgerClicked);
     connect(m_btnSettings, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
     connect(m_btnFacilities, &QPushButton::clicked, this, &MainWindow::onFacilitiesClicked);
     connect(m_btnAnalytics, &QPushButton::clicked, this, &MainWindow::onAnalyticsClicked);
@@ -606,13 +588,6 @@ void MainWindow::setupModels() {
     m_planningWidget = nullptr;
     m_shepherdWidget = nullptr;
     m_settingsWidget = nullptr;
-
-    // Accounts
-    m_accountsModel = new QSqlQueryModel(this);
-    refreshAccountsModel();
-
-    m_ledgerModel = new QSqlQueryModel(this);
-    refreshLedgerModel();
 }
 
 void MainWindow::ensurePageLoaded(int index, std::function<QWidget*()> creator) {
@@ -1020,117 +995,14 @@ void MainWindow::populatePages() {
 
     m_stackedWidget->addWidget(makePlaceholder()); // 3: Contributions
     m_stackedWidget->addWidget(makePlaceholder()); // 4: Service Builder
-
-    QWidget* accountsPage = new QWidget(this);
-    QVBoxLayout* accountsLayout = new QVBoxLayout(accountsPage);
-    accountsLayout->setContentsMargins(30, 30, 30, 30);
-    accountsLayout->setSpacing(15);
-
-    QHBoxLayout* accHeaderLayout = new QHBoxLayout();
-    QLabel* accHeader = new QLabel("Chart of Accounts", this);
-    accHeader->setObjectName("pageHeader");
-    accHeaderLayout->addWidget(accHeader);
-    accHeaderLayout->addStretch();
-
-    QPushButton* btnAddAccount = new QPushButton("➕ Add Account", this);
-    btnAddAccount->setObjectName("primaryBtn");
-    connect(btnAddAccount, &QPushButton::clicked, this, [this]() {
-        QDialog dlg(this);
-        dlg.setWindowTitle("Add New Account");
-        dlg.resize(300, 200);
-        
-        QFormLayout* form = new QFormLayout(&dlg);
-        form->setSpacing(12);
-        
-        QLineEdit* nameEdit = new QLineEdit(&dlg);
-        QComboBox* typeCombo = new QComboBox(&dlg);
-        typeCombo->addItems({"ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"});
-        
-        form->addRow("Account Name:", nameEdit);
-        form->addRow("Account Type:", typeCombo);
-        
-        QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-        connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-        connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-        form->addRow(buttons);
-        
-        if (dlg.exec() == QDialog::Accepted) {
-            QString name = nameEdit->text().trimmed();
-            QString type = typeCombo->currentText();
-            if (name.isEmpty()) {
-                QMessageBox::warning(this, "Validation Error", "Account name cannot be empty.");
-                return;
-            }
-            
-            QSqlDatabase db = QSqlDatabase::database();
-            QSqlQuery query(db);
-            query.prepare("INSERT INTO accounts (name, type) VALUES (?, ?)");
-            query.addBindValue(name);
-            query.addBindValue(type);
-            
-            if (query.exec()) {
-                refreshAccountsModel();
-                QMessageBox::information(this, "Success", "Account created successfully.");
-            } else {
-                QMessageBox::critical(this, "Database Error", "Failed to create account: " + query.lastError().text());
-            }
-        }
-    });
-    accHeaderLayout->addWidget(btnAddAccount);
-
-    QPushButton* btnSetBudget = new QPushButton("🎯 Set Budget Targets", this);
-    btnSetBudget->setObjectName("saveBtn");
-    connect(btnSetBudget, &QPushButton::clicked, this, &MainWindow::onSetBudget);
-    accHeaderLayout->addWidget(btnSetBudget);
-    accountsLayout->addLayout(accHeaderLayout);
-
-    QTableView* accountsView = new QTableView(this);
-    accountsView->setModel(m_accountsModel);
-    accountsView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    accountsLayout->addWidget(accountsView);
-
-    m_stackedWidget->addWidget(accountsPage); // 5
-
-    QWidget* ledgerPage = new QWidget(this);
-    QVBoxLayout* ledgerLayout = new QVBoxLayout(ledgerPage);
-    ledgerLayout->setContentsMargins(30, 30, 30, 30);
-    ledgerLayout->setSpacing(15);
-
-    QHBoxLayout* ledgerHeaderLayout = new QHBoxLayout();
-    QLabel* ledgerHeader = new QLabel("Double-Entry Ledger (All Splits)", this);
-    ledgerHeader->setObjectName("pageHeader");
-    ledgerHeaderLayout->addWidget(ledgerHeader);
-    ledgerHeaderLayout->addSpacing(20);
-
-    QPushButton* btnAddTrans = new QPushButton("+ Add Transaction", this);
-    btnAddTrans->setObjectName("primaryBtn");
-    connect(btnAddTrans, &QPushButton::clicked, this, [this]() {
-        TransactionDialog dlg(this);
-        if (dlg.exec() == QDialog::Accepted) {
-            refreshLedgerModel();
-            updateDashboardStats();
-        }
-    });
-    ledgerHeaderLayout->addWidget(btnAddTrans);
-    ledgerHeaderLayout->addStretch();
-
-    ledgerLayout->addLayout(ledgerHeaderLayout);
-
-    QTableView* ledgerView = new QTableView(this);
-    ledgerView->setModel(m_ledgerModel);
-    ledgerView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ledgerLayout->addWidget(ledgerView);
-
-
-    m_stackedWidget->addWidget(ledgerPage);         // 6
-    m_stackedWidget->addWidget(makePlaceholder()); // 7: Connection Graph
-    m_stackedWidget->addWidget(makePlaceholder()); // 8: Asset Inventory
-    m_stackedWidget->addWidget(makePlaceholder()); // 9: Document Vault
-    m_stackedWidget->addWidget(makePlaceholder()); // 10: Settings
-    m_stackedWidget->addWidget(makePlaceholder()); // 11: Facilities
-    m_stackedWidget->addWidget(makePlaceholder()); // 12: Analytics
-    m_stackedWidget->addWidget(makePlaceholder()); // 13: Planning
-    m_stackedWidget->addWidget(makePlaceholder()); // 14: Shepherd's Workbench
+    m_stackedWidget->addWidget(makePlaceholder()); // 5: Connection Graph
+    m_stackedWidget->addWidget(makePlaceholder()); // 6: Asset Inventory
+    m_stackedWidget->addWidget(makePlaceholder()); // 7: Document Vault
+    m_stackedWidget->addWidget(makePlaceholder()); // 8: Settings
+    m_stackedWidget->addWidget(makePlaceholder()); // 9: Facilities
+    m_stackedWidget->addWidget(makePlaceholder()); // 10: Analytics
+    m_stackedWidget->addWidget(makePlaceholder()); // 11: Planning
+    m_stackedWidget->addWidget(makePlaceholder()); // 12: Shepherd's Workbench
 }
 
 QWidget* MainWindow::createDashboardPage() {
@@ -1223,42 +1095,11 @@ QWidget* MainWindow::createDashboardPage() {
     chartCardLay->addWidget(m_chartView);
     bottomLayout->addWidget(chartCard, 3);
 
-    // Right Column: Budget Progress, Pastoral Care Alerts, Recent Visitors, & Upcoming Services
+    // Right Column: Pastoral Care Alerts, Recent Visitors, & Upcoming Services
     QWidget* rightCol = new QWidget(page);
     QVBoxLayout* rightColLayout = new QVBoxLayout(rightCol);
     rightColLayout->setContentsMargins(0, 0, 0, 0);
     rightColLayout->setSpacing(15);
-
-    // Budget Progress Card with Styled QProgressBar
-    QWidget* budgetCard = new QWidget(rightCol);
-    budgetCard->setObjectName("cardWidget");
-    m_budgetCard = budgetCard; // gated by the ledger module in applyModuleVisibility()
-    QVBoxLayout* budgetCardLayout = new QVBoxLayout(budgetCard);
-    budgetCardLayout->setContentsMargins(16, 14, 16, 14);
-    budgetCardLayout->setSpacing(8);
-
-    QHBoxLayout* budgetHeaderLay = new QHBoxLayout();
-    QLabel* budgetCardTitle = new QLabel(QString("📊 Expense Budget Progress — %1").arg(QDate::currentDate().year()), budgetCard);
-    budgetCardTitle->setStyleSheet("font-size: 13px; font-weight: bold;");
-    budgetHeaderLay->addWidget(budgetCardTitle);
-    budgetHeaderLay->addStretch();
-    budgetCardLayout->addLayout(budgetHeaderLay);
-
-    m_lblBudgetProgress = new QLabel("Calculating budget utilization...", budgetCard);
-    m_lblBudgetProgress->setStyleSheet("font-size: 13px; font-weight: bold;");
-    budgetCardLayout->addWidget(m_lblBudgetProgress);
-
-    m_progressBudget = new QProgressBar(budgetCard);
-    m_progressBudget->setRange(0, 100);
-    m_progressBudget->setValue(0);
-    m_progressBudget->setTextVisible(false);
-    m_progressBudget->setFixedHeight(10);
-    m_progressBudget->setStyleSheet(
-        "QProgressBar { background-color: #313244; border-radius: 5px; border: none; }\n"
-        "QProgressBar::chunk { background-color: #a6e3a1; border-radius: 5px; }"
-    );
-    budgetCardLayout->addWidget(m_progressBudget);
-    rightColLayout->addWidget(budgetCard);
 
     // Pastoral Care & Visitors Card
     QWidget* alertsCard = new QWidget(rightCol);
@@ -1358,42 +1199,6 @@ QWidget* MainWindow::createTablePage(const QString& title, QTableView* view) {
     layout->addWidget(view);
 
     return page;
-}
-
-void MainWindow::refreshAccountsModel() {
-    QString queryStr = QString(
-        "SELECT a.name AS \"Account Name\", "
-        "       a.type AS \"Account Type\", "
-        "       CASE "
-        "         WHEN a.type IN ('ASSET', 'EXPENSE') THEN printf('%1%.2f', COALESCE(SUM(s.amount), 0.00))"
-        "         ELSE printf('%1%.2f', -COALESCE(SUM(s.amount), 0.00))"
-        "       END AS \"Balance\", "
-        "       printf('%1%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00)) AS \"Budget\", "
-        "       CASE "
-        "         WHEN a.type = 'EXPENSE' THEN printf('%1%.2f', COALESCE(ab.budgeted_amount_cents / 100.0, 0.00) - COALESCE(SUM(s.amount), 0.00))"
-        "         ELSE '-'"
-        "       END AS \"Variance\" "
-        "FROM accounts a "
-        "LEFT JOIN splits s ON a.id = s.account_id "
-        "LEFT JOIN account_budgets ab ON a.id = ab.account_id "
-        "GROUP BY a.id, a.name, a.type, ab.budgeted_amount_cents "
-        "ORDER BY a.type, a.name").arg(appCurrencySymbol());
-    m_accountsModel->setQuery(queryStr);
-}
-
-void MainWindow::refreshLedgerModel() {
-    QString queryStr = QString(
-        "SELECT t.date AS \"Date\", "
-        "       t.description AS \"Description\", "
-        "       a.name AS \"Account\", "
-        "       printf('%1%.2f', s.amount) AS \"Amount\", "
-        "       COALESCE(p.first_name || ' ' || p.last_name, '-') AS \"Member/Donor\" "
-        "FROM transactions t "
-        "JOIN splits s ON t.id = s.transaction_id "
-        "JOIN accounts a ON s.account_id = a.id "
-        "LEFT JOIN people p ON s.person_id = p.id "
-        "ORDER BY t.date DESC, t.id DESC").arg(appCurrencySymbol());
-    m_ledgerModel->setQuery(queryStr);
 }
 
 void MainWindow::rebuildKpiCards() {
@@ -1644,7 +1449,8 @@ void MainWindow::updateDashboardStats() {
     // Guard: rebuildKpiCards() calls us while createDashboardPage() is still
     // building the dashboard (alerts/upcoming/budget widgets not yet created).
     // The real refresh happens once the page is complete (e.g. ctor line 176).
-    if (!m_lstPastoralAlerts) return;
+    // m_lstVisitorFollowup is created last, so it is the sentinel.
+    if (!m_lstPastoralAlerts || !m_lstVisitorFollowup) return;
 
     // 1. Dynamic Time-of-Day Welcome Greeting Banner
     int hour = QTime::currentTime().hour();
@@ -1724,71 +1530,6 @@ void MainWindow::updateDashboardStats() {
             m_kpiRegistry["total_assets"].valLabel->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(assets, 'f', 2)));
         }
     }
-
-    // Budget-vs-actual is ledger-only. Skip the splits/budget queries when
-    // the ledger module is off (the GnuCash workflow) — the dashboard card
-    // is hidden anyway.
-    if (isModuleEnabled("ledger", false)) {
-
-    // YTD Expenses for budget-vs-actual comparison
-    double totalExpenses = 0.0;
-    QSqlQuery expenseQuery;
-    expenseQuery.prepare(
-        "SELECT SUM(s.amount) FROM splits s "
-        "JOIN transactions t ON s.transaction_id = t.id "
-        "JOIN accounts a ON s.account_id = a.id "
-        "WHERE a.type = 'EXPENSE' AND substr(t.date, 1, 4) = ?");
-    expenseQuery.addBindValue(fiscalYearStr);
-    if (expenseQuery.exec() && expenseQuery.next()) {
-        totalExpenses = expenseQuery.value(0).toDouble();
-    }
-
-    double totalBudget = 0.0;
-    QSqlQuery budgetQuery;
-    budgetQuery.prepare("SELECT SUM(budgeted_amount_cents) FROM account_budgets WHERE fiscal_year = ?");
-    budgetQuery.addBindValue(fiscalYear);
-    if (budgetQuery.exec() && budgetQuery.next()) {
-        totalBudget = budgetQuery.value(0).toDouble() / 100.0;
-    }
-
-    const ThemeTokens tok = ThemeManager::instance().currentTokens();
-
-    if (totalBudget > 0.0) {
-        int pct = qBound(0, static_cast<int>((totalExpenses / totalBudget) * 100), 100);
-        if (m_progressBudget) {
-            m_progressBudget->setValue(pct);
-            QString chunkColor;
-            if (totalExpenses > totalBudget) {
-                chunkColor = tok.accentDanger.name();
-            } else if (pct >= 85) {
-                chunkColor = tok.accentWarning.name();
-            } else {
-                chunkColor = tok.accentSuccess.name();
-            }
-            m_progressBudget->setStyleSheet(
-                QString("QProgressBar { background-color: %1; border-radius: 5px; } "
-                        "QProgressBar::chunk { background-color: %2; border-radius: 5px; }")
-                    .arg(tok.bgOverlay.name(), chunkColor));
-        }
-        m_lblBudgetProgress->setText(QString("%1%2 / %1%3 (%4%) — %5")
-                                     .arg(appCurrencySymbol(), QString::number(totalExpenses, 'f', 2),
-                                          QString::number(totalBudget, 'f', 2), QString::number(pct),
-                                          QString::number(fiscalYear)));
-        if (totalExpenses > totalBudget) {
-            m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.accentDanger.name()));
-        } else {
-            m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.accentSuccess.name()));
-        }
-    } else {
-        if (m_progressBudget) m_progressBudget->setValue(0);
-        m_lblBudgetProgress->setText(QString("%1%2 / %3%4 — %5")
-                                     .arg(appCurrencySymbol(), QString::number(totalExpenses, 'f', 2),
-                                          appCurrencySymbol(), QString("0.00"),
-                                          QString::number(fiscalYear)));
-        m_lblBudgetProgress->setStyleSheet(QString("font-size: 13px; color: %1; font-weight: bold;").arg(tok.textSecondary.name()));
-    }
-
-    } // end ledger-gated budget block
 
     // ---- Member Inactivity, Care & Lapsed Giving Alerts ----
     m_lstPastoralAlerts->clear();
@@ -1943,20 +1684,6 @@ void MainWindow::onServiceClicked() {
     setActiveNav(m_btnService);
 }
 
-void MainWindow::onAccountsClicked() {
-    if (!isModuleEnabled("ledger", false)) return;
-    refreshAccountsModel();
-    switchPage(5);
-    setActiveNav(m_btnAccounts);
-}
-
-void MainWindow::onLedgerClicked() {
-    if (!isModuleEnabled("ledger", false)) return;
-    refreshLedgerModel();
-    switchPage(6);
-    setActiveNav(m_btnLedger);
-}
-
 void MainWindow::onGraphClicked() {
     if (!isModuleEnabled("graph")) return;
     if (!m_graphWidget) {
@@ -1969,10 +1696,10 @@ void MainWindow::onGraphClicked() {
                 onGroupsClicked();
             }
         });
-        ensurePageLoaded(7, [this]() { return m_graphWidget; });
+        ensurePageLoaded(5, [this]() { return m_graphWidget; });
     }
     m_graphWidget->loadGraph();
-    switchPage(7);
+    switchPage(5);
     setActiveNav(m_btnGraph);
 }
 
@@ -1981,10 +1708,10 @@ void MainWindow::onInventoryClicked() {
     if (!m_inventoryWidget) {
         m_inventoryWidget = new InventoryWidget(this);
         m_inventoryWidget->applyRole(m_userRole);
-        ensurePageLoaded(8, [this]() { return m_inventoryWidget; });
+        ensurePageLoaded(6, [this]() { return m_inventoryWidget; });
     }
     m_inventoryWidget->refreshTree();
-    switchPage(8);
+    switchPage(6);
     setActiveNav(m_btnInventory);
 }
 
@@ -1993,10 +1720,10 @@ void MainWindow::onVaultClicked() {
     if (!m_vaultWidget) {
         m_vaultWidget = new VaultWidget(this);
         m_vaultWidget->applyRole(m_userRole);
-        ensurePageLoaded(9, [this]() { return m_vaultWidget; });
+        ensurePageLoaded(7, [this]() { return m_vaultWidget; });
     }
     m_vaultWidget->refreshVault();
-    switchPage(9);
+    switchPage(7);
     setActiveNav(m_btnVault);
 }
 
@@ -2010,10 +1737,10 @@ void MainWindow::onSettingsClicked() {
             m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
             applyModuleVisibility();
         });
-        ensurePageLoaded(10, [this]() { return m_settingsWidget; });
+        ensurePageLoaded(8, [this]() { return m_settingsWidget; });
     }
     m_settingsWidget->loadSettings();
-    switchPage(10);
+    switchPage(8);
     setActiveNav(m_btnSettings);
 }
 
@@ -2021,9 +1748,9 @@ void MainWindow::onFacilitiesClicked() {
     if (!isModuleEnabled("facilities")) return;
     if (!m_facilitiesWidget) {
         m_facilitiesWidget = new FacilitiesWidget(this);
-        ensurePageLoaded(11, [this]() { return m_facilitiesWidget; });
+        ensurePageLoaded(9, [this]() { return m_facilitiesWidget; });
     }
-    switchPage(11);
+    switchPage(9);
     setActiveNav(m_btnFacilities);
 }
 
@@ -2037,10 +1764,10 @@ void MainWindow::onAnalyticsClicked() {
                 m_peopleWidget->applyDrillThroughFilter(type, val);
             }
         });
-        ensurePageLoaded(12, [this]() { return m_analyticsWidget; });
+        ensurePageLoaded(10, [this]() { return m_analyticsWidget; });
     }
     m_analyticsWidget->refreshAnalytics();
-    switchPage(12);
+    switchPage(10);
     setActiveNav(m_btnAnalytics);
 }
 
@@ -2049,9 +1776,9 @@ void MainWindow::onPlanningClicked() {
     if (!m_planningWidget) {
         m_planningWidget = new PlanningWidget(this);
         m_planningWidget->applyRole(m_userRole);
-        ensurePageLoaded(13, [this]() { return m_planningWidget; });
+        ensurePageLoaded(11, [this]() { return m_planningWidget; });
     }
-    switchPage(13);
+    switchPage(11);
     setActiveNav(m_btnPlanning);
 }
 
@@ -2060,10 +1787,10 @@ void MainWindow::onShepherdClicked() {
     if (!m_shepherdWidget) {
         m_shepherdWidget = new ShepherdWidget(this);
         connect(m_shepherdWidget, &ShepherdWidget::navigateToMember, this, &MainWindow::selectPerson);
-        ensurePageLoaded(14, [this]() { return m_shepherdWidget; });
+        ensurePageLoaded(12, [this]() { return m_shepherdWidget; });
     }
     m_shepherdWidget->refreshAll();
-    switchPage(14);
+    switchPage(12);
     setActiveNav(m_btnShepherd);
 }
 
@@ -2222,14 +1949,9 @@ void MainWindow::applyModuleVisibility() {
     bool modService = s.value("modules/service", true).toBool();
     bool modPlanning = s.value("modules/planning", true).toBool();
     bool modFacilities = s.value("modules/facilities", true).toBool();
-    // Giving (contributions, funds, receipts) is this app's core job. The
-    // double-entry ledger exists for churches doing full bookkeeping here;
-    // it defaults OFF for the GnuCash workflow — enable in Settings to get
-    // Accounts/Ledger/Budgets back. Giving inherits any previously-set
-    // legacy "finance" value so existing installs keep their choice.
+    // Giving (contributions, funds, batches) is this app's core finance job.
     bool modFinance = s.value("modules/finance", true).toBool(); // legacy key
     bool modGiving = s.value("modules/giving", modFinance).toBool();
-    bool modLedger = s.value("modules/ledger", false).toBool();
     bool modInventory = s.value("modules/inventory", true).toBool();
     bool modVault = s.value("modules/vault", true).toBool();
     bool modKiosk = s.value("modules/kiosk", true).toBool();
@@ -2246,16 +1968,10 @@ void MainWindow::applyModuleVisibility() {
     if (m_btnPlanning) m_btnPlanning->setVisible(modPlanning);
 
     if (m_btnContributions) m_btnContributions->setVisible(modGiving);
-    if (m_btnAccounts) m_btnAccounts->setVisible(modLedger);
-    if (m_btnLedger) m_btnLedger->setVisible(modLedger);
     if (m_btnInventory) m_btnInventory->setVisible(modInventory);
     if (m_btnVault) m_btnVault->setVisible(modVault);
 
     if (m_btnKiosk) m_btnKiosk->setVisible(modKiosk);
-
-    // Budget tracking belongs to the double-entry ledger; hide the dashboard
-    // card when that module is off (GnuCash owns budgets in that workflow).
-    if (m_budgetCard) m_budgetCard->setVisible(modLedger);
 
     // 2. Hide Section Header and Container if all children are disabled
     bool anyCongregation = (modPeople || modGraph || modAnalytics || modShepherd);
@@ -2266,7 +1982,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_headerMinistry) m_headerMinistry->setVisible(anyMinistry);
     if (m_secMinistry) m_secMinistry->setVisible(anyMinistry && s.value("sidebarSecMinistry", true).toBool());
 
-    bool anyFinance = (modGiving || modLedger || modInventory || modVault);
+    bool anyFinance = (modGiving || modInventory || modVault);
     if (m_headerFinance) m_headerFinance->setVisible(anyFinance);
     if (m_secFinance) m_secFinance->setVisible(anyFinance && s.value("sidebarSecFinance", true).toBool());
 
@@ -2282,8 +1998,6 @@ void MainWindow::applyModuleVisibility() {
     if (m_actPlanning) m_actPlanning->setVisible(modPlanning);
 
     if (m_actCont) m_actCont->setVisible(modGiving);
-    if (m_actAccounts) m_actAccounts->setVisible(modLedger);
-    if (m_actLedger) m_actLedger->setVisible(modLedger);
     if (m_actInventory) m_actInventory->setVisible(modInventory);
     if (m_actVault) m_actVault->setVisible(modVault);
 }
@@ -2306,58 +2020,6 @@ bool MainWindow::promptLogin() {
     applyRolePermissions();
     updateDashboardStats();
     return true;
-}
-
-void MainWindow::onSetBudget() {
-    QDialog dlg(this);
-    dlg.setWindowTitle("Set Account Budget");
-    dlg.resize(320, 200);
-
-    QFormLayout* layout = new QFormLayout(&dlg);
-
-    QComboBox* accCombo = new QComboBox(&dlg);
-    QSqlDatabase db = DatabaseManager::instance().database();
-    QSqlQuery qAcc("SELECT id, name FROM accounts WHERE type = 'EXPENSE' ORDER BY name", db);
-    while (qAcc.next()) {
-        accCombo->addItem(qAcc.value(1).toString(), qAcc.value(0).toInt());
-    }
-    layout->addRow("Expense Account:", accCombo);
-
-    QDoubleSpinBox* budgetSpin = new QDoubleSpinBox(&dlg);
-    budgetSpin->setRange(0.00, 9999999.00);
-    budgetSpin->setPrefix(appCurrencySymbol() + " ");
-    budgetSpin->setDecimals(2);
-    layout->addRow("Budget Target ($):", budgetSpin);
-
-    QSpinBox* yearSpin = new QSpinBox(&dlg);
-    yearSpin->setRange(2020, 2050);
-    yearSpin->setValue(2026);
-    layout->addRow("Fiscal Year:", yearSpin);
-
-    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    layout->addRow(buttons);
-
-    if (dlg.exec() == QDialog::Accepted) {
-        int accountId = accCombo->currentData().toInt();
-        int budgetCents = static_cast<int>(budgetSpin->value() * 100);
-        int fiscalYear = yearSpin->value();
-
-        QSqlQuery query(db);
-        query.prepare("INSERT OR REPLACE INTO account_budgets (account_id, budgeted_amount_cents, fiscal_year) VALUES (?, ?, ?)");
-        query.addBindValue(accountId);
-        query.addBindValue(budgetCents);
-        query.addBindValue(fiscalYear);
-
-        if (query.exec()) {
-            refreshAccountsModel();
-            updateDashboardStats();
-            QMessageBox::information(this, "Success", "Budget target successfully updated.");
-        } else {
-            QMessageBox::critical(this, "Database Error", "Failed to save budget target: " + query.lastError().text());
-        }
-    }
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {

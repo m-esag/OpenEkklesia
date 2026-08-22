@@ -51,9 +51,6 @@ public slots:
     void onDashboardClicked();
     void onMembersClicked();
     void onGroupsClicked();
-    void onAccountsClicked();
-    void onLedgerClicked();
-    void onSetBudget();
     void onContributionsClicked();
     void onServiceClicked();
     void onGraphClicked();
@@ -78,8 +75,6 @@ private:
     void applyModuleVisibility();
     bool isModuleEnabled(const QString& moduleKey, bool defaultValue = true) const;
     void updateDashboardStats();
-    void refreshAccountsModel();
-    void refreshLedgerModel();
     void updatePieChart();
 
     void ensurePageLoaded(int index, std::function<QWidget*()> creator);
@@ -98,8 +93,6 @@ private:
     QPushButton* m_btnGraph;
     QPushButton* m_btnInventory;
     QPushButton* m_btnVault;
-    QPushButton* m_btnAccounts;
-    QPushButton* m_btnLedger;
     QPushButton* m_btnSettings;
     QPushButton* m_btnFacilities;
     QPushButton* m_btnAnalytics;
@@ -117,8 +110,6 @@ private:
     QAction* m_actFacilities;
     QAction* m_actPlanning;
     QAction* m_actCont;
-    QAction* m_actAccounts;
-    QAction* m_actLedger;
     QAction* m_actInventory;
     QAction* m_actVault;
 
@@ -164,8 +155,6 @@ private:
     void refreshGroupsTree();
     void refreshGroupDetailPanel(int groupId);
     void showGroupDialog(int groupId = 0, bool isDuplicate = false);
-    QSqlQueryModel* m_accountsModel;
-    QSqlQueryModel* m_ledgerModel;
 
     QLabel* m_lblWelcomeHeader;
     QLabel* m_lblSubHeader;
@@ -192,12 +181,9 @@ private:
     void onLogQuickPastoralNote(int prefillPersonId = -1);
 
     QChartView* m_chartView;
-    QListWidget* m_lstPastoralAlerts;
-    QListWidget* m_lstVisitorFollowup;
-    QListWidget* m_lstUpcomingServices;
-    QLabel* m_lblBudgetProgress;
-    QProgressBar* m_progressBudget;
-    QWidget* m_budgetCard = nullptr; // hidden when ledger module is off (GnuCash workflow)
+    QListWidget* m_lstPastoralAlerts = nullptr;
+    QListWidget* m_lstVisitorFollowup = nullptr;
+    QListWidget* m_lstUpcomingServices = nullptr;
 
     bool m_hintsEnabled;
     QWidget* m_hintPanel;

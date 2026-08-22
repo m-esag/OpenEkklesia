@@ -360,10 +360,30 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
+    // Create giving_batches table
+    QString createBatches =
+        "CREATE TABLE IF NOT EXISTS giving_batches ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  batch_name TEXT NOT NULL,"
+        "  batch_date TEXT NOT NULL,"
+        "  status TEXT DEFAULT 'In Progress',"
+        "  default_fund_id INTEGER REFERENCES funds(id),"
+        "  default_payment_method TEXT DEFAULT 'Check',"
+        "  created_by TEXT DEFAULT 'Admin',"
+        "  batch_note TEXT DEFAULT '',"
+        "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    if (!query.exec(createBatches)) {
+        qCritical() << "Failed to create giving_batches table:" << query.lastError().text();
+        return false;
+    }
+    query.exec("CREATE INDEX IF NOT EXISTS idx_batches_date ON giving_batches(batch_date);");
+
     // Create contributions table
     QString createContributions = 
         "CREATE TABLE IF NOT EXISTS contributions ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  batch_id INTEGER,"
         "  person_id INTEGER,"
         "  fund_id INTEGER NOT NULL,"
         "  amount INTEGER NOT NULL,"
@@ -372,6 +392,7 @@ bool DatabaseManager::createTables() {
         "  check_number TEXT,"
         "  external_id TEXT,"
         "  note TEXT,"
+        "  FOREIGN KEY(batch_id) REFERENCES giving_batches(id) ON DELETE SET NULL,"
         "  FOREIGN KEY(person_id) REFERENCES people(id),"
         "  FOREIGN KEY(fund_id) REFERENCES funds(id)"
         ");";
@@ -383,6 +404,7 @@ bool DatabaseManager::createTables() {
                "ON contributions(external_id) WHERE external_id IS NOT NULL;");
     query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_date ON contributions(contribution_date);");
     query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_person ON contributions(person_id);");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_batch ON contributions(batch_id);");
 
     // Create entity_relationships table
     QString createRelationships = 
@@ -1589,6 +1611,118 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 15 applied successfully.";
+    }
+
+    // --- Schema Migration 16: giving_batches & contributions.batch_id ---
+    // Organizes Sunday morning and event collections into batches (In Progress vs Committed)
+    // with batch metadata (created_by, batch_note) and default batch parameters.
+    if (current < 16) {
+        qInfo() << "Applying schema migration 16: giving_batches table & contributions.batch_id";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 16: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery migQ(m_db);
+        if (!migQ.exec("CREATE TABLE IF NOT EXISTS giving_batches ("
+                       "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                       "  batch_name TEXT NOT NULL,"
+                       "  batch_date TEXT NOT NULL,"
+                       "  status TEXT DEFAULT 'In Progress',"
+                       "  default_fund_id INTEGER REFERENCES funds(id),"
+                       "  default_payment_method TEXT DEFAULT 'Check',"
+                       "  created_by TEXT DEFAULT 'Admin',"
+                       "  batch_note TEXT DEFAULT '',"
+                       "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+                       ");")) {
+            qCritical() << "Migration 16: create giving_batches failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        QSqlQuery check(m_db);
+        check.exec("PRAGMA table_info(contributions)");
+        bool hasBatchId = false;
+        while (check.next()) {
+            if (check.value(1).toString() == "batch_id") hasBatchId = true;
+        }
+
+        if (!hasBatchId && !migQ.exec("ALTER TABLE contributions ADD COLUMN batch_id INTEGER REFERENCES giving_batches(id) ON DELETE SET NULL;")) {
+            qCritical() << "Migration 16: add batch_id failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        migQ.exec("CREATE INDEX IF NOT EXISTS idx_contributions_batch ON contributions(batch_id);");
+        migQ.exec("CREATE INDEX IF NOT EXISTS idx_batches_date ON giving_batches(batch_date);");
+
+        // Seed initial batch for existing contributions if empty
+        QSqlQuery checkBatches("SELECT COUNT(*) FROM giving_batches", m_db);
+        if (checkBatches.next() && checkBatches.value(0).toInt() == 0) {
+            int genFundId = 1;
+            QSqlQuery fq("SELECT id FROM funds WHERE fund_name LIKE '%General%' OR fund_name LIKE '%Tithe%' LIMIT 1", m_db);
+            if (fq.next()) genFundId = fq.value(0).toInt();
+
+            migQ.prepare("INSERT INTO giving_batches (batch_name, batch_date, status, default_fund_id, default_payment_method, created_by) "
+                         "VALUES ('Sunday Morning Service', date('now'), 'In Progress', ?, 'Check', 'Admin')");
+            migQ.addBindValue(genFundId);
+            if (migQ.exec()) {
+                int newBatchId = migQ.lastInsertId().toInt();
+                if (newBatchId > 0) {
+                    QSqlQuery linkQ(m_db);
+                    linkQ.prepare("UPDATE contributions SET batch_id = ? WHERE batch_id IS NULL");
+                    linkQ.addBindValue(newBatchId);
+                    linkQ.exec();
+                }
+            }
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 16: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(16)) {
+            return false;
+        }
+        qInfo() << "Schema migration 16 applied successfully.";
+    }
+
+    // --- Schema Migration 17: graph_snapshots (connection-health trend) ---
+    // Each Audit run records congregation connectivity metrics so the graph
+    // and dashboard can show how isolation/connectivity change over time.
+    if (current < 17) {
+        qInfo() << "Applying schema migration 17: graph_snapshots";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 17: failed to start transaction";
+            return false;
+        }
+        QSqlQuery migQ(m_db);
+        if (!migQ.exec("CREATE TABLE IF NOT EXISTS graph_snapshots ("
+                       "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                       "  taken_at TEXT DEFAULT (datetime('now', 'localtime')),"
+                       "  node_count INTEGER DEFAULT 0,"
+                       "  edge_count INTEGER DEFAULT 0,"
+                       "  density REAL DEFAULT 0,"
+                       "  avg_connections REAL DEFAULT 0,"
+                       "  bridge_count INTEGER DEFAULT 0,"
+                       "  isolated_count INTEGER DEFAULT 0,"
+                       "  missing_phone INTEGER DEFAULT 0,"
+                       "  missing_email INTEGER DEFAULT 0"
+                       ");")) {
+            qCritical() << "Migration 17: create graph_snapshots failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 17: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(17)) {
+            return false;
+        }
+        qInfo() << "Schema migration 17 applied successfully.";
     }
 
     return true;
