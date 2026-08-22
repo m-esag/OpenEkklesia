@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "thememanager.h"
+#include "iconmanager.h"
 #include "transactiondialog.h"
 #include "peoplewidget.h"
 #include "contributionswidget.h"
@@ -178,6 +179,8 @@ MainWindow::MainWindow(QWidget *parent)
     m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemeTokens& tokens) {
         m_isDarkMode = tokens.isDark;
+        IconManager::instance().clearCache();
+        refreshSidebarIcons();
         updatePieChart();
         refreshGroupDetailPanel(m_selectedGroupId);
     });
@@ -368,27 +371,27 @@ void MainWindow::setupUI() {
     layCong->setContentsMargins(0, 0, 0, 0);
     layCong->setSpacing(6);
 
-    m_btnDashboard = new QPushButton("📊 Dashboard", this);
+    m_btnDashboard = new QPushButton("Dashboard", this);
     m_btnDashboard->setObjectName("navButton");
     m_btnDashboard->setToolTip("Dashboard: View overall member counts, fund stats, and budget progress.");
     layCong->addWidget(m_btnDashboard);
 
-    m_btnMembers = new QPushButton("👥 People", this);
+    m_btnMembers = new QPushButton("People", this);
     m_btnMembers->setObjectName("navButton");
     m_btnMembers->setToolTip("Members: Search, add, edit member details and view activity history.");
     layCong->addWidget(m_btnMembers);
 
-    m_btnGraph = new QPushButton("🕸️ Connection Graph", this);
+    m_btnGraph = new QPushButton("Connection Graph", this);
     m_btnGraph->setObjectName("navButton");
     m_btnGraph->setToolTip("Connection Graph: View relationships, care flags, and small group clusters.");
     layCong->addWidget(m_btnGraph);
 
-    m_btnAnalytics = new QPushButton("📈 Pastoral Analytics", this);
+    m_btnAnalytics = new QPushButton("Pastoral Analytics", this);
     m_btnAnalytics->setObjectName("navButton");
     m_btnAnalytics->setToolTip("Pastoral Analytics: View 5-Point Health Radar and Discipleship Pipeline.");
     layCong->addWidget(m_btnAnalytics);
 
-    m_btnShepherd = new QPushButton("🛐 Shepherd's Workbench", this);
+    m_btnShepherd = new QPushButton("Shepherd's Workbench", this);
     m_btnShepherd->setObjectName("navButton");
     m_btnShepherd->setToolTip("Shepherd's Workbench: Today's follow-up queue, member care timeline, and prayer list.");
     layCong->addWidget(m_btnShepherd);
@@ -419,22 +422,22 @@ void MainWindow::setupUI() {
     layMin->setContentsMargins(0, 0, 0, 0);
     layMin->setSpacing(6);
 
-    m_btnGroups = new QPushButton("🏠 Groups", this);
+    m_btnGroups = new QPushButton("Groups", this);
     m_btnGroups->setObjectName("navButton");
     m_btnGroups->setToolTip("Groups: Coordinate small groups, classes, and volunteer teams.");
     layMin->addWidget(m_btnGroups);
 
-    m_btnService = new QPushButton("🗓️ Service Builder", this);
+    m_btnService = new QPushButton("Service Builder", this);
     m_btnService->setObjectName("navButton");
     m_btnService->setToolTip("Service Builder: Plan liturgy, run-sheets, and schedule volunteers.");
     layMin->addWidget(m_btnService);
 
-    m_btnFacilities = new QPushButton("🏛️ Facilities Matrix", this);
+    m_btnFacilities = new QPushButton("Facilities Matrix", this);
     m_btnFacilities->setObjectName("navButton");
     m_btnFacilities->setToolTip("Facilities Matrix: Reserve church spaces and audio/visual equipment.");
     layMin->addWidget(m_btnFacilities);
 
-    m_btnPlanning = new QPushButton("📌 Ministry Planning", this);
+    m_btnPlanning = new QPushButton("Ministry Planning", this);
     m_btnPlanning->setObjectName("navButton");
     m_btnPlanning->setToolTip("Ministry Planning: View Product Roadmaps and Project Gantt Charts.");
     layMin->addWidget(m_btnPlanning);
@@ -465,17 +468,17 @@ void MainWindow::setupUI() {
     layFin->setContentsMargins(0, 0, 0, 0);
     layFin->setSpacing(6);
 
-    m_btnContributions = new QPushButton("💸 Contributions", this);
+    m_btnContributions = new QPushButton("Contributions", this);
     m_btnContributions->setObjectName("navButton");
     m_btnContributions->setToolTip("Contributions: Record donations, select funds, and view batches.");
     layFin->addWidget(m_btnContributions);
 
-    m_btnInventory = new QPushButton("📦 Asset Inventory", this);
+    m_btnInventory = new QPushButton("Asset Inventory", this);
     m_btnInventory->setObjectName("navButton");
     m_btnInventory->setToolTip("Asset Inventory: Manage church assets, checkouts, and barcodes.");
     layFin->addWidget(m_btnInventory);
 
-    m_btnVault = new QPushButton("🔒 Document Vault", this);
+    m_btnVault = new QPushButton("Document Vault", this);
     m_btnVault->setObjectName("navButton");
     m_btnVault->setToolTip("Document Vault: Securely store board minutes, bylaws, and official PDFs.");
     layFin->addWidget(m_btnVault);
@@ -494,10 +497,12 @@ void MainWindow::setupUI() {
         s.setValue("sidebarSecFinance", nowVis);
     });
 
-    m_btnSettings = new QPushButton("⚙️ Settings", this);
+    m_btnSettings = new QPushButton("Settings", this);
     m_btnSettings->setObjectName("navButton");
     m_btnSettings->setToolTip("Settings: Configure church details, responsive layout rules, graph thresholds & backups.");
     sidebarLayout->addWidget(m_btnSettings);
+
+    refreshSidebarIcons();
 
     sidebarLayout->addSpacing(15);
 
@@ -531,7 +536,8 @@ void MainWindow::setupUI() {
     QHBoxLayout* bottomDock = new QHBoxLayout();
     bottomDock->setSpacing(8);
 
-    m_btnKiosk = new QPushButton("🖥️ Kiosk Portal", this);
+    m_btnKiosk = new QPushButton(" Kiosk Portal", this);
+    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor("#cdd6f4"), 16));
     m_btnKiosk->setObjectName("navButton");
     m_btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
@@ -674,14 +680,16 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(m_chkShowMembersInTree);
 
-    QPushButton* btnAddGroup = new QPushButton("➕ Add Group", this);
+    QPushButton* btnAddGroup = new QPushButton(" Add Group", this);
+    btnAddGroup->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
     btnAddGroup->setObjectName("primaryBtn");
     connect(btnAddGroup, &QPushButton::clicked, this, [this]() {
         showGroupDialog(0, false);
     });
     grpHeaderLayout->addWidget(btnAddGroup);
 
-    QPushButton* btnEditGroup = new QPushButton("✏️ Edit Group", this);
+    QPushButton* btnEditGroup = new QPushButton(" Edit Group", this);
+    btnEditGroup->setIcon(IconManager::instance().getIcon("pencil", QColor("#cdd6f4"), 14));
     btnEditGroup->setObjectName("secondaryBtn");
     connect(btnEditGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -694,7 +702,8 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(btnEditGroup);
 
-    QPushButton* btnDuplicateGroup = new QPushButton("📋 Duplicate Group", this);
+    QPushButton* btnDuplicateGroup = new QPushButton(" Duplicate Group", this);
+    btnDuplicateGroup->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
     btnDuplicateGroup->setObjectName("secondaryBtn");
     connect(btnDuplicateGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -707,7 +716,8 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(btnDuplicateGroup);
 
-    QPushButton* btnArchiveGroup = new QPushButton("📦 Archive / Unarchive", this);
+    QPushButton* btnArchiveGroup = new QPushButton(" Archive / Unarchive", this);
+    btnArchiveGroup->setIcon(IconManager::instance().getIcon("archive", QColor("#cdd6f4"), 14));
     btnArchiveGroup->setObjectName("secondaryBtn");
     connect(btnArchiveGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -750,7 +760,8 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(btnArchiveGroup);
 
-    QPushButton* btnDeleteGroup = new QPushButton("🗑️ Delete Group", this);
+    QPushButton* btnDeleteGroup = new QPushButton(" Delete Group", this);
+    btnDeleteGroup->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     btnDeleteGroup->setObjectName("dangerBtn");
     connect(btnDeleteGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -927,12 +938,13 @@ void MainWindow::populatePages() {
     detailLayout->addWidget(m_lblGroupDetailMeta);
 
     QHBoxLayout* rosterHeaderRow = new QHBoxLayout();
-    QLabel* lblRosterTitle = new QLabel("👥 Active Roster & Roles", m_groupDetailCard);
+    QLabel* lblRosterTitle = new QLabel("Active Roster & Roles", m_groupDetailCard);
     lblRosterTitle->setStyleSheet("font-size: 13px; font-weight: bold;");
     rosterHeaderRow->addWidget(lblRosterTitle);
     rosterHeaderRow->addStretch();
 
-    QPushButton* btnAddRosterMember = new QPushButton("➕ Add Member", m_groupDetailCard);
+    QPushButton* btnAddRosterMember = new QPushButton(" Add Member", m_groupDetailCard);
+    btnAddRosterMember->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 14));
     btnAddRosterMember->setObjectName("primaryBtn");
     btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
     connect(btnAddRosterMember, &QPushButton::clicked, this, [this]() {
@@ -1135,22 +1147,26 @@ QWidget* MainWindow::createDashboardPage() {
     headerRow->addStretch();
 
     // Quick Actions Bar
-    QPushButton* btnAddPersonQuick = new QPushButton("➕ Add Person", page);
+    QPushButton* btnAddPersonQuick = new QPushButton(" Add Person", page);
+    btnAddPersonQuick->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 14));
     btnAddPersonQuick->setObjectName("primaryBtn");
     connect(btnAddPersonQuick, &QPushButton::clicked, this, [this]() {
         onMembersClicked();
         if (m_peopleWidget) m_peopleWidget->onAddPerson();
     });
 
-    QPushButton* btnGivingQuick = new QPushButton("💸 Giving", page);
+    QPushButton* btnGivingQuick = new QPushButton(" Giving", page);
+    btnGivingQuick->setIcon(IconManager::instance().getIcon("hand-coins", QColor("#cdd6f4"), 14));
     btnGivingQuick->setObjectName("secondaryBtn");
     connect(btnGivingQuick, &QPushButton::clicked, this, &MainWindow::onContributionsClicked);
 
-    QPushButton* btnServiceQuick = new QPushButton("🗓️ Services", page);
+    QPushButton* btnServiceQuick = new QPushButton(" Services", page);
+    btnServiceQuick->setIcon(IconManager::instance().getIcon("list-music", QColor("#cdd6f4"), 14));
     btnServiceQuick->setObjectName("secondaryBtn");
     connect(btnServiceQuick, &QPushButton::clicked, this, &MainWindow::onServiceClicked);
 
-    QPushButton* btnCmdQuick = new QPushButton("🔍 Search (Ctrl+K)", page);
+    QPushButton* btnCmdQuick = new QPushButton(" Search (Ctrl+K)", page);
+    btnCmdQuick->setIcon(IconManager::instance().getIcon("search", QColor("#cdd6f4"), 14));
     btnCmdQuick->setObjectName("secondaryBtn");
     connect(btnCmdQuick, &QPushButton::clicked, this, [this]() {
         CommandPaletteDialog palette(this);
@@ -1168,7 +1184,8 @@ QWidget* MainWindow::createDashboardPage() {
     QHBoxLayout* kpiHeaderRow = new QHBoxLayout();
     QLabel* lblKpiSection = new QLabel("Key Performance Indicators", page);
     lblKpiSection->setStyleSheet("font-size: 13px; font-weight: bold; opacity: 0.85;");
-    QPushButton* btnConfigKpi = new QPushButton("⚙️ Configure KPIs", page);
+    QPushButton* btnConfigKpi = new QPushButton(" Configure KPIs", page);
+    btnConfigKpi->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
     btnConfigKpi->setObjectName("secondaryBtn");
     btnConfigKpi->setStyleSheet("padding: 3px 8px; font-size: 11px;");
     connect(btnConfigKpi, &QPushButton::clicked, this, &MainWindow::onConfigureKpiCards);
@@ -1215,9 +1232,10 @@ QWidget* MainWindow::createDashboardPage() {
     alertsCardLayout->setSpacing(10);
 
     QHBoxLayout* alertsTitleRow = new QHBoxLayout();
-    QLabel* alertsCardTitle = new QLabel("⚠️ Member Inactivity & Care Alerts", alertsCard);
+    QLabel* alertsCardTitle = new QLabel("Member Inactivity & Care Alerts", alertsCard);
     alertsCardTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #f38ba8;");
-    QPushButton* btnQuickNote = new QPushButton("✍️ Quick Note", alertsCard);
+    QPushButton* btnQuickNote = new QPushButton(" Quick Note", alertsCard);
+    btnQuickNote->setIcon(IconManager::instance().getIcon("pencil", QColor("#11111b"), 14));
     btnQuickNote->setObjectName("primaryBtn");
     btnQuickNote->setStyleSheet("padding: 2px 8px; font-size: 11px;");
     connect(btnQuickNote, &QPushButton::clicked, this, [this]() {
@@ -2338,9 +2356,9 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     if (recruitStatus == "Elected") {
         metaParts << "<span style='background-color: #382418; color: #fab387; border: 1px solid #fab387; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🗳️ Elected Governance Body (Annual Vote)</span>";
     } else if (recruitStatus == "Seasonal") {
-        metaParts << "<span style='background-color: #1e1e2e; color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>📅 Seasonal Cohort (Closed Enrollment)</span>";
+        metaParts << "<span style='background-color: palette(base); color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>📅 Seasonal Cohort (Closed Enrollment)</span>";
     } else if (recruitStatus == "Closed") {
-        metaParts << "<span style='background-color: #313244; color: palette(placeholderText); border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🔒 Closed (Invite Only)</span>";
+        metaParts << "<span style='background-color: palette(mid); color: palette(placeholderText); border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🔒 Closed (Invite Only)</span>";
     } else {
         metaParts << "<span style='background-color: #18332b; color: #a6e3a1; border: 1px solid #a6e3a1; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>🟢 Open for Recruitment</span>";
     }
@@ -2542,7 +2560,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate) {
     }
 
     dlg.resize(440, 560);
-    dlg.setStyleSheet(QString("QDialog { background-color: %1; color: %2; } QLabel { color: %2; } QLineEdit, QComboBox, QSpinBox, QTextEdit { background-color: %3; color: %2; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }")
+    dlg.setStyleSheet(QString("QDialog { background-color: %1; color: %2; } QLabel { color: %2; } QLineEdit, QComboBox, QSpinBox, QTextEdit { background-color: %3; color: %2; border: 1px solid palette(mid); border-radius: 6px; padding: 4px; }")
                       .arg(tok.bgSurface.name(), tok.textPrimary.name(), tok.bgBase.name()));
 
     QFormLayout* form = new QFormLayout(&dlg);
@@ -2844,4 +2862,30 @@ void MainWindow::setActiveNav(QPushButton* btn) {
         btn->style()->polish(btn);
     }
     m_activeNavButton = btn;
+}
+
+void MainWindow::refreshSidebarIcons() {
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+    QColor navCol = tok.isDark ? QColor("#cdd6f4") : QColor("#4c4f69");
+
+    auto setNav = [&](QPushButton* btn, const QString& name, const QString& text) {
+        if (!btn) return;
+        btn->setIcon(IconManager::instance().getIcon(name, navCol, 18));
+        btn->setIconSize(QSize(18, 18));
+        btn->setText("  " + text);
+    };
+
+    setNav(m_btnDashboard, "bar-chart-3", "Dashboard");
+    setNav(m_btnMembers, "users", "People");
+    setNav(m_btnGraph, "network", "Connection Graph");
+    setNav(m_btnAnalytics, "bar-chart-3", "Pastoral Analytics");
+    setNav(m_btnShepherd, "heart-handshake", "Shepherd's Workbench");
+    setNav(m_btnGroups, "layers", "Groups & Ministries");
+    setNav(m_btnService, "list-music", "Service Builder");
+    setNav(m_btnFacilities, "landmark", "Facilities Matrix");
+    setNav(m_btnPlanning, "calendar", "Ministry Planning");
+    setNav(m_btnContributions, "hand-coins", "Giving & Batches");
+    setNav(m_btnInventory, "package", "Asset Inventory");
+    setNav(m_btnVault, "shield-check", "Document Vault");
+    setNav(m_btnSettings, "settings", "Settings");
 }

@@ -1,4 +1,5 @@
 #include "graphwidget.h"
+#include "iconmanager.h"
 #include "../database/databasemanager.h"
 #include "matchdialog.h"
 #include <QPainter>
@@ -239,21 +240,22 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         painter->drawEllipse(-r, -r, r * 2.0, r * 2.0);
     }
 
-    painter->setPen(QPen(borderCol));
-    painter->setFont(QFont("Segoe UI", qMax(8, static_cast<int>(r * 0.5)), QFont::Bold));
-    QString symbol;
-    if (m_type == Group) symbol = "🏛️";
-    else if (m_type == Household) symbol = "🏡";
-    else if (m_type == IsolatedPerson) symbol = "🔴";
-    else if (m_type == Visitor) symbol = "👋";
-    else if (m_isBridgeBroker) symbol = "🌉";
-    else symbol = "👤";
+    QString iconName;
+    if (m_type == Group) iconName = "layers";
+    else if (m_type == Household) iconName = "users";
+    else if (m_type == IsolatedPerson) iconName = "alert-triangle";
+    else if (m_type == Visitor) iconName = "user-plus";
+    else if (m_isBridgeBroker) iconName = "network";
+    else iconName = "user";
+
+    double iconSz = r * 0.9;
+    QRectF iconRect(-iconSz / 2.0, -iconSz / 2.0, iconSz, iconSz);
+    IconManager::instance().paintIcon(painter, iconName, iconRect, borderCol, 2.0);
 
     if (m_isPinned) {
-        painter->setFont(QFont("Segoe UI Emoji", 10));
-        painter->drawText(QPointF(r * 0.4, -r * 0.4), "📌");
+        QRectF pinRect(r * 0.2, -r * 0.9, 12, 12);
+        IconManager::instance().paintIcon(painter, "pin", pinRect, tok.accentWarning, 2.0);
     }
-    painter->drawText(QRectF(-r, -r, r * 2.0, r * 2.0), Qt::AlignCenter, symbol);
 
     if (!m_careFlag.isEmpty()) {
         QColor badgeColor;
@@ -705,7 +707,8 @@ void GraphWidget::setupUI() {
     m_cmbMinistryBranch->setStyleSheet("font-size: 11px; padding: 4px;");
     connect(m_cmbMinistryBranch, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onMinistryBranchChanged);
 
-    m_btnToggleHierarchyTree = new QPushButton("🌲 Ministry Tree", this);
+    m_btnToggleHierarchyTree = new QPushButton(" Ministry Tree", this);
+    m_btnToggleHierarchyTree->setIcon(IconManager::instance().getIcon("folder-tree", tok.accentPrimary, 16));
     m_btnToggleHierarchyTree->setObjectName("secondaryBtn");
     m_btnToggleHierarchyTree->setStyleSheet("font-size: 11px; padding: 5px 8px; font-weight: bold;");
     m_btnToggleHierarchyTree->setToolTip("View full ministry hierarchy tree table with sub-groups and involved members");
@@ -714,28 +717,36 @@ void GraphWidget::setupUI() {
         if (m_dockTabs) m_dockTabs->setCurrentWidget(m_hierarchyTab);
     });
 
-    m_btnToggleSelectMode = new QPushButton("✋ Pan Canvas", this);
+    m_btnToggleSelectMode = new QPushButton("Pan Canvas", this);
     m_btnToggleSelectMode->setCheckable(true);
     m_btnToggleSelectMode->setChecked(false);
     m_btnToggleSelectMode->setObjectName("secondaryBtn");
     m_btnToggleSelectMode->setStyleSheet("font-size: 11px; padding: 5px 10px;");
     connect(m_btnToggleSelectMode, &QPushButton::clicked, this, &GraphWidget::onToggleSelectMode);
 
-    m_btnTogglePeople = createToggleBtn("👤 People", true);
+    m_btnTogglePeople = createToggleBtn("People", true);
+    m_btnTogglePeople->setIcon(IconManager::instance().getIcon("user", tok.accentPrimary, 14));
     styleFilterButton(m_btnTogglePeople, true, tok.accentPrimary);
-    m_btnToggleHouseholds = createToggleBtn("🏡 Households", true);
+    m_btnToggleHouseholds = createToggleBtn("Households", true);
+    m_btnToggleHouseholds->setIcon(IconManager::instance().getIcon("users", tok.accentPrimary, 14));
     styleFilterButton(m_btnToggleHouseholds, true, tok.accentPrimary);
-    m_btnToggleGroups = createToggleBtn("🏛️ Groups", true);
+    m_btnToggleGroups = createToggleBtn("Groups", true);
+    m_btnToggleGroups->setIcon(IconManager::instance().getIcon("layers", tok.accentPrimary, 14));
     styleFilterButton(m_btnToggleGroups, true, tok.accentPrimary);
-    m_btnToggleBurnout = createToggleBtn("⚠️ Burnout", false);
+    m_btnToggleBurnout = createToggleBtn("Burnout", false);
+    m_btnToggleBurnout->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentWarning, 14));
     styleFilterButton(m_btnToggleBurnout, false, tok.accentWarning);
-    m_btnToggleIsolation = createToggleBtn("🔴 Isolated", false);
+    m_btnToggleIsolation = createToggleBtn("Isolated", false);
+    m_btnToggleIsolation->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentDanger, 14));
     styleFilterButton(m_btnToggleIsolation, false, tok.accentDanger);
-    m_btnToggleHygiene = createToggleBtn("🧹 Hygiene", false);
+    m_btnToggleHygiene = createToggleBtn("Hygiene", false);
+    m_btnToggleHygiene->setIcon(IconManager::instance().getIcon("sparkles", tok.accentSuccess, 14));
     styleFilterButton(m_btnToggleHygiene, false, tok.accentSuccess);
-    m_btnToggleBridgeNodes = createToggleBtn("🌉 Bridge Nodes", false);
+    m_btnToggleBridgeNodes = createToggleBtn("Bridges", false);
+    m_btnToggleBridgeNodes->setIcon(IconManager::instance().getIcon("network", QColor("#cba6f7"), 14));
     styleFilterButton(m_btnToggleBridgeNodes, false, QColor("#cba6f7"));
-    m_btnToggleFamilyDynasty = createToggleBtn("🏡 Dynasties", false);
+    m_btnToggleFamilyDynasty = createToggleBtn("Dynasties", false);
+    m_btnToggleFamilyDynasty->setIcon(IconManager::instance().getIcon("users", tok.accentWarning, 14));
     styleFilterButton(m_btnToggleFamilyDynasty, false, tok.accentWarning);
 
     connect(m_btnTogglePeople, &QPushButton::clicked, this, [this]() {
@@ -865,7 +876,7 @@ void GraphWidget::setupUI() {
 
     // Floating Zoom Bar Overlay on Canvas Bottom Right
     m_floatingZoomBar = new QWidget(m_canvasView);
-    m_floatingZoomBar->setStyleSheet("background-color: rgba(24, 24, 37, 0.85); border: 1px solid #45475a; border-radius: 8px; padding: 2px;");
+    m_floatingZoomBar->setStyleSheet("background-color: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 2px;");
     QHBoxLayout* fzLay = new QHBoxLayout(m_floatingZoomBar);
     fzLay->setContentsMargins(4, 4, 4, 4);
     fzLay->setSpacing(4);
@@ -1349,7 +1360,7 @@ void GraphWidget::setupUI() {
 
     // Collapsible Legend Overlay
     m_legendOverlay = new QWidget(m_canvasView);
-    m_legendOverlay->setStyleSheet("QWidget#legendOverlay { background-color: rgba(24, 24, 37, 0.95); border: 1px solid #45475a; border-radius: 8px; }");
+    m_legendOverlay->setStyleSheet("QWidget#legendOverlay { background-color: palette(base); border: 1px solid palette(mid); border-radius: 8px; }");
     m_legendOverlay->setObjectName("legendOverlay");
     m_legendOverlay->hide();
 

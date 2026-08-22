@@ -1254,7 +1254,10 @@ void SettingsWidget::loadSettings() {
     const QString pcoId = s.value("pcoAppId").toString();
     if (!pcoId.isEmpty()) {
         m_lblPcoStatusBadge->setText(QString("🟢 Planning Center Online: Connected (App ID: %1)").arg(pcoId));
-        m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(166, 227, 161, 0.15); color: #a6e3a1;");
+        const bool dark = ThemeManager::instance().currentTokens().isDark;
+        m_lblPcoStatusBadge->setStyleSheet(QString("padding: 4px 10px; border-radius: 6px; font-weight: bold; "
+            "background-color: %1; color: %2;").arg(dark ? "rgba(166, 227, 161, 0.15)" : "rgba(21, 128, 61, 0.08)",
+            dark ? "#a6e3a1" : "#15803d"));
     } else {
         m_lblPcoStatusBadge->setText("⚪ Planning Center Online: Not Configured");
         m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255, 255, 255, 0.06);");
