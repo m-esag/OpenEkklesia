@@ -292,10 +292,12 @@ private slots:
 
 protected:
     void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
 private:
     void setupUI();
+    void restyleChrome(const ThemeTokens& tok);
     void applyForceDirectedLayout();
     void applyClusteredLayout();
     void runBFSPathfind();
