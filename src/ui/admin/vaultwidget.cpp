@@ -1,5 +1,9 @@
 #include "vaultwidget.h"
+#include "../common/churchprofile.h"
+#include "../common/appdateformatter.h"
+#include <QDate>
 #include "../database/databasemanager.h"
+#include "../core/iconmanager.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QVBoxLayout>
@@ -100,22 +104,26 @@ void VaultWidget::setupUI() {
     connect(m_searchEdit, &QLineEdit::textChanged, this, &VaultWidget::onSearchChanged);
     controls->addWidget(m_searchEdit);
 
-    m_btnUpload = new QPushButton("+ Upload Document (PDF)", this);
+    m_btnUpload = new QPushButton(" Upload Document (PDF)", this);
+    m_btnUpload->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
     m_btnUpload->setObjectName("saveBtn");
     connect(m_btnUpload, &QPushButton::clicked, this, &VaultWidget::onUploadClicked);
     controls->addWidget(m_btnUpload);
 
-    m_btnOpen = new QPushButton("👁 Open / View File", this);
+    m_btnOpen = new QPushButton(" Open / View File", this);
+    m_btnOpen->setIcon(IconManager::instance().getIcon("eye", QColor("#11111b"), 14));
     m_btnOpen->setObjectName("primaryBtn");
     connect(m_btnOpen, &QPushButton::clicked, this, &VaultWidget::onOpenClicked);
     controls->addWidget(m_btnOpen);
 
-    m_btnDelete = new QPushButton("Remove Record", this);
+    m_btnDelete = new QPushButton(" Remove Record", this);
+    m_btnDelete->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnDelete->setObjectName("dangerBtn");
     connect(m_btnDelete, &QPushButton::clicked, this, &VaultWidget::onDeleteClicked);
     controls->addWidget(m_btnDelete);
 
-    m_btnSweep = new QPushButton("🧹 Sweep Orphans", this);
+    m_btnSweep = new QPushButton(" Sweep Orphans", this);
+    m_btnSweep->setIcon(IconManager::instance().getIcon("sparkles", QColor("#cdd6f4"), 14));
     m_btnSweep->setObjectName("secondaryBtn");
     m_btnSweep->setToolTip("Find files in the vault folder that no database record references (demo leftovers, record-only removals) and offer to delete them.");
     connect(m_btnSweep, &QPushButton::clicked, this, &VaultWidget::onSweepOrphans);
@@ -172,7 +180,7 @@ void VaultWidget::setupUI() {
     });
     vaultLay->addWidget(m_tableView);
 
-    tabs->addTab(tabVault, "📁 Document Vault");
+    tabs->addTab(tabVault, "Document Vault");
 
     // --- Tab 2: Board Minutes & Motion Tracker ---
     QWidget* tabMinutes = new QWidget(this);
@@ -181,17 +189,20 @@ void VaultWidget::setupUI() {
     minLay->setSpacing(12);
 
     QHBoxLayout* minControls = new QHBoxLayout();
-    m_btnAddMinutes = new QPushButton("📜 Log Board Motion / Minutes", this);
+    m_btnAddMinutes = new QPushButton(" Log Board Motion / Minutes", this);
+    m_btnAddMinutes->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
     m_btnAddMinutes->setObjectName("primaryBtn");
     connect(m_btnAddMinutes, &QPushButton::clicked, this, &VaultWidget::onAddBoardMinutes);
     minControls->addWidget(m_btnAddMinutes);
 
-    m_btnDeleteMinutes = new QPushButton("🗑️ Remove Motion Entry", this);
+    m_btnDeleteMinutes = new QPushButton(" Remove Motion Entry", this);
+    m_btnDeleteMinutes->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnDeleteMinutes->setObjectName("dangerBtn");
     connect(m_btnDeleteMinutes, &QPushButton::clicked, this, &VaultWidget::onDeleteMinutes);
     minControls->addWidget(m_btnDeleteMinutes);
 
-    m_btnExportMinutesPDF = new QPushButton("📄 Export Board Minutes (PDF)", this);
+    m_btnExportMinutesPDF = new QPushButton(" Export Board Minutes (PDF)", this);
+    m_btnExportMinutesPDF->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnExportMinutesPDF->setObjectName("saveBtn");
     connect(m_btnExportMinutesPDF, &QPushButton::clicked, this, &VaultWidget::onExportMinutesPDF);
     minControls->addWidget(m_btnExportMinutesPDF);
@@ -634,10 +645,11 @@ void VaultWidget::onExportMinutesPDF() {
         "table { width: 100%; border-collapse: collapse; margin-top: 15px; }"
         "th { background-color: #f4f4f4; text-align: left; padding: 8px; border: 1px solid #ddd; font-size: 11px; }"
         "td { padding: 8px; border: 1px solid #ddd; font-size: 10px; }"
-        ".footer { margin-top: 30px; font-size: 9px; color: #777; font-style: italic; }"
-        "</style></head><body>"
-        "<h1>%1 — Official Board Minutes & Motion History</h1>"
-        "<p><strong>Generated Date:</strong> %2</p>"
+        ".footer { margin-top: 30px; font-size: 9px; color: #777; font-style: italic; }"        "</style></head><body>"
+        + ChurchProfile::renderHtmlHeader("Official Board Minutes & Motion History",
+                                          QString("Generated %1").arg(AppDateFormatter::formatDate(QDate::currentDate())),
+                                          /*includeTaxId=*/true)
+        + "<table>"
         "<table>"
         "<tr><th>Meeting Date</th><th>Motion / Resolution</th><th>Moved By</th><th>Seconded By</th><th>Vote Result</th></tr>"
     ).arg(churchName, QDate::currentDate().toString("MMMM d, yyyy"));

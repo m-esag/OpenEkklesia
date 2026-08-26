@@ -1,4 +1,5 @@
 #include "peoplewidget.h"
+#include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
 #include <QDesktopServices>
 #include <QUrl>
@@ -44,6 +45,8 @@
 #include <QMenu>
 #include <QDialogButtonBox>
 #include "../common/appcurrency.h"
+#include "../common/churchprofile.h"
+#include "../common/appdateformatter.h"
 
 // ============================================================================
 // ClickableAvatarLabel Implementation
@@ -805,6 +808,10 @@ void PeopleWidget::setupUI() {
             writer.setPageSize(QPageSize(QPageSize::Letter));
             QPainter painter(&writer);
             painter.setPen(Qt::black);
+
+            // Official church letterhead (logo, name, address, Tax ID).
+            ChurchProfile::renderPainterHeader(painter, writer.width(), "Official Giving Tax Statement", /*includeTaxId=*/true);
+
             QFont fHeader("Helvetica", 16, QFont::Bold);
             painter.setFont(fHeader);
             painter.drawText(500, 500, "Official Giving Tax Statement");
@@ -827,7 +834,7 @@ void PeopleWidget::setupUI() {
     scrollGiving->setWidget(pageGiving);
     m_detailStack->addWidget(scrollGiving);
 
-    // --- TAB 4: GIFTS & TAGS ---
+    // --- TAB 4: MINISTRY FIT (ARCHETYPES, GIFTS & TAGS) ---
     QWidget* pageMinistry = new QWidget();
     QVBoxLayout* layPageMinistry = new QVBoxLayout(pageMinistry);
     layPageMinistry->setContentsMargins(0, 0, 0, 0);
@@ -837,10 +844,77 @@ void PeopleWidget::setupUI() {
     cardMin->setObjectName("cardWidget");
     QVBoxLayout* layCardMin = new QVBoxLayout(cardMin);
     layCardMin->setContentsMargins(12, 10, 12, 10);
-    layCardMin->setSpacing(8);
+    layCardMin->setSpacing(10);
 
-    QLabel* lblMinTitle = new QLabel("✨ SPIRITUAL GIFTS & TALENTS", cardMin);
-    lblMinTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    // 1. Primary & Secondary Archetypes
+    QLabel* lblArchetypeTitle = new QLabel("🔥 MINISTRY ARCHETYPE & BEHAVIORAL DNA", cardMin);
+    lblArchetypeTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    layCardMin->addWidget(lblArchetypeTitle);
+
+    m_primaryArchetypeEdit = new QLineEdit(cardMin);
+    m_primaryArchetypeEdit->setVisible(false);
+
+    QLabel* lblPrimaryNote = new QLabel("Primary Ministry Calling (Single-Select):", cardMin);
+    lblPrimaryNote->setStyleSheet("font-size: 10px; font-weight: bold; color: palette(text);");
+    layCardMin->addWidget(lblPrimaryNote);
+
+    QHBoxLayout* archetypeRow = new QHBoxLayout();
+    archetypeRow->setSpacing(6);
+
+    const struct { ChurchArchetype arch; const char* name; const char* icon; const char* color; } kArchetypes[] = {
+        {ChurchArchetype::Catalyst, "Catalyst", "🔥", "#fab387"},
+        {ChurchArchetype::Shepherd, "Shepherd", "🌿", "#a6e3a1"},
+        {ChurchArchetype::Architect, "Architect", "📐", "#89b4fa"},
+        {ChurchArchetype::Spark, "Spark", "⚡", "#f9e2af"},
+        {ChurchArchetype::Anchor, "Anchor", "⚓", "#cba6f7"}
+    };
+
+    for (const auto& a : kArchetypes) {
+        QPushButton* chip = new QPushButton(QString("%1 %2").arg(a.icon, a.name), cardMin);
+        chip->setCheckable(true);
+        chip->setProperty("rawName", a.name);
+        chip->setStyleSheet(QString(
+            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 12px; color: palette(text); padding: 4px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { border: 1px solid %1; color: %1; }"
+            "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 2px solid %1; color: %1; }"
+        ).arg(a.color));
+
+        connect(chip, &QPushButton::clicked, this, [this, chip]() {
+            for (QPushButton* c : m_archetypeChips) {
+                if (c != chip) {
+                    c->blockSignals(true);
+                    c->setChecked(false);
+                    c->blockSignals(false);
+                }
+            }
+            chip->setChecked(true);
+            updateArchetypeFromChips();
+            setDirty(true);
+        });
+
+        m_archetypeChips.append(chip);
+        archetypeRow->addWidget(chip);
+    }
+    archetypeRow->addStretch();
+    layCardMin->addLayout(archetypeRow);
+
+    // Secondary Archetype Dropdown
+    QFormLayout* formSec = new QFormLayout();
+    formSec->setSpacing(6);
+    m_cmbSecondaryArchetype = new QComboBox(cardMin);
+    m_cmbSecondaryArchetype->addItem("— None —", "None");
+    for (const auto& a : kArchetypes) {
+        m_cmbSecondaryArchetype->addItem(QString("%1 %2").arg(a.icon, a.name), a.name);
+    }
+    connect(m_cmbSecondaryArchetype, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        setDirty(true);
+    });
+    formSec->addRow("Secondary Archetype:", m_cmbSecondaryArchetype);
+    layCardMin->addLayout(formSec);
+
+    // 2. Spiritual Gifts (Max 4)
+    QLabel* lblMinTitle = new QLabel("✨ SPIRITUAL GIFTS (Max 4 Primary):", cardMin);
+    lblMinTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblMinTitle);
 
     m_giftsEdit = new QLineEdit(cardMin);
@@ -867,6 +941,20 @@ void PeopleWidget::setupUI() {
             "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 1px solid #89b4fa; color: #89b4fa; }"
         );
         connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
+            // Constrain to max 4 selected gifts
+            if (checked) {
+                int count = 0;
+                for (QPushButton* c : m_giftChips) {
+                    if (c->isChecked()) count++;
+                }
+                if (count > 4) {
+                    chip->blockSignals(true);
+                    chip->setChecked(false);
+                    chip->blockSignals(false);
+                    QMessageBox::information(this, "Gifts Limit", "To ensure high data quality, please select up to 4 primary spiritual gifts.");
+                    return;
+                }
+            }
             QString raw = chip->property("rawName").toString();
             chip->setText(checked ? QString("✓ %1").arg(raw) : raw);
             updateGiftsFromChips();
@@ -883,8 +971,8 @@ void PeopleWidget::setupUI() {
     giftsChipBox->addLayout(giftsRow2);
     layCardMin->addLayout(giftsChipBox);
 
-    // Relational Styles
-    QLabel* lblStyleHeader = new QLabel("Relational Style Dynamics:", cardMin);
+    // 3. Relational Styles (Single-Select)
+    QLabel* lblStyleHeader = new QLabel("🧠 RELATIONAL STYLE (Single-Select):", cardMin);
     lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblStyleHeader);
 
@@ -906,9 +994,17 @@ void PeopleWidget::setupUI() {
             "QPushButton:hover { border: 1px solid #a6e3a1; color: #a6e3a1; }"
             "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlighted-text); }"
         );
-        connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
-            QString raw = chip->property("rawName").toString();
-            chip->setText(checked ? QString("✓ %1").arg(raw) : raw);
+        connect(chip, &QPushButton::clicked, this, [this, chip]() {
+            for (QPushButton* c : m_styleChips) {
+                if (c != chip) {
+                    c->blockSignals(true);
+                    c->setChecked(false);
+                    c->setText(c->property("rawName").toString());
+                    c->blockSignals(false);
+                }
+            }
+            chip->setChecked(true);
+            chip->setText(QString("✓ %1").arg(chip->property("rawName").toString()));
             updateStylesFromChips();
             setDirty(true);
         });
@@ -918,8 +1014,8 @@ void PeopleWidget::setupUI() {
     styleRow->addStretch();
     layCardMin->addLayout(styleRow);
 
-    // Interest Tags
-    QLabel* lblTagsHeader = new QLabel("Interest Tags:", cardMin);
+    // 4. Interest Tags
+    QLabel* lblTagsHeader = new QLabel("🏷️ INTEREST TAGS:", cardMin);
     lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblTagsHeader);
 
@@ -977,6 +1073,14 @@ void PeopleWidget::setupUI() {
     m_btnSave->setFixedHeight(34);
     connect(m_btnSave, &QPushButton::clicked, this, &PeopleWidget::onSaveProfile);
     footerLayout->addWidget(m_btnSave);
+
+    QPushButton* btnExportVCard = new QPushButton(" Export vCard", m_footerFrame);
+    btnExportVCard->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
+    btnExportVCard->setObjectName("secondaryBtn");
+    btnExportVCard->setFixedHeight(34);
+    btnExportVCard->setToolTip("Export contact as standard .vcf format for smartphones, Apple Contacts, or Outlook.");
+    connect(btnExportVCard, &QPushButton::clicked, this, &PeopleWidget::onExportVCard);
+    footerLayout->addWidget(btnExportVCard);
 
     m_btnDeletePerson = new QPushButton(" Delete Profile", m_footerFrame);
     m_btnDeletePerson->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
@@ -1078,6 +1182,35 @@ void PeopleWidget::populateHouseholdCombo() {
         m_householdCombo->addItem(name, id);
     }
     m_householdCombo->blockSignals(false);
+}
+
+void PeopleWidget::updateArchetypesFromText(const QString& primary, const QString& secondary) {
+    QString p = primary.trimmed();
+    if (p.isEmpty()) p = "Anchor";
+    m_primaryArchetypeEdit->setText(p);
+
+    for (QPushButton* btn : m_archetypeChips) {
+        QString raw = btn->property("rawName").toString();
+        bool isSel = (p.compare(raw, Qt::CaseInsensitive) == 0);
+        btn->blockSignals(true);
+        btn->setChecked(isSel);
+        btn->blockSignals(false);
+    }
+
+    m_cmbSecondaryArchetype->blockSignals(true);
+    int secIdx = m_cmbSecondaryArchetype->findData(secondary.trimmed());
+    if (secIdx < 0) secIdx = m_cmbSecondaryArchetype->findText(secondary.trimmed(), Qt::MatchContains);
+    m_cmbSecondaryArchetype->setCurrentIndex(secIdx >= 0 ? secIdx : 0);
+    m_cmbSecondaryArchetype->blockSignals(false);
+}
+
+void PeopleWidget::updateArchetypeFromChips() {
+    for (QPushButton* btn : m_archetypeChips) {
+        if (btn->isChecked()) {
+            m_primaryArchetypeEdit->setText(btn->property("rawName").toString());
+            break;
+        }
+    }
 }
 
 void PeopleWidget::updateGiftsFromChips() {
@@ -1450,11 +1583,14 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     QString jdStr = rec.value("join_date").toString();
 
     // Query directly from database to guarantee 100% fidelity without relational model column-shift bugs
+    QString priArchetype = "Anchor";
+    QString secArchetype = "None";
     {
         QSqlQuery hq;
         hq.prepare("SELECT household_id, gender, first_name, last_name, phone_number, email, "
                    "date_of_birth, avatar_path, care_flag, admin_notes, membership_status, "
-                   "first_visit_date, join_date, spiritual_gifts, relational_style, interest_tags "
+                   "first_visit_date, join_date, spiritual_gifts, relational_style, interest_tags, "
+                   "ministry_personality, personality_secondary "
                    "FROM people WHERE id = ?");
         hq.addBindValue(personId);
         if (hq.exec() && hq.next()) {
@@ -1474,6 +1610,8 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
             giftsText = hq.value(13).toString();
             styleText = hq.value(14).toString();
             m_tagsEdit->setText(hq.value(15).toString());
+            priArchetype = hq.value(16).toString();
+            secArchetype = hq.value(17).toString();
         }
     }
 
@@ -1512,6 +1650,7 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
         m_adminNotesText->setText(notes);
     }
 
+    updateArchetypesFromText(priArchetype, secArchetype);
     updateChipsFromGiftsText(giftsText);
     updateChipsFromStyleText(styleText);
     renderTagChips();
@@ -1740,6 +1879,13 @@ void PeopleWidget::onSortByChanged(int index) {
 }
 
 void PeopleWidget::onAddPerson() {
+    // Reset any active search or status filter so the newly created person is immediately visible
+    if (m_searchEdit) m_searchEdit->clear();
+    if (m_statusFilterGroup && m_statusFilterGroup->button(0)) {
+        m_statusFilterGroup->button(0)->setChecked(true);
+    }
+    reapplyFilter();
+
     QSqlDatabase db = QSqlDatabase::database();
     db.transaction();
 
@@ -1757,6 +1903,7 @@ void PeopleWidget::onAddPerson() {
 
         m_peopleModel->revertAll();
         m_peopleModel->select();
+        reapplyFilter();
         selectPerson(newId);
         m_firstNameEdit->setFocus();
         m_firstNameEdit->selectAll();
@@ -1860,6 +2007,10 @@ void PeopleWidget::onSaveProfile() {
     QString giftsText = m_giftsEdit->text().trimmed();
     QString styleText = m_styleEdit->text().trimmed();
     QString tagsText = m_tagsEdit->text().trimmed();
+    QString priArchetype = m_primaryArchetypeEdit->text().trimmed();
+    if (priArchetype.isEmpty()) priArchetype = "Anchor";
+    QString secArchetype = m_cmbSecondaryArchetype->currentData().toString();
+    if (secArchetype.isEmpty() || secArchetype == "None" || secArchetype.contains("None")) secArchetype = "";
     QString notes = m_adminNotesText ? m_adminNotesText->toPlainText() : "";
     QString careFlag = m_careFlagCombo ? m_careFlagCombo->currentText() : "Normal";
 
@@ -1881,7 +2032,9 @@ void PeopleWidget::onSaveProfile() {
               "gender = :gender, "
               "spiritual_gifts = :gifts, "
               "relational_style = :style, "
-              "interest_tags = :tags "
+              "interest_tags = :tags, "
+              "ministry_personality = :pri, "
+              "personality_secondary = :sec "
               "WHERE id = :id");
 
     q.bindValue(":fn", fn);
@@ -1900,6 +2053,8 @@ void PeopleWidget::onSaveProfile() {
     q.bindValue(":gifts", giftsText);
     q.bindValue(":style", styleText);
     q.bindValue(":tags", tagsText);
+    q.bindValue(":pri", priArchetype);
+    q.bindValue(":sec", secArchetype);
     q.bindValue(":id", personId);
 
     if (q.exec()) {
@@ -1967,13 +2122,10 @@ void PeopleWidget::onDeletePerson() {
 }
 
 bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
-    // Remove child records first so foreign-key constraints don't block the
-    // person delete (previously the DELETE failed for anyone with
-    // contributions, relationships, care logs, attendance, etc.).
+    // Remove child activity & tracking records first so foreign-key constraints don't block deletion
     const QStringList childTables = {
         "pastoral_activities", "member_history", "care_logs", "attendance",
-        "member_skills", "service_volunteers", "checkout_logs",
-        "contributions", "splits"
+        "member_skills", "service_volunteers", "checkout_logs"
     };
     for (const QString& t : childTables) {
         q.prepare(QString("DELETE FROM %1 WHERE person_id = ?").arg(t));
@@ -1983,6 +2135,33 @@ bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
             return false;
         }
     }
+
+    // Set splits person_id to NULL to preserve double-entry accounting ledger balance and debit/credit equality
+    q.prepare("UPDATE splits SET person_id = NULL WHERE person_id = ?");
+    q.addBindValue(personId);
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on splits:" << q.lastError().text();
+        return false;
+    }
+
+    // Delete direct contributions records
+    q.prepare("DELETE FROM contributions WHERE person_id = ?");
+    q.addBindValue(personId);
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on contributions:" << q.lastError().text();
+        return false;
+    }
+
+    // Unlink document vault attachments
+    q.prepare("UPDATE vault_documents SET person_id = NULL WHERE person_id = ?");
+    q.addBindValue(personId);
+    q.exec();
+
+    // Unlink task ownership
+    q.prepare("UPDATE ministry_tasks SET owner_id = NULL WHERE owner_id = ?");
+    q.addBindValue(personId);
+    q.exec();
+
     // Polymorphic relationships can reference the person as source or target.
     q.prepare("DELETE FROM entity_relationships WHERE (source_type = 'Person' AND source_id = ?) "
               "OR (target_type = 'Person' AND target_id = ?)");
@@ -2301,11 +2480,11 @@ void PeopleWidget::onPrintDirectory() {
                    "th { background-color: palette(mid); color: #ffffff; padding: 8px; text-align: left; font-size: 11px; }"
                    "td { padding: 6px; border-bottom: 1px solid #cdd6f4; font-size: 10px; }"
                    "tr:nth-child(even) { background-color: #f2f4f8; }"
-                   "</style></head><body>"
-                   "<h1>OpenEkklesia — Official Member Directory</h1>"
-                   "<p>Exported on: " + QDate::currentDate().toString("yyyy-MM-dd") + "</p>"
-                   "<table>"
-                   "<tr><th>Name</th><th>Household</th><th>Phone</th><th>Email</th><th>Status</th></tr>";
+                   "</style></head><body>"                    + ChurchProfile::renderHtmlHeader("Official Member Directory",
+                                                      QString("Exported on %1").arg(AppDateFormatter::formatDate(QDate::currentDate())),
+                                                      /*includeTaxId=*/false)
+                    + "<table>"
+                    "<tr><th>Name</th><th>Household</th><th>Phone</th><th>Email</th><th>Status</th></tr>";
 
     for (int r = 0; r < m_proxyModel->rowCount(); ++r) {
         QString name = m_proxyModel->index(r, 0).data().toString();
@@ -2325,6 +2504,114 @@ void PeopleWidget::onPrintDirectory() {
     QMessageBox::information(this, "Directory Printed", QString("Member directory PDF successfully exported to:\n%1").arg(fileName));
 }
 
+QStringList PeopleWidget::parseCsvLine(const QString& line) {
+    QStringList fields;
+    QString current;
+    bool inQuotes = false;
+    for (int i = 0; i < line.length(); ++i) {
+        QChar c = line.at(i);
+        if (c == '"') {
+            if (inQuotes && i + 1 < line.length() && line.at(i + 1) == '"') {
+                // Escaped double quote
+                current += '"';
+                ++i;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c == ',' && !inQuotes) {
+            fields.append(current.trimmed());
+            current.clear();
+        } else {
+            current += c;
+        }
+    }
+    fields.append(current.trimmed());
+    return fields;
+}
+
+QString PeopleWidget::generateVCard(const QString& firstName, const QString& lastName, const QString& phone,
+                                   const QString& email, const QString& bday, const QString& status,
+                                   const QString& careFlag, const QString& notes) {
+    QString vcf;
+    vcf += "BEGIN:VCARD\r\n";
+    vcf += "VERSION:3.0\r\n";
+    vcf += QString("N:%1;%2;;;\r\n").arg(lastName, firstName);
+    vcf += QString("FN:%1 %2\r\n").arg(firstName, lastName).trimmed();
+    if (!phone.isEmpty()) {
+        vcf += QString("TEL;TYPE=CELL,VOICE:%1\r\n").arg(phone);
+    }
+    if (!email.isEmpty()) {
+        vcf += QString("EMAIL;TYPE=INTERNET,PREF:%1\r\n").arg(email);
+    }
+    if (!bday.isEmpty() && bday != "1900-01-01") {
+        vcf += QString("BDAY:%1\r\n").arg(bday);
+    }
+    if (!status.isEmpty()) {
+        vcf += QString("ROLE:%1\r\n").arg(status);
+        vcf += QString("CATEGORIES:OpenEkklesia,%1\r\n").arg(status);
+    } else {
+        vcf += "CATEGORIES:OpenEkklesia\r\n";
+    }
+    QString noteCombined;
+    if (!careFlag.isEmpty() && careFlag != "Normal") {
+        noteCombined += QString("[Care Flag: %1] ").arg(careFlag);
+    }
+    if (!notes.isEmpty()) {
+        noteCombined += notes;
+    }
+    if (!noteCombined.isEmpty()) {
+        QString escapedNotes = noteCombined;
+        escapedNotes.replace("\n", "\\n");
+        vcf += QString("NOTE:%1\r\n").arg(escapedNotes);
+    }
+    vcf += "ORG:OpenEkklesia Congregation\r\n";
+    vcf += "END:VCARD\r\n";
+    return vcf;
+}
+
+void PeopleWidget::onExportVCard() {
+    int personId = m_currentPersonId;
+    if (personId <= 0) {
+        QModelIndex current = m_peopleTable->currentIndex();
+        if (current.isValid()) {
+            QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
+            personId = m_peopleModel->record(sourceIndex.row()).value("id").toInt();
+        }
+    }
+
+    if (personId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a member profile from the table to export as vCard.");
+        return;
+    }
+
+    QString fn = m_firstNameEdit->text().trimmed();
+    QString ln = m_lastNameEdit->text().trimmed();
+    QString phone = m_phoneEdit->text().trimmed();
+    QString email = m_emailEdit->text().trimmed();
+    QString bday = (m_birthDateEdit->date() == QDate(1900, 1, 1)) ? "" : m_birthDateEdit->date().toString("yyyy-MM-dd");
+    QString status = m_statusCombo->currentText();
+    QString careFlag = m_careFlagCombo ? m_careFlagCombo->currentText() : "Normal";
+    QString notes = m_adminNotesText ? m_adminNotesText->toPlainText().trimmed() : "";
+
+    QString defaultFileName = QString("%1_%2.vcf").arg(fn, ln).replace(" ", "_");
+    if (defaultFileName == "_.vcf" || defaultFileName.isEmpty()) defaultFileName = "contact.vcf";
+
+    QString savePath = QFileDialog::getSaveFileName(this, "Export Contact as vCard", defaultFileName, "vCard Files (*.vcf)");
+    if (savePath.isEmpty()) return;
+
+    QFile file(savePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Export Error", "Could not open file for writing: " + file.errorString());
+        return;
+    }
+
+    QString vcardText = generateVCard(fn, ln, phone, email, bday, status, careFlag, notes);
+    file.write(vcardText.toUtf8());
+    file.close();
+
+    QMessageBox::information(this, "vCard Exported", QString("vCard contact for '%1 %2' successfully exported to:\n%3").arg(fn, ln, savePath));
+}
+
 void PeopleWidget::onImportCSV() {
     QString fileName = QFileDialog::getOpenFileName(this, "Import Members from CSV", "", "CSV Files (*.csv)");
     if (fileName.isEmpty()) return;
@@ -2339,7 +2626,7 @@ void PeopleWidget::onImportCSV() {
     if (in.atEnd()) return;
 
     QString headerLine = in.readLine();
-    QStringList headerFields = headerLine.split(",");
+    QStringList headerFields = parseCsvLine(headerLine);
 
     QDialog mapDlg(this);
     mapDlg.setWindowTitle("Import Members — Column Alignment Wizard");
@@ -2377,11 +2664,18 @@ void PeopleWidget::onImportCSV() {
     QSqlDatabase db = QSqlDatabase::database();
     db.transaction();
 
+    // Default to first available household (or 1)
+    int defaultHouseholdId = 1;
+    QSqlQuery hq("SELECT id FROM households ORDER BY id ASC LIMIT 1", db);
+    if (hq.next()) {
+        defaultHouseholdId = hq.value(0).toInt();
+    }
+
     int importedCount = 0;
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.isEmpty()) continue;
-        QStringList cols = line.split(",");
+        QStringList cols = parseCsvLine(line);
 
         auto getVal = [&cols](QComboBox* cb) -> QString {
             int idx = cb->currentIndex() - 1;
@@ -2397,16 +2691,18 @@ void PeopleWidget::onImportCSV() {
         if (fn.isEmpty() && ln.isEmpty()) continue;
 
         QSqlQuery q(db);
-        q.prepare("INSERT INTO people (first_name, last_name, phone_number, email, membership_status, household_id) VALUES (?, ?, ?, ?, ?, 1)");
+        q.prepare("INSERT INTO people (first_name, last_name, phone_number, email, membership_status, household_id) VALUES (?, ?, ?, ?, ?, ?)");
         q.addBindValue(fn);
         q.addBindValue(ln);
         q.addBindValue(phone);
         q.addBindValue(email);
         q.addBindValue(status.isEmpty() ? "Member" : status);
+        q.addBindValue(defaultHouseholdId);
         if (q.exec()) importedCount++;
     }
 
     db.commit();
+    m_peopleModel->revertAll();
     m_peopleModel->select();
     reapplyFilter();
     QMessageBox::information(this, "Success", QString("Successfully imported %1 members!").arg(importedCount));
@@ -2418,12 +2714,19 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
 
     QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
     int row = srcIdx.row();
-    int personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
-    QString firstName = m_peopleModel->data(m_peopleModel->index(row, 1)).toString();
-    QString lastName = m_peopleModel->data(m_peopleModel->index(row, 2)).toString();
-    QString phone = m_peopleModel->data(m_peopleModel->index(row, 3)).toString();
-    QString email = m_peopleModel->data(m_peopleModel->index(row, 4)).toString();
+    QSqlRecord rec = m_peopleModel->record(row);
+    int personId = rec.value("id").toInt();
+    if (personId <= 0) personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
+    QString firstName = rec.value("first_name").toString();
+    QString lastName = rec.value("last_name").toString();
+    QString phone = rec.value("phone_number").toString();
+    QString email = rec.value("email").toString();
+    QString careFlag = rec.value("care_flag").toString();
+    QString status = rec.value("membership_status").toString();
+    QString bday = rec.value("date_of_birth").toString();
+    QString notes = rec.value("admin_notes").toString();
     QString fullName = QString("%1 %2").arg(firstName, lastName).trimmed();
+    if (fullName.isEmpty()) fullName = "Member";
 
     QMenu menu(this);
     QAction* actProfile = menu.addAction(QString("👤 View %1's Dossier").arg(fullName));
@@ -2448,6 +2751,7 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
     if (!phone.isEmpty()) actCopyPhone = menu.addAction(QString("📞 Copy Phone (%1)").arg(phone));
     QAction* actCopyEmail = nullptr;
     if (!email.isEmpty()) actCopyEmail = menu.addAction(QString("✉️ Copy Email (%1)").arg(email));
+    QAction* actExportVCard = menu.addAction("📇 Export Contact as vCard (.vcf)...");
 
     menu.addSeparator();
     QAction* actDelete = menu.addAction("🗑️ Delete Profile...");
@@ -2511,6 +2815,9 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
         QGuiApplication::clipboard()->setText(phone);
     } else if (selected == actCopyEmail && !email.isEmpty()) {
         QGuiApplication::clipboard()->setText(email);
+    } else if (selected == actExportVCard) {
+        selectPerson(personId);
+        onExportVCard();
     } else if (selected == actDelete) {
         selectPerson(personId);
         onDeletePerson();
@@ -2566,10 +2873,11 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
 
 void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& val) {
     if (type == "status") {
-        if (val == "Visitor") m_statusFilterGroup->button(1)->setChecked(true);
-        else if (val == "Regular Attender") m_statusFilterGroup->button(2)->setChecked(true);
-        else if (val == "Member") m_statusFilterGroup->button(3)->setChecked(true);
-        else if (val == "Inactive") m_statusFilterGroup->button(4)->setChecked(true);
+        if (val == "Active") m_statusFilterGroup->button(1)->setChecked(true);
+        else if (val == "Visitor" || val == "Visitors") m_statusFilterGroup->button(2)->setChecked(true);
+        else if (val == "Regular Attender" || val == "Attenders") m_statusFilterGroup->button(3)->setChecked(true);
+        else if (val == "Member" || val == "Members") m_statusFilterGroup->button(4)->setChecked(true);
+        else if (val == "Inactive") m_statusFilterGroup->button(5)->setChecked(true);
         else m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
         reapplyFilter();
