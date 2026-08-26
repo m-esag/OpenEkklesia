@@ -333,8 +333,8 @@ QList<int> MinistryRecommender::addMembers(const QSqlDatabase& db, int groupId, 
         if (exists.exec() && exists.next()) continue;
 
         QSqlQuery ins(db);
-        ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
-                    "VALUES ('Person', ?, 'Group', ?, 'Member')");
+        ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, connection_source, joined_date) "
+                    "VALUES ('Person', ?, 'Group', ?, 'Member', 'ministry_match', CURRENT_DATE)");
         ins.addBindValue(pid);
         ins.addBindValue(groupId);
         if (ins.exec()) added.append(pid);
