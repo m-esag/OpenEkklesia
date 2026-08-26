@@ -1,6 +1,7 @@
 #include "shepherdwidget.h"
 #include "../database/databasemanager.h"
 #include "../core/thememanager.h"
+#include "../core/iconmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -16,6 +17,7 @@
 #include <QDateTime>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QSettings>
 #include <QMenu>
 #include <QFileDialog>
 #include <QFile>
@@ -97,19 +99,23 @@ void ShepherdWidget::setupUI() {
     QHBoxLayout* queueBtns = new QHBoxLayout();
     queueBtns->setSpacing(8);
 
-    m_btnMarkDone = new QPushButton("✅ Mark Done", tabQueue);
+    m_btnMarkDone = new QPushButton(" Mark Done", tabQueue);
+    m_btnMarkDone->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
     m_btnMarkDone->setObjectName("primaryBtn");
     connect(m_btnMarkDone, &QPushButton::clicked, this, &ShepherdWidget::onMarkFollowUpDone);
 
-    m_btnReschedule = new QPushButton("🗓️ Reschedule / Snooze", tabQueue);
+    m_btnReschedule = new QPushButton(" Reschedule / Snooze", tabQueue);
+    m_btnReschedule->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
     m_btnReschedule->setObjectName("secondaryBtn");
     connect(m_btnReschedule, &QPushButton::clicked, this, &ShepherdWidget::onRescheduleFollowUp);
 
-    m_btnCalendar = new QPushButton("📅 Export Calendar (.ics)", tabQueue);
+    m_btnCalendar = new QPushButton(" Export Calendar (.ics)", tabQueue);
+    m_btnCalendar->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
     m_btnCalendar->setObjectName("secondaryBtn");
     connect(m_btnCalendar, &QPushButton::clicked, this, &ShepherdWidget::onExportCalendarEvent);
 
-    m_btnLogFollowUp = new QPushButton("➕ Log Activity", tabQueue);
+    m_btnLogFollowUp = new QPushButton(" Log Activity", tabQueue);
+    m_btnLogFollowUp->setIcon(IconManager::instance().getIcon("plus", QColor("#cdd6f4"), 14));
     m_btnLogFollowUp->setObjectName("secondaryBtn");
     connect(m_btnLogFollowUp, &QPushButton::clicked, this, &ShepherdWidget::onLogFollowUp);
 
@@ -119,7 +125,7 @@ void ShepherdWidget::setupUI() {
     queueBtns->addWidget(m_btnLogFollowUp);
     queueBtns->addStretch();
     queueLay->addLayout(queueBtns);
-    m_tabs->addTab(tabQueue, "📌 Today's Queue");
+    m_tabs->addTab(tabQueue, "Today's Queue");
 
     // ---- Tab 2: Member Activities ----
     QWidget* tabMember = new QWidget(this);
@@ -130,7 +136,8 @@ void ShepherdWidget::setupUI() {
     m_personCombo = new QComboBox(tabMember);
     m_personCombo->setMinimumWidth(280);
     connect(m_personCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ShepherdWidget::onPersonChanged);
-    m_btnLogActivity = new QPushButton("➕ Log Activity", tabMember);
+    m_btnLogActivity = new QPushButton(" Log Activity", tabMember);
+    m_btnLogActivity->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
     m_btnLogActivity->setObjectName("primaryBtn");
     connect(m_btnLogActivity, &QPushButton::clicked, this, &ShepherdWidget::onLogActivity);
     memberTop->addWidget(new QLabel("Member:", tabMember));
@@ -234,12 +241,14 @@ void ShepherdWidget::setupUI() {
     prayerLay->addWidget(m_prayerList);
 
     QHBoxLayout* prayerBtns = new QHBoxLayout();
-    m_btnAddPrayer = new QPushButton("➕ Add Prayer Request", tabPrayer);
+    m_btnAddPrayer = new QPushButton(" Add Prayer Request", tabPrayer);
+    m_btnAddPrayer->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
     m_btnAddPrayer->setObjectName("primaryBtn");
     connect(m_btnAddPrayer, &QPushButton::clicked, this, [this]() {
         if (showActivityDialog(-1, "Prayer")) refreshAll();
     });
-    m_btnPrayerDone = new QPushButton("✅ Mark Selected Answered", tabPrayer);
+    m_btnPrayerDone = new QPushButton(" Mark Selected Answered", tabPrayer);
+    m_btnPrayerDone->setIcon(IconManager::instance().getIcon("check", QColor("#cdd6f4"), 14));
     m_btnPrayerDone->setObjectName("secondaryBtn");
     connect(m_btnPrayerDone, &QPushButton::clicked, this, [this]() {
         QListWidgetItem* item = m_prayerList->currentItem();
@@ -687,7 +696,10 @@ bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& pref
     form->addRow("Outcome:", outcomeEdit);
 
     QCheckBox* followUpChk = new QCheckBox("Schedule a follow-up", &dlg);
-    QDateEdit* followUpEdit = new QDateEdit(QDate::currentDate().addDays(14), &dlg);
+    // Default follow-up window comes from Settings (Pastoral & Graph → followUpDays).
+    QSettings defS("OpenEkklesia", "CHMS");
+    const int followUpDays = qBound(0, defS.value("followUpDays", 14).toInt(), 365);
+    QDateEdit* followUpEdit = new QDateEdit(QDate::currentDate().addDays(followUpDays), &dlg);
     followUpEdit->setCalendarPopup(true);
     followUpEdit->setDisplayFormat("yyyy-MM-dd");
     followUpEdit->setEnabled(false);

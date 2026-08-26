@@ -1802,6 +1802,12 @@ void MainWindow::updateDashboardStats() {
     m_lstPastoralAlerts->clear();
 
     // 1. Pastoral Care & Lapsed Giver Alerts
+    // 'Inactivity threshold' from Settings (default 30 days) drives who counts
+    // as a lapsed giver / inactive attender.
+    QSettings set("OpenEkklesia", "CHMS");
+    const int inactivityDays = qBound(7, set.value("inactivityDays", 30).toInt(), 365);
+    const QString inactivityExpr = QString("date('now', '-%1 days')").arg(inactivityDays);
+
     QSqlQuery qAlerts;
     qAlerts.prepare(
         "SELECT id, first_name || ' ' || last_name, COALESCE(care_flag, ''), membership_status, "
@@ -1809,8 +1815,8 @@ void MainWindow::updateDashboardStats() {
         "FROM people "
         "WHERE membership_status IN ('Member', 'Regular Attender') "
         "  AND ( "
-        "        ( id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-30 days')) "
-        "          AND id NOT IN (SELECT DISTINCT person_id FROM attendance WHERE timestamp >= date('now', '-30 days')) ) "
+        "        ( id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= " + inactivityExpr + ") "
+        "          AND id NOT IN (SELECT DISTINCT person_id FROM attendance WHERE timestamp >= " + inactivityExpr + ") ) "
         "        OR care_flag = 'At-Risk' "
         "      ) "
         "ORDER BY (care_flag = 'At-Risk') DESC, last_name "

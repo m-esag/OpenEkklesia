@@ -18,6 +18,8 @@
 #include <QInputDialog>
 #include <QPdfWriter>
 #include <QTextDocument>
+#include <QImage>
+#include <QBuffer>
 #include <QTextStream>
 #include <QDateTime>
 #include <QTableWidget>
@@ -28,6 +30,9 @@
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
+#include "servicebuilderwidget.h"
+#include "../core/thememanager.h"
+#include "../core/iconmanager.h"
 #include "../database/databasemanager.h"
 #include "ministrymatch.h"
 
@@ -107,16 +112,16 @@ static QColor tintForType(const QString& type) {
     return QColor("#cba6f7"); // Text / liturgy
 }
 
-static QString typeEmoji(const QString& type) {
-    if (type == "Song") return QStringLiteral("🎵");
-    if (type == "Scripture") return QStringLiteral("📖");
-    if (type == "Media") return QStringLiteral("🎬");
-    return QStringLiteral("💬");
+static const char* typeIconName(const QString& type) {
+    if (type == "Song") return "list-music";
+    if (type == "Scripture") return "book-open";
+    if (type == "Media") return "play";
+    return "pencil";
 }
 
-// Composes the display text ("🎵 Song: Amazing Grace (4m)") from clean parts.
+// Composes the display text ("Song: Amazing Grace (4m)") from clean parts.
 static QString libraryDisplayName(const QString& type, const QString& name, int mins) {
-    return QString("%1 %2: %3 (%4m)").arg(typeEmoji(type), type, name).arg(mins);
+    return QString("%1: %2 (%3m)").arg(type, name).arg(mins);
 }
 
 void ServiceBuilderWidget::applyRole(const QString& role) {
@@ -169,17 +174,17 @@ void ServiceBuilderWidget::setupUI() {
     QHBoxLayout* libFilterRow = new QHBoxLayout();
     m_libraryFilter = new QComboBox(this);
     m_libraryFilter->setObjectName("serviceLibraryFilter");
-    m_libraryFilter->addItem("All", QString());
-    m_libraryFilter->addItem("🎵 Songs", "Song");
-    m_libraryFilter->addItem("📖 Scripture", "Scripture");
-    m_libraryFilter->addItem("🎬 Media", "Media");
-    m_libraryFilter->addItem("💬 Text", "Text");
+    m_libraryFilter->addItem("All Types", QString());
+    m_libraryFilter->addItem("Songs", "Song");
+    m_libraryFilter->addItem("Scripture", "Scripture");
+    m_libraryFilter->addItem("Media", "Media");
+    m_libraryFilter->addItem("Text / Liturgy", "Text");
     connect(m_libraryFilter, &QComboBox::currentIndexChanged, this, &ServiceBuilderWidget::applyLibraryFilter);
     libFilterRow->addWidget(m_libraryFilter);
 
     m_librarySearch = new QLineEdit(this);
     m_librarySearch->setObjectName("serviceLibrarySearch");
-    m_librarySearch->setPlaceholderText("🔍 Search elements…");
+    m_librarySearch->setPlaceholderText("Search elements…");
     m_librarySearch->setClearButtonEnabled(true);
     connect(m_librarySearch, &QLineEdit::textChanged, this, &ServiceBuilderWidget::applyLibraryFilter);
     libFilterRow->addWidget(m_librarySearch, 1);
@@ -199,19 +204,22 @@ void ServiceBuilderWidget::setupUI() {
     libraryLayout->addWidget(dragTip);
 
     QHBoxLayout* libActions = new QHBoxLayout();
-    m_btnAddElement = new QPushButton("➕ Add Element", this);
+    m_btnAddElement = new QPushButton(" Add Element", this);
+    m_btnAddElement->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
     m_btnAddElement->setObjectName("secondaryBtn");
     m_btnAddElement->setToolTip("Add a custom element to the persistent library");
     connect(m_btnAddElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onAddElement);
     libActions->addWidget(m_btnAddElement);
 
-    m_btnUsageStats = new QPushButton("📊 Usage Stats", this);
+    m_btnUsageStats = new QPushButton(" Usage Stats", this);
+    m_btnUsageStats->setIcon(IconManager::instance().getIcon("bar-chart-3", QColor("#cdd6f4"), 14));
     m_btnUsageStats->setObjectName("secondaryBtn");
     m_btnUsageStats->setToolTip("Which elements get reused most across saved run sheets");
     connect(m_btnUsageStats, &QPushButton::clicked, this, &ServiceBuilderWidget::onElementUsage);
     libActions->addWidget(m_btnUsageStats);
 
-    m_btnRemoveElement = new QPushButton("✖ Remove Element", this);
+    m_btnRemoveElement = new QPushButton(" Remove Element", this);
+    m_btnRemoveElement->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnRemoveElement->setObjectName("ghostDangerBtn");
     m_btnRemoveElement->setToolTip("Remove the selected library element");
     connect(m_btnRemoveElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveElement);
@@ -220,7 +228,7 @@ void ServiceBuilderWidget::setupUI() {
 
     // Color-blind-safe legend: icons (not color) identify the type; the tint
     // is only a hint, so the run sheet stays readable in grayscale.
-    m_lblTypeLegend = new QLabel("Legend: 🎵 Song · 📖 Scripture · 🎬 Media · 💬 Text — icons identify the type, color is only a hint (color-blind safe)", this);
+    m_lblTypeLegend = new QLabel("Type Legend: Songs · Scripture · Media · Liturgy Text", this);
     m_lblTypeLegend->setObjectName("serviceTypeLegend");
     m_lblTypeLegend->setWordWrap(true);
     m_lblTypeLegend->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
@@ -234,9 +242,12 @@ void ServiceBuilderWidget::setupUI() {
         QListWidgetItem* item = m_libraryList->itemAt(pos);
         if (!item) return;
         QMenu menu(this);
-        QAction* add = menu.addAction("➕ Add to Run Sheet");
-        QAction* edit = menu.addAction("✏️ Edit Element");
-        QAction* remove = menu.addAction("🗑️ Remove Element");
+        QAction* add = menu.addAction("Add to Run Sheet");
+        add->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
+        QAction* edit = menu.addAction("Edit Element");
+        edit->setIcon(IconManager::instance().getIcon("pencil", QColor("#cdd6f4"), 14));
+        QAction* remove = menu.addAction("Remove Element");
+        remove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
         QAction* chosen = menu.exec(m_libraryList->viewport()->mapToGlobal(pos));
         if (chosen == add) addLibraryItemToRunSheet(item);
         else if (chosen == edit) onEditElement(item);
@@ -254,7 +265,7 @@ void ServiceBuilderWidget::setupUI() {
     QHBoxLayout* headerRow = new QHBoxLayout();
     QLabel* playlistLabel = new QLabel("Sunday Service Run Sheet", this);
     playlistLabel->setObjectName("detailHeader");
-    m_lblTotalDuration = new QLabel("⏱️ Total Service Duration: 0 mins", this);
+    m_lblTotalDuration = new QLabel("Total Service Duration: 0 mins", this);
     m_lblTotalDuration->setObjectName("serviceDurationLabel");
     m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #a6e3a1;");
     headerRow->addWidget(playlistLabel);
@@ -276,13 +287,17 @@ void ServiceBuilderWidget::setupUI() {
         int row = m_playlist->row(item);
 
         QMenu menu(this);
-        QAction* actUp = menu.addAction("⬆️ Move Earlier in Service");
+        QAction* actUp = menu.addAction("Move Earlier in Service");
+        actUp->setIcon(IconManager::instance().getIcon("arrow-up", QColor("#cdd6f4"), 14));
         actUp->setEnabled(row > 0);
-        QAction* actDown = menu.addAction("⬇️ Move Later in Service");
+        QAction* actDown = menu.addAction("Move Later in Service");
+        actDown->setIcon(IconManager::instance().getIcon("arrow-down", QColor("#cdd6f4"), 14));
         actDown->setEnabled(row < m_playlist->count() - 1);
-        QAction* actDup = menu.addAction("📋 Duplicate Element");
+        QAction* actDup = menu.addAction("Duplicate Element");
+        actDup->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
         menu.addSeparator();
-        QAction* actRemove = menu.addAction("🗑️ Remove Element from Run Sheet");
+        QAction* actRemove = menu.addAction("Remove Element from Run Sheet");
+        actRemove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
 
         QAction* sel = menu.exec(m_playlist->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -317,25 +332,29 @@ void ServiceBuilderWidget::setupUI() {
     auto minH = [](QPushButton* b) { b->setMinimumHeight(30); return b; };
 
     QHBoxLayout* actionsLayout = new QHBoxLayout();
-    m_btnRemove = minH(new QPushButton("Remove Selected Element", this));
+    m_btnRemove = minH(new QPushButton(" Remove Selected", this));
+    m_btnRemove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnRemove->setObjectName("dangerBtn");
     m_btnRemove->setToolTip("Remove the selected element from the run sheet");
     connect(m_btnRemove, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveItem);
     actionsLayout->addWidget(m_btnRemove);
 
-    m_btnClear = minH(new QPushButton("Clear All", this));
+    m_btnClear = minH(new QPushButton(" Clear All", this));
+    m_btnClear->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#cdd6f4"), 14));
     m_btnClear->setObjectName("secondaryBtn");
     m_btnClear->setToolTip("Remove every element from the run sheet (asks first)");
     connect(m_btnClear, &QPushButton::clicked, this, &ServiceBuilderWidget::onClearPlaylist);
     actionsLayout->addWidget(m_btnClear);
 
-    m_btnCoverageCheck = minH(new QPushButton("🔍 Coverage Check", this));
+    m_btnCoverageCheck = minH(new QPushButton(" Coverage Check", this));
+    m_btnCoverageCheck->setIcon(IconManager::instance().getIcon("search", QColor("#cdd6f4"), 14));
     m_btnCoverageCheck->setObjectName("secondaryBtn");
     m_btnCoverageCheck->setToolTip("Check for missing sermon, unassigned core roles, or run-sheet/volunteer mismatches");
     connect(m_btnCoverageCheck, &QPushButton::clicked, this, &ServiceBuilderWidget::onCoverageCheck);
     actionsLayout->addWidget(m_btnCoverageCheck);
 
-    m_btnExportPDF = minH(new QPushButton("📄 Export Run Sheet PDF", this));
+    m_btnExportPDF = minH(new QPushButton(" Export Run Sheet PDF", this));
+    m_btnExportPDF->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnExportPDF->setObjectName("accentBtnCyan");
     connect(m_btnExportPDF, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportRunSheet);
     actionsLayout->addWidget(m_btnExportPDF);
@@ -344,24 +363,28 @@ void ServiceBuilderWidget::setupUI() {
 
     // Second row: file backup + named templates (everything else auto-saves).
     QHBoxLayout* fileActions = new QHBoxLayout();
-    m_btnSave = minH(new QPushButton("💾 Save Layout File", this));
+    m_btnSave = minH(new QPushButton(" Save Layout File", this));
+    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
     m_btnSave->setObjectName("saveBtn");
     m_btnSave->setToolTip("Backup the run sheet to a JSON file (the arrangement already auto-saves to this service)");
     connect(m_btnSave, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveService);
     fileActions->addWidget(m_btnSave);
 
-    m_btnLoad = minH(new QPushButton("📂 Load Layout File", this));
+    m_btnLoad = minH(new QPushButton(" Load Layout File", this));
+    m_btnLoad->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
     m_btnLoad->setObjectName("primaryBtn");
     connect(m_btnLoad, &QPushButton::clicked, this, &ServiceBuilderWidget::onLoadService);
     fileActions->addWidget(m_btnLoad);
 
-    m_btnSaveTemplate = minH(new QPushButton("💾 Save as Template", this));
+    m_btnSaveTemplate = minH(new QPushButton(" Save as Template", this));
+    m_btnSaveTemplate->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
     m_btnSaveTemplate->setObjectName("secondaryBtn");
     m_btnSaveTemplate->setToolTip("Save the current run sheet as a named template");
     connect(m_btnSaveTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveTemplate);
     fileActions->addWidget(m_btnSaveTemplate);
 
-    m_btnApplyTemplate = minH(new QPushButton("📋 Apply Template", this));
+    m_btnApplyTemplate = minH(new QPushButton(" Apply Template", this));
+    m_btnApplyTemplate->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
     m_btnApplyTemplate->setObjectName("secondaryBtn");
     m_btnApplyTemplate->setToolTip("Load a saved run-sheet template into the current date");
     connect(m_btnApplyTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onApplyTemplate);
@@ -439,7 +462,7 @@ void ServiceBuilderWidget::setupUI() {
     serviceForm->addRow("Service Leader:", m_leaderEdit);
     volunteerLayout->addLayout(serviceForm);
 
-    m_lblAutoSaveStatus = new QLabel("💾 Title, leader & run sheet auto-save to this date's service.", this);
+    m_lblAutoSaveStatus = new QLabel("Title, leader & run sheet auto-save to this date's service.", this);
     m_lblAutoSaveStatus->setObjectName("serviceAutoSaveLabel");
     m_lblAutoSaveStatus->setWordWrap(true);
     m_lblAutoSaveStatus->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
@@ -464,10 +487,13 @@ void ServiceBuilderWidget::setupUI() {
         m_volunteerList->selectRow(r);
 
         QMenu menu(this);
-        QAction* actIcal = menu.addAction("📅 Export Volunteer iCal (.ics)");
-        QAction* actAttended = menu.addAction("✅ Mark Volunteers Attended");
+        QAction* actIcal = menu.addAction("Export Volunteer iCal (.ics)");
+        actIcal->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
+        QAction* actAttended = menu.addAction("Mark Volunteers Attended");
+        actAttended->setIcon(IconManager::instance().getIcon("check", QColor("#a6e3a1"), 14));
         menu.addSeparator();
-        QAction* actUnschedule = menu.addAction("❌ Unassign Selected Volunteer");
+        QAction* actUnschedule = menu.addAction("Unassign Selected Volunteer");
+        actUnschedule->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
 
         QAction* sel = menu.exec(m_volunteerList->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -491,13 +517,15 @@ void ServiceBuilderWidget::setupUI() {
     volActions->addWidget(m_btnUnschedule);
     volunteerLayout->addLayout(volActions);
 
-    m_btnMarkAttended = new QPushButton("✅ Mark Volunteers Attended", this);
+    m_btnMarkAttended = new QPushButton(" Mark Volunteers Attended", this);
+    m_btnMarkAttended->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
     m_btnMarkAttended->setObjectName("saveBtn");
     m_btnMarkAttended->setToolTip("Record all scheduled volunteers as attended for this service date");
     connect(m_btnMarkAttended, &QPushButton::clicked, this, &ServiceBuilderWidget::onMarkAttended);
     volunteerLayout->addWidget(m_btnMarkAttended);
 
-    m_btnExportIcal = new QPushButton("📅 Export Volunteer iCal", this);
+    m_btnExportIcal = new QPushButton(" Export Volunteer iCal", this);
+    m_btnExportIcal->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
     m_btnExportIcal->setObjectName("secondaryBtn");
     m_btnExportIcal->setToolTip("Export this date's volunteer roster as calendar events (.ics)");
     connect(m_btnExportIcal, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportIcal);
@@ -532,6 +560,7 @@ void ServiceBuilderWidget::loadLibrary() {
         const int mins = q.value(3).toInt();
 
         QListWidgetItem* item = new QListWidgetItem(libraryDisplayName(type, name, mins), m_libraryList);
+        item->setIcon(IconManager::instance().getIcon(typeIconName(type), tintForType(type), 16));
         item->setData(Qt::UserRole, type);
         item->setData(Qt::UserRole + 1, mins);
         item->setData(Qt::UserRole + 2, id);
@@ -826,7 +855,7 @@ void ServiceBuilderWidget::loadVolunteers() {
             nameItem->setData(Qt::UserRole + 1, pid); // person id
             m_volunteerList->setItem(row, 0, nameItem);
             m_volunteerList->setItem(row, 1, new QTableWidgetItem(role));
-            m_volunteerList->setItem(row, 2, new QTableWidgetItem(attended.contains(pid) ? "✓ Attended" : "Scheduled"));
+            m_volunteerList->setItem(row, 2, new QTableWidgetItem(attended.contains(pid) ? "Attended" : "Scheduled"));
             row++;
         }
     }
@@ -928,7 +957,7 @@ void ServiceBuilderWidget::onApplyTemplate() {
     }
 
     QDialog dlg(this);
-    dlg.setWindowTitle("📋 Apply Run-Sheet Template");
+    dlg.setWindowTitle("Apply Run-Sheet Template");
     dlg.resize(380, 300);
     auto* lay = new QVBoxLayout(&dlg);
 
@@ -1008,7 +1037,7 @@ void ServiceBuilderWidget::onUnscheduleVolunteer() {
 
 void ServiceBuilderWidget::onScheduleVolunteer() {
     QDialog dlg(this);
-    dlg.setWindowTitle("🤖 Smart Volunteer Assignment & Rostering");
+    dlg.setWindowTitle("Smart Volunteer Assignment & Rostering");
     dlg.resize(380, 240);
 
     QFormLayout* layout = new QFormLayout(&dlg);
@@ -1045,11 +1074,11 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
 
                 QString tag = name;
                 if (recentServes >= 3) {
-                    tag += QString(" ⚠️ (Served %1x past 30 days)").arg(recentServes);
+                    tag += QString(" (Served %1x past 30 days)").arg(recentServes);
                 } else if (groupCount >= 3) {
-                    tag += QString(" ⚡ (In %1 active teams)").arg(groupCount);
+                    tag += QString(" (In %1 active teams)").arg(groupCount);
                 } else {
-                    tag += " ⭐ (Available)";
+                    tag += " (Available)";
                 }
                 personCombo->addItem(tag, pid);
             }
@@ -1057,7 +1086,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
         }
 
         for (const MatchResult& r : ranked) {
-            QString label = QString("%1  🎯 %2%").arg(r.name).arg(r.score);
+            QString label = QString("%1  [%2%]").arg(r.name).arg(r.score);
             if (!r.reasons.isEmpty()) label += "  · " + r.reasons.join(" · ");
             personCombo->addItem(label, r.personId);
         }
@@ -1066,7 +1095,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
     populatePeople();
     layout->addRow("Select Volunteer:", personCombo);
 
-    QLabel* smartHint = new QLabel("🤖 Smart Suggestions: ranked by skill fit (🎯 match %), penalized for team load and repeated service — best fit first.", &dlg);
+    QLabel* smartHint = new QLabel("Smart Suggestions: ranked by skill fit (match %), penalized for team load and repeated service — best fit first.", &dlg);
     smartHint->setWordWrap(true);
     smartHint->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
     layout->addRow(smartHint);
@@ -1157,19 +1186,23 @@ void ServiceBuilderWidget::updateDurationCalculator() {
 
     // Overrun guard: dynamically loaded from Settings targetServiceDuration
     QSettings s("OpenEkklesia", "CHMS");
-    const int kAmberLimit = s.value("targetServiceDuration", 75).toInt();
-    const int kOverrunLimit = kAmberLimit + 15;
-    if (totalMins > kOverrunLimit) {
-        m_lblTotalDuration->setText(QString("⏱️ Total: %1 mins ⚠️ overruns by %2 min (limit %3)")
-                                        .arg(totalMins).arg(totalMins - kOverrunLimit).arg(kOverrunLimit));
-        m_lblTotalDuration->setStyleSheet("font-size: 15px; font-weight: bold; color: #f38ba8;");
-    } else if (totalMins > kAmberLimit) {
-        m_lblTotalDuration->setText(QString("⏱️ Total: %1 mins ⚠️ long service (aim ≤ %2 min)")
-                                        .arg(totalMins).arg(kAmberLimit));
-        m_lblTotalDuration->setStyleSheet("font-size: 15px; font-weight: bold; color: #f9e2af;");
+    const int targetDuration = s.value("targetServiceDuration", 75).toInt();
+    const int maxDuration = targetDuration + 15;
+    const int overrun = totalMins - maxDuration;
+    if (overrun > 0) {
+        m_lblTotalDuration->setText(QString("Total: %1 mins — overruns by %2 min (limit %3)")
+                                        .arg(totalMins)
+                                        .arg(overrun)
+                                        .arg(maxDuration));
+        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #f38ba8;");
+    } else if (totalMins > targetDuration) {
+        m_lblTotalDuration->setText(QString("Total: %1 mins (aim ≤ %2 min)")
+                                        .arg(totalMins)
+                                        .arg(targetDuration));
+        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #f9e2af;");
     } else {
-        m_lblTotalDuration->setText(QString("⏱️ Total Service Duration: %1 mins").arg(totalMins));
-        m_lblTotalDuration->setStyleSheet("font-size: 15px; font-weight: bold; color: #a6e3a1;");
+        m_lblTotalDuration->setText(QString("Total: %1 mins").arg(totalMins));
+        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #a6e3a1;");
     }
 
     updateTimeline();
@@ -1243,7 +1276,7 @@ QStringList ServiceBuilderWidget::collectCoverageIssues() const {
 void ServiceBuilderWidget::onCoverageCheck() {
     const QStringList issues = collectCoverageIssues();
     if (issues.isEmpty()) {
-        QMessageBox::information(this, "Coverage Check", "✅ No coverage issues — the run sheet looks complete.");
+        QMessageBox::information(this, "Coverage Check", "No coverage issues — the run sheet looks complete.");
     } else {
         QMessageBox::warning(this, "Coverage Check",
                              "Coverage issues found:\n\n• " + issues.join("\n• "));
@@ -1433,7 +1466,7 @@ void ServiceBuilderWidget::onElementUsage() {
     }
 
     QDialog dlg(this);
-    dlg.setWindowTitle("📊 Element Usage Stats");
+    dlg.setWindowTitle("Element Usage Stats");
     dlg.resize(620, 440);
     auto* lay = new QVBoxLayout(&dlg);
 
@@ -1502,6 +1535,24 @@ void ServiceBuilderWidget::onExportRunSheet() {
     const QString leader = m_leaderEdit->currentText().trimmed().isEmpty() ? "Unassigned" : m_leaderEdit->currentText().trimmed();
     const QString timeStr = m_serviceTimeEdit->time().toString("h:mm AP");
 
+    // Church profile from Settings (logo, name, address) heads the document —
+    // previously these were stored but never printed anywhere.
+    QSettings s("OpenEkklesia", "CHMS");
+    const QString churchName = s.value("churchName", "OpenEkklesia Church").toString();
+    const QString churchAddress = s.value("churchAddress").toString().trimmed();
+    QString logoHtml;
+    const QString logoPath = s.value("churchLogo").toString().trimmed();
+    if (!logoPath.isEmpty()) {
+        QImage logo(logoPath);
+        if (!logo.isNull()) {
+            QBuffer buf;
+            buf.open(QIODevice::WriteOnly);
+            logo.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(&buf, "PNG");
+            logoHtml = QString("<img src='data:image/png;base64,%1' style='height:56px; float: right;'/>")
+                           .arg(QString::fromLatin1(buf.data().toBase64()));
+        }
+    }
+
     // Run sheet with per-item start times computed from the service start.
     QTime cursor = m_serviceTimeEdit->time();
     QString itemsHtml = "<ol style='font-size: 14px;'>";
@@ -1537,16 +1588,20 @@ void ServiceBuilderWidget::onExportRunSheet() {
 
     QString html = QString(
         "<html><body style='font-family: Arial, sans-serif; margin: 30px;'>"
-        "<h1 style='color: #1e66f5;'>OpenEkklesia — Sunday Order of Service</h1>"
+        "%7" // logo (right-aligned) when a church logo is set
+        "<h1 style='color: #1e66f5;'>%8 — Sunday Order of Service</h1>"
+        "%9" // church address line
         "<h3>%1 · %2 · Starts %3</h3>"
         "<p>Service Leader: %4</p>"
         "<hr>"
-        "<h3>📋 Order of Service / Liturgy Run Sheet</h3>%5"
+        "<h3>Order of Service / Liturgy Run Sheet</h3>%5"
         "<hr>"
-        "<h3>👥 Assigned Volunteers & Roster (contact strip)</h3>%6"
+        "<h3>Assigned Volunteers & Roster (contact strip)</h3>%6"
         "<br><p style='font-size: 11px; color: #666;'>Generated via OpenEkklesia ChMS Suite</p>"
         "</body></html>"
-    ).arg(title, dateStr, timeStr, leader, itemsHtml, volHtml);
+    ).arg(title, dateStr, timeStr, leader, itemsHtml, volHtml,
+          logoHtml, churchName,
+          churchAddress.isEmpty() ? "" : QString("<p style='font-size: 11px; color: #666;'>%1</p>").arg(churchAddress));
 
     QTextDocument doc;
     doc.setHtml(html);

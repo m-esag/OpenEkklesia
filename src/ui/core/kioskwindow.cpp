@@ -9,6 +9,8 @@
 #include <QCloseEvent>
 #include <QKeyEvent>
 #include <QInputDialog>
+#include <QSettings>
+#include <QMouseEvent>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -17,6 +19,20 @@ KioskWindow::KioskWindow(QWidget* parent)
 {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setupUI();
+
+    // Idle lockout from Settings (default 45 s): return to the check-in state
+    // after inactivity, so a public kiosk never lingers on someone's screen.
+    const int idleSecs = qBound(5, QSettings("OpenEkklesia", "CHMS").value("kioskTimeoutSeconds", 45).toInt(), 3600);
+    m_idleTimer = new QTimer(this);
+    m_idleTimer->setInterval(idleSecs * 1000);
+    m_idleTimer->setSingleShot(true);
+    connect(m_idleTimer, &QTimer::timeout, this, [this]() {
+        m_entryEdit->clear();
+        m_statusLabel->clear();
+        m_statusLabel->setStyleSheet("");
+        m_isAdminUnlocked = false;
+    });
+    restartIdleTimer();
 }
 
 KioskWindow::~KioskWindow() {}
@@ -177,6 +193,15 @@ void KioskWindow::flashStatus(const QString& message, bool success) {
 }
 
 void KioskWindow::onAdminUnlockClicked() {
+    // Settings: kioskRequirePin (default true) — internal devices can allow
+    // exiting without the admin PIN.
+    const bool requirePin = QSettings("OpenEkklesia", "CHMS").value("kioskRequirePin", true).toBool();
+    if (!requirePin) {
+        m_isAdminUnlocked = true;
+        accept();
+        return;
+    }
+
     bool ok;
     QString pin = QInputDialog::getText(this, "Admin Unlock", "Enter Admin Security PIN to Exit Kiosk Mode:", QLineEdit::Password, "", &ok);
     if (ok) {
@@ -198,6 +223,17 @@ void KioskWindow::onAdminUnlockClicked() {
     }
 }
 
+// Idle lockout: after kioskTimeoutSeconds without input, clear the screen and
+// lock back to the check-in state (Settings → Kiosk & Security).
+void KioskWindow::restartIdleTimer() {
+    if (m_idleTimer) m_idleTimer->start();
+}
+
+void KioskWindow::mousePressEvent(QMouseEvent* event) {
+    restartIdleTimer();
+    QDialog::mousePressEvent(event);
+}
+
 void KioskWindow::closeEvent(QCloseEvent* event) {
     if (m_isAdminUnlocked) {
         event->accept();
@@ -207,6 +243,7 @@ void KioskWindow::closeEvent(QCloseEvent* event) {
 }
 
 void KioskWindow::keyPressEvent(QKeyEvent* event) {
+    restartIdleTimer();
     if (event->key() == Qt::Key_Escape && !m_isAdminUnlocked) {
         return; // Consume Esc key
     }
