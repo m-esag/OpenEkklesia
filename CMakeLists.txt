@@ -25,6 +25,12 @@ message(STATUS "Found Qt Version: ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}")
 set(SOURCES
     src/main.cpp
 
+    # Common utilities (shared, product-neutral)
+    src/common/appdateformatter.h
+    src/common/appdateformatter.cpp
+    src/common/churchprofile.h
+    src/common/churchprofile.cpp
+
     # Database Module
     src/database/databasemanager.h
     src/database/databasemanager.cpp
@@ -44,6 +50,10 @@ set(SOURCES
     src/ui/core/kioskwindow.cpp
     src/ui/core/thememanager.h
     src/ui/core/thememanager.cpp
+    src/ui/core/iconmanager.h
+    src/ui/core/iconmanager.cpp
+    src/ui/core/usermanualdialog.h
+    src/ui/core/usermanualdialog.cpp
 
     # UI People & Pastoral Submodule
     src/ui/people/peoplewidget.h
@@ -74,6 +84,9 @@ set(SOURCES
     src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/matchdialog.h
     src/ui/ministry/matchdialog.cpp
+    src/ui/ministry/ministryarchetypes.h
+    src/ui/ministry/synergyengine.h
+    src/ui/ministry/synergyengine.cpp
 
     # UI Administration & Security Submodule
     src/ui/admin/settingswidget.h
@@ -120,12 +133,20 @@ target_link_libraries(OpenEkklesia PRIVATE
 # --- Test Suite (data layer integration tests) ---
 add_executable(openekklesia_tests
     tests/tst_openekklesia.cpp
+    src/common/appdateformatter.cpp
+    src/common/appdateformatter.h
+    src/common/churchprofile.cpp
+    src/common/churchprofile.h
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp
     src/database/datasharing.h
     src/ui/core/thememanager.cpp
     src/ui/core/thememanager.h
+    src/ui/core/iconmanager.cpp
+    src/ui/core/iconmanager.h
+    src/ui/core/usermanualdialog.cpp
+    src/ui/core/usermanualdialog.h
     src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/ministrymatch.h
     src/ui/ministry/shepherdwidget.cpp
@@ -138,6 +159,9 @@ add_executable(openekklesia_tests
     src/ui/ministry/graphwidget.h
     src/ui/ministry/matchdialog.cpp
     src/ui/ministry/matchdialog.h
+    src/ui/ministry/ministryarchetypes.h
+    src/ui/ministry/synergyengine.h
+    src/ui/ministry/synergyengine.cpp
     src/ui/people/pastoralanalyticswidget.cpp
     src/ui/people/pastoralanalyticswidget.h
     src/ui/people/peoplewidget.cpp

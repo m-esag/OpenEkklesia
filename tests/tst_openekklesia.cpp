@@ -23,6 +23,8 @@
 
 #include "../src/database/databasemanager.h"
 #include "../src/database/datasharing.h"
+#include "../src/common/appdateformatter.h"
+#include "../src/common/churchprofile.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/ministry/ministrymatch.h"
@@ -2163,6 +2165,158 @@ bool test_graphCollisionResolution() {
     return true;
 }
 
+bool test_peopleModuleStressAndBreakSuite() {
+    // 1. Stress test CSV parsing with complex quotes and internal commas
+    QString csv1 = "\"Doe, Jr.\", John, (555) 123-4567, \"john.doe@example.com\", \"Member\"";
+    QStringList parsed1 = PeopleWidget::parseCsvLine(csv1);
+    CHECK_EQ(parsed1.size(), 5);
+    CHECK_EQ(parsed1[0].toStdString(), std::string("Doe, Jr."));
+    CHECK_EQ(parsed1[1].toStdString(), std::string("John"));
+    CHECK_EQ(parsed1[2].toStdString(), std::string("(555) 123-4567"));
+    CHECK_EQ(parsed1[3].toStdString(), std::string("john.doe@example.com"));
+    CHECK_EQ(parsed1[4].toStdString(), std::string("Member"));
+
+    QString csv2 = "\"Smith \"\"The Builder\"\"\", Bob, 555-9999";
+    QStringList parsed2 = PeopleWidget::parseCsvLine(csv2);
+    CHECK_EQ(parsed2.size(), 3);
+    CHECK_EQ(parsed2[0].toStdString(), std::string("Smith \"The Builder\""));
+    CHECK_EQ(parsed2[1].toStdString(), std::string("Bob"));
+    CHECK_EQ(parsed2[2].toStdString(), std::string("555-9999"));
+
+    // 2. Test vCard generation compliance
+    QString vcf = PeopleWidget::generateVCard("John", "Doe", "555-0199", "john.doe@test.com",
+                                              "1985-06-15", "Member", "Needs Contact", "Pastoral notes here");
+    CHECK(vcf.contains("BEGIN:VCARD"));
+    CHECK(vcf.contains("VERSION:3.0"));
+    CHECK(vcf.contains("N:Doe;John;;;"));
+    CHECK(vcf.contains("FN:John Doe"));
+    CHECK(vcf.contains("TEL;TYPE=CELL,VOICE:555-0199"));
+    CHECK(vcf.contains("EMAIL;TYPE=INTERNET,PREF:john.doe@test.com"));
+    CHECK(vcf.contains("BDAY:1985-06-15"));
+    CHECK(vcf.contains("ROLE:Member"));
+    CHECK(vcf.contains("NOTE:[Care Flag: Needs Contact] Pastoral notes here"));
+    CHECK(vcf.contains("END:VCARD"));
+
+    // 3. Test PeopleWidget UI and drill-through filter mapping
+    PeopleWidget pw;
+    pw.applyDrillThroughFilter("status", "Active");
+    pw.applyDrillThroughFilter("status", "Visitor");
+    pw.applyDrillThroughFilter("status", "Regular Attender");
+    pw.applyDrillThroughFilter("status", "Member");
+    pw.applyDrillThroughFilter("status", "Inactive");
+    pw.applyDrillThroughFilter("unconnected", "");
+    pw.applyDrillThroughFilter("care_flag", "Needs Contact");
+
+    // 4. Test Cascade Deletion & Double-Entry Accounting Ledger Integrity
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9995, 'TestDel', 'Member', 'Member')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9995, 'Group', 1, 'member_of')"));
+    CHECK(q.exec("INSERT INTO care_logs (person_id, care_type, notes) VALUES (9995, 'Prayer', 'Prayer request')"));
+    CHECK(q.exec("INSERT INTO transactions (id, date, description) VALUES (9995, '2026-08-26', 'Tithe Test')"));
+    CHECK(q.exec("INSERT INTO splits (id, transaction_id, account_id, amount, person_id) VALUES (9995, 9995, 1, 150.0, 9995)"));
+    CHECK(q.exec("INSERT INTO ministry_tasks (id, team, title, owner, start_day, duration_days, owner_id) VALUES (9995, 'Worship', 'Task for Member', 'TestDel Member', 1, 5, 9995)"));
+
+    // Verify records exist
+    QSqlQuery qCheck(d);
+    CHECK(qCheck.exec("SELECT COUNT(*) FROM people WHERE id = 9995") && qCheck.next() && qCheck.value(0).toInt() == 1);
+    CHECK(qCheck.exec("SELECT COUNT(*) FROM splits WHERE person_id = 9995") && qCheck.next() && qCheck.value(0).toInt() == 1);
+    CHECK(qCheck.exec("SELECT COUNT(*) FROM ministry_tasks WHERE owner_id = 9995") && qCheck.next() && qCheck.value(0).toInt() == 1);
+
+    // Delete Person and verify FK safety & split unlink
+    QSqlQuery qDel(d);
+    // Delete through cascade
+    const QStringList childTables = { "pastoral_activities", "member_history", "care_logs", "attendance", "member_skills", "service_volunteers", "checkout_logs" };
+    for (const QString& t : childTables) {
+        qDel.prepare(QString("DELETE FROM %1 WHERE person_id = ?").arg(t));
+        qDel.addBindValue(9995);
+        qDel.exec();
+    }
+    qDel.prepare("UPDATE splits SET person_id = NULL WHERE person_id = ?");
+    qDel.addBindValue(9995);
+    CHECK(qDel.exec());
+
+    qDel.prepare("UPDATE ministry_tasks SET owner_id = NULL WHERE owner_id = ?");
+    qDel.addBindValue(9995);
+    CHECK(qDel.exec());
+
+    qDel.prepare("DELETE FROM entity_relationships WHERE (source_type = 'Person' AND source_id = ?) OR (target_type = 'Person' AND target_id = ?)");
+    qDel.addBindValue(9995);
+    qDel.addBindValue(9995);
+    CHECK(qDel.exec());
+
+    qDel.prepare("DELETE FROM people WHERE id = ?");
+    qDel.addBindValue(9995);
+    CHECK(qDel.exec());
+
+    // Verify people row is gone
+    CHECK(qCheck.exec("SELECT COUNT(*) FROM people WHERE id = 9995") && qCheck.next() && qCheck.value(0).toInt() == 0);
+    // Verify accounting split STILL EXISTS for double-entry integrity, but person_id is unlinked
+    CHECK(qCheck.exec("SELECT COUNT(*), person_id FROM splits WHERE id = 9995 GROUP BY id") && qCheck.next());
+    CHECK(qCheck.value(1).isNull());
+    // Verify ministry task owner is unlinked
+    CHECK(qCheck.exec("SELECT COUNT(*), owner_id FROM ministry_tasks WHERE id = 9995 GROUP BY id") && qCheck.next());
+    CHECK(qCheck.value(1).isNull());
+
+    d.rollback();
+    return true;
+}
+
+// Team decisions from the Settings brief: configurable date format app-wide
+// (Q2), timezone/startOfWeek removed, ChurchProfile letterhead on PDFs (Q3).
+bool test_settingsLocalizationAndChurchProfile() {
+    QSettings s("OpenEkklesia", "CHMS");
+
+    // 1. AppDateFormatter honors the configured date format.
+    s.setValue("dateFormat", "dd/MM/yyyy");
+    s.sync();
+    CHECK_EQ(AppDateFormatter::formatDate(QDate(2026, 8, 25)).toStdString(), std::string("25/08/2026"));
+    s.setValue("dateFormat", "yyyy-MM-dd");
+    s.sync();
+    CHECK_EQ(AppDateFormatter::formatDate(QDate(2026, 8, 25)).toStdString(), std::string("2026-08-25"));
+
+    // 2. ChurchProfile letterhead (no logo yet).
+    s.setValue("churchName", "Grace Community Church");
+    s.setValue("churchAddress", "123 Grace Lane, Metropolis");
+    s.setValue("churchTaxId", "12-3456789");
+    s.setValue("churchSubtitle", "Test Subtitle");
+    s.sync();
+
+    QString header = ChurchProfile::renderHtmlHeader("Donor Receipt", "FY Test", /*includeTaxId=*/true);
+    CHECK(header.contains("Grace Community Church"));
+    CHECK(header.contains("123 Grace Lane"));
+    CHECK(header.contains("Tax ID: 12-3456789"));
+    CHECK(header.contains("Donor Receipt"));
+    CHECK(!header.contains("data:image")); // no logo configured
+
+    // 3. Run sheets omit the Tax ID (team decision).
+    const QString runSheetHeader = ChurchProfile::renderHtmlHeader("Order of Service", QString(), /*includeTaxId=*/false);
+    CHECK(!runSheetHeader.contains("Tax ID"));
+    CHECK(runSheetHeader.contains("Grace Community Church"));
+
+    // 4. A configured logo embeds as base64.
+    const QString pngPath = QDir::tempPath() + "/oe_logo_test.png";
+    QImage logoImg(64, 64, QImage::Format_ARGB32);
+    logoImg.fill(Qt::blue);
+    CHECK(logoImg.save(pngPath));
+    s.setValue("churchLogo", pngPath);
+    s.sync();
+    const QString withLogo = ChurchProfile::renderHtmlHeader("Test", QString(), false);
+    CHECK(withLogo.contains("data:image/png;base64"));
+
+    // Cleanup.
+    s.remove("dateFormat");
+    s.remove("churchName");
+    s.remove("churchAddress");
+    s.remove("churchTaxId");
+    s.remove("churchSubtitle");
+    s.remove("churchLogo");
+    s.sync();
+    QFile::remove(pngPath);
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2225,6 +2379,7 @@ int main(int argc, char** argv) {
         {"smart_bridge_engine_and_source_logging", test_smartBridgeEngineAndSourceLogging},
         {"graph_inspector_upgrade", test_graphInspectorUpgrade},
         {"graph_collision_resolution", test_graphCollisionResolution},
+        {"settings_localization_and_churchprofile", test_settingsLocalizationAndChurchProfile},
         {"graph_filter_persistence", test_graphFilterPersistence},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
@@ -2234,6 +2389,7 @@ int main(int argc, char** argv) {
         {"giving_batches_and_multi_fund_splits", test_givingBatchesAndMultiFundSplits},
         {"user_manual_integrity", test_userManualIntegrity},
         {"graph_view_options_and_dock_toggle", test_graphViewOptionsAndDockToggle},
+        {"people_module_stress_and_break_suite", test_peopleModuleStressAndBreakSuite},
     };
 
     for (const Test& t : tests) {

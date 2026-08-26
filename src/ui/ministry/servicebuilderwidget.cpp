@@ -34,6 +34,7 @@
 #include "../core/thememanager.h"
 #include "../core/iconmanager.h"
 #include "../database/databasemanager.h"
+#include "../common/churchprofile.h"
 #include "ministrymatch.h"
 
 // Run-sheet list: shows an empty-state hint, and highlights the drop target
@@ -1535,23 +1536,10 @@ void ServiceBuilderWidget::onExportRunSheet() {
     const QString leader = m_leaderEdit->currentText().trimmed().isEmpty() ? "Unassigned" : m_leaderEdit->currentText().trimmed();
     const QString timeStr = m_serviceTimeEdit->time().toString("h:mm AP");
 
-    // Church profile from Settings (logo, name, address) heads the document —
-    // previously these were stored but never printed anywhere.
-    QSettings s("OpenEkklesia", "CHMS");
-    const QString churchName = s.value("churchName", "OpenEkklesia Church").toString();
-    const QString churchAddress = s.value("churchAddress").toString().trimmed();
-    QString logoHtml;
-    const QString logoPath = s.value("churchLogo").toString().trimmed();
-    if (!logoPath.isEmpty()) {
-        QImage logo(logoPath);
-        if (!logo.isNull()) {
-            QBuffer buf;
-            buf.open(QIODevice::WriteOnly);
-            logo.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(&buf, "PNG");
-            logoHtml = QString("<img src='data:image/png;base64,%1' style='height:56px; float: right;'/>")
-                           .arg(QString::fromLatin1(buf.data().toBase64()));
-        }
-    }
+    // Church profile header (logo, name, address) via the shared ChurchProfile
+    // helper — no Tax ID on run sheets (team decision Q3).
+    const QString churchHeaderHtml = ChurchProfile::renderHtmlHeader(
+        QString("%1 · %2 · Starts %3").arg(title, dateStr, timeStr), QString(), false);
 
     // Run sheet with per-item start times computed from the service start.
     QTime cursor = m_serviceTimeEdit->time();
@@ -1588,20 +1576,15 @@ void ServiceBuilderWidget::onExportRunSheet() {
 
     QString html = QString(
         "<html><body style='font-family: Arial, sans-serif; margin: 30px;'>"
-        "%7" // logo (right-aligned) when a church logo is set
-        "<h1 style='color: #1e66f5;'>%8 — Sunday Order of Service</h1>"
-        "%9" // church address line
-        "<h3>%1 · %2 · Starts %3</h3>"
-        "<p>Service Leader: %4</p>"
+        "%1" // church branding header (logo, name, address, report title)
+        "<p>Service Leader: %2</p>"
         "<hr>"
-        "<h3>Order of Service / Liturgy Run Sheet</h3>%5"
+        "<h3>Order of Service / Liturgy Run Sheet</h3>%3"
         "<hr>"
-        "<h3>Assigned Volunteers & Roster (contact strip)</h3>%6"
+        "<h3>Assigned Volunteers & Roster (contact strip)</h3>%4"
         "<br><p style='font-size: 11px; color: #666;'>Generated via OpenEkklesia ChMS Suite</p>"
         "</body></html>"
-    ).arg(title, dateStr, timeStr, leader, itemsHtml, volHtml,
-          logoHtml, churchName,
-          churchAddress.isEmpty() ? "" : QString("<p style='font-size: 11px; color: #666;'>%1</p>").arg(churchAddress));
+    ).arg(churchHeaderHtml, leader, itemsHtml, volHtml);
 
     QTextDocument doc;
     doc.setHtml(html);

@@ -606,18 +606,12 @@ void SettingsWidget::setupUI() {
     m_cmbDateFormat->addItem("DD/MM/YYYY (International - e.g. 18/08/2026)", "dd/MM/yyyy");
     m_cmbDateFormat->addItem("MMM D, YYYY (e.g. Aug 18, 2026)", "MMM d, yyyy");
 
-    m_cmbStartOfWeek = new QComboBox(pageLocale);
-    m_cmbStartOfWeek->addItem("Sunday (Traditional Church Calendar)", 0);
-    m_cmbStartOfWeek->addItem("Monday (ISO Standard)", 1);
-
-    m_cmbTimezone = new QComboBox(pageLocale);
-    m_cmbTimezone->addItem("Local System Timezone (Default)", "local");
-    m_cmbTimezone->addItem("UTC (Coordinated Universal Time)", "UTC");
+    // Team decision (Settings brief Q2): timezone + start-of-week removed —
+    // this is an offline, single-locale app; Qt already provides locale-aware
+    // week starts. Only the date format is honored app-wide.
 
     formLocale->addRow("Currency Symbol / Code:", m_cmbCurrency);
     formLocale->addRow("Default Date Format:", m_cmbDateFormat);
-    formLocale->addRow("First Day of the Week:", m_cmbStartOfWeek);
-    formLocale->addRow("Timezone Reference:", m_cmbTimezone);
 
     layLocale->addWidget(grpLocale);
     layLocale->addStretch();
@@ -1072,8 +1066,6 @@ void SettingsWidget::setupUI() {
     connect(m_spnIcalAlarmMins, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_cmbCurrency, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_cmbDateFormat, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
-    connect(m_cmbStartOfWeek, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
-    connect(m_cmbTimezone, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_spnInactivityDays, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnBurnoutThreshold, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnFamilyDominancePercent, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
@@ -1273,11 +1265,7 @@ void SettingsWidget::loadSettings() {
     int dateIdx = m_cmbDateFormat->findData(s.value("dateFormat", "yyyy-MM-dd").toString());
     if (dateIdx >= 0) m_cmbDateFormat->setCurrentIndex(dateIdx);
 
-    int weekIdx = m_cmbStartOfWeek->findData(s.value("startOfWeek", 0).toInt());
-    if (weekIdx >= 0) m_cmbStartOfWeek->setCurrentIndex(weekIdx);
 
-    int tzIdx = m_cmbTimezone->findData(s.value("timezone", "local").toString());
-    if (tzIdx >= 0) m_cmbTimezone->setCurrentIndex(tzIdx);
 
     m_timeDefaultService->setTime(QTime::fromString(s.value("defaultServiceTime", "10:00").toString(), "HH:mm"));
     if (!m_timeDefaultService->time().isValid()) m_timeDefaultService->setTime(QTime(10, 0));
@@ -1363,8 +1351,10 @@ void SettingsWidget::saveSettings() {
 
     s.setValue("currencySymbol", m_cmbCurrency->currentData().toString());
     s.setValue("dateFormat", m_cmbDateFormat->currentData().toString());
-    s.setValue("startOfWeek", m_cmbStartOfWeek->currentData().toInt());
-    s.setValue("timezone", m_cmbTimezone->currentData().toString());
+    // Remove the dead timezone/startOfWeek keys (team decision Q2) so the
+    // settings registry doesn't accumulate ghosts across versions.
+    s.remove("startOfWeek");
+    s.remove("timezone");
 
     s.setValue("defaultServiceTime", m_timeDefaultService->time().toString("HH:mm"));
     s.setValue("targetServiceDuration", m_spnTargetDuration->value());
