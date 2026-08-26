@@ -2125,6 +2125,44 @@ bool test_graphInspectorUpgrade() {
     return true;
 }
 
+// Node stacking: overlapping nodes must be separated by the collision pass.
+bool test_graphCollisionResolution() {
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (id, name, category) VALUES (9301, 'Collision Team', 'Alabanza')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9301, 'One', 'Collide', 'Member')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9302, 'Two', 'Collide', 'Member')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9301, 'Group', 9301, 'Member')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9302, 'Group', 9301, 'Member')"));
+
+    GraphWidget gw;
+    NodeItem* n1 = nullptr;
+    NodeItem* n2 = nullptr;
+    for (QGraphicsItem* item : gw.scene()->items()) {
+        auto* n = dynamic_cast<NodeItem*>(item);
+        if (n && n->isPersonNode()) {
+            if (!n1) n1 = n;
+            else if (!n2) n2 = n;
+        }
+    }
+    CHECK(n1 && n2);
+    if (!n1 || !n2) return true;
+
+    // Stack both at the same spot, then resolve.
+    n1->setPos(0, 0);
+    n2->setPos(0, 0);
+    gw.resolveNodeOverlaps();
+    const QPointF delta = n2->pos() - n1->pos();
+    const double dist = std::hypot(delta.x(), delta.y());
+    CHECK(dist >= n1->radius() + n2->radius() + 8.0 - 0.01);
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2186,6 +2224,7 @@ int main(int argc, char** argv) {
         {"graph_health_features", test_graphHealthFeatures},
         {"smart_bridge_engine_and_source_logging", test_smartBridgeEngineAndSourceLogging},
         {"graph_inspector_upgrade", test_graphInspectorUpgrade},
+        {"graph_collision_resolution", test_graphCollisionResolution},
         {"graph_filter_persistence", test_graphFilterPersistence},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
