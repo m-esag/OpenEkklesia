@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
+#include <QSettings>
 #include <QSet>
 #include <QIODevice>
 #include <QDate>
@@ -74,7 +75,12 @@ bool DatabaseManager::initialize(const QString& dbPath) {
         return false;
     }
 
-    // --- Automated Weekly Database Backup Snapshot ---
+    // --- Automated Database Backup Snapshot (schedule + retention from Settings) ---
+    QSettings bSet("OpenEkklesia", "CHMS");
+    const QString schedule = bSet.value("autoBackupSchedule", "Weekly").toString();
+    const int intervalDays = (schedule == "Daily") ? 1 : (schedule == "Monthly") ? 30 : 7;
+    const int retention = qMax(1, bSet.value("backupRetentionCount", 8).toInt());
+
     QString backupDir = QFileInfo(resolvedPath).absolutePath() + "/backups";
     QDir().mkpath(backupDir);
     QString lastBackupDateFile = backupDir + "/last_backup.txt";
@@ -86,16 +92,14 @@ bool DatabaseManager::initialize(const QString& dbPath) {
             f.close();
         }
     }
-    if (!lastBackupDate.isValid() || lastBackupDate.daysTo(QDate::currentDate()) >= 7) {
+    if (!lastBackupDate.isValid() || lastBackupDate.daysTo(QDate::currentDate()) >= intervalDays) {
         QString autoBackupPath = QString("%1/auto_backup_%2.db").arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
         if (QFile::copy(resolvedPath, autoBackupPath)) {
-            qInfo() << "Automated weekly database backup created at:" << autoBackupPath;
+            qInfo() << "Automated backup created at:" << autoBackupPath;
 
             // The vault holds the actual documents; a DB-only backup would
             // preserve records pointing at missing files. Copy the vault dir
-            // alongside the weekly .db snapshot. Only the newest vault
-            // snapshot is kept (documents are large and change little);
-            // older *_vault dirs are pruned.
+            // alongside the .db snapshot and prune down to `retention`.
             const QString vaultDir = vaultDirPath();
             if (QDir(vaultDir).exists()) {
                 const QString vaultBackupDir = QString("%1/auto_backup_%2_vault")
@@ -109,16 +113,23 @@ bool DatabaseManager::initialize(const QString& dbPath) {
                     if (!QFile::copy(fi.absoluteFilePath(), dest)) allCopied = false;
                 }
                 if (!allCopied) {
-                    qWarning() << "Weekly vault backup incomplete for" << vaultBackupDir;
+                    qWarning() << "Vault backup incomplete for" << vaultBackupDir;
                 }
-                // Prune older vault snapshots (keep only today's).
+                // Keep the newest `retention` vault snapshots (names sort by date).
                 const auto backupDirs = QDir(backupDir).entryList(
-                    QStringList() << "auto_backup_*_vault", QDir::Dirs | QDir::NoDotAndDotDot);
-                for (const QString& d : backupDirs) {
-                    if (d != QFileInfo(vaultBackupDir).fileName()) {
-                        QDir(backupDir + "/" + d).removeRecursively();
-                    }
+                    QStringList() << "auto_backup_*_vault", QDir::Dirs | QDir::NoDotAndDotDot,
+                    QDir::Name | QDir::Reversed);
+                for (int i = retention; i < backupDirs.size(); ++i) {
+                    QDir(backupDir + "/" + backupDirs[i]).removeRecursively();
                 }
+            }
+
+            // Prune old database snapshots to the retention count.
+            const auto dbBackups = QDir(backupDir).entryList(
+                QStringList() << "auto_backup_*.db", QDir::Files,
+                QDir::Name | QDir::Reversed);
+            for (int i = retention; i < dbBackups.size(); ++i) {
+                QFile::remove(backupDir + "/" + dbBackups[i]);
             }
 
             QFile f(lastBackupDateFile);

@@ -1,5 +1,6 @@
 #include "settingswidget.h"
 #include "thememanager.h"
+#include "../core/iconmanager.h"
 #include "../integrations/planningcenterdialog.h"
 #include "../database/databasemanager.h"
 #include "../database/datasharing.h"
@@ -43,17 +44,21 @@ void SettingsWidget::setupUI() {
     QHBoxLayout* topBar = new QHBoxLayout();
     
     QVBoxLayout* titleCol = new QVBoxLayout();
-    QLabel* pageHeader = new QLabel("⚙️ Application Settings & Preferences", this);
+    QLabel* pageHeader = new QLabel("Application Settings & Preferences", this);
     pageHeader->setObjectName("pageHeader");
-    m_lblStatus = new QLabel("Configure your church identity, regional formats, theme, and data management.", this);
+    pageHeader->setStyleSheet("font-size: 20px; font-weight: bold;");
+
+    m_lblStatus = new QLabel("Manage church branding, visual themes, modules, regional formats, and backups.", this);
     m_lblStatus->setStyleSheet("color: palette(placeholderText); font-size: 13px;");
+
     titleCol->addWidget(pageHeader);
     titleCol->addWidget(m_lblStatus);
     topBar->addLayout(titleCol);
 
     topBar->addStretch();
 
-    m_btnSaveSettings = new QPushButton("💾 Save All Changes", this);
+    m_btnSaveSettings = new QPushButton(" Save All Changes", this);
+    m_btnSaveSettings->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
     m_btnSaveSettings->setObjectName("saveBtn");
     m_btnSaveSettings->setMinimumHeight(38);
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
@@ -64,45 +69,46 @@ void SettingsWidget::setupUI() {
 
     // --- Main Body: Splitter with Left Nav and Right Content Stack ---
     QHBoxLayout* bodyLayout = new QHBoxLayout();
-    bodyLayout->setSpacing(16);
+    bodyLayout->setSpacing(14);
 
-    // Left Navigation Column
+    // Left Navigation List
     QWidget* navContainer = new QWidget(this);
-    navContainer->setFixedWidth(240);
+    navContainer->setFixedWidth(230);
     QVBoxLayout* navLayout = new QVBoxLayout(navContainer);
     navLayout->setContentsMargins(0, 0, 0, 0);
-    navLayout->setSpacing(10);
+    navLayout->setSpacing(8);
 
-    m_searchBox = new QLineEdit(this);
-    m_searchBox->setPlaceholderText("🔍 Filter settings...");
+    m_searchBox = new QLineEdit(navContainer);
+    m_searchBox->setPlaceholderText("Filter settings...");
     m_searchBox->setClearButtonEnabled(true);
-    m_searchBox->setStyleSheet("padding: 8px 12px; font-size: 13px; border-radius: 6px;");
     connect(m_searchBox, &QLineEdit::textChanged, this, &SettingsWidget::onSearchTextChanged);
     navLayout->addWidget(m_searchBox);
 
-    m_navList = new QListWidget(this);
-    m_navList->setSpacing(4);
+    m_navList = new QListWidget(navContainer);
+    m_navList->setObjectName("settingsNavList");
     m_navList->setStyleSheet(
-        "QListWidget { border: none; background: transparent; }"
-        "QListWidget::item { padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; margin-bottom: 2px; }"
+        "QListWidget#settingsNavList { border-radius: 8px; padding: 4px; }"
+        "QListWidget::item { padding: 9px 12px; border-radius: 6px; margin-bottom: 2px; }"
         "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
         "QListWidget::item:hover:!selected { background-color: rgba(255, 255, 255, 0.06); }"
     );
 
-    QStringList categories = {
-        "🏛️ General & Profile",
-        "🎨 Appearance & Theme",
-        "🧩 Modules & Features",
-        "🎵 Service & Liturgy Defaults",
-        "🌍 Localization & Region",
-        "🕸️ Pastoral & Graph",
-        "🖥️ Kiosk & Security",
-        "💾 Data, Backup & Integrations",
-        "⚠️ Danger Zone"
+    struct NavCategory { const char* text; const char* icon; };
+    const NavCategory categories[] = {
+        {"General & Profile", "landmark"},
+        {"Appearance & Theme", "sparkles"},
+        {"Modules & Features", "layers"},
+        {"Service & Liturgy Defaults", "list-music"},
+        {"Localization & Region", "calendar"},
+        {"Pastoral & Graph", "network"},
+        {"Kiosk & Security", "user-check"},
+        {"Data, Backup & Integrations", "shield-check"},
+        {"Danger Zone", "alert-triangle"}
     };
 
-    for (const QString& cat : categories) {
-        QListWidgetItem* item = new QListWidgetItem(cat, m_navList);
+    for (const auto& cat : categories) {
+        QListWidgetItem* item = new QListWidgetItem(cat.text, m_navList);
+        item->setIcon(IconManager::instance().getIcon(cat.icon, QColor("#cdd6f4"), 16));
         item->setSizeHint(QSize(200, 38));
     }
 
@@ -125,7 +131,7 @@ void SettingsWidget::setupUI() {
     layGeneral->setContentsMargins(10, 0, 10, 10);
     layGeneral->setSpacing(16);
 
-    QGroupBox* grpChurchProfile = new QGroupBox("🏛️ Church Identity & Organization", pageGeneral);
+    QGroupBox* grpChurchProfile = new QGroupBox("Church Identity & Organization", pageGeneral);
     QFormLayout* formOrg = new QFormLayout(grpChurchProfile);
     formOrg->setSpacing(12);
 
@@ -153,7 +159,8 @@ void SettingsWidget::setupUI() {
     m_logoPreview->setAlignment(Qt::AlignCenter);
     m_logoPreview->setText("No logo\nselected");
     m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
-    m_btnPickLogo = new QPushButton("🖼️ Upload Church Logo", pageGeneral);
+    m_btnPickLogo = new QPushButton(" Upload Church Logo", pageGeneral);
+    m_btnPickLogo->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
     m_btnPickLogo->setObjectName("primaryBtn");
     connect(m_btnPickLogo, &QPushButton::clicked, this, &SettingsWidget::onPickLogo);
 
@@ -190,7 +197,7 @@ void SettingsWidget::setupUI() {
     layTheme->setSpacing(16);
 
     // Live Preview Card (mini app mock: sidebar + content)
-    QGroupBox* grpPreview = new QGroupBox("👁️ Real-Time Theme Preview", pageTheme);
+    QGroupBox* grpPreview = new QGroupBox("Real-Time Theme Preview", pageTheme);
     QVBoxLayout* prevLay = new QVBoxLayout(grpPreview);
 
     m_previewCard = new QFrame(grpPreview);
@@ -251,13 +258,13 @@ void SettingsWidget::setupUI() {
     layTheme->addWidget(grpPreview);
 
     // Theme Gallery (visual preset cards)
-    QGroupBox* grpPreset = new QGroupBox("🎨 Theme Gallery — click a preset to apply", pageTheme);
+    QGroupBox* grpPreset = new QGroupBox("Theme Gallery — click a preset to apply", pageTheme);
     QVBoxLayout* presetForm = new QVBoxLayout(grpPreset);
     presetForm->setSpacing(10);
 
     QHBoxLayout* galleryToolbar = new QHBoxLayout();
     m_cmbThemeModeFilter = new QComboBox(pageTheme);
-    m_cmbThemeModeFilter->addItems({"🎨 All Themes", "🌙 Dark Themes", "☀️ Light Themes"});
+    m_cmbThemeModeFilter->addItems({"All Themes", "Dark Themes", "Light Themes"});
     m_chkSyncSystemTheme = new QCheckBox("Follow OS system theme (auto dark/light)", pageTheme);
     m_chkAutoCollapseSidebar = new QCheckBox("Auto-collapse sidebar on small screens", pageTheme);
     m_chkAutoCollapseSidebar->setChecked(true);
@@ -319,11 +326,12 @@ void SettingsWidget::setupUI() {
     layTheme->addWidget(grpPreset);
 
     // 1-Click Church Brand Generator
-    QGroupBox* grpBrand = new QGroupBox("🏛️ 1-Click Church Brand Theme Generator", pageTheme);
+    QGroupBox* grpBrand = new QGroupBox("1-Click Church Brand Theme Generator", pageTheme);
     QFormLayout* brandForm = new QFormLayout(grpBrand);
     brandForm->setSpacing(10);
 
-    m_btnPickBrandColor = new QPushButton("🎨 Pick Primary Church Brand Color", pageTheme);
+    m_btnPickBrandColor = new QPushButton(" Pick Primary Church Brand Color", pageTheme);
+    m_btnPickBrandColor->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
     m_btnPickBrandColor->setObjectName("primaryBtn");
     connect(m_btnPickBrandColor, &QPushButton::clicked, this, &SettingsWidget::onGenerateChurchBrand);
 
@@ -335,7 +343,7 @@ void SettingsWidget::setupUI() {
     layTheme->addWidget(grpBrand);
 
     // Interactive Customization
-    QGroupBox* grpCustom = new QGroupBox("🎛️ Color Customization & Scale", pageTheme);
+    QGroupBox* grpCustom = new QGroupBox("Color Customization & Scale", pageTheme);
     QFormLayout* customForm = new QFormLayout(grpCustom);
     customForm->setSpacing(10);
 
@@ -362,11 +370,13 @@ void SettingsWidget::setupUI() {
     connect(m_spnFontSize, QOverload<int>::of(&QSpinBox::valueChanged), this, &SettingsWidget::onFontSizeSliderChanged);
 
     QHBoxLayout* presetBtns = new QHBoxLayout();
-    m_btnSavePreset = new QPushButton("💾 Save Custom Preset (.json)", pageTheme);
+    m_btnSavePreset = new QPushButton(" Save Custom Preset (.json)", pageTheme);
+    m_btnSavePreset->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnSavePreset->setObjectName("primaryBtn");
     connect(m_btnSavePreset, &QPushButton::clicked, this, &SettingsWidget::onSaveCustomPreset);
 
-    m_btnResetTheme = new QPushButton("🔄 Reset Default Theme", pageTheme);
+    m_btnResetTheme = new QPushButton(" Reset Default Theme", pageTheme);
+    m_btnResetTheme->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#11111b"), 14));
     m_btnResetTheme->setObjectName("dangerBtn");
     connect(m_btnResetTheme, &QPushButton::clicked, this, &SettingsWidget::onResetDefaultTheme);
 
@@ -409,11 +419,14 @@ void SettingsWidget::setupUI() {
     layModules->setContentsMargins(10, 0, 10, 10);
     layModules->setSpacing(16);
 
-    QGroupBox* grpModPresets = new QGroupBox("⚡ Quick Module Presets", pageModules);
+    QGroupBox* grpModPresets = new QGroupBox("Quick Module Presets", pageModules);
     QHBoxLayout* layModPresets = new QHBoxLayout(grpModPresets);
-    QPushButton* btnModAll = new QPushButton("✨ Enable All Modules", pageModules);
-    QPushButton* btnModStandard = new QPushButton("⛪ Standard Church (Roster + Finance + Groups)", pageModules);
-    QPushButton* btnModMinimal = new QPushButton("🌱 Minimal (Roster + Liturgy Only)", pageModules);
+    QPushButton* btnModAll = new QPushButton(" Enable All Modules", pageModules);
+    btnModAll->setIcon(IconManager::instance().getIcon("sparkles", QColor("#89b4fa"), 14));
+    QPushButton* btnModStandard = new QPushButton(" Standard Church (Roster + Finance + Groups)", pageModules);
+    btnModStandard->setIcon(IconManager::instance().getIcon("landmark", QColor("#89b4fa"), 14));
+    QPushButton* btnModMinimal = new QPushButton(" Minimal (Roster + Liturgy Only)", pageModules);
+    btnModMinimal->setIcon(IconManager::instance().getIcon("layers", QColor("#89b4fa"), 14));
     btnModAll->setObjectName("secondaryBtn");
     btnModStandard->setObjectName("secondaryBtn");
     btnModMinimal->setObjectName("secondaryBtn");
@@ -423,13 +436,13 @@ void SettingsWidget::setupUI() {
     layModPresets->addStretch();
     layModules->addWidget(grpModPresets);
 
-    QGroupBox* grpModCong = new QGroupBox("👥 Congregation & Community", pageModules);
+    QGroupBox* grpModCong = new QGroupBox("Congregation & Community", pageModules);
     QVBoxLayout* layModCong = new QVBoxLayout(grpModCong);
     m_chkModPeople = new QCheckBox("People & Membership Directory (Demographics, Timeline, Care Logs)", pageModules);
     m_chkModGroups = new QCheckBox("Small Groups & Discipleship (Life groups, serving teams, chemistry analytics)", pageModules);
     m_chkModGraph = new QCheckBox("Relational Connection Graph (Visual demographic map & network clusters)", pageModules);
     m_chkModAnalytics = new QCheckBox("Pastoral Analytics (Radar charts, engagement metrics, care follow-ups)", pageModules);
-    m_chkModShepherd = new QCheckBox("🛐 Shepherd's Workbench (Today's follow-up queue, member care timeline, prayer list)", pageModules);
+    m_chkModShepherd = new QCheckBox("Shepherd's Workbench (Today's follow-up queue, member care timeline, prayer list)", pageModules);
     layModCong->addWidget(m_chkModPeople);
     layModCong->addWidget(m_chkModGroups);
     layModCong->addWidget(m_chkModGraph);
@@ -437,7 +450,7 @@ void SettingsWidget::setupUI() {
     layModCong->addWidget(m_chkModShepherd);
     layModules->addWidget(grpModCong);
 
-    QGroupBox* grpModMin = new QGroupBox("🗓️ Ministry & Services", pageModules);
+    QGroupBox* grpModMin = new QGroupBox("Ministry & Services", pageModules);
     QVBoxLayout* layModMin = new QVBoxLayout(grpModMin);
     m_chkModService = new QCheckBox("Service Liturgy Builder (Order of service, music cues, volunteer scheduling)", pageModules);
     m_chkModPlanning = new QCheckBox("Ministry Planning & Roadmaps (Milestones, timelines, project boards)", pageModules);
@@ -447,7 +460,7 @@ void SettingsWidget::setupUI() {
     layModMin->addWidget(m_chkModFacilities);
     layModules->addWidget(grpModMin);
 
-    QGroupBox* grpModFin = new QGroupBox("💰 Finance, Operations & Kiosk", pageModules);
+    QGroupBox* grpModFin = new QGroupBox("Finance, Operations & Kiosk", pageModules);
     QVBoxLayout* layModFin = new QVBoxLayout(grpModFin);
     m_chkModGiving = new QCheckBox("Giving & Sunday Batches (Offering batches, multi-fund splits, GnuCash export)", pageModules);
     m_chkModInventory = new QCheckBox("Asset & Equipment Inventory (Barcodes, item locations, check-outs)", pageModules);
@@ -536,7 +549,7 @@ void SettingsWidget::setupUI() {
     layService->setContentsMargins(10, 0, 10, 10);
     layService->setSpacing(16);
 
-    QGroupBox* grpServiceDefaults = new QGroupBox("🎵 Sunday Service Planning & Calendar Defaults", pageService);
+    QGroupBox* grpServiceDefaults = new QGroupBox("Sunday Service Planning & Calendar Defaults", pageService);
     QFormLayout* formService = new QFormLayout(grpServiceDefaults);
     formService->setSpacing(12);
 
@@ -573,7 +586,7 @@ void SettingsWidget::setupUI() {
     layLocale->setContentsMargins(10, 0, 10, 10);
     layLocale->setSpacing(16);
 
-    QGroupBox* grpLocale = new QGroupBox("🌍 Regional Formats & Display", pageLocale);
+    QGroupBox* grpLocale = new QGroupBox("Regional Formats & Display", pageLocale);
     QFormLayout* formLocale = new QFormLayout(grpLocale);
     formLocale->setSpacing(12);
 
@@ -622,7 +635,7 @@ void SettingsWidget::setupUI() {
     layPastoral->setContentsMargins(10, 0, 10, 10);
     layPastoral->setSpacing(16);
 
-    QGroupBox* grpThresholds = new QGroupBox("🕸️ Connection Graph & Care Analytics", pagePastoral);
+    QGroupBox* grpThresholds = new QGroupBox("Connection Graph & Care Analytics", pagePastoral);
     QFormLayout* formGraph = new QFormLayout(grpThresholds);
     formGraph->setSpacing(12);
 
@@ -676,7 +689,7 @@ void SettingsWidget::setupUI() {
     layKiosk->setContentsMargins(10, 0, 10, 10);
     layKiosk->setSpacing(16);
 
-    QGroupBox* grpKiosk = new QGroupBox("🖥️ Self-Service Kiosk & Child Safety", pageKiosk);
+    QGroupBox* grpKiosk = new QGroupBox("Self-Service Kiosk & Child Safety", pageKiosk);
     QFormLayout* formKiosk = new QFormLayout(grpKiosk);
     formKiosk->setSpacing(12);
 
@@ -707,7 +720,7 @@ void SettingsWidget::setupUI() {
     layData->setContentsMargins(10, 0, 10, 10);
     layData->setSpacing(16);
 
-    QGroupBox* grpDb = new QGroupBox("💾 Database Operations & Lifecycle", pageData);
+    QGroupBox* grpDb = new QGroupBox("Database Operations & Lifecycle", pageData);
     QVBoxLayout* grpDbLay = new QVBoxLayout(grpDb);
     grpDbLay->setSpacing(12);
 
@@ -735,14 +748,15 @@ void SettingsWidget::setupUI() {
     grpDbLay->addLayout(formLifecycle);
 
     QHBoxLayout* pcoRow = new QHBoxLayout();
-    m_lblPcoStatusBadge = new QLabel("⚪ Planning Center Online: Configured via API Dialog", pageData);
+    m_lblPcoStatusBadge = new QLabel("Planning Center Online: Configured via API Dialog", pageData);
     m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255,255,255,0.06);");
     pcoRow->addWidget(m_lblPcoStatusBadge);
     pcoRow->addStretch();
     grpDbLay->addLayout(pcoRow);
 
     QHBoxLayout* dbActions = new QHBoxLayout();
-    m_btnBackupDb = new QPushButton("📦 Export Database Backup (.db)", pageData);
+    m_btnBackupDb = new QPushButton(" Export Database Backup (.db)", pageData);
+    m_btnBackupDb->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnBackupDb->setObjectName("primaryBtn");
     connect(m_btnBackupDb, &QPushButton::clicked, this, [this]() {
         QString defaultName = QString("open_ekklesia_backup_%1.db").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
@@ -756,7 +770,8 @@ void SettingsWidget::setupUI() {
         }
     });
 
-    m_btnRestoreDb = new QPushButton("📥 Restore Database from Backup", pageData);
+    m_btnRestoreDb = new QPushButton(" Restore Database from Backup", pageData);
+    m_btnRestoreDb->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
     m_btnRestoreDb->setObjectName("secondaryBtn");
     connect(m_btnRestoreDb, &QPushButton::clicked, this, [this]() {
         QString openPath = QFileDialog::getOpenFileName(this, "Restore Database from Backup", QString(), "SQLite Database (*.db)");
@@ -781,7 +796,8 @@ void SettingsWidget::setupUI() {
         }
     });
 
-    m_btnCompactDb = new QPushButton("🧹 Compact Database (VACUUM)", pageData);
+    m_btnCompactDb = new QPushButton(" Compact Database (VACUUM)", pageData);
+    m_btnCompactDb->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
     m_btnCompactDb->setObjectName("accentBtnOrange");
     connect(m_btnCompactDb, &QPushButton::clicked, this, [this]() {
         QSqlDatabase db = DatabaseManager::instance().database();
@@ -794,7 +810,8 @@ void SettingsWidget::setupUI() {
         }
     });
 
-    m_btnViewAuditLogs = new QPushButton("📋 View Audit Logs", pageData);
+    m_btnViewAuditLogs = new QPushButton(" View Audit Logs", pageData);
+    m_btnViewAuditLogs->setIcon(IconManager::instance().getIcon("shield-check", QColor("#cdd6f4"), 14));
     m_btnViewAuditLogs->setObjectName("secondaryBtn");
     connect(m_btnViewAuditLogs, &QPushButton::clicked, this, [this]() {
         QDialog dlg(this);
@@ -823,7 +840,8 @@ void SettingsWidget::setupUI() {
         dlg.exec();
     });
 
-    m_btnSelectiveShare = new QPushButton("🔄 Selective Data Export / Import", pageData);
+    m_btnSelectiveShare = new QPushButton(" Selective Data Export / Import", pageData);
+    m_btnSelectiveShare->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
     m_btnSelectiveShare->setObjectName("primaryBtn");
     connect(m_btnSelectiveShare, &QPushButton::clicked, this, [this]() {
         QDialog dlg(this);
@@ -837,18 +855,20 @@ void SettingsWidget::setupUI() {
         v->addWidget(lblInfo);
 
         QComboBox* cmbScope = new QComboBox(&dlg);
-        cmbScope->addItem("🗄️ Full Database (All Tables)", "full");
-        cmbScope->addItem("👥 Membership Only (People, Households, Groups)", "membership");
-        cmbScope->addItem("💰 Finance Only (Accounts, Funds, Contributions)", "finance");
-        cmbScope->addItem("📋 Ministry Schedules (Services, Facilities, Plans)", "schedules");
-        cmbScope->addItem("🕊️ Pastoral Care & History", "care_notes");
-        cmbScope->addItem("🔒 Governance & Documents (Board Motions, Vault)", "governance");
+        cmbScope->addItem("Full Database (All Tables)", "full");
+        cmbScope->addItem("Membership Only (People, Households, Groups)", "membership");
+        cmbScope->addItem("Finance Only (Accounts, Funds, Contributions)", "finance");
+        cmbScope->addItem("Ministry Schedules (Services, Facilities, Plans)", "schedules");
+        cmbScope->addItem("Pastoral Care & History", "care_notes");
+        cmbScope->addItem("Governance & Documents (Board Motions, Vault)", "governance");
         v->addWidget(new QLabel("Select Data Scope:", &dlg));
         v->addWidget(cmbScope);
 
         QHBoxLayout* btnRow = new QHBoxLayout();
-        QPushButton* btnExport = new QPushButton("📤 Export Scope to JSON", &dlg);
-        QPushButton* btnImport = new QPushButton("📥 Import Scope from JSON", &dlg);
+        QPushButton* btnExport = new QPushButton(" Export Scope to JSON", &dlg);
+        btnExport->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+        QPushButton* btnImport = new QPushButton(" Import Scope from JSON", &dlg);
+        btnImport->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
         btnExport->setObjectName("primaryBtn");
         btnImport->setObjectName("secondaryBtn");
         btnRow->addWidget(btnExport);
@@ -890,7 +910,8 @@ void SettingsWidget::setupUI() {
         dlg.exec();
     });
 
-    m_btnPlanningCenter = new QPushButton("🔌 Planning Center Sync Wizard", pageData);
+    m_btnPlanningCenter = new QPushButton(" Planning Center Sync Wizard", pageData);
+    m_btnPlanningCenter->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#11111b"), 14));
     m_btnPlanningCenter->setObjectName("primaryBtn");
     connect(m_btnPlanningCenter, &QPushButton::clicked, this, [this]() {
         PlanningCenterDialog dlg(this);
@@ -921,7 +942,7 @@ void SettingsWidget::setupUI() {
     layDanger->setContentsMargins(10, 0, 10, 10);
     layDanger->setSpacing(16);
 
-    QGroupBox* grpDanger = new QGroupBox("⚠️ Irreversible Administrative Actions", pageDanger);
+    QGroupBox* grpDanger = new QGroupBox("Irreversible Administrative Actions", pageDanger);
     grpDanger->setStyleSheet("QGroupBox { border: 2px solid #f38ba8; border-radius: 8px; margin-top: 12px; padding-top: 16px; font-weight: bold; color: #f38ba8; }");
     QVBoxLayout* dangerLay = new QVBoxLayout(grpDanger);
     dangerLay->setSpacing(14);
@@ -943,7 +964,8 @@ void SettingsWidget::setupUI() {
     rowPurge->addLayout(purgeText);
     rowPurge->addStretch();
 
-    m_btnPurgeDemoData = new QPushButton("🧹 Purge Demo Data", pageDanger);
+    m_btnPurgeDemoData = new QPushButton(" Purge Demo Data", pageDanger);
+    m_btnPurgeDemoData->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
     m_btnPurgeDemoData->setObjectName("dangerBtn");
     m_btnPurgeDemoData->setMinimumHeight(36);
     connect(m_btnPurgeDemoData, &QPushButton::clicked, this, [this]() {
@@ -981,7 +1003,8 @@ void SettingsWidget::setupUI() {
     rowReset->addLayout(resetText);
     rowReset->addStretch();
 
-    m_btnResetAppDefaults = new QPushButton("🔄 Reset Settings", pageDanger);
+    m_btnResetAppDefaults = new QPushButton(" Reset Settings", pageDanger);
+    m_btnResetAppDefaults->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#f38ba8"), 14));
     m_btnResetAppDefaults->setObjectName("dangerBtn");
     m_btnResetAppDefaults->setMinimumHeight(36);
     connect(m_btnResetAppDefaults, &QPushButton::clicked, this, [this]() {
@@ -998,6 +1021,32 @@ void SettingsWidget::setupUI() {
     });
     rowReset->addWidget(m_btnResetAppDefaults);
     dangerLay->addLayout(rowReset);
+
+    // Clear saved graph node positions (Connection Graph "remember layout").
+    QHBoxLayout* rowGraphReset = new QHBoxLayout();
+    QVBoxLayout* graphResetText = new QVBoxLayout();
+    QLabel* lblGraphResetTitle = new QLabel("Reset Connection Graph Layout", pageDanger);
+    lblGraphResetTitle->setStyleSheet("font-weight: bold; font-size: 14px;");
+    QLabel* lblGraphResetDesc = new QLabel("Forgets saved node positions so the graph re-scatters and re-settles from scratch.", pageDanger);
+    lblGraphResetDesc->setStyleSheet("color: palette(placeholderText); font-size: 12px;");
+    graphResetText->addWidget(lblGraphResetTitle);
+    graphResetText->addWidget(lblGraphResetDesc);
+    rowGraphReset->addLayout(graphResetText);
+    rowGraphReset->addStretch();
+
+    QPushButton* btnClearGraphLayout = new QPushButton(" Clear Graph Layout", pageDanger);
+    btnClearGraphLayout->setObjectName("secondaryBtn");
+    btnClearGraphLayout->setMinimumHeight(36);
+    connect(btnClearGraphLayout, &QPushButton::clicked, this, [this]() {
+        QSqlQuery q;
+        if (q.exec("DELETE FROM graph_layout")) {
+            QMessageBox::information(this, "Graph Layout Cleared", "Saved graph positions removed. The Connection Graph will re-scatter on next load.");
+        } else {
+            QMessageBox::critical(this, "Error", "Failed to clear graph layout: " + q.lastError().text());
+        }
+    });
+    rowGraphReset->addWidget(btnClearGraphLayout);
+    dangerLay->addLayout(rowGraphReset);
 
     layDanger->addWidget(grpDanger);
     layDanger->addStretch();
@@ -1071,7 +1120,7 @@ void SettingsWidget::onSearchTextChanged(const QString& text) {
 
 void SettingsWidget::onMarkDirty() {
     m_isDirty = true;
-    m_btnSaveSettings->setText("💾 Save Changes (Unsaved)");
+    m_btnSaveSettings->setText(" Save Changes (Unsaved)");
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
     const QString txt = tok.accentWarning.lightness() > 140 ? "#11111b" : "#ffffff";
     m_btnSaveSettings->setStyleSheet(QString("padding: 8px 18px; font-weight: bold; font-size: 13px; background-color: %1; color: %2;")
@@ -1250,16 +1299,16 @@ void SettingsWidget::loadSettings() {
     if (schedIdx >= 0) m_cmbAutoBackupSchedule->setCurrentIndex(schedIdx);
     m_spnBackupRetention->setValue(s.value("backupRetentionCount", 10).toInt());
 
-    // Update live PCO badge
-    const QString pcoId = s.value("pcoAppId").toString();
+    // Update live PCO badge (canonical key is pco/appId; legacy pcoAppId falls back).
+    const QString pcoId = s.value("pco/appId", s.value("pcoAppId").toString()).toString();
     if (!pcoId.isEmpty()) {
-        m_lblPcoStatusBadge->setText(QString("🟢 Planning Center Online: Connected (App ID: %1)").arg(pcoId));
+        m_lblPcoStatusBadge->setText(QString("Planning Center Online: Connected (App ID: %1)").arg(pcoId));
         const bool dark = ThemeManager::instance().currentTokens().isDark;
         m_lblPcoStatusBadge->setStyleSheet(QString("padding: 4px 10px; border-radius: 6px; font-weight: bold; "
             "background-color: %1; color: %2;").arg(dark ? "rgba(166, 227, 161, 0.15)" : "rgba(21, 128, 61, 0.08)",
             dark ? "#a6e3a1" : "#15803d"));
     } else {
-        m_lblPcoStatusBadge->setText("⚪ Planning Center Online: Not Configured");
+        m_lblPcoStatusBadge->setText("Planning Center Online: Not Configured");
         m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255, 255, 255, 0.06);");
     }
 
@@ -1279,7 +1328,7 @@ void SettingsWidget::loadSettings() {
     m_lblDbPath->setText(QString("Active Database Location:\n%1").arg(db.databaseName()));
 
     m_isDirty = false;
-    m_btnSaveSettings->setText("💾 Save All Changes");
+    m_btnSaveSettings->setText(" Save All Changes");
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
 }
 
@@ -1345,7 +1394,7 @@ void SettingsWidget::saveSettings() {
     s.sync();
 
     m_isDirty = false;
-    m_btnSaveSettings->setText("💾 Save All Changes");
+    m_btnSaveSettings->setText(" Save All Changes");
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
 
     if (wasDirty) {
@@ -1385,7 +1434,7 @@ void SettingsWidget::updateColorButtonStyles() {
                                                .arg(ThemeManager::contrastRating(btnRatio)));
 
         if (textRatio < 4.5 || btnRatio < 4.5) {
-            m_lblContrastWarning->setText("⚠️ Caution: Contrast ratio falls below WCAG 2.1 AA (4.5:1) minimum standard.");
+            m_lblContrastWarning->setText("Caution: Contrast ratio falls below WCAG 2.1 AA (4.5:1) minimum standard.");
             m_lblContrastWarning->setVisible(true);
         } else {
             m_lblContrastWarning->setVisible(false);
