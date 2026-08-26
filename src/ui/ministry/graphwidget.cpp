@@ -525,7 +525,9 @@ void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QW
     }
 
     double width = (m_isSolid ? 2.5 : 2.0) * scaleFactor;
-    QPen pen(QColor("#00e5ff"), qMax(0.8, width), m_isSolid ? Qt::SolidLine : Qt::DashLine);
+    // Theme-aware ghost color: accentPrimary reads well on both light and dark.
+    const QColor ghost = ThemeManager::instance().currentTokens().accentPrimary;
+    QPen pen(ghost, qMax(0.8, width), m_isSolid ? Qt::SolidLine : Qt::DashLine);
     pen.setCapStyle(Qt::RoundCap);
     painter->setPen(pen);
     painter->drawPath(path);
@@ -1843,21 +1845,35 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
         QMap<int, CandidateProfile> allPeople;
         SynergyEngine::loadAllCandidates(db, allPeople);
 
+        // Batch family-tie detection: 2 queries instead of one per person.
+        // 1) households that already have an active member in this group;
+        // 2) every person's household.
+        QSet<int> groupMemberHouseholds;
+        QSqlQuery mhq(db);
+        mhq.prepare("SELECT DISTINCT p.household_id FROM entity_relationships er "
+                    "JOIN people p ON er.source_id = p.id "
+                    "WHERE er.target_id = ? AND er.source_type = 'Person' AND er.target_type = 'Group' "
+                    "AND p.household_id IS NOT NULL");
+        mhq.addBindValue(groupId);
+        if (mhq.exec()) {
+            while (mhq.next()) groupMemberHouseholds.insert(mhq.value(0).toInt());
+        }
+        QHash<int, int> personHouseholds;
+        QSqlQuery phq(db);
+        if (phq.exec("SELECT id, household_id FROM people WHERE household_id IS NOT NULL")) {
+            while (phq.next()) personHouseholds.insert(phq.value(0).toInt(), phq.value(1).toInt());
+        }
+
         for (NodeItem* pn : m_nodes) {
             if (!pn->isPersonNode()) continue;
             if (currentMembers.contains(pn->id())) continue;
             auto it = allPeople.constFind(pn->id());
             if (it == allPeople.constEnd()) continue;
 
-            // Family-tie context is group-specific: cheap single query.
             GroupProfile grpWithCandidate = groupProf;
-            QSqlQuery fq(db);
-            fq.prepare("SELECT COUNT(*) FROM entity_relationships er "
-                       "WHERE er.target_id = ? AND er.source_type = 'Person' AND er.target_type = 'Group' "
-                       "  AND er.source_id IN (SELECT id FROM people WHERE household_id = (SELECT household_id FROM people WHERE id = ?))");
-            fq.addBindValue(groupId);
-            fq.addBindValue(pn->id());
-            if (fq.exec() && fq.next() && fq.value(0).toInt() > 0) grpWithCandidate.hasHouseholdFamilyTie = true;
+            if (groupMemberHouseholds.contains(personHouseholds.value(pn->id(), 0))) {
+                grpWithCandidate.hasHouseholdFamilyTie = true;
+            }
 
             SynergyMatchResult res = SynergyEngine::evaluate(it.value(), grpWithCandidate);
             if (res.isEligible && res.score >= minScore) {
