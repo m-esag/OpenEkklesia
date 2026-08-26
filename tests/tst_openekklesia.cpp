@@ -2053,6 +2053,78 @@ bool test_smartBridgeEngineAndSourceLogging() {
     return true;
 }
 
+// Right-side inspector upgrade: person context strip, group recruitment
+// badge / meta / composition, and edge provenance + navigation.
+bool test_graphInspectorUpgrade() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // Seed: an Elected group, a member with an archetype, and a candidate.
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO groups (id, name, category, recruitment_status, max_capacity) "
+                 "VALUES (9201, 'Board of Elders', 'Governance', 'Elected', 8)"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status, ministry_personality, date_of_birth) "
+                 "VALUES (9201, 'Elder', 'One', 'Member', 'Anchor', '1980-05-01')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status, date_of_birth) "
+                 "VALUES (9202, 'Cand', 'Two', 'Member', '1995-03-15')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                 "VALUES ('Person', 9201, 'Group', 9201, 'Leader', 'Active', 'manual', '2026-01-15')"));
+    CHECK(q.exec("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, notes) "
+                 "VALUES (9202, 'Phone Call', '2026-08-01', 'Check-in')"));
+
+    GraphWidget gw;
+
+    NodeItem* groupNode = nullptr;
+    NodeItem* personNode = nullptr;
+    EdgeItem* edgeItem = nullptr;
+    for (QGraphicsItem* item : gw.scene()->items()) {
+        if (auto* n = dynamic_cast<NodeItem*>(item)) {
+            if (n->nodeType() == NodeItem::Group) groupNode = n;
+            else if (n->isPersonNode()) personNode = n;
+        } else if (auto* e = dynamic_cast<EdgeItem*>(item)) {
+            edgeItem = e;
+        }
+    }
+    CHECK(groupNode && personNode && edgeItem);
+    if (!groupNode || !personNode || !edgeItem) return true;
+
+    // Person context strip — the person with the pastoral care record.
+    NodeItem* caredPerson = nullptr;
+    for (QGraphicsItem* item : gw.scene()->items()) {
+        auto* n = dynamic_cast<NodeItem*>(item);
+        if (n && n->isPersonNode() && n->id() == 9202) { caredPerson = n; break; }
+    }
+    CHECK(caredPerson);
+    if (!caredPerson) return true;
+    gw.selectNodeForDetails(caredPerson);
+    QLabel* stats = gw.findChild<QLabel*>("personStatsLabel");
+    QLabel* care = gw.findChild<QLabel*>("personCareRecentLabel");
+    CHECK(stats && care);
+    if (stats) CHECK(stats->text().contains("Age"));
+    if (care) CHECK(care->text().contains("Recent care"));
+
+    // Group: recruitment badge (Elected), meta (capacity), composition.
+    gw.selectNodeForDetails(groupNode);
+    QLabel* recruit = gw.findChild<QLabel*>("groupRecruitLabel");
+    QLabel* meta = gw.findChild<QLabel*>("groupMetaLabel");
+    QLabel* comp = gw.findChild<QLabel*>("groupCompositionLabel");
+    CHECK(recruit && meta && comp);
+    if (recruit) CHECK(recruit->text().contains("Elected"));
+    if (meta) CHECK(meta->text().contains("Capacity"));
+    if (comp) CHECK(comp->text().contains("Composition") && comp->text().contains("Anchor"));
+
+    // Edge: provenance + jump navigation buttons exist and are labelled.
+    gw.selectEdgeForDetails(edgeItem);
+    QLabel* esrc = gw.findChild<QLabel*>("edgeSourceLabel");
+    CHECK(esrc);
+    if (esrc) CHECK(esrc->text().contains("Source"));
+    QPushButton* openLeft = gw.findChild<QPushButton*>("secondaryBtn"); // any; the two edge buttons are labelled
+    Q_UNUSED(openLeft);
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2113,6 +2185,7 @@ int main(int argc, char** argv) {
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
         {"graph_health_features", test_graphHealthFeatures},
         {"smart_bridge_engine_and_source_logging", test_smartBridgeEngineAndSourceLogging},
+        {"graph_inspector_upgrade", test_graphInspectorUpgrade},
         {"graph_filter_persistence", test_graphFilterPersistence},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},

@@ -1241,6 +1241,27 @@ void GraphWidget::setupUI() {
     pLay->addWidget(m_lblPersonAvatar);
     pLay->addWidget(m_lblPersonName);
     pLay->addWidget(m_lblPersonStatus);
+
+    // Upgraded context strip: age/membership/household, attendance pulse and
+    // recent pastoral care, so a pastor sees the whole person at a glance.
+    m_lblPersonStats = new QLabel(m_pagePerson);
+    m_lblPersonStats->setObjectName("personStatsLabel");
+    m_lblPersonStats->setWordWrap(true);
+    m_lblPersonStats->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    pLay->addWidget(m_lblPersonStats);
+
+    m_lblPersonAttendance = new QLabel(m_pagePerson);
+    m_lblPersonAttendance->setObjectName("personAttendanceLabel");
+    m_lblPersonAttendance->setWordWrap(true);
+    m_lblPersonAttendance->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    pLay->addWidget(m_lblPersonAttendance);
+
+    m_lblPersonCareRecent = new QLabel(m_pagePerson);
+    m_lblPersonCareRecent->setObjectName("personCareRecentLabel");
+    m_lblPersonCareRecent->setWordWrap(true);
+    m_lblPersonCareRecent->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    pLay->addWidget(m_lblPersonCareRecent);
+
     pLay->addWidget(m_lblPersonBrokerBadge);
     pLay->addLayout(contactRow);
     pLay->addWidget(lblCare);
@@ -1337,6 +1358,26 @@ void GraphWidget::setupUI() {
 
     gLay->addWidget(m_lblGroupName);
     gLay->addWidget(m_lblGroupCategory);
+
+    // Recruitment badge + capacity/meeting meta + archetype composition.
+    m_lblGroupRecruit = new QLabel(m_pageGroup);
+    m_lblGroupRecruit->setObjectName("groupRecruitLabel");
+    m_lblGroupRecruit->setWordWrap(true);
+    m_lblGroupRecruit->hide();
+    gLay->addWidget(m_lblGroupRecruit);
+
+    m_lblGroupMeta = new QLabel(m_pageGroup);
+    m_lblGroupMeta->setObjectName("groupMetaLabel");
+    m_lblGroupMeta->setWordWrap(true);
+    m_lblGroupMeta->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    gLay->addWidget(m_lblGroupMeta);
+
+    m_lblGroupComposition = new QLabel(m_pageGroup);
+    m_lblGroupComposition->setObjectName("groupCompositionLabel");
+    m_lblGroupComposition->setWordWrap(true);
+    m_lblGroupComposition->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    gLay->addWidget(m_lblGroupComposition);
+
     gLay->addWidget(m_lblGroupHealth);
     gLay->addWidget(m_lblGroupFamilyWarning);
     gLay->addWidget(m_lblGroupMemberCount);
@@ -1373,6 +1414,26 @@ void GraphWidget::setupUI() {
     eLay->addWidget(m_lblEdgeBetween);
     eLay->addWidget(lblRole);
     eLay->addWidget(m_cmbEdgeRole);
+
+    // Provenance + jump-to-endpoint navigation.
+    m_lblEdgeSource = new QLabel(m_pageEdge);
+    m_lblEdgeSource->setObjectName("edgeSourceLabel");
+    m_lblEdgeSource->setWordWrap(true);
+    m_lblEdgeSource->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+    eLay->addWidget(m_lblEdgeSource);
+
+    QHBoxLayout* edgeNav = new QHBoxLayout();
+    m_btnEdgeOpenLeft = new QPushButton("◀ Open Source", m_pageEdge);
+    m_btnEdgeOpenLeft->setObjectName("secondaryBtn");
+    m_btnEdgeOpenLeft->setStyleSheet("font-size: 10px; padding: 4px 6px;");
+    edgeNav->addWidget(m_btnEdgeOpenLeft);
+    m_btnEdgeOpenRight = new QPushButton("Open Target ▶", m_pageEdge);
+    m_btnEdgeOpenRight->setObjectName("secondaryBtn");
+    m_btnEdgeOpenRight->setStyleSheet("font-size: 10px; padding: 4px 6px;");
+    edgeNav->addWidget(m_btnEdgeOpenRight);
+    edgeNav->addStretch();
+    eLay->addLayout(edgeNav);
+
     eLay->addSpacing(10);
     eLay->addWidget(m_btnSeverEdge);
     eLay->addStretch();
@@ -2435,6 +2496,50 @@ void GraphWidget::selectNodeForDetails(NodeItem* node) {
         m_lblPersonStatus->setText(QString("Status: %1 (ID: %2)").arg(node->careFlag().isEmpty() ? "Normal" : node->careFlag()).arg(node->id()));
         m_txtAdminNotes->setPlainText(node->adminNotes());
 
+        // Upgraded context: age · membership · household / attendance pulse /
+        // recent pastoral care.
+        if (m_lblPersonStats) {
+            QSqlQuery pq;
+            pq.prepare("SELECT p.date_of_birth, p.membership_status, h.family_name FROM people p "
+                       "LEFT JOIN households h ON p.household_id = h.id WHERE p.id = ?");
+            pq.addBindValue(node->id());
+            QStringList stats;
+            if (pq.exec() && pq.next()) {
+                const QDate dob = QDate::fromString(pq.value(0).toString(), Qt::ISODate);
+                if (dob.isValid()) {
+                    const QDate today = QDate::currentDate();
+                    int age = today.year() - dob.year();
+                    if (today.month() < dob.month() || (today.month() == dob.month() && today.day() < dob.day())) age--;
+                    stats << QString("Age %1").arg(age);
+                }
+                const QString status = pq.value(1).toString();
+                if (!status.isEmpty()) stats << status;
+                const QString family = pq.value(2).toString();
+                if (!family.isEmpty()) stats << "🏡 " + family;
+            }
+            m_lblPersonStats->setText(stats.isEmpty() ? "" : "• " + stats.join(" · "));
+        }
+        if (m_lblPersonAttendance) {
+            QSqlQuery aq;
+            aq.prepare("SELECT COUNT(*) FROM attendance WHERE person_id = ? AND attended = 1 "
+                       "AND timestamp >= datetime('now', '-90 days')");
+            aq.addBindValue(node->id());
+            if (aq.exec() && aq.next()) {
+                m_lblPersonAttendance->setText(QString("📌 Attended %1 service(s) in the last 90 days").arg(aq.value(0).toInt()));
+            }
+        }
+        if (m_lblPersonCareRecent) {
+            QSqlQuery cq;
+            cq.prepare("SELECT activity_type, activity_date FROM pastoral_activities "
+                       "WHERE person_id = ? ORDER BY activity_date DESC, id DESC LIMIT 3");
+            cq.addBindValue(node->id());
+            QStringList lines;
+            if (cq.exec()) {
+                while (cq.next()) lines << QString("%1 (%2)").arg(cq.value(0).toString(), cq.value(1).toString());
+            }
+            m_lblPersonCareRecent->setText(lines.isEmpty() ? "" : "🕊️ Recent care:\n• " + lines.join("\n• "));
+        }
+
         if (node->isBridgeBroker()) {
             m_lblPersonBrokerBadge->show();
             m_lblPersonBrokerBadge->setText(QString("🌉 Relational Broker (%1 Ministries)").arg(node->bridgedGroups().size()));
@@ -2474,6 +2579,63 @@ void GraphWidget::selectNodeForDetails(NodeItem* node) {
             if (score > 0) healthTxt += QString(" · %1/100").arg(score);
         }
         m_lblGroupCategory->setText(healthTxt);
+
+        // Upgraded context: recruitment badge, capacity/meeting meta, and the
+        // archetype composition of the active roster.
+        if (m_lblGroupRecruit && m_lblGroupMeta && m_lblGroupComposition) {
+            QSqlQuery gq;
+            gq.prepare("SELECT category, max_capacity, meeting_day, meeting_time, location, recruitment_status "
+                       "FROM groups WHERE id = ?");
+            gq.addBindValue(node->id());
+            QString category, recruit;
+            int capacity = 0;
+            QStringList meta;
+            if (gq.exec() && gq.next()) {
+                category = gq.value(0).toString();
+                capacity = gq.value(1).toInt();
+                const QString day = gq.value(2).toString();
+                const QString time = gq.value(3).toString();
+                const QString loc = gq.value(4).toString();
+                recruit = gq.value(5).toString().trimmed();
+                if (recruit.isEmpty()) recruit = "Open";
+                if (!category.isEmpty()) meta << category;
+                if (capacity > 0) meta << QString("Capacity %1").arg(capacity);
+                if (!day.isEmpty() || !time.isEmpty()) meta << QString("%1 %2").arg(day, time).trimmed();
+                if (!loc.isEmpty()) meta << "📍 " + loc;
+            }
+            m_lblGroupMeta->setText(meta.isEmpty() ? "" : "• " + meta.join(" · "));
+
+            const ThemeTokens tok = ThemeManager::instance().currentTokens();
+            QString badgeTxt, badgeCol, badgeBg;
+            if (recruit == "Elected") { badgeTxt = "🗳️ Elected Governance Body"; badgeCol = tok.accentWarning.name(); badgeBg = tok.accentWarning.name(); }
+            else if (recruit == "Seasonal") { badgeTxt = "📅 Seasonal Cohort"; badgeCol = tok.accentWarning.name(); badgeBg = tok.accentWarning.name(); }
+            else if (recruit == "Closed") { badgeTxt = "🔒 Closed (Invite Only)"; badgeCol = tok.textSecondary.name(); badgeBg = tok.textSecondary.name(); }
+            else { badgeTxt = "🟢 Open for Recruitment"; badgeCol = tok.accentSuccess.name(); badgeBg = tok.accentSuccess.name(); }
+            m_lblGroupRecruit->setText(badgeTxt);
+            m_lblGroupRecruit->setStyleSheet(QString(
+                "QLabel { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold; }")
+                .arg(badgeBg, tok.isDark ? "#11111b" : "#ffffff", badgeCol));
+            m_lblGroupRecruit->show();
+
+            // Archetype composition of the active roster (migration 19 data).
+            QMap<ChurchArchetype, int> counts;
+            QSqlQuery cq;
+            cq.prepare("SELECT p.ministry_personality FROM entity_relationships er "
+                       "JOIN people p ON er.source_id = p.id "
+                       "WHERE er.target_id = ? AND er.target_type = 'Group' AND er.source_type = 'Person'");
+            cq.addBindValue(node->id());
+            if (cq.exec()) {
+                while (cq.next()) {
+                    counts[MinistryArchetypeRegistry::stringToArchetype(cq.value(0).toString())]++;
+                }
+            }
+            QStringList parts;
+            for (auto it = counts.constBegin(); it != counts.constEnd(); ++it) {
+                if (it.key() == ChurchArchetype::None) continue;
+                parts << QString("%1 ×%2").arg(MinistryArchetypeRegistry::archetypeName(it.key())).arg(it.value());
+            }
+            m_lblGroupComposition->setText(parts.isEmpty() ? "" : "🧬 Composition: " + parts.join(" · "));
+        }
 
         if (!node->familyConcentration().isEmpty()) {
             m_lblGroupFamilyWarning->show();
@@ -2552,6 +2714,35 @@ void GraphWidget::selectEdgeForDetails(EdgeItem* edge) {
     m_lblEdgeBetween->setText(QString("%1 ↔ %2").arg(edge->sourceNode()->name(), edge->targetNode()->name()));
     int idx = m_cmbEdgeRole->findText(edge->relationshipType());
     if (idx >= 0) m_cmbEdgeRole->setCurrentIndex(idx);
+
+    // Provenance: where the connection came from + when it was made.
+    if (m_lblEdgeSource) {
+        QStringList src;
+        if (edge->relationshipId() > 0) {
+            QSqlQuery q;
+            q.prepare("SELECT connection_source, joined_date FROM entity_relationships WHERE id = ?");
+            q.addBindValue(edge->relationshipId());
+            if (q.exec() && q.next()) {
+                const QString cs = q.value(0).toString();
+                if (!cs.isEmpty()) src << QString("Source: %1").arg(cs);
+                const QString jd = q.value(1).toString();
+                if (!jd.isEmpty()) src << QString("Joined: %1").arg(jd);
+            }
+        }
+        m_lblEdgeSource->setText(src.isEmpty() ? "" : "• " + src.join(" · "));
+    }
+
+    // Jump to either endpoint from the relationship card.
+    if (m_btnEdgeOpenLeft && m_btnEdgeOpenRight) {
+        NodeItem* left = edge->sourceNode();
+        NodeItem* right = edge->targetNode();
+        m_btnEdgeOpenLeft->setText(QString("◀ %1").arg(left->name()));
+        m_btnEdgeOpenRight->setText(QString("%1 ▶").arg(right->name()));
+        m_btnEdgeOpenLeft->disconnect();
+        m_btnEdgeOpenRight->disconnect();
+        connect(m_btnEdgeOpenLeft, &QPushButton::clicked, this, [this, left]() { focusAndSelectNode(left); });
+        connect(m_btnEdgeOpenRight, &QPushButton::clicked, this, [this, right]() { focusAndSelectNode(right); });
+    }
 }
 
 void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
