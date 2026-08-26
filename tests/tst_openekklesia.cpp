@@ -26,11 +26,14 @@
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/ministry/ministrymatch.h"
+#include "../src/ui/ministry/ministryarchetypes.h"
+#include "../src/ui/ministry/synergyengine.h"
 #include "../src/ui/ministry/planningwidget.h"
 #include "../src/ui/ministry/servicebuilderwidget.h"
 #include "../src/ui/ministry/shepherdwidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
+#include "../src/ui/core/usermanualdialog.h"
 
 namespace {
 
@@ -118,7 +121,7 @@ bool test_expectedIndexesExist() {
 bool test_seedDataCounts() {
     CHECK_EQ(countRows("people"), 12);
     CHECK_EQ(countRows("households"), 6);
-    CHECK_EQ(countRows("groups"), 3);
+    CHECK_EQ(countRows("groups"), 14); // 11 Canonical Root Ministries + 3 Sample Groups
     CHECK_EQ(countRows("accounts"), 8);
     CHECK_EQ(countRows("funds"), 3);
     CHECK_EQ(countRows("contributions"), 3);
@@ -298,7 +301,7 @@ bool test_splitSharingRoundTrip() {
     CHECK(DataSharing::importDocument(d, restored));
     CHECK_EQ(countRows("people"), 12);
     CHECK_EQ(countRows("households"), 6);
-    CHECK_EQ(countRows("groups"), 3);
+    CHECK_EQ(countRows("groups"), 14);
     return true;
 }
 
@@ -770,7 +773,9 @@ bool test_serviceBuilderLibraryFilterAndAutosave() {
     };
     CHECK_EQ(visibleCount(), 15); // default: everything visible
 
-    filter->setCurrentIndex(filter->findText("🎵 Songs"));
+    int songIdx = filter->findData("Song");
+    if (songIdx < 0) songIdx = filter->findText("Songs");
+    filter->setCurrentIndex(songIdx);
     CHECK_EQ(visibleCount(), 4); // four seeded songs
     filter->setCurrentIndex(0);  // back to All
     CHECK_EQ(visibleCount(), 15);
@@ -1764,8 +1769,8 @@ bool test_graphFilterPersistence() {
         QPushButton* hhBtn = nullptr;
         QPushButton* ppBtn = nullptr;
         for (QPushButton* b : gw.findChildren<QPushButton*>()) {
-            if (b->text() == "🏡 Households") hhBtn = b;
-            if (b->text() == "👤 People") ppBtn = b;
+            if (b->text().contains("Households")) hhBtn = b;
+            if (b->text().contains("People")) ppBtn = b;
         }
         CHECK(hhBtn && ppBtn);
         if (hhBtn) CHECK(!hhBtn->isChecked()); // restored as OFF
@@ -1796,6 +1801,255 @@ bool test_graphFilterPersistence() {
     s.setValue("graphFilters/households", true);
     s.setValue("graphFilters/people", true);
     s.sync();
+    return true;
+}
+
+bool test_synergyEngineAndMigration19() {
+    auto db = DatabaseManager::instance().database();
+    CHECK(db.transaction());
+    
+    // 1. Check ministry_archetypes table has seeded rows and canonical blueprints exist
+    QSqlQuery q("SELECT COUNT(*) FROM ministry_archetypes", db);
+    CHECK(q.next());
+    CHECK_EQ(q.value(0).toInt(), 11);
+    CHECK_EQ(MinistryArchetypeRegistry::canonicalBlueprints().size(), 11);
+
+    // 2. Check archetype-to-style vector conversion
+    auto catalystVec = MinistryArchetypeRegistry::archetypeToStyleVector(ChurchArchetype::Catalyst);
+    CHECK_EQ(catalystVec.sum(), 100.0);
+    CHECK_EQ(catalystVec.energizer, 40.0);
+    CHECK_EQ(catalystVec.organizer, 10.0);
+
+    auto shepherdVec = MinistryArchetypeRegistry::archetypeToStyleVector(ChurchArchetype::Shepherd);
+    CHECK_EQ(shepherdVec.listener, 45.0);
+    CHECK_EQ(shepherdVec.connector, 30.0);
+
+    // 3. Test Void Law boost on missing Anchor/Architect
+    CandidateProfile c1;
+    c1.personId = 1001;
+    c1.primaryArchetype = ChurchArchetype::Anchor;
+    c1.spiritualGifts = {"Helps"};
+
+    GroupProfile g1;
+    g1.groupId = 2001;
+    g1.name = "Empty Tech Team";
+    g1.category = "Multimedia";
+    g1.idealPrimary = ChurchArchetype::Architect;
+    g1.idealSecondary = ChurchArchetype::Anchor;
+    g1.targetVector = RelationalStyleVector(30, 10, 40, 0, 20, 0);
+    g1.requiredGifts = {"Worship / Music", "Administration"};
+    g1.activeMemberCount = 0;
+
+    int voidBoost = SynergyEngine::calculateVoidBoost(c1, g1);
+    CHECK(voidBoost >= 25);
+
+    // 4. Test Clash Law on strategist overload
+    GroupProfile g2 = g1;
+    g2.activeMemberCount = 5;
+    g2.archetypeCounts[ChurchArchetype::Architect] = 3;
+    CandidateProfile c2;
+    c2.primaryArchetype = ChurchArchetype::Architect;
+    int clashPenalty = SynergyEngine::calculateClashPenalty(c2, g2);
+    CHECK(clashPenalty < 0);
+
+    // 5. Test Hard Disqualification (Serving load burnout limit)
+    CandidateProfile cBurnout = c1;
+    cBurnout.activeGroupCount = 3;
+    CHECK(!SynergyEngine::isEligible(cBurnout, g1, 3));
+
+    // 6. Test Hard Disqualification (Closed group)
+    GroupProfile gClosed = g1;
+    gClosed.recruitmentStatus = "Closed";
+    CHECK(!SynergyEngine::isEligible(c1, gClosed, 3));
+
+    // 7. Test Overall Synergy Engine Evaluate
+    SynergyMatchResult res = SynergyEngine::evaluate(c1, g1, 3);
+    CHECK(res.isEligible);
+    CHECK(res.score >= 30);
+    CHECK(!res.primaryReason.isEmpty());
+
+    // 8. Test Equilibrium Delta
+    double eqDelta = SynergyEngine::calculateEquilibriumDelta(c1, g1);
+    CHECK(std::abs(eqDelta) >= 0.0);
+
+    // 9. Test Schedule Conflict Gating
+    CandidateProfile cSched = c1;
+    cSched.currentGroupSchedules.append(qMakePair(QString("Sunday"), QString("10:00 AM")));
+    GroupProfile gSched = g1;
+    gSched.meetingDay = "Sunday";
+    gSched.meetingTime = "10:00 AM";
+    CHECK(!SynergyEngine::isEligible(cSched, gSched, 3));
+
+    // 10. Test Pastoral Care Gating on Understaffed Team
+    CandidateProfile cCare = c1;
+    cCare.careFlag = "At-Risk";
+    GroupProfile gUnderstaffed = g1;
+    gUnderstaffed.activeMemberCount = 1;
+    CHECK(!SynergyEngine::isEligible(cCare, gUnderstaffed, 3));
+
+    // 11. Test Connection Audit Persistence in entity_relationships
+    QSqlQuery insP(db);
+    CHECK(insP.exec("INSERT INTO people (first_name, last_name, membership_status) VALUES ('Audit', 'Test', 'Member')"));
+    int testPersonId = insP.lastInsertId().toInt();
+    QSqlQuery insG(db);
+    CHECK(insG.exec("INSERT INTO groups (name) VALUES ('Audit Test Group')"));
+    int testGroupId = insG.lastInsertId().toInt();
+
+    QSqlQuery qAudit(db);
+    qAudit.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, connection_source, archetype_fit_score, joined_date) "
+                   "VALUES ('Person', ?, 'Group', ?, 'Member', 'smart_bridge', 85, CURRENT_DATE)");
+    qAudit.addBindValue(testPersonId);
+    qAudit.addBindValue(testGroupId);
+    CHECK(qAudit.exec());
+
+    QSqlQuery qVer("SELECT connection_source, archetype_fit_score FROM entity_relationships WHERE connection_source = 'smart_bridge'", db);
+    CHECK(qVer.next());
+    CHECK(qVer.value(0).toString() == "smart_bridge");
+    CHECK_EQ(qVer.value(1).toInt(), 85);
+
+    db.rollback();
+    return true;
+}
+
+bool test_userManualIntegrity() {
+    // 1. Verify Topic List and Lucide Icons
+    const auto topics = UserManualDialog::getTopicList();
+    CHECK_EQ(topics.size(), 13);
+    for (const auto& t : topics) {
+        CHECK(!t.id.isEmpty());
+        CHECK(!t.title.isEmpty());
+        CHECK(!t.lucideIcon.isEmpty());
+    }
+
+    // 2. Verify HTML Content and Anchor Integrity
+    QString html = UserManualDialog::getFullManualHtml();
+    CHECK(!html.isEmpty());
+    CHECK(html.contains("<!DOCTYPE html>"));
+    CHECK(html.contains("OpenEkklesia"));
+
+    // Check that every topic ID in getTopicList() has a matching <a name="..."> anchor in the HTML
+    for (const auto& t : topics) {
+        QString anchorTag = QString("name=\"%1\"").arg(t.id);
+        CHECK(html.contains(anchorTag));
+    }
+
+    // 3. Verify Lucide Vector Data URI Generation
+    QString iconUri = UserManualDialog::getLucideDataUri("compass", QColor("#89b4fa"), 20);
+    CHECK(iconUri.startsWith("data:image/png;base64,"));
+
+    // 4. Verify Key Module Terms and Guidance
+    CHECK(html.contains("Smart Bridge v2.0"));
+    CHECK(html.contains("4 Laws of Team Chemistry"));
+    CHECK(html.contains("Void Law"));
+    CHECK(html.contains("Clash Law"));
+    CHECK(html.contains("Equilibrium Law"));
+    CHECK(html.contains("Double-Entry"));
+    CHECK(html.contains("Ctrl+K"));
+    CHECK(html.contains("F1"));
+    CHECK(html.contains("Role-Based Access Control"));
+
+    // 5. Verify UI Construction & Instantiation
+    UserManualDialog dlg;
+    CHECK(dlg.windowTitle().contains("OpenEkklesia"));
+
+    return true;
+}
+
+bool test_graphViewOptionsAndDockToggle() {
+    GraphWidget gw;
+    
+    // 1. Test Default Connector Size and Scaling
+    CHECK_EQ(gw.connectorSizeLevel(), 2); // Level 2 (Normal) default
+    CHECK(gw.showConnectors());           // Enabled by default
+
+    // 2. Test Connector Size Level Changes (1 = Thin, 3 = Bold)
+    gw.setConnectorSizeLevel(1);
+    CHECK_EQ(gw.connectorSizeLevel(), 1);
+    gw.setConnectorSizeLevel(3);
+    CHECK_EQ(gw.connectorSizeLevel(), 3);
+    gw.setConnectorSizeLevel(2);
+    CHECK_EQ(gw.connectorSizeLevel(), 2);
+
+    // Bounds checking
+    gw.setConnectorSizeLevel(10);
+    CHECK_EQ(gw.connectorSizeLevel(), 3);
+    gw.setConnectorSizeLevel(-5);
+    CHECK_EQ(gw.connectorSizeLevel(), 1);
+
+    // 3. Test Hide/Show Connectors Toggle
+    gw.setShowConnectors(false);
+    CHECK(!gw.showConnectors());
+    gw.toggleConnectors();
+    CHECK(gw.showConnectors());
+    gw.toggleConnectors();
+    CHECK(!gw.showConnectors());
+    gw.setShowConnectors(true);
+    CHECK(gw.showConnectors());
+
+    // 4. Test Inspector Dock Collapse & Expand Toggle
+    gw.toggleInspectorDock();
+    gw.toggleInspectorDock();
+    
+    return true;
+}
+
+// Smart Bridge v2: bulk loaders, family-tie detection, source tagging.
+bool test_smartBridgeEngineAndSourceLogging() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // Household with two members; one is already in the group -> family tie.
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO households (id, family_name) VALUES (9101, 'Bridge Family')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status, household_id, ministry_personality, spiritual_gifts) "
+                 "VALUES (9101, 'Cand', 'One', 'Member', 9101, 'Catalyst', 'Worship,Leadership')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status, household_id, ministry_personality) "
+                 "VALUES (9102, 'Fam', 'Two', 'Member', 9101, 'Anchor')"));
+    CHECK(q.exec("INSERT INTO groups (id, name, category) VALUES (9101, 'Bridge Team', 'Alabanza')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source) "
+                 "VALUES ('Person', 9102, 'Group', 9101, 'Member', 'Active', 'manual')"));
+
+    // Bulk loaders: one query pass fills the whole population.
+    QMap<int, CandidateProfile> people;
+    SynergyEngine::loadAllCandidates(d, people);
+    CHECK_EQ(people.size(), 2);
+    CHECK(people.contains(9101) && people.contains(9102));
+    if (people.contains(9101)) {
+        CHECK(people[9101].primaryArchetype == ChurchArchetype::Catalyst);
+        CHECK(people[9101].spiritualGifts.contains("Worship"));
+    }
+
+    QMap<int, GroupProfile> groups;
+    SynergyEngine::loadAllGroups(d, 9101, groups); // candidate = person 9101
+    CHECK_EQ(groups.size(), 1);
+    if (groups.contains(9101)) {
+        const GroupProfile& g = groups[9101];
+        CHECK(g.hasHouseholdFamilyTie);           // household member 9102 is active
+        CHECK(g.activeMemberCount == 1);
+        // Alabanza blueprint: ideal primary is Catalyst per the canonical table.
+        CHECK(g.idealPrimary == ChurchArchetype::Catalyst);
+    }
+
+    // Scoring: candidate 9101 is eligible and scores within 15..98.
+    if (people.contains(9101) && groups.contains(9101)) {
+        SynergyMatchResult res = SynergyEngine::evaluate(people[9101], groups[9101], 3);
+        CHECK(res.isEligible);
+        CHECK(res.score >= 15 && res.score <= 98);
+    }
+
+    // Source tagging: Ministry Match batch adds log connection_source.
+    QList<int> added = MinistryRecommender::addMembers(d, 9101, {9101});
+    CHECK_EQ(added.size(), 1);
+    QSqlQuery src(d);
+    src.prepare("SELECT connection_source, joined_date FROM entity_relationships "
+                "WHERE source_type = 'Person' AND source_id = ? AND target_id = ? AND relationship_type = 'Member'");
+    src.addBindValue(9101);
+    src.addBindValue(9101);
+    CHECK(src.exec() && src.next());
+    CHECK_EQ(src.value(0).toString().toStdString(), std::string("ministry_match"));
+    CHECK(!src.value(1).toString().isEmpty()); // joined_date recorded
+
+    d.rollback();
     return true;
 }
 
@@ -1839,6 +2093,7 @@ int main(int argc, char** argv) {
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
+        {"synergy_engine_and_migration_19", test_synergyEngineAndMigration19},
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
@@ -1857,6 +2112,7 @@ int main(int argc, char** argv) {
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
         {"graph_health_features", test_graphHealthFeatures},
+        {"smart_bridge_engine_and_source_logging", test_smartBridgeEngineAndSourceLogging},
         {"graph_filter_persistence", test_graphFilterPersistence},
         {"group_recommendation_disablers", test_groupRecommendationDisablers},
         {"vault_and_settings_integrity", test_vaultAndSettingsIntegrity},
@@ -1864,6 +2120,8 @@ int main(int argc, char** argv) {
         {"contributions_split_and_anonymous", test_contributionsSplitAndAnonymous},
         {"comprehensive_settings_round_trip", test_comprehensiveSettingsRoundTrip},
         {"giving_batches_and_multi_fund_splits", test_givingBatchesAndMultiFundSplits},
+        {"user_manual_integrity", test_userManualIntegrity},
+        {"graph_view_options_and_dock_toggle", test_graphViewOptionsAndDockToggle},
     };
 
     for (const Test& t : tests) {

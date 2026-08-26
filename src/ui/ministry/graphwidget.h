@@ -188,12 +188,13 @@ private:
 
 class GhostEdgeItem : public QGraphicsItem {
 public:
-    GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& matchReason, int matchPct);
+    GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& matchReason, int matchPct, bool isSolid = false);
 
     NodeItem* sourceNode() const { return m_source; }
     NodeItem* targetNode() const { return m_target; }
     QString matchReason() const { return m_matchReason; }
     int matchPct() const { return m_matchPct; }
+    bool isSolid() const { return m_isSolid; }
 
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
@@ -203,6 +204,7 @@ private:
     NodeItem* m_target;
     QString m_matchReason;
     int m_matchPct;
+    bool m_isSolid;
 };
 
 class GraphCanvasView : public QGraphicsView {
@@ -273,13 +275,22 @@ public:
 
     void refreshHierarchyTree();
 
-    void computeSmartBridge(NodeItem* personNode);
+    void computeSmartBridge(NodeItem* selectedNode);
     void clearGhostEdges();
+
+    void setConnectorSizeLevel(int level);
+    int connectorSizeLevel() const { return m_connectorSizeLevel; }
+    void setShowConnectors(bool show);
+    bool showConnectors() const { return m_showConnectors; }
+    void toggleConnectors();
+    void toggleInspectorDock();
 
 public slots:
     void onZoomIn();
     void onZoomOut();
     void onZoomReset();
+    void onToggleConnectors();
+    void onConnectorSizeLevelChanged(int level);
 
 private slots:
     void updatePhysics();
@@ -309,7 +320,7 @@ private slots:
     void onBatchCopyPhones();
     void onBatchExportCSV();
     void onBatchAssignGroup();
-    void onConnectSmartBridge(int personId, int groupId, const QString& role);
+    void onConnectSmartBridge(int personId, int groupId, const QString& role, int score = 0);
     void onGroupSuggest();
     void onLogContact();
     void onUndoSever();
@@ -374,8 +385,21 @@ private:
     // Zoom controls live in the floating bar (bottom-right of the canvas);
     // the top-bar trio was removed to avoid duplicate controls.
 
-    // Floating Glass Canvas Zoom Overlay
+    // Floating Glass Canvas Zoom Overlay (Bottom-Right)
     QWidget* m_floatingZoomBar;
+
+    // Floating Glass Canvas View Options Overlay (Bottom-Left)
+    QWidget* m_floatingViewOptionsBar;
+    QPushButton* m_btnToggleInspectorDock;
+    QPushButton* m_btnConnThin;
+    QPushButton* m_btnConnNormal;
+    QPushButton* m_btnConnBold;
+    QPushButton* m_btnToggleConnectors;
+    QPushButton* m_btnFloatingExpandDock;
+
+    // View Options State
+    int m_connectorSizeLevel = 2; // 1 = Thin (0.6x), 2 = Normal (1.0x), 3 = Bold (1.8x)
+    bool m_showConnectors = true;
 
     // Filter States
     bool m_filterPeopleActive;
@@ -458,6 +482,10 @@ private:
     QString m_undoRelType;
     QString m_undoSrcType, m_undoTgtType;
     int m_undoSrcId = 0, m_undoTgtId = 0;
+
+    // Smart Bridge recommendation state (Show More expansion).
+    NodeItem* m_smartBridgeSourceNode = nullptr;
+    bool m_smartBridgeShowAll = false;
 
     // Page 2: Edge / Relationship Details
     QWidget* m_pageEdge;

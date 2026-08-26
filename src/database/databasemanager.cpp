@@ -1,4 +1,5 @@
 #include "databasemanager.h"
+#include "ministryarchetypes.h"
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
@@ -414,7 +415,8 @@ bool DatabaseManager::createTables() {
         "  source_id INTEGER NOT NULL,"
         "  target_type TEXT NOT NULL,"
         "  target_id INTEGER NOT NULL,"
-        "  relationship_type TEXT NOT NULL"
+        "  relationship_type TEXT NOT NULL,"
+        "  status TEXT NOT NULL DEFAULT 'Active'"
         ");";
     if (!query.exec(createRelationships)) {
         qCritical() << "Failed to create entity_relationships table:" << query.lastError().text();
@@ -534,6 +536,7 @@ bool DatabaseManager::createTables() {
         "  outcome TEXT,"
         "  follow_up_date TEXT,"
         "  follow_up_done INTEGER DEFAULT 0,"
+        "  group_id INTEGER REFERENCES groups(id),"
         "  FOREIGN KEY(person_id) REFERENCES people(id)"
         ");";
     if (!query.exec(createPastoralActivities)) {
@@ -1723,6 +1726,199 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 17 applied successfully.";
+    }
+
+    // --- Schema Migration 18: entity_relationships.status (group-scoped member status) ---
+    if (current < 18) {
+        qInfo() << "Applying schema migration 18: entity_relationships.status";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 18: failed to start transaction";
+            return false;
+        }
+        QSqlQuery pragma("PRAGMA table_info(entity_relationships);", m_db);
+        bool hasStatus = false;
+        while (pragma.next()) {
+            if (pragma.value(1).toString() == "status") {
+                hasStatus = true;
+                break;
+            }
+        }
+        if (!hasStatus) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec("ALTER TABLE entity_relationships ADD COLUMN status TEXT NOT NULL DEFAULT 'Active';")) {
+                qCritical() << "Migration 18: add status column to entity_relationships failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 18: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(18)) {
+            return false;
+        }
+        qInfo() << "Schema migration 18 applied successfully.";
+    }
+
+    // --- Schema Migration 19: ministry_archetypes & team dynamics ---
+    if (current < 19) {
+        qInfo() << "Applying schema migration 19: ministry_archetypes, archetypes in people/groups, and connection audit";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 19: failed to start transaction";
+            return false;
+        }
+
+        QSqlQuery migQ(m_db);
+
+        // 1. Create table ministry_archetypes
+        if (!migQ.exec("CREATE TABLE IF NOT EXISTS ministry_archetypes ("
+                       "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                       "  category_key TEXT NOT NULL UNIQUE,"
+                       "  display_name TEXT NOT NULL,"
+                       "  ideal_primary TEXT NOT NULL,"
+                       "  ideal_secondary TEXT NOT NULL,"
+                       "  weight_organizer INTEGER NOT NULL DEFAULT 0,"
+                       "  weight_listener INTEGER NOT NULL DEFAULT 0,"
+                       "  weight_doer INTEGER NOT NULL DEFAULT 0,"
+                       "  weight_energizer INTEGER NOT NULL DEFAULT 0,"
+                       "  weight_strategist INTEGER NOT NULL DEFAULT 0,"
+                       "  weight_connector INTEGER NOT NULL DEFAULT 0,"
+                       "  required_gifts TEXT,"
+                       "  description TEXT,"
+                       "  is_custom INTEGER DEFAULT 0"
+                       ");")) {
+            qCritical() << "Migration 19: create ministry_archetypes failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        // 2. Seed canonical blueprints
+        for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
+            QSqlQuery insBp(m_db);
+            insBp.prepare("INSERT OR IGNORE INTO ministry_archetypes "
+                          "(category_key, display_name, ideal_primary, ideal_secondary, "
+                          " weight_organizer, weight_listener, weight_doer, weight_energizer, weight_strategist, weight_connector, "
+                          " required_gifts, description, is_custom) "
+                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);");
+            insBp.addBindValue(bp.categoryKey);
+            insBp.addBindValue(bp.displayName);
+            insBp.addBindValue(bp.primaryArchetype);
+            insBp.addBindValue(bp.secondaryArchetype);
+            insBp.addBindValue(static_cast<int>(bp.targetVector.organizer));
+            insBp.addBindValue(static_cast<int>(bp.targetVector.listener));
+            insBp.addBindValue(static_cast<int>(bp.targetVector.doer));
+            insBp.addBindValue(static_cast<int>(bp.targetVector.energizer));
+            insBp.addBindValue(static_cast<int>(bp.targetVector.strategist));
+            insBp.addBindValue(static_cast<int>(bp.targetVector.connector));
+            insBp.addBindValue(bp.requiredGifts.join(", "));
+            insBp.addBindValue(bp.description);
+            insBp.exec();
+        }
+
+        // 3. Add columns to groups: ideal_primary_archetype, ideal_secondary_archetype, dynamic_health_score
+        QSqlQuery pragmaGroups("PRAGMA table_info(groups);", m_db);
+        QSet<QString> groupCols;
+        while (pragmaGroups.next()) groupCols.insert(pragmaGroups.value(1).toString());
+        if (!groupCols.contains("ideal_primary_archetype")) {
+            migQ.exec("ALTER TABLE groups ADD COLUMN ideal_primary_archetype TEXT;");
+        }
+        if (!groupCols.contains("ideal_secondary_archetype")) {
+            migQ.exec("ALTER TABLE groups ADD COLUMN ideal_secondary_archetype TEXT;");
+        }
+        if (!groupCols.contains("dynamic_health_score")) {
+            migQ.exec("ALTER TABLE groups ADD COLUMN dynamic_health_score REAL DEFAULT 1.0;");
+        }
+
+        // 4. Add columns to people: ministry_personality, personality_secondary
+        QSqlQuery pragmaPeople("PRAGMA table_info(people);", m_db);
+        QSet<QString> peopleCols;
+        while (pragmaPeople.next()) peopleCols.insert(pragmaPeople.value(1).toString());
+        if (!peopleCols.contains("ministry_personality")) {
+            migQ.exec("ALTER TABLE people ADD COLUMN ministry_personality TEXT;");
+        }
+        if (!peopleCols.contains("personality_secondary")) {
+            migQ.exec("ALTER TABLE people ADD COLUMN personality_secondary TEXT;");
+        }
+
+        // 5. Add columns to entity_relationships: connection_source, archetype_fit_score, joined_date
+        QSqlQuery pragmaRel("PRAGMA table_info(entity_relationships);", m_db);
+        QSet<QString> relCols;
+        while (pragmaRel.next()) relCols.insert(pragmaRel.value(1).toString());
+        if (!relCols.contains("connection_source")) {
+            migQ.exec("ALTER TABLE entity_relationships ADD COLUMN connection_source TEXT NOT NULL DEFAULT 'manual';");
+        }
+        if (!relCols.contains("archetype_fit_score")) {
+            migQ.exec("ALTER TABLE entity_relationships ADD COLUMN archetype_fit_score INTEGER NOT NULL DEFAULT 0;");
+        }
+        if (!relCols.contains("joined_date")) {
+            migQ.exec("ALTER TABLE entity_relationships ADD COLUMN joined_date DATE DEFAULT (date('now'));");
+        }
+
+        // 6. Ensure the 11 canonical root ministries exist in groups table (Level 0 Blueprints)
+        for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
+            QSqlQuery checkRoot(m_db);
+            checkRoot.prepare("SELECT id FROM groups WHERE (category = ? OR name = ?) AND (parent_id IS NULL OR parent_id = 0) LIMIT 1;");
+            checkRoot.addBindValue(bp.displayName);
+            checkRoot.addBindValue(bp.displayName);
+            if (checkRoot.exec() && !checkRoot.next()) {
+                QSqlQuery insRoot(m_db);
+                insRoot.prepare("INSERT INTO groups (name, category, description, ideal_primary_archetype, ideal_secondary_archetype, required_skills, recruitment_status) "
+                                "VALUES (?, ?, ?, ?, ?, ?, 'Open');");
+                insRoot.addBindValue(bp.displayName);
+                insRoot.addBindValue(bp.displayName);
+                insRoot.addBindValue(bp.description);
+                insRoot.addBindValue(bp.primaryArchetype);
+                insRoot.addBindValue(bp.secondaryArchetype);
+                insRoot.addBindValue(bp.requiredGifts.join(", "));
+                insRoot.exec();
+            }
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 19: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(19)) {
+            return false;
+        }
+        qInfo() << "Schema migration 19 applied successfully.";
+    }
+
+    // --- Schema Migration 20: pastoral_activities.group_id ---
+    // The Synergy Engine's group-staleness guard queries
+    // pastoral_activities.group_id, but the column was never added to the
+    // schema — the subquery failed silently and the >180-day "stale group"
+    // disqualifier never worked. Add it for existing databases.
+    if (current < 20) {
+        qInfo() << "Applying schema migration 20: pastoral_activities.group_id";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 20: failed to start transaction";
+            return false;
+        }
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(pastoral_activities)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+        if (!cols.contains("group_id")) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec("ALTER TABLE pastoral_activities ADD COLUMN group_id INTEGER REFERENCES groups(id);")) {
+                qCritical() << "Migration 20: add group_id failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 20: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(20)) {
+            return false;
+        }
+        qInfo() << "Schema migration 20 applied successfully.";
     }
 
     return true;
