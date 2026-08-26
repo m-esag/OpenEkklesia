@@ -265,6 +265,7 @@ public:
     void spotlightFamilyDynasties();
     void clearSceneSelection();
     void selectNeighborInDirection(const QPointF& dir);
+    void resolveNodeOverlaps(); // test hook: separates stacked visible nodes
 
     bool isHygieneActive() const { return m_filterHygieneActive; }
     bool isBridgeActive() const { return m_filterBridgeActive; }

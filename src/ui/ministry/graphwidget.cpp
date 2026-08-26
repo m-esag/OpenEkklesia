@@ -3638,6 +3638,39 @@ void GraphWidget::applyForceDirectedLayout() {
         }
         m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, speed);
     }
+
+    resolveNodeOverlaps();
+}
+
+// Hard collision resolution: directly separate any two visible nodes whose
+// bounding circles overlap (radii + margin). The force-based repulsion can
+// settle with residual stacking; this guarantees no node sits on top of
+// another. Dragged nodes are immovable for the pass so the user keeps
+// control. It also feeds m_lastMaxDisplacement so auto-freeze never locks
+// in an overlapping layout.
+void GraphWidget::resolveNodeOverlaps() {
+    for (int i = 0; i < m_nodes.size(); ++i) {
+        NodeItem* a = m_nodes[i];
+        if (!a->isVisible()) continue;
+        for (int j = i + 1; j < m_nodes.size(); ++j) {
+            NodeItem* b = m_nodes[j];
+            if (!b->isVisible()) continue;
+            if (a->isBeingDragged && b->isBeingDragged) continue;
+
+            const QPointF delta = b->pos() - a->pos();
+            const double dist = std::hypot(delta.x(), delta.y());
+            const double minDist = a->radius() + b->radius() + 8.0;
+            if (dist >= minDist) continue;
+
+            // Exactly stacked nodes have no direction from the delta; nudge
+            // along an arbitrary axis instead of skipping them.
+            const QPointF dir = (dist < 0.001) ? QPointF(1.0, 0.0) : delta / dist;
+            const double push = (minDist - dist) * 0.5;
+            if (!a->isBeingDragged && !a->isPinned()) a->setPos(a->pos() - dir * push);
+            if (!b->isBeingDragged && !b->isPinned()) b->setPos(b->pos() + dir * push);
+            m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, push);
+        }
+    }
 }
 
 void GraphWidget::applyClusteredLayout() {
@@ -3667,6 +3700,15 @@ void GraphWidget::applyClusteredLayout() {
                 ++memberIdx;
             }
         }
+    }
+
+    // Clustered mode is one-shot (physics paused): run the collision pass
+    // repeatedly so no nodes remain stacked when the view settles.
+    for (int iter = 0; iter < 40; ++iter) {
+        const double before = m_lastMaxDisplacement;
+        m_lastMaxDisplacement = 0.0;
+        resolveNodeOverlaps();
+        if (m_lastMaxDisplacement < 0.05 || qFuzzyCompare(m_lastMaxDisplacement, before)) break;
     }
 }
 
