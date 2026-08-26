@@ -15,6 +15,8 @@ namespace DataSharing {
 namespace {
 
 // All user tables in FK-safe (parent-first) import order.
+// NOTE: "users" is intentionally excluded — logins and PINs are per-machine
+// and must never cross machines in a shared JSON archive.
 QStringList allTables() {
     return {
         "households", "groups", "people", "accounts", "funds", "giving_batches",
@@ -22,7 +24,7 @@ QStringList allTables() {
         "member_skills", "attendance", "member_history", "care_logs",
         "pastoral_activities", "service_volunteers", "account_budgets", "assets",
         "checkout_logs", "vault_documents", "board_motions", "ministry_tasks",
-        "facility_reservations", "graph_layout", "audit_log", "users"
+        "facility_reservations", "graph_layout", "audit_log"
     };
 }
 
