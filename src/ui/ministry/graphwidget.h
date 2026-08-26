@@ -446,6 +446,9 @@ private:
     QLabel* m_lblPersonAvatar;
     QLabel* m_lblPersonName;
     QLabel* m_lblPersonStatus;
+    QLabel* m_lblPersonStats;        // age · membership · household
+    QLabel* m_lblPersonAttendance;   // 90-day attendance pulse
+    QLabel* m_lblPersonCareRecent;   // recent pastoral activities
     QLabel* m_lblPersonContact;
     QPushButton* m_btnCopyPhone;
     QPushButton* m_btnCopyEmail;
@@ -462,6 +465,9 @@ private:
     QWidget* m_pageGroup;
     QLabel* m_lblGroupName;
     QLabel* m_lblGroupCategory;
+    QLabel* m_lblGroupRecruit;       // recruitment status badge
+    QLabel* m_lblGroupMeta;          // category · capacity · meeting
+    QLabel* m_lblGroupComposition;   // archetype composition summary
     QLabel* m_lblGroupHealth;
     QLabel* m_lblGroupFamilyWarning;
     QLabel* m_lblGroupMemberCount;
@@ -493,6 +499,9 @@ private:
     QLabel* m_lblEdgeBetween;
     QComboBox* m_cmbEdgeRole;
     QPushButton* m_btnSeverEdge;
+    QLabel* m_lblEdgeSource;      // connection_source + joined_date
+    QPushButton* m_btnEdgeOpenLeft;
+    QPushButton* m_btnEdgeOpenRight;
 
     // Page 3: Empty / Data Hygiene Action Dashboard
     QWidget* m_pageEmpty;
