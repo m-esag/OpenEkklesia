@@ -602,7 +602,7 @@ void MainWindow::setupUI() {
     bottomDock->setSpacing(8);
 
     m_btnKiosk = new QPushButton(" Kiosk Portal", this);
-    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor("#cdd6f4"), 16));
+    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor(), 16));
     m_btnKiosk->setObjectName("navButton");
     m_btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
@@ -748,6 +748,13 @@ void MainWindow::populatePages() {
     });
     grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
 
+    m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
+    m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
+    connect(m_chkShowHiddenGroups, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+        refreshGroupsTree();
+    });
+    grpHeaderLayout->addWidget(m_chkShowHiddenGroups);
+
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowMembersInTree, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
@@ -878,6 +885,8 @@ void MainWindow::populatePages() {
         menu.addSeparator();
         QAction* actArchive = menu.addAction("Toggle Archive Status");
         actArchive->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
+        QAction* actToggleHidden = menu.addAction("Hide / Unhide (removes from tree & graph)");
+        actToggleHidden->setIcon(IconManager::instance().getIcon("eye-off", tok.textPrimary, 14));
         QAction* actDelete = menu.addAction("Delete Group...");
         actDelete->setIcon(IconManager::instance().getIcon("trash-2", tok.accentDanger, 14));
 
@@ -897,6 +906,8 @@ void MainWindow::populatePages() {
             onGraphClicked();
         } else if (sel == actArchive) {
             onArchiveGroup();
+        } else if (sel == actToggleHidden) {
+            onToggleHiddenGroup();
         } else if (sel == actDelete) {
             onDeleteGroup();
         }
@@ -1224,7 +1235,7 @@ QWidget* MainWindow::createDashboardPage() {
     QLabel* lblKpiSection = new QLabel("Key Performance Indicators", page);
     lblKpiSection->setStyleSheet("font-size: 13px; font-weight: bold; opacity: 0.85;");
     QPushButton* btnConfigKpi = new QPushButton(" Configure KPIs", page);
-    btnConfigKpi->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
+    btnConfigKpi->setIcon(IconManager::instance().getIcon("settings", QColor(), 14));
     btnConfigKpi->setObjectName("secondaryBtn");
     btnConfigKpi->setStyleSheet("padding: 3px 8px; font-size: 11px;");
     connect(btnConfigKpi, &QPushButton::clicked, this, &MainWindow::onConfigureKpiCards);
@@ -1311,7 +1322,8 @@ QWidget* MainWindow::createDashboardPage() {
     alertsCardLayout->addWidget(m_lstPastoralAlerts);
 
     QLabel* followupTitle = new QLabel("Recent Visitors — Follow-up", alertsCard);
-    followupTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #f9e2af;");
+    followupTitle->setStyleSheet(QString("font-size: 12px; font-weight: bold; text-transform: uppercase; color: %1;")
+                                     .arg(ThemeManager::instance().currentTokens().accentWarning.name()));
     m_lstVisitorFollowup = new QListWidget(alertsCard);
     m_lstVisitorFollowup->setMaximumHeight(100);
     m_lstVisitorFollowup->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -2212,6 +2224,7 @@ void MainWindow::refreshGroupsTree() {
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 
     bool showArchived = m_chkShowArchivedGroups && m_chkShowArchivedGroups->isChecked();
+    bool showHidden = m_chkShowHiddenGroups && m_chkShowHiddenGroups->isChecked();
 
     QSqlDatabase db = QSqlDatabase::database();
 
@@ -2219,12 +2232,19 @@ void MainWindow::refreshGroupsTree() {
     QList<QVariantMap> topLevelGroups;
 
     QString queryStr = "SELECT g.id, g.name, g.category, g.description, g.parent_id, p.name AS parent_name, g.is_archived, "
-                       "g.meeting_day, g.meeting_time, g.location, "
+                       "g.is_hidden, g.meeting_day, g.meeting_time, g.location, "
                        "(SELECT COUNT(*) FROM entity_relationships WHERE target_type = 'Group' AND target_id = g.id) AS member_count "
                        "FROM groups g "
                        "LEFT JOIN groups p ON g.parent_id = p.id ";
+    QStringList whereClauses;
     if (!showArchived) {
-        queryStr += "WHERE g.is_archived = 0 OR g.is_archived IS NULL ";
+        whereClauses << "(g.is_archived = 0 OR g.is_archived IS NULL)";
+    }
+    if (!showHidden) {
+        whereClauses << "(g.is_hidden = 0 OR g.is_hidden IS NULL)";
+    }
+    if (!whereClauses.isEmpty()) {
+        queryStr += "WHERE " + whereClauses.join(" AND ") + " ";
     }
     queryStr += "ORDER BY g.is_archived ASC, g.name ASC";
 
@@ -2239,10 +2259,11 @@ void MainWindow::refreshGroupsTree() {
         row["parent_id"] = qAll.value(4).toInt();
         row["parent_name"] = qAll.value(5).toString();
         row["is_archived"] = qAll.value(6).toInt();
-        row["meeting_day"] = qAll.value(7).toString();
-        row["meeting_time"] = qAll.value(8).toString();
-        row["location"] = qAll.value(9).toString();
-        row["member_count"] = qAll.value(10).toInt();
+        row["is_hidden"] = qAll.value(7).toInt();
+        row["meeting_day"] = qAll.value(8).toString();
+        row["meeting_time"] = qAll.value(9).toString();
+        row["location"] = qAll.value(10).toString();
+        row["member_count"] = qAll.value(11).toInt();
 
         int pId = row["parent_id"].toInt();
         if (pId > 0) {
@@ -2259,6 +2280,7 @@ void MainWindow::refreshGroupsTree() {
         QString cat = groupData["category"].toString();
         QString parentName = groupData["parent_name"].toString();
         bool isArchived = groupData["is_archived"].toInt() == 1;
+        bool isHidden = groupData["is_hidden"].toInt() == 1;
         QString day = groupData["meeting_day"].toString();
         QString time = groupData["meeting_time"].toString();
         QString loc = groupData["location"].toString();
@@ -2274,6 +2296,9 @@ void MainWindow::refreshGroupsTree() {
 
         if (isArchived) {
             name += " [ARCHIVED]";
+        }
+        if (isHidden) {
+            name += " [HIDDEN]";
         }
 
         QTreeWidgetItem* item = nullptr;
@@ -2429,18 +2454,24 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     m_lblGroupDetailTitle->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(tok.accentPrimary.name()));
 
     QStringList metaParts;
+    // Badges adapt to the theme: translucent token backgrounds instead of the
+    // old dark-theme-only blobs (#1e1e2e / #382418 / #18332b).
+    auto badge = [&tok](const QColor& accent, const QString& text) {
+        return QString("<span style='background-color: rgba(%1, %2, %3, 0.14); color: %4; border: 1px solid %4; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>%5</span>")
+            .arg(accent.red()).arg(accent.green()).arg(accent.blue()).arg(accent.name(), text);
+    };
     metaParts << QString("<b>Category:</b> %1").arg(cat);
     if (isRootMinistry) {
-        metaParts << QString("<span style='background-color: #1e1e2e; color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Sub-Teams: %1 serving groups</span>").arg(childGroupIds.size());
+        metaParts << badge(tok.accentPrimary, QString("Sub-Teams: %1 serving groups").arg(childGroupIds.size()));
     }
     if (recruitStatus == "Elected") {
-        metaParts << "<span style='background-color: #382418; color: #fab387; border: 1px solid #fab387; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Elected Governance Body (Annual Vote)</span>";
+        metaParts << badge(tok.accentWarning, "Elected Governance Body (Annual Vote)");
     } else if (recruitStatus == "Seasonal") {
-        metaParts << "<span style='background-color: palette(base); color: #f9e2af; border: 1px solid #f9e2af; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Seasonal Cohort (Closed Enrollment)</span>";
+        metaParts << badge(tok.accentWarning, "Seasonal Cohort (Closed Enrollment)");
     } else if (recruitStatus == "Closed") {
-        metaParts << "<span style='background-color: palette(mid); color: palette(placeholderText); border: 1px solid #a6adc8; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Closed (Invite Only)</span>";
+        metaParts << QString("<span style='background-color: palette(mid); color: palette(placeholderText); border: 1px solid %1; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Closed (Invite Only)</span>").arg(tok.textMuted.name());
     } else {
-        metaParts << "<span style='background-color: #18332b; color: #a6e3a1; border: 1px solid #a6e3a1; border-radius: 4px; padding: 1px 5px; font-weight: bold;'>Open for Recruitment</span>";
+        metaParts << badge(tok.accentSuccess, "Open for Recruitment");
     }
     if (!day.isEmpty() || !time.isEmpty()) metaParts << QString("<b>Schedule:</b> %1 %2").arg(day, time).trimmed();
     if (!loc.isEmpty()) metaParts << QString("<b>Location:</b> %1").arg(loc);
@@ -2660,35 +2691,47 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
 
     report += QString("<div style='margin-top: 4px; margin-bottom: 4px;'><b>🧬 %1 Archetype Composition:</b><br>")
                   .arg(isRootMinistry ? "Department Blueprint" : "Team");
-    report += QString("<span style='color: #fab387;'>🔥 Catalyst: %1</span> &nbsp;|&nbsp; "
-                      "<span style='color: #a6e3a1;'>🌿 Shepherd: %2</span> &nbsp;|&nbsp; "
-                      "<span style='color: #89b4fa;'>📐 Architect: %3</span> &nbsp;|&nbsp; "
-                      "<span style='color: #f9e2af;'>⚡ Spark: %4</span> &nbsp;|&nbsp; "
-                      "<span style='color: #cba6f7;'>⚓ Anchor: %5</span></div>")
+    // Archetype brand colors are fixed accents, but the pastels only read on
+    // dark themes — switch to darker equivalents on light themes.
+    const bool dark = tok.isDark;
+    const QString colCatalyst = dark ? "#fab387" : "#c2410c";
+    const QString colShepherd = dark ? "#a6e3a1" : "#15803d";
+    const QString colArchitect = dark ? "#89b4fa" : "#1d4ed8";
+    const QString colSpark = dark ? "#f9e2af" : "#b45309";
+    const QString colAnchor = dark ? "#cba6f7" : "#7e22ce";
+    report += QString("<span style='color: %6;'>🔥 Catalyst: %1</span> &nbsp;|&nbsp; "
+                      "<span style='color: %7;'>🌿 Shepherd: %2</span> &nbsp;|&nbsp; "
+                      "<span style='color: %8;'>📐 Architect: %3</span> &nbsp;|&nbsp; "
+                      "<span style='color: %9;'>⚡ Spark: %4</span> &nbsp;|&nbsp; "
+                      "<span style='color: %10;'>⚓ Anchor: %5</span></div>")
                   .arg(archCount["Catalyst"])
                   .arg(archCount["Shepherd"])
                   .arg(archCount["Architect"])
                   .arg(archCount["Spark"])
-                  .arg(archCount["Anchor"]);
+                  .arg(archCount["Anchor"])
+                  .arg(colCatalyst, colShepherd, colArchitect, colSpark, colAnchor);
 
     // Dynamic Team Health Diagnostics
     QStringList warnings;
     QStringList suggestions;
 
     if (totalCount > 0) {
+        const QString colDanger = tok.accentDanger.name();
+        const QString colWarn = dark ? "#fab387" : "#c2410c";
+        const QString colAmber = tok.accentWarning.name();
         if (archCount["Anchor"] == 0 && archCount["Architect"] == 0) {
-            warnings.append("<span style='color: #f38ba8;'>⚠️ <b>Missing Execution Backbone</b>: No Anchor or Architect on team.</span>");
+            warnings.append(QString("<span style='color: %1;'>⚠️ <b>Missing Execution Backbone</b>: No Anchor or Architect on team.</span>").arg(colDanger));
             suggestions.append("Anchor or Architect");
         }
         if (archCount["Shepherd"] == 0) {
-            warnings.append("<span style='color: #fab387;'>⚠️ <b>Missing Relational Care</b>: No Shepherd in roster.</span>");
+            warnings.append(QString("<span style='color: %1;'>⚠️ <b>Missing Relational Care</b>: No Shepherd in roster.</span>").arg(colWarn));
             suggestions.append("Shepherd");
         }
         if (archCount["Catalyst"] >= 3) {
-            warnings.append("<span style='color: #f9e2af;'>⚠️ <b>High Vision Density</b>: ≥3 Catalysts may create competing agendas.</span>");
+            warnings.append(QString("<span style='color: %1;'>⚠️ <b>High Vision Density</b>: ≥3 Catalysts may create competing agendas.</span>").arg(colAmber));
         }
         if (archCount["Spark"] >= 4) {
-            warnings.append("<span style='color: #f9e2af;'>⚠️ <b>High Energy Surge</b>: ≥4 Sparks require strong Anchor grounding.</span>");
+            warnings.append(QString("<span style='color: %1;'>⚠️ <b>High Energy Surge</b>: ≥4 Sparks require strong Anchor grounding.</span>").arg(colAmber));
         }
     }
 
@@ -2700,7 +2743,8 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
         report += QString("<i>💡 <b>Smart Bridge Priority:</b> Engine will prioritize candidates with <b>%1</b> archetypes for this %2.</i>")
                       .arg(suggestions.join(" & "), isRootMinistry ? "department" : "group");
     } else if (totalCount > 0) {
-        report += "<i style='color: #a6e3a1;'>✨ <b>Balanced Group Chemistry!</b> Great equilibrium across all behavioral dimensions.</i>";
+        report += QString("<i style='color: %1;'>✨ <b>Balanced Group Chemistry!</b> Great equilibrium across all behavioral dimensions.</i>")
+                      .arg(tok.accentSuccess.name());
     }
 
     m_lblGroupChemistryReport->setText(report);
@@ -3179,6 +3223,45 @@ void MainWindow::onDeleteGroup() {
     } else {
         db.rollback();
         QMessageBox::critical(this, "Database Error", "Failed to delete group: " + q.lastError().text());
+    }
+}
+
+void MainWindow::onToggleHiddenGroup() {
+    if (m_selectedGroupId <= 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        return;
+    }
+    QSqlQuery qState;
+    qState.prepare("SELECT is_hidden FROM groups WHERE id = ?");
+    qState.addBindValue(m_selectedGroupId);
+    const int current = (qState.exec() && qState.next()) ? qState.value(0).toInt() : 0;
+    const int target = (current == 1) ? 0 : 1;
+    const QString action = (target == 1) ? "hide" : "unhide";
+
+    if (QMessageBox::question(this, "Confirm Action",
+                              QString("Are you sure you want to %1 this group and all of its sub-groups? Hidden groups leave the tree, graph and Smart Bridge but keep their data.")
+                                  .arg(action),
+                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
+
+    // Cascade to the whole subtree so hiding a ministry hides its teams, and
+    // unhiding restores them together.
+    QSqlDatabase db = QSqlDatabase::database();
+    QSqlQuery q(db);
+    q.prepare("WITH RECURSIVE subtree(id) AS ("
+              "  SELECT id FROM groups WHERE id = ? "
+              "  UNION ALL "
+              "  SELECT g.id FROM groups g JOIN subtree s ON g.parent_id = s.id"
+              ") UPDATE groups SET is_hidden = ? WHERE id IN (SELECT id FROM subtree)");
+    q.addBindValue(m_selectedGroupId);
+    q.addBindValue(target);
+    if (q.exec()) {
+        refreshGroupsTree();
+        refreshGroupDetailPanel(m_selectedGroupId);
+        if (m_graphWidget) m_graphWidget->loadGraph();
+    } else {
+        QMessageBox::critical(this, "Database Error", "Failed to update hidden state: " + q.lastError().text());
     }
 }
 

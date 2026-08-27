@@ -556,16 +556,26 @@ bool test_ministryMatchRecommendAndExclude() {
     c.maxResults = 25;
 
     const QList<MatchResult> results = MinistryRecommender::recommend(d, gid, c);
-    // Only the talented teen survives: member excluded, adult age-out,
-    // no-skill excluded, burned-out serving limit.
-    CHECK_EQ(results.size(), 1);
-    if (results.size() == 1) {
-        CHECK_EQ(results[0].personId, teen);
-        CHECK(results[0].score >= 50);
-        const QString why = results[0].reasons.join(" ");
-        CHECK(why.contains("guitar", Qt::CaseInsensitive));
-        CHECK(why.contains("Age", Qt::CaseInsensitive));
+    // Advisory model: the burned-out volunteer is no longer excluded — they
+    // appear with a workload warning and a reduced score. Member excluded,
+    // adult age-out, no-skill excluded.
+    CHECK_EQ(results.size(), 2);
+    bool sawTeen = false, sawBurnout = false;
+    for (const MatchResult& r : results) {
+        if (r.personId == teen) {
+            sawTeen = true;
+            CHECK(r.score >= 50);
+            const QString why = r.reasons.join(" ");
+            CHECK(why.contains("guitar", Qt::CaseInsensitive));
+            CHECK(why.contains("Age", Qt::CaseInsensitive));
+        }
+        if (r.personId == burnedOut) {
+            sawBurnout = true;
+            CHECK(r.reasons.join(" ").contains("pastor review", Qt::CaseInsensitive));
+        }
     }
+    CHECK(sawTeen);
+    CHECK(sawBurnout);
 
     // Relaxing the skill requirement admits the no-skill teen too.
     c.requireSkill = false;
@@ -1965,19 +1975,22 @@ bool test_synergyEngineAndMigration19() {
     int clashPenalty = SynergyEngine::calculateClashPenalty(c2, g2);
     CHECK(clashPenalty < 0);
 
-    // 5. Test Hard Disqualification (Serving load burnout limit)
+    // 5. Serving load is now ADVISORY, not a hard block (dev-review decision):
+    //    the candidate stays eligible and the workload is surfaced as a warning.
     CandidateProfile cBurnout = c1;
     cBurnout.activeGroupCount = 3;
-    CHECK(!SynergyEngine::isEligible(cBurnout, g1, 3));
+    CHECK(SynergyEngine::isEligible(cBurnout, g1, 3));
+    CHECK(SynergyEngine::collectWarnings(cBurnout, g1, 3).size() >= 1);
 
-    // 6. Test Hard Disqualification (Closed group)
+    // 6. Structural hard block remains: Closed / elected governance cohorts.
     GroupProfile gClosed = g1;
     gClosed.recruitmentStatus = "Closed";
     CHECK(!SynergyEngine::isEligible(c1, gClosed, 3));
+    CHECK(SynergyEngine::collectWarnings(c1, gClosed, 3).isEmpty()); // warnings only for personal cases
 
     // 7. Test Overall Synergy Engine Evaluate
     SynergyMatchResult res = SynergyEngine::evaluate(c1, g1, 3);
-    CHECK(res.isEligible);
+    CHECK(!res.hardBlocked);
     CHECK(res.score >= 30);
     CHECK(!res.primaryReason.isEmpty());
 
@@ -1985,20 +1998,22 @@ bool test_synergyEngineAndMigration19() {
     double eqDelta = SynergyEngine::calculateEquilibriumDelta(c1, g1);
     CHECK(std::abs(eqDelta) >= 0.0);
 
-    // 9. Test Schedule Conflict Gating
+    // 9. Schedule conflict is now an advisory warning, not a gate.
     CandidateProfile cSched = c1;
     cSched.currentGroupSchedules.append(qMakePair(QString("Sunday"), QString("10:00 AM")));
     GroupProfile gSched = g1;
     gSched.meetingDay = "Sunday";
     gSched.meetingTime = "10:00 AM";
-    CHECK(!SynergyEngine::isEligible(cSched, gSched, 3));
+    CHECK(SynergyEngine::isEligible(cSched, gSched, 3));
+    CHECK(SynergyEngine::collectWarnings(cSched, gSched, 3).size() >= 1);
 
-    // 10. Test Pastoral Care Gating on Understaffed Team
+    // 10. At-risk + understaffed is an advisory warning, not a gate.
     CandidateProfile cCare = c1;
     cCare.careFlag = "At-Risk";
     GroupProfile gUnderstaffed = g1;
     gUnderstaffed.activeMemberCount = 1;
-    CHECK(!SynergyEngine::isEligible(cCare, gUnderstaffed, 3));
+    CHECK(SynergyEngine::isEligible(cCare, gUnderstaffed, 3));
+    CHECK(SynergyEngine::collectWarnings(cCare, gUnderstaffed, 3).size() >= 1);
 
     // 11. Test Connection Audit Persistence in entity_relationships
     QSqlQuery insP(db);
@@ -2154,7 +2169,7 @@ bool test_smartBridgeEngineAndSourceLogging() {
     // Scoring: candidate 9101 is eligible and scores within 15..98.
     if (people.contains(9101) && groups.contains(9101)) {
         SynergyMatchResult res = SynergyEngine::evaluate(people[9101], groups[9101], 3);
-        CHECK(res.isEligible);
+        CHECK(!res.hardBlocked);
         CHECK(res.score >= 15 && res.score <= 98);
     }
 
@@ -2171,6 +2186,65 @@ bool test_smartBridgeEngineAndSourceLogging() {
     CHECK(!src.value(1).toString().isEmpty()); // joined_date recorded
 
     d.rollback();
+    return true;
+}
+
+bool test_smartBridgeAdvisoryAndHiddenGroups() {
+    // Dev-review model: personal circumstances are ADVISORY warnings a pastor
+    // can override; only structural cohorts hard-block. Hidden groups leave
+    // the bulk-load used by the graph's Smart Bridge scan.
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+
+    // Migration 21 must have added groups.is_hidden.
+    bool hasHidden = false;
+    QSqlQuery cols(d);
+    cols.exec("PRAGMA table_info(groups)");
+    while (cols.next()) {
+        if (cols.value(1).toString() == "is_hidden") hasHidden = true;
+    }
+    CHECK(hasHidden);
+
+    // Workload (3+ groups) => eligible + warning, NOT hard-blocked.
+    GroupProfile gOpen;
+    gOpen.groupId = 9701;
+    gOpen.name = "Open Team";
+    gOpen.recruitmentStatus = "Open";
+    gOpen.activeMemberCount = 6;
+    CandidateProfile cBusy;
+    cBusy.personId = 9701;
+    cBusy.activeGroupCount = 3;
+    SynergyMatchResult rBusy = SynergyEngine::evaluate(cBusy, gOpen, 3);
+    CHECK(!rBusy.hardBlocked);
+    CHECK(rBusy.warnings.size() >= 1);
+    CHECK(rBusy.warnings.first().contains("Workload Advisory"));
+
+    // Closed cohort => structural hard block, no warnings.
+    GroupProfile gClosed = gOpen;
+    gClosed.recruitmentStatus = "Closed";
+    SynergyMatchResult rClosed = SynergyEngine::evaluate(cBusy, gClosed, 3);
+    CHECK(rClosed.hardBlocked);
+    CHECK(!rClosed.hardBlockReason.isEmpty());
+
+    // At-risk candidate on an understaffed team => advisory, not a block.
+    CandidateProfile cCare = cBusy;
+    cCare.activeGroupCount = 0;
+    cCare.careFlag = "At-Risk";
+    GroupProfile gTiny = gOpen;
+    gTiny.activeMemberCount = 1;
+    SynergyMatchResult rCare = SynergyEngine::evaluate(cCare, gTiny, 3);
+    CHECK(!rCare.hardBlocked);
+    CHECK(rCare.warnings.size() >= 1);
+    CHECK(rCare.warnings.first().contains("Pastoral Note"));
+
+    // Hidden groups are excluded from the bulk loader (graph/Smart Bridge).
+    CHECK(q.exec("INSERT INTO groups (id, name, category, is_hidden) VALUES (9702, 'Hidden Ministry', 'Worship', 1)"));
+    QMap<int, GroupProfile> all;
+    SynergyEngine::loadAllGroups(d, 0, all);
+    CHECK(!all.contains(9702));
+
+    // Cleanup.
+    CHECK(q.exec("DELETE FROM groups WHERE id = 9702"));
     return true;
 }
 
@@ -2553,6 +2627,7 @@ int main(int argc, char** argv) {
         {"graph_tier3_bridge_nodes_and_family_dynasties", test_graphTier3BridgeNodesAndFamilyDynasties},
         {"graph_health_features", test_graphHealthFeatures},
         {"smart_bridge_engine_and_source_logging", test_smartBridgeEngineAndSourceLogging},
+        {"smart_bridge_advisory_and_hidden_groups", test_smartBridgeAdvisoryAndHiddenGroups},
         {"graph_inspector_upgrade", test_graphInspectorUpgrade},
         {"graph_collision_resolution", test_graphCollisionResolution},
         {"settings_localization_and_churchprofile", test_settingsLocalizationAndChurchProfile},

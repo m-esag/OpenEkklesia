@@ -654,10 +654,37 @@ bool DatabaseManager::createTables() {
         "  owner_id INTEGER REFERENCES people(id),"
         "  start_date TEXT,"
         "  end_date TEXT,"
-        "  anchor_event_id INTEGER REFERENCES services(id)"
+        "  anchor_event_id INTEGER REFERENCES services(id),"
+        "  priority TEXT DEFAULT 'Medium',"
+        "  category TEXT DEFAULT 'Task',"
+        "  progress_pct INTEGER DEFAULT 0,"
+        "  notes TEXT DEFAULT ''"
         ");";
     if (!query.exec(createMinistryTasks)) {
         qCritical() << "Failed to create ministry_tasks table:" << query.lastError().text();
+        return false;
+    }
+
+    // Create ministry_events table (church-wide events, conferences, seasonal programs)
+    QString createMinistryEvents =
+        "CREATE TABLE IF NOT EXISTS ministry_events ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  title TEXT NOT NULL,"
+        "  event_type TEXT DEFAULT 'Outreach',"
+        "  team_id INTEGER REFERENCES groups(id),"
+        "  coordinator_id INTEGER REFERENCES people(id),"
+        "  facility_name TEXT DEFAULT '',"
+        "  start_datetime TEXT NOT NULL,"
+        "  end_datetime TEXT NOT NULL,"
+        "  expected_attendance INTEGER DEFAULT 0,"
+        "  budget_cents INTEGER DEFAULT 0,"
+        "  status TEXT DEFAULT 'Confirmed',"
+        "  description TEXT DEFAULT '',"
+        "  service_id INTEGER REFERENCES services(id),"
+        "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    if (!query.exec(createMinistryEvents)) {
+        qCritical() << "Failed to create ministry_events table:" << query.lastError().text();
         return false;
     }
 
@@ -1930,6 +1957,158 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
         qInfo() << "Schema migration 20 applied successfully.";
+    }
+
+    if (current < 21) {
+        // Migration 21: ministry hide/unhide. Top-level ministries stay
+        // system-locked against delete/archive, but a church can hide unused
+        // ones (or any group) so they leave the tree, graph and Smart Bridge
+        // without losing their data or child teams.
+        qInfo() << "Applying schema migration 21: groups.is_hidden";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 21: failed to start transaction";
+            return false;
+        }
+        QSqlQuery hasCol(m_db);
+        hasCol.exec("PRAGMA table_info(groups)");
+        QSet<QString> cols;
+        while (hasCol.next()) cols.insert(hasCol.value(1).toString());
+        if (!cols.contains("is_hidden")) {
+            QSqlQuery migQ(m_db);
+            if (!migQ.exec("ALTER TABLE groups ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;")) {
+                qCritical() << "Migration 21: add is_hidden failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 21: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(21)) {
+            return false;
+        }
+        qInfo() << "Schema migration 21 applied successfully.";
+    }
+
+    // --- Schema Migration 22: ministry planning upgrades & events hub ---
+    // Extends ministry_tasks with priority, category, progress_pct, and notes.
+    // Creates ministry_events table for church-wide events, conferences,
+    // retreats, and outreach programs with coordinator and facility links.
+    if (current < 22) {
+        qInfo() << "Applying schema migration 22: ministry planning upgrades & events hub";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 22: failed to start transaction";
+            return false;
+        }
+
+        // 1. Upgrade ministry_tasks columns
+        QSqlQuery taskInfo(m_db);
+        taskInfo.exec("PRAGMA table_info(ministry_tasks)");
+        QSet<QString> taskCols;
+        while (taskInfo.next()) taskCols.insert(taskInfo.value(1).toString());
+
+        QSqlQuery migQ(m_db);
+        if (!taskCols.contains("priority")) {
+            if (!migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN priority TEXT DEFAULT 'Medium';")) {
+                qCritical() << "Migration 22: add priority failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!taskCols.contains("category")) {
+            if (!migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN category TEXT DEFAULT 'Task';")) {
+                qCritical() << "Migration 22: add category failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!taskCols.contains("progress_pct")) {
+            if (!migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN progress_pct INTEGER DEFAULT 0;")) {
+                qCritical() << "Migration 22: add progress_pct failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+        if (!taskCols.contains("notes")) {
+            if (!migQ.exec("ALTER TABLE ministry_tasks ADD COLUMN notes TEXT DEFAULT '';")) {
+                qCritical() << "Migration 22: add notes failed:" << migQ.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+        }
+
+        // 2. Create ministry_events table
+        QString createEvents =
+            "CREATE TABLE IF NOT EXISTS ministry_events ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  title TEXT NOT NULL,"
+            "  event_type TEXT DEFAULT 'Outreach',"
+            "  team_id INTEGER REFERENCES groups(id),"
+            "  coordinator_id INTEGER REFERENCES people(id),"
+            "  facility_name TEXT DEFAULT '',"
+            "  start_datetime TEXT NOT NULL,"
+            "  end_datetime TEXT NOT NULL,"
+            "  expected_attendance INTEGER DEFAULT 0,"
+            "  budget_cents INTEGER DEFAULT 0,"
+            "  status TEXT DEFAULT 'Confirmed',"
+            "  description TEXT DEFAULT '',"
+            "  service_id INTEGER REFERENCES services(id),"
+            "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+            ");";
+        if (!migQ.exec(createEvents)) {
+            qCritical() << "Migration 22: create ministry_events failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+
+        // 3. Seed canonical church events if empty
+        QSqlQuery cntEv("SELECT COUNT(*) FROM ministry_events", m_db);
+        if (cntEv.next() && cntEv.value(0).toInt() == 0) {
+            const int year = QDate::currentDate().year();
+            struct SeedEv {
+                const char* title;
+                const char* type;
+                const char* start;
+                const char* end;
+                int attendance;
+                int budget;
+                const char* facility;
+                const char* desc;
+            };
+            const SeedEv seedEvents[] = {
+                {"Easter Celebration & Community Outreach", "Worship / Service", "04-05 09:00", "04-05 13:00", 450, 250000, "Main Worship Sanctuary", "Full Easter production, choir, and family hospitality reception."},
+                {"Youth Summer Discipleship Camp", "Youth / Children", "07-15 08:00", "07-18 17:00", 85, 450000, "Camp Cedar Ridge", "Annual 4-day student retreat focused on spiritual growth, worship, and leadership."},
+                {"Annual Leadership & Ministry Vision Summit", "Training", "09-12 09:00", "09-12 16:00", 120, 150000, "Fellowship Hall", "Strategic planning, team alignment, and volunteer appreciation for all ministry leads."},
+                {"Thanksgiving Community Food Drive", "Outreach", "11-21 10:00", "11-21 15:00", 250, 100000, "Outdoor Pavilion & Kitchen", "City-wide basket distribution and hot meal outreach for local families in need."},
+                {"Christmas Eve Candlelight Service", "Worship / Service", "12-24 17:00", "12-24 19:30", 500, 180000, "Main Worship Sanctuary", "Candlelight communion, carols, nativity story, and welcome for first-time visitors."}
+            };
+            for (const auto& ev : seedEvents) {
+                QSqlQuery ins(m_db);
+                ins.prepare("INSERT INTO ministry_events (title, event_type, start_datetime, end_datetime, expected_attendance, budget_cents, facility_name, description) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                ins.addBindValue(ev.title);
+                ins.addBindValue(ev.type);
+                ins.addBindValue(QString("%1-%2").arg(year).arg(ev.start));
+                ins.addBindValue(QString("%1-%2").arg(year).arg(ev.end));
+                ins.addBindValue(ev.attendance);
+                ins.addBindValue(ev.budget);
+                ins.addBindValue(ev.facility);
+                ins.addBindValue(ev.desc);
+                ins.exec();
+            }
+        }
+
+        if (!m_db.commit()) {
+            qCritical() << "Migration 22: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(22)) {
+            return false;
+        }
+        qInfo() << "Schema migration 22 applied successfully.";
     }
 
     return true;

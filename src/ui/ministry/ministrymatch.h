@@ -26,7 +26,7 @@ struct MatchCriteria {
     QString gender;            // empty = any
     bool requireSkill = true;  // require at least one of the group's inferred skills
     int minAttendance90 = 0;   // minimum services attended in the last 90 days
-    int maxGroupsServing = 3;  // burnout guard: skip people already serving in more groups
+    int maxGroupsServing = 3;  // workload ADVISORY: flag (not exclude) people serving in more groups
     int maxResults = 25;
 };
 

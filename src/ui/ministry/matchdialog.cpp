@@ -10,6 +10,7 @@
 #include <QTableWidget>
 #include <QLabel>
 #include <QHeaderView>
+#include <QSettings>
 #include <QSqlQuery>
 #include <QMessageBox>
 
@@ -105,9 +106,9 @@ void MatchDialog::setupUI() {
 
     m_spinMaxGroups = new QSpinBox(this);
     m_spinMaxGroups->setRange(0, 15);
-    m_spinMaxGroups->setValue(3);
-    m_spinMaxGroups->setToolTip("Burnout guard: skip people already serving in more groups than this");
-    form->addRow("Serving limit:", m_spinMaxGroups);
+    m_spinMaxGroups->setValue(QSettings("OpenEkklesia", "CHMS").value("maxGroupsServing", 3).toInt());
+    m_spinMaxGroups->setToolTip("Advisory workload threshold — candidates serving in more groups are flagged for pastor review, never excluded");
+    form->addRow("Workload advisory:", m_spinMaxGroups);
 
     m_spinMaxResults = new QSpinBox(this);
     m_spinMaxResults->setRange(1, 100);

@@ -5,14 +5,13 @@
 #include <algorithm>
 #include <cmath>
 
-bool SynergyEngine::isEligible(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing, QString* disqualifyReason) {
-    // 1. Serving Burnout Limit
-    if (candidate.activeGroupCount >= maxGroupsServing) {
-        if (disqualifyReason) *disqualifyReason = QString("Serving load limit reached (%1 groups)").arg(candidate.activeGroupCount);
-        return false;
-    }
-
-    // 2. Closed / Governance / Seasonal
+bool SynergyEngine::isEligible(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing, QString* hardBlockReason) {
+    Q_UNUSED(candidate);
+    Q_UNUSED(maxGroupsServing);
+    // Structural hard blocks only: the cohort itself is not open to
+    // recommendations (elected governance bodies, closed/seasonal cohorts).
+    // Everything personal is an advisory warning (collectWarnings), never a
+    // silent exclusion — a pastor always retains the final call.
     QString status = group.recruitmentStatus.trimmed();
     if (status == "Elected" || status == "Closed" || status == "Seasonal" ||
         group.name.contains("Board", Qt::CaseInsensitive) ||
@@ -20,53 +19,58 @@ bool SynergyEngine::isEligible(const CandidateProfile& candidate, const GroupPro
         group.name.contains("Deacon", Qt::CaseInsensitive) ||
         group.name.contains("Elder", Qt::CaseInsensitive) ||
         group.category.contains("Governance", Qt::CaseInsensitive)) {
-        if (disqualifyReason) *disqualifyReason = "Closed cohort or elected governance body";
+        if (hardBlockReason) *hardBlockReason = "Elected governance body or closed cohort";
         return false;
     }
+    return true;
+}
 
-    // 3. Schedule Conflict
+QStringList SynergyEngine::collectWarnings(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing) {
+    QStringList warnings;
+
+    // 1. Serving workload advisory (was a hard block; now pastor-reviewed).
+    if (candidate.activeGroupCount >= maxGroupsServing) {
+        warnings << QString("⚠️ Workload Advisory: already serving in %1 groups — review schedule before assigning")
+                        .arg(candidate.activeGroupCount);
+    }
+
+    // 2. Schedule Conflict advisory.
     if (!group.meetingDay.isEmpty() && !group.meetingTime.isEmpty()) {
         for (const auto& sched : candidate.currentGroupSchedules) {
             if (sched.first.compare(group.meetingDay, Qt::CaseInsensitive) == 0 &&
                 sched.second.compare(group.meetingTime, Qt::CaseInsensitive) == 0) {
-                if (disqualifyReason) *disqualifyReason = QString("Schedule conflict on %1 at %2").arg(group.meetingDay, group.meetingTime);
-                return false;
+                warnings << QString("⚠️ Schedule conflict on %1 at %2").arg(group.meetingDay, group.meetingTime);
+                break;
             }
         }
     }
 
-    // 4. Stale / Inactive Group (>180 days no activity)
+    // 3. Stale / Inactive Group (>180 days no activity).
     if (group.daysSinceLastActivity > 180) {
-        if (disqualifyReason) *disqualifyReason = "Inactive/stagnant group (no logged activity in 180+ days)";
-        return false;
+        warnings << "⚠️ Inactive/stagnant group (no logged activity in 180+ days)";
     }
 
-    // 5. Leader Care Flag
+    // 4. Leader Care Flag advisory.
     if (group.leaderCareFlag == "At-Risk" || group.leaderCareFlag == "Needs Contact") {
-        if (disqualifyReason) *disqualifyReason = "Group leader is currently under pastoral care";
-        return false;
+        warnings << "⚠️ Group leader is currently under pastoral care";
     }
 
-    // 6. Oversaturation Guard (e.g. >= 3 Catalysts, >= 4 Sparks)
+    // 5. Oversaturation advisory (was a hard block; pastor-reviewed).
     int catalystCount = group.archetypeCounts.value(ChurchArchetype::Catalyst, 0);
     if (catalystCount >= 3 && candidate.primaryArchetype == ChurchArchetype::Catalyst) {
-        if (disqualifyReason) *disqualifyReason = "Oversaturated with visionaries (≥3 Catalysts)";
-        return false;
+        warnings << "⚠️ Team is oversaturated with visionaries (≥3 Catalysts)";
     }
-
     int sparkCount = group.archetypeCounts.value(ChurchArchetype::Spark, 0);
     if (sparkCount >= 4 && candidate.primaryArchetype == ChurchArchetype::Spark) {
-        if (disqualifyReason) *disqualifyReason = "Oversaturated with energy (≥4 Sparks)";
-        return false;
+        warnings << "⚠️ Team is oversaturated with energy (≥4 Sparks)";
     }
 
-    // 7. Pastoral Care Guardrail: At-Risk candidate should not be placed into understaffed high-strain team
+    // 6. Pastoral care safety advisory: At-Risk candidate + understaffed team.
     if ((candidate.careFlag == "At-Risk" || candidate.careFlag == "Needs Contact") && group.activeMemberCount < 3) {
-        if (disqualifyReason) *disqualifyReason = "Candidate is currently under pastoral care (understaffed team limit)";
-        return false;
+        warnings << "🛡️ Pastoral Note: candidate is in active care; team is understaffed — review before assigning";
     }
 
-    return true;
+    return warnings;
 }
 
 int SynergyEngine::calculateVoidBoost(const CandidateProfile& candidate, const GroupProfile& group, QStringList* reasons) {
@@ -228,14 +232,18 @@ SynergyMatchResult SynergyEngine::evaluate(const CandidateProfile& candidate, co
     result.groupId = group.groupId;
     result.groupName = group.name;
 
-    // Phase 1: Hard Gating
-    QString disqualify;
-    if (!isEligible(candidate, group, maxGroupsServing, &disqualify)) {
+    // Phase 1: Structural hard gate (governance / closed cohorts only).
+    QString hardBlockReason;
+    if (!isEligible(candidate, group, maxGroupsServing, &hardBlockReason)) {
+        result.hardBlocked = true;
         result.isEligible = false;
-        result.disqualifyReason = disqualify;
+        result.hardBlockReason = hardBlockReason;
         result.score = 0;
         return result;
     }
+
+    // Phase 1b: Advisory warnings for personal circumstances (pastor override).
+    result.warnings = collectWarnings(candidate, group, maxGroupsServing);
 
     // Phase 2: Zero-Base Scoring
     int total = 0;
@@ -503,7 +511,8 @@ void SynergyEngine::loadAllGroups(const QSqlDatabase& db, int candidatePersonId,
            "       g.required_skills, g.min_age, g.max_age, g.meeting_day, g.meeting_time, g.location, "
            "       g.recruitment_status, p.care_flag, "
            "       (SELECT MAX(pa.activity_date) FROM pastoral_activities pa WHERE pa.group_id = g.id) AS last_act "
-           "FROM groups g LEFT JOIN people p ON g.contact_person_id = p.id");
+           "FROM groups g LEFT JOIN people p ON g.contact_person_id = p.id "
+           "WHERE g.is_hidden = 0 OR g.is_hidden IS NULL");
     while (q.next()) {
         GroupProfile g;
         g.groupId = q.value(0).toInt();
