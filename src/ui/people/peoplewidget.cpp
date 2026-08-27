@@ -44,6 +44,7 @@
 #include <QRegularExpressionValidator>
 #include <QMenu>
 #include <QDialogButtonBox>
+#include <QSettings>
 #include "../common/appcurrency.h"
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
@@ -200,14 +201,23 @@ bool PeopleProxyModel::lessThan(const QModelIndex& left, const QModelIndex& righ
     int leftRow = left.row();
     int rightRow = right.row();
 
+    auto cleanText = [](const QString& str) -> QString {
+        QString s = str.normalized(QString::NormalizationForm_C).trimmed();
+        while (!s.isEmpty() && (s.at(0).isSpace() || s.at(0) == QChar(0xFEFF) || s.at(0) == QChar(0x00A0))) {
+            s.remove(0, 1);
+        }
+        return s;
+    };
+
     // 1. Custom multi-field sort modes from m_cmbSortBy
     if (m_sortMode == SortByFirstName) {
-        QString lFirst = sourceModel()->data(sourceModel()->index(leftRow, 2)).toString().trimmed().toLower();
-        QString rFirst = sourceModel()->data(sourceModel()->index(rightRow, 2)).toString().trimmed().toLower();
-        if (lFirst != rFirst) return lFirst < rFirst;
-        QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
-        QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
-        return lLast < rLast;
+        QString lFirst = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 2)).toString());
+        QString rFirst = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 2)).toString());
+        int cmp = QString::localeAwareCompare(lFirst, rFirst);
+        if (cmp != 0) return cmp < 0;
+        QString lLast = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 3)).toString());
+        QString rLast = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 3)).toString());
+        return QString::localeAwareCompare(lLast, rLast) < 0;
     }
 
     if (m_sortMode == SortByJoinDate) {
@@ -227,50 +237,63 @@ bool PeopleProxyModel::lessThan(const QModelIndex& left, const QModelIndex& righ
     }
 
     if (m_sortMode == SortByGender) {
-        QString lG = sourceModel()->data(sourceModel()->index(leftRow, 14)).toString().trimmed().toLower();
-        QString rG = sourceModel()->data(sourceModel()->index(rightRow, 14)).toString().trimmed().toLower();
-        if (lG != rG) return lG < rG;
-        QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
-        QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
-        return lLast < rLast;
+        QString lG = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 14)).toString());
+        QString rG = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 14)).toString());
+        int cmp = QString::localeAwareCompare(lG, rG);
+        if (cmp != 0) return cmp < 0;
+        QString lLast = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 3)).toString());
+        QString rLast = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 3)).toString());
+        return QString::localeAwareCompare(lLast, rLast) < 0;
     }
 
     // 2. Column-based sorting (clicking headers or selecting standard sorts)
     int col = left.column();
     switch (col) {
         case 0: { // Name: Last Name, then First Name
-            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
-            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
-            if (lLast != rLast) return lLast < rLast;
-            QString lFirst = sourceModel()->data(sourceModel()->index(leftRow, 2)).toString().trimmed().toLower();
-            QString rFirst = sourceModel()->data(sourceModel()->index(rightRow, 2)).toString().trimmed().toLower();
-            return lFirst < rFirst;
+            QString lLast = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 3)).toString());
+            QString rLast = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 3)).toString());
+            QString lFirst = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 2)).toString());
+            QString rFirst = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 2)).toString());
+
+            // If a contact has no last name, fall back to sorting by first name
+            QString lKey = lLast.isEmpty() ? lFirst : lLast;
+            QString rKey = rLast.isEmpty() ? rFirst : rLast;
+
+            int cmp = QString::localeAwareCompare(lKey, rKey);
+            if (cmp != 0) return cmp < 0;
+
+            return QString::localeAwareCompare(lFirst, rFirst) < 0;
         }
         case 1: { // Household / Family (source col 1)
-            QString lHouse = sourceModel()->data(sourceModel()->index(leftRow, 1)).toString().trimmed().toLower();
-            QString rHouse = sourceModel()->data(sourceModel()->index(rightRow, 1)).toString().trimmed().toLower();
-            if (lHouse != rHouse) return lHouse < rHouse;
-            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
-            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
-            return lLast < rLast;
+            QString lHouse = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 1)).toString());
+            QString rHouse = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 1)).toString());
+            if (lHouse.isEmpty() != rHouse.isEmpty()) {
+                return rHouse.isEmpty(); // Empty households at the bottom
+            }
+            int cmp = QString::localeAwareCompare(lHouse, rHouse);
+            if (cmp != 0) return cmp < 0;
+            QString lLast = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 3)).toString());
+            QString rLast = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 3)).toString());
+            return QString::localeAwareCompare(lLast, rLast) < 0;
         }
         case 2: { // Phone: source col 4 (NOT source col 2 which is first_name!)
-            QString lPhone = sourceModel()->data(sourceModel()->index(leftRow, 4)).toString().trimmed();
-            QString rPhone = sourceModel()->data(sourceModel()->index(rightRow, 4)).toString().trimmed();
-            return lPhone < rPhone;
+            QString lPhone = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 4)).toString());
+            QString rPhone = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 4)).toString());
+            return QString::localeAwareCompare(lPhone, rPhone) < 0;
         }
         case 3: { // Email: source col 5 (NOT source col 3 which is last_name!)
-            QString lEmail = sourceModel()->data(sourceModel()->index(leftRow, 5)).toString().trimmed().toLower();
-            QString rEmail = sourceModel()->data(sourceModel()->index(rightRow, 5)).toString().trimmed().toLower();
-            return lEmail < rEmail;
+            QString lEmail = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 5)).toString());
+            QString rEmail = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 5)).toString());
+            return QString::localeAwareCompare(lEmail, rEmail) < 0;
         }
         case 4: { // Membership Status: source col 11 (NOT source col 4 which is phone!)
-            QString lStat = sourceModel()->data(sourceModel()->index(leftRow, 11)).toString().trimmed().toLower();
-            QString rStat = sourceModel()->data(sourceModel()->index(rightRow, 11)).toString().trimmed().toLower();
-            if (lStat != rStat) return lStat < rStat;
-            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
-            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
-            return lLast < rLast;
+            QString lStat = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 11)).toString());
+            QString rStat = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 11)).toString());
+            int cmp = QString::localeAwareCompare(lStat, rStat);
+            if (cmp != 0) return cmp < 0;
+            QString lLast = cleanText(sourceModel()->data(sourceModel()->index(leftRow, 3)).toString());
+            QString rLast = cleanText(sourceModel()->data(sourceModel()->index(rightRow, 3)).toString());
+            return QString::localeAwareCompare(lLast, rLast) < 0;
         }
         default:
             break;
@@ -341,6 +364,7 @@ void PeopleWidget::setupUI() {
     m_cmbSortBy->addItem("🎂 Birth Date");
     m_cmbSortBy->addItem("♂️♀️ Gender");
     connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PeopleWidget::onSortByChanged);
+    connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::activated), this, &PeopleWidget::onSortByChanged);
 
     searchSortRow->addWidget(m_searchEdit, 3);
     QLabel* lblSort = new QLabel("Sort:", this);
@@ -554,9 +578,9 @@ void PeopleWidget::setupUI() {
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
-            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(placeholderText); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: palette(mid); color: palette(text); border-color: palette(highlight); }"
-            "QPushButton:checked { background-color: palette(mid); color: palette(highlight); border: 1px solid palette(highlight); }"
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover:!checked { background-color: palette(mid); color: palette(text); border-color: palette(highlight); }"
+            "QPushButton:checked { background-color: palette(highlight); color: palette(highlightedText); border: 1px solid palette(highlight); }"
         );
         connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
             m_detailStack->setCurrentIndex(pageIdx);
@@ -962,11 +986,12 @@ void PeopleWidget::setupUI() {
         QPushButton* chip = new QPushButton(QString("%1 %2").arg(a.icon, a.name), cardMin);
         chip->setCheckable(true);
         chip->setProperty("rawName", a.name);
+        const QString onColor = ThemeManager::textOn(QColor(a.color)).name();
         chip->setStyleSheet(QString(
-            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 12px; color: palette(text); padding: 4px 10px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid %1; color: %1; }"
-            "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 2px solid %1; color: %1; }"
-        ).arg(a.color));
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 12px; color: palette(text); padding: 4px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover:!checked { border: 1px solid %1; color: %1; background-color: palette(mid); }"
+            "QPushButton:checked { background-color: %1; border: 2px solid %1; color: %2; }"
+        ).arg(a.color, onColor));
 
         connect(chip, &QPushButton::clicked, this, [this, chip]() {
             for (QPushButton* c : m_archetypeChips) {
@@ -1025,8 +1050,8 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", g);
         chip->setStyleSheet(
-            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid palette(highlight); color: palette(highlight); }"
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton:hover:!checked { background-color: palette(mid); border: 1px solid palette(highlight); color: palette(highlight); }"
             "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlightedText); }"
         );
         connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
@@ -1079,9 +1104,9 @@ void PeopleWidget::setupUI() {
         chip->setCheckable(true);
         chip->setProperty("rawName", s);
         chip->setStyleSheet(
-            "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #a6e3a1; color: #a6e3a1; }"
-            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlighted-text); }"
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton:hover:!checked { background-color: palette(mid); border: 1px solid palette(highlight); color: palette(highlight); }"
+            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlightedText); }"
         );
         connect(chip, &QPushButton::clicked, this, [this, chip]() {
             for (QPushButton* c : m_styleChips) {
@@ -1151,7 +1176,7 @@ void PeopleWidget::setupUI() {
     footerLayout->setSpacing(10);
 
     m_lblDirtyIndicator = new QLabel("● Unsaved Changes", m_footerFrame);
-    m_lblDirtyIndicator->setStyleSheet("color: #fab387; font-weight: bold; font-size: 11px;");
+    m_lblDirtyIndicator->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 11px;").arg(curTok.accentWarning.name()));
     m_lblDirtyIndicator->setVisible(false);
     footerLayout->addWidget(m_lblDirtyIndicator);
     footerLayout->addStretch();
@@ -1208,11 +1233,17 @@ void PeopleWidget::setupModels() {
     m_peopleModel->setTable("people");
     m_peopleModel->setRelation(1, QSqlRelation("households", "id", "family_name"));
     m_peopleModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+    m_peopleModel->setSort(3, Qt::AscendingOrder);
     m_peopleModel->select();
+    while (m_peopleModel->canFetchMore()) {
+        m_peopleModel->fetchMore();
+    }
 
     // Setup Custom Proxy Model for merged Name column & searching
     m_proxyModel = new PeopleProxyModel(this);
     m_proxyModel->setSourceModel(m_peopleModel);
+    m_proxyModel->setDynamicSortFilter(true);
+    m_proxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
     m_proxyModel->setFilterKeyColumn(-1);
     m_proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
@@ -1225,6 +1256,11 @@ void PeopleWidget::setupModels() {
     m_peopleTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive); // Phone
     m_peopleTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Interactive); // Email
     m_peopleTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents); // Status
+
+    // Initialize sort by Name (Last Name A-Z)
+    m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+    m_proxyModel->sort(0, Qt::AscendingOrder);
+    m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 
     connect(m_peopleTable->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int logicalIndex) {
         m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
@@ -1384,7 +1420,7 @@ void PeopleWidget::renderTagChips() {
 
         QPushButton* chip = new QPushButton(QString("%1  ✕").arg(tag), m_tagsChipsContainer);
         chip->setStyleSheet(
-            "QPushButton { background-color: palette(mid); color: palette(highlight); border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
+            "QPushButton { background-color: palette(base); color: palette(highlight); border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
             "QPushButton:hover { background-color: palette(highlight); color: palette(highlightedText); }"
         );
         connect(chip, &QPushButton::clicked, this, [this, tag]() {
@@ -1476,7 +1512,9 @@ void PeopleWidget::setDirty(bool dirty) {
     }
     if (m_btnSave) {
         if (dirty) {
-            m_btnSave->setStyleSheet("QPushButton#primaryBtn { background-color: #a6e3a1; color: #11111b; font-weight: bold; border: 2px solid #94e2d5; }");
+            const ThemeTokens tok = ThemeManager::instance().currentTokens();
+            m_btnSave->setStyleSheet(QString("QPushButton#primaryBtn { background-color: %1; color: %2; font-weight: bold; border: 2px solid %3; }")
+                .arg(tok.accentSuccess.name(), ThemeManager::textOn(tok.accentSuccess).name(), tok.accentSuccess.lighter(115).name()));
         } else {
             m_btnSave->setStyleSheet("");
         }
@@ -1963,40 +2001,60 @@ void PeopleWidget::reapplyFilter() {
 
     m_peopleModel->setFilter(conditions.join(" AND "));
     m_peopleModel->select();
+    while (m_peopleModel->canFetchMore()) {
+        m_peopleModel->fetchMore();
+    }
+
+    // Re-apply active sort mode so filtered results are immediately and properly sorted
+    onSortByChanged(m_cmbSortBy->currentIndex());
 }
 
 void PeopleWidget::refreshModel() {
     populateHouseholdCombo();
     m_householdModel->select();
     m_peopleModel->select();
+    while (m_peopleModel->canFetchMore()) {
+        m_peopleModel->fetchMore();
+    }
     refreshTagCompleter();
+    onSortByChanged(m_cmbSortBy->currentIndex());
 }
 
 void PeopleWidget::onSortByChanged(int index) {
     switch (index) {
         case 0: // Last Name (A - Z)
+            m_peopleModel->setSort(3, Qt::AscendingOrder);
             m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
             m_proxyModel->sort(0, Qt::AscendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
             break;
         case 1: // Last Name (Z - A)
+            m_peopleModel->setSort(3, Qt::DescendingOrder);
             m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
             m_proxyModel->sort(0, Qt::DescendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::DescendingOrder);
             break;
         case 2: // First Name (A - Z)
+            m_peopleModel->setSort(2, Qt::AscendingOrder);
             m_proxyModel->setSortMode(PeopleProxyModel::SortByFirstName);
             m_proxyModel->sort(0, Qt::AscendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
             break;
         case 3: // First Name (Z - A)
+            m_peopleModel->setSort(2, Qt::DescendingOrder);
             m_proxyModel->setSortMode(PeopleProxyModel::SortByFirstName);
             m_proxyModel->sort(0, Qt::DescendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::DescendingOrder);
             break;
         case 4: // Family Name (A - Z)
             m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
             m_proxyModel->sort(1, Qt::AscendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(1, Qt::AscendingOrder);
             break;
         case 5: // Membership Status
             m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
             m_proxyModel->sort(4, Qt::AscendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(4, Qt::AscendingOrder);
             break;
         case 6: // Join Date (Newest)
             m_proxyModel->setSortMode(PeopleProxyModel::SortByJoinDate);
@@ -2017,6 +2075,7 @@ void PeopleWidget::onSortByChanged(int index) {
         default:
             m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
             m_proxyModel->sort(0, Qt::AscendingOrder);
+            m_peopleTable->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
             break;
     }
     if (m_peopleTable->currentIndex().isValid()) {
@@ -3030,6 +3089,25 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
         m_searchEdit->clear();
         m_peopleModel->setFilter("id NOT IN (SELECT DISTINCT source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group')");
         m_peopleModel->select();
+        while (m_peopleModel->canFetchMore()) {
+            m_peopleModel->fetchMore();
+        }
+        onSortByChanged(m_cmbSortBy->currentIndex());
+    } else if (type == "lapsed_giver") {
+        // Givers with a giving history but nothing since the inactivity window
+        // (same rule as the dashboard and Pastoral Analytics).
+        const int inactivityDays = qBound(7, QSettings("OpenEkklesia", "CHMS").value("inactivityDays", 30).toInt(), 365);
+        m_statusFilterGroup->button(0)->setChecked(true);
+        m_searchEdit->clear();
+        m_peopleModel->setFilter(QString(
+            "id IN (SELECT DISTINCT person_id FROM contributions) "
+            "AND id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-%1 days'))")
+            .arg(inactivityDays));
+        m_peopleModel->select();
+        while (m_peopleModel->canFetchMore()) {
+            m_peopleModel->fetchMore();
+        }
+        onSortByChanged(m_cmbSortBy->currentIndex());
     } else {
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->setText(val);

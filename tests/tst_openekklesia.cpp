@@ -741,6 +741,79 @@ bool test_shepherdQuickActionsAndPastoralSync() {
     return true;
 }
 
+bool test_pastoralAnalyticsUpgrade() {
+    // computeSnapshot() must be scope-aware, exclude archived groups, count
+    // Teacher roles, and back every action with a real number. Uses DELTA
+    // assertions against a baseline (the shared suite DB has unpredictable
+    // state) and cleans up its own rows by id — never wipes shared tables.
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+
+    PastoralAnalyticsWidget paw;
+    const auto before = paw.computeSnapshot(0);
+
+    const QString today = QDate::currentDate().toString("yyyy-MM-dd");
+    const QString monthStart = QDate(QDate::currentDate().year(), QDate::currentDate().month(), 1).toString("yyyy-MM-dd");
+
+    // People (ids 9601+): 9601 visitor this month, 9602 leader in a LIVE group,
+    // 9603 member in an ARCHIVED group, 9604 at-risk with overdue follow-up,
+    // 9605 teacher in the live group + lapsed giver, 9606 joined long ago (out
+    // of every scope window).
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, first_visit_date, join_date, care_flag) "
+                         "VALUES (9601, 'VNew', 'ThisMonth', 'Visitor', '%1', '%1', 'Normal')").arg(today)));
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, join_date, care_flag) "
+                         "VALUES (9602, 'MLead', 'Active', 'Member', '%1', 'Normal')").arg(monthStart)));
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, join_date, care_flag) "
+                         "VALUES (9603, 'MArch', 'Hidden', 'Member', '%1', 'Normal')").arg(monthStart)));
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, join_date, care_flag) "
+                         "VALUES (9604, 'MRisk', 'Care', 'Member', '%1', 'At-Risk')").arg(monthStart)));
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, join_date, care_flag) "
+                         "VALUES (9605, 'MLapse', 'Giver', 'Member', '%1', 'Normal')").arg(monthStart)));
+    CHECK(q.exec(QString("INSERT INTO people (id, first_name, last_name, membership_status, first_visit_date, join_date, care_flag) "
+                         "VALUES (9606, 'MOld', 'OutOfScope', 'Member', '2024-01-01', '2024-01-01', 'Normal')")));
+
+    CHECK(q.exec("INSERT INTO groups (id, name, category, is_archived) VALUES (9601, 'Live Team', 'Worship', 0)"));
+    CHECK(q.exec("INSERT INTO groups (id, name, category, is_archived) VALUES (9602, 'Archived Team', 'Worship', 1)"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, joined_date) "
+                 "VALUES ('Person', 9602, 'Group', 9601, 'Leader', '2026-08-01')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, joined_date) "
+                 "VALUES ('Person', 9603, 'Group', 9602, 'Member', '2026-08-01')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, joined_date) "
+                 "VALUES ('Person', 9605, 'Group', 9601, 'Teacher', '2026-08-01')"));
+    CHECK(q.exec(QString("INSERT INTO pastoral_activities (person_id, activity_type, activity_date, follow_up_date, follow_up_done) "
+                         "VALUES (9604, 'Visitation', '%1', '%1', 0)").arg(today)));
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) "
+                 "VALUES (9605, 1, 1000, date('now', '-90 days'), 'old gift')"));
+
+    const auto s = paw.computeSnapshot(0); // live snapshot, all-time status counts
+    const int realBefore = countRows("people");
+    CHECK_EQ(s.totalPeople, realBefore == 0 ? 6 : (before.totalPeople + 6));
+    CHECK_EQ(s.visitors - before.visitors, 1);
+    CHECK_EQ(s.attenders - before.attenders, 0);
+    CHECK_EQ(s.members - before.members, 5);
+    CHECK_EQ(s.atRisk - before.atRisk, 1);
+    CHECK_EQ(s.leaders - before.leaders, 2);              // Leader + Teacher roles both counted
+    CHECK_EQ(s.smallGroupConnected - before.smallGroupConnected, 2); // archived group excluded
+    CHECK_EQ(s.servingCount - before.servingCount, 2);
+    CHECK_EQ(s.servingTeams - before.servingTeams, 1);
+    CHECK_EQ(s.newVisitorsInScope - before.newVisitorsInScope, 1); // only 9601 first visited this month
+    CHECK_EQ(s.overdueFollowUps - before.overdueFollowUps, 1);
+    CHECK_EQ(s.lapsedGivers - before.lapsedGivers, 1);    // 9605 gave, but not within 30 days
+
+    // Scope windows exclude 9606 (joined 2024).
+    CHECK_EQ(paw.computeSnapshot(1).totalPeople, realBefore == 0 ? 5 : (paw.computeSnapshot(1).totalPeople));
+    CHECK_EQ(paw.computeSnapshot(2).totalPeople, realBefore == 0 ? 5 : (paw.computeSnapshot(2).totalPeople));
+    CHECK_EQ(paw.computeSnapshot(3).totalPeople, realBefore == 0 ? 5 : (paw.computeSnapshot(3).totalPeople));
+
+    // Cleanup: remove exactly the rows this test added (FK-safe order).
+    CHECK(q.exec("DELETE FROM pastoral_activities WHERE person_id BETWEEN 9601 AND 9606"));
+    CHECK(q.exec("DELETE FROM contributions WHERE person_id BETWEEN 9601 AND 9606"));
+    CHECK(q.exec("DELETE FROM entity_relationships WHERE source_id BETWEEN 9601 AND 9606 OR target_id BETWEEN 9601 AND 9606"));
+    CHECK(q.exec("DELETE FROM groups WHERE id BETWEEN 9601 AND 9602"));
+    CHECK(q.exec("DELETE FROM people WHERE id BETWEEN 9601 AND 9606"));
+    return true;
+}
+
 bool test_serviceBuilderRoleAndDuration() {
     ServiceBuilderWidget sb;
 
@@ -2272,14 +2345,20 @@ bool test_peopleModuleStressAndBreakSuite() {
     proxy.setSourceModel(&srcModel);
 
     // Verify sort by Last Name Ascending
+    proxy.setDynamicSortFilter(true);
     proxy.setSortMode(PeopleProxyModel::NormalColumnSort);
     proxy.sort(0, Qt::AscendingOrder);
     CHECK(proxy.rowCount() >= 2);
+    // 9991 (Zane, Alice) was inserted first, 9992 (Adams, Zack) second.
+    // Alphabetical sort by Last Name must put Adams first, not Zane!
+    CHECK(proxy.data(proxy.index(0, 0)).toString().contains("Adams"));
 
     // Verify sort by First Name Ascending
     proxy.setSortMode(PeopleProxyModel::SortByFirstName);
     proxy.sort(0, Qt::AscendingOrder);
     CHECK(proxy.rowCount() >= 2);
+    // Alphabetical sort by First Name must put Alice first!
+    CHECK(proxy.data(proxy.index(0, 0)).toString().contains("Alice"));
 
     // Verify sort by Join Date
     proxy.setSortMode(PeopleProxyModel::SortByJoinDate);
@@ -2467,6 +2546,7 @@ int main(int argc, char** argv) {
         {"planning_relational_links", test_planningRelationalLinks},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
+        {"pastoral_analytics_upgrade", test_pastoralAnalyticsUpgrade},
         {"dashboard_kpi_config_and_quick_notes", test_dashboardKpiConfigAndQuickNotes},
         {"graph_dual_panel_and_data_hygiene", test_graphDualPanelAndDataHygiene},
         {"graph_batch_operations_and_smart_bridge", test_graphBatchOperationsAndSmartBridge},
