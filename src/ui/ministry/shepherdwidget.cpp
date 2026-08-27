@@ -100,22 +100,22 @@ void ShepherdWidget::setupUI() {
     queueBtns->setSpacing(8);
 
     m_btnMarkDone = new QPushButton(" Mark Done", tabQueue);
-    m_btnMarkDone->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
+    m_btnMarkDone->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnMarkDone->setObjectName("primaryBtn");
     connect(m_btnMarkDone, &QPushButton::clicked, this, &ShepherdWidget::onMarkFollowUpDone);
 
     m_btnReschedule = new QPushButton(" Reschedule / Snooze", tabQueue);
-    m_btnReschedule->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
+    m_btnReschedule->setIcon(IconManager::instance().getIcon("calendar", QColor(), 14));
     m_btnReschedule->setObjectName("secondaryBtn");
     connect(m_btnReschedule, &QPushButton::clicked, this, &ShepherdWidget::onRescheduleFollowUp);
 
     m_btnCalendar = new QPushButton(" Export Calendar (.ics)", tabQueue);
-    m_btnCalendar->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
+    m_btnCalendar->setIcon(IconManager::instance().getIcon("download", QColor(), 14));
     m_btnCalendar->setObjectName("secondaryBtn");
     connect(m_btnCalendar, &QPushButton::clicked, this, &ShepherdWidget::onExportCalendarEvent);
 
     m_btnLogFollowUp = new QPushButton(" Log Activity", tabQueue);
-    m_btnLogFollowUp->setIcon(IconManager::instance().getIcon("plus", QColor("#cdd6f4"), 14));
+    m_btnLogFollowUp->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
     m_btnLogFollowUp->setObjectName("secondaryBtn");
     connect(m_btnLogFollowUp, &QPushButton::clicked, this, &ShepherdWidget::onLogFollowUp);
 
@@ -126,6 +126,7 @@ void ShepherdWidget::setupUI() {
     queueBtns->addStretch();
     queueLay->addLayout(queueBtns);
     m_tabs->addTab(tabQueue, "Today's Queue");
+    m_tabs->setTabIcon(0, IconManager::instance().getIcon("check-square", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 2: Member Activities ----
     QWidget* tabMember = new QWidget(this);
@@ -137,7 +138,7 @@ void ShepherdWidget::setupUI() {
     m_personCombo->setMinimumWidth(280);
     connect(m_personCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ShepherdWidget::onPersonChanged);
     m_btnLogActivity = new QPushButton(" Log Activity", tabMember);
-    m_btnLogActivity->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
+    m_btnLogActivity->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnLogActivity->setObjectName("primaryBtn");
     connect(m_btnLogActivity, &QPushButton::clicked, this, &ShepherdWidget::onLogActivity);
     memberTop->addWidget(new QLabel("Member:", tabMember));
@@ -157,8 +158,8 @@ void ShepherdWidget::setupUI() {
         if (actId <= 0) return;
 
         QMenu menu(this);
-        QAction* actEdit = menu.addAction("✏️ Edit Activity Notes...");
-        QAction* actDelete = menu.addAction("🗑️ Delete Activity Log");
+        QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Activity Notes...");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Activity Log");
 
         QAction* sel = menu.exec(m_timelineList->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -186,7 +187,8 @@ void ShepherdWidget::setupUI() {
         }
     });
     memberLay->addWidget(m_timelineList);
-    m_tabs->addTab(tabMember, "👤 Member Care Timeline");
+    m_tabs->addTab(tabMember, "Member Care Timeline");
+    m_tabs->setTabIcon(1, IconManager::instance().getIcon("user", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 3: Prayer List ----
     QWidget* tabPrayer = new QWidget(this);
@@ -202,11 +204,12 @@ void ShepherdWidget::setupUI() {
         int pId = item->data(Qt::UserRole).toInt();
         if (pId <= 0) return;
 
+        const ThemeTokens tokPray = ThemeManager::instance().currentTokens();
         QMenu menu(this);
-        QAction* actAnswer = menu.addAction("✅ Mark Prayer Answered");
-        QAction* actEdit = menu.addAction("✏️ Edit Prayer Request...");
+        QAction* actAnswer = menu.addAction(IconManager::instance().getIcon("check-circle-2", tokPray.accentSuccess, 14), "Mark Prayer Answered");
+        QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Prayer Request...");
         menu.addSeparator();
-        QAction* actDelete = menu.addAction("🗑️ Delete Prayer Request");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Prayer Request");
 
         QAction* sel = menu.exec(m_prayerList->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -242,13 +245,13 @@ void ShepherdWidget::setupUI() {
 
     QHBoxLayout* prayerBtns = new QHBoxLayout();
     m_btnAddPrayer = new QPushButton(" Add Prayer Request", tabPrayer);
-    m_btnAddPrayer->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
+    m_btnAddPrayer->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnAddPrayer->setObjectName("primaryBtn");
     connect(m_btnAddPrayer, &QPushButton::clicked, this, [this]() {
         if (showActivityDialog(-1, "Prayer")) refreshAll();
     });
     m_btnPrayerDone = new QPushButton(" Mark Selected Answered", tabPrayer);
-    m_btnPrayerDone->setIcon(IconManager::instance().getIcon("check", QColor("#cdd6f4"), 14));
+    m_btnPrayerDone->setIcon(IconManager::instance().getIcon("check", QColor(), 14));
     m_btnPrayerDone->setObjectName("secondaryBtn");
     connect(m_btnPrayerDone, &QPushButton::clicked, this, [this]() {
         QListWidgetItem* item = m_prayerList->currentItem();
@@ -267,7 +270,8 @@ void ShepherdWidget::setupUI() {
     prayerBtns->addWidget(m_btnPrayerDone);
     prayerBtns->addStretch();
     prayerLay->addLayout(prayerBtns);
-    m_tabs->addTab(tabPrayer, "🙏 Prayer List");
+    m_tabs->addTab(tabPrayer, "Prayer List");
+    m_tabs->setTabIcon(2, IconManager::instance().getIcon("heart", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 4: Giving Care (lapsed-giver watchlist) ----
     // Giving drop-off is one of the earliest engagement signals, often
@@ -290,7 +294,8 @@ void ShepherdWidget::setupUI() {
         if (personId > 0) emit navigateToMember(personId);
     });
     givingLay->addWidget(m_lapsedGiverList);
-    m_tabs->addTab(tabGiving, "💰 Giving Care");
+    m_tabs->addTab(tabGiving, "Giving Care");
+    m_tabs->setTabIcon(3, IconManager::instance().getIcon("dollar-sign", ThemeManager::instance().currentTokens().accentPrimary, 14));
 }
 
 void ShepherdWidget::refreshAll() {

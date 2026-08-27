@@ -8,17 +8,17 @@
 // start-of-week settings were removed as dead weight for this offline,
 // single-locale app.
 
-#include <QString>
 #include <QDate>
 #include <QDateTime>
+#include <QString>
 
 class AppDateFormatter {
 public:
-    // Formats a date per the active "dateFormat" setting.
-    static QString formatDate(const QDate& date);
+  // Formats a date per the active "dateFormat" setting.
+  static QString formatDate(const QDate &date);
 
-    // Date (per setting) + local time.
-    static QString formatDateTime(const QDateTime& dt);
+  // Date (per setting) + local time.
+  static QString formatDateTime(const QDateTime &dt);
 };
 
 #endif // APPDATEFORMATTER_H

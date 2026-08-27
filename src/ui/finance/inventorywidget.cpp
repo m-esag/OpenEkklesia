@@ -1,5 +1,6 @@
 #include "inventorywidget.h"
 #include "../database/databasemanager.h"
+#include "../core/iconmanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -12,6 +13,9 @@
 #include <QMessageBox>
 #include <QCompleter>
 #include <QDialogButtonBox>
+#include <QMenu>
+#include <QClipboard>
+#include <QGuiApplication>
 
 InventoryWidget::InventoryWidget(QWidget *parent)
     : QWidget(parent), m_selectedAssetId(-1), m_selectedAssetIsCheckedOut(false)
@@ -35,7 +39,8 @@ void InventoryWidget::setupUI() {
     QHBoxLayout* titleRow = new QHBoxLayout();
     QLabel* treeLabel = new QLabel("Equipment Inventory", this);
     treeLabel->setObjectName("detailHeader");
-    QPushButton* btnAddAsset = new QPushButton("➕ Add Asset", this);
+    QPushButton* btnAddAsset = new QPushButton(" Add Asset", this);
+    btnAddAsset->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     btnAddAsset->setObjectName("primaryBtn");
     connect(btnAddAsset, &QPushButton::clicked, this, &InventoryWidget::onAddAsset);
     titleRow->addWidget(treeLabel);
@@ -49,6 +54,51 @@ void InventoryWidget::setupUI() {
     m_treeView->setModel(m_treeModel);
     m_treeView->setHeaderHidden(true);
     m_treeView->setAlternatingRowColors(true);
+    m_treeView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_treeView, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QModelIndex idx = m_treeView->indexAt(pos);
+        if (!idx.isValid()) return;
+        m_treeView->setCurrentIndex(idx);
+        bool isLoc = idx.data(Qt::UserRole + 1).toBool();
+        int assetId = idx.data(Qt::UserRole).toInt();
+
+        QMenu menu(this);
+        if (isLoc) {
+            QAction* actAdd = menu.addAction("➕ Add New Asset to this Location...");
+            QAction* sel = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
+            if (sel == actAdd) onAddAsset();
+            return;
+        }
+
+        if (assetId <= 0) return;
+
+        QAction* actAction = menu.addAction(m_selectedAssetIsCheckedOut ? "📥 Return / Check In Gear" : "🔄 Check Out Gear...");
+        QAction* actCopyBarcode = nullptr;
+        if (!m_selectedAssetBarcode.isEmpty()) {
+            actCopyBarcode = menu.addAction(QString("🏷️ Copy Barcode (%1)").arg(m_selectedAssetBarcode));
+        }
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction("🗑️ Decommission / Delete Asset...");
+
+        QAction* sel = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actAction) {
+            if (m_selectedAssetIsCheckedOut) onCheckinClicked();
+            else onCheckoutClicked();
+        } else if (sel == actCopyBarcode && !m_selectedAssetBarcode.isEmpty()) {
+            QGuiApplication::clipboard()->setText(m_selectedAssetBarcode);
+        } else if (sel == actDelete) {
+            if (QMessageBox::question(this, "Confirm Decommission", "Are you sure you want to delete this asset from inventory?") == QMessageBox::Yes) {
+                QSqlQuery dq;
+                dq.prepare("DELETE FROM assets WHERE id = ?");
+                dq.addBindValue(assetId);
+                dq.exec();
+                refreshTree();
+                showAssetDetails(-1);
+            }
+        }
+    });
     connect(m_treeView->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &InventoryWidget::onItemSelectionChanged);
 
@@ -95,13 +145,15 @@ void InventoryWidget::setupUI() {
     // Checkout / Checkin Buttons
     QHBoxLayout* btnLayout = new QHBoxLayout();
     
-    m_btnCheckout = new QPushButton("Checkout Gear", this);
+    m_btnCheckout = new QPushButton(" Checkout Gear", this);
+    m_btnCheckout->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnCheckout->setObjectName("saveBtn");
     m_btnCheckout->setEnabled(false);
     connect(m_btnCheckout, &QPushButton::clicked, this, &InventoryWidget::onCheckoutClicked);
     btnLayout->addWidget(m_btnCheckout);
 
-    m_btnCheckin = new QPushButton("Return / Check In", this);
+    m_btnCheckin = new QPushButton(" Return / Check In", this);
+    m_btnCheckin->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnCheckin->setObjectName("primaryBtn");
     m_btnCheckin->setEnabled(false);
     connect(m_btnCheckin, &QPushButton::clicked, this, &InventoryWidget::onCheckinClicked);

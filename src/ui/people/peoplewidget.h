@@ -64,11 +64,27 @@ public:
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 };
 
-// Custom Proxy Model: Merges First & Last name into "Last Name, First Name"
+// Custom Proxy Model: Merges First & Last name into "Last Name, First Name" and handles multi-field sorting
 class PeopleProxyModel : public QSortFilterProxyModel {
     Q_OBJECT
 public:
-    explicit PeopleProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
+    enum SortMode {
+        NormalColumnSort,
+        SortByFirstName,
+        SortByJoinDate,
+        SortByBirthDate,
+        SortByGender
+    };
+
+    explicit PeopleProxyModel(QObject* parent = nullptr)
+        : QSortFilterProxyModel(parent), m_sortMode(NormalColumnSort) {}
+
+    void setSortMode(SortMode mode) {
+        m_sortMode = mode;
+        invalidate();
+    }
+
+    SortMode sortMode() const { return m_sortMode; }
 
     int columnCount(const QModelIndex& parent = QModelIndex()) const override {
         Q_UNUSED(parent);
@@ -80,6 +96,9 @@ public:
 
 protected:
     bool lessThan(const QModelIndex& left, const QModelIndex& right) const override;
+
+private:
+    SortMode m_sortMode;
 };
 
 class PeopleWidget : public QWidget {
@@ -95,6 +114,11 @@ public:
     void applyDrillThroughFilter(const QString& type, const QString& val);
     void refreshModel();
 
+    static QStringList parseCsvLine(const QString& line);
+    static QString generateVCard(const QString& firstName, const QString& lastName, const QString& phone,
+                                 const QString& email, const QString& bday, const QString& status,
+                                 const QString& careFlag, const QString& notes);
+
 private slots:
     void onSearchTextChanged(const QString& text);
     void onSelectionChanged(const QModelIndex& current, const QModelIndex& previous);
@@ -102,6 +126,7 @@ private slots:
     void onChangeAvatar();
     void onSaveProfile();
     void onPrintDirectory();
+    void onExportVCard();
     void onImportCSV();
     void onDeletePerson();
     void onDeleteHousehold();
@@ -207,7 +232,10 @@ private:
     // Tab 0: Linked Documents (vault records tied to this person)
     QListWidget* m_lstPersonDocs;
 
-    // Tab 4: Ministry Profile Chips & Tags
+    // Tab 4: Ministry Fit Archetypes, Gifts & Tags
+    QLineEdit* m_primaryArchetypeEdit;
+    QList<QPushButton*> m_archetypeChips;
+    QComboBox* m_cmbSecondaryArchetype;
     QLineEdit* m_giftsEdit;
     QList<QPushButton*> m_giftChips;
     QLineEdit* m_styleEdit;
@@ -216,6 +244,9 @@ private:
     QWidget* m_tagsChipsContainer;
     QLineEdit* m_tagInputField;
     QCompleter* m_tagCompleter;
+
+    void updateArchetypesFromText(const QString& primary, const QString& secondary);
+    void updateArchetypeFromChips();
 
     // Sticky Action Footer
     QWidget* m_footerFrame;

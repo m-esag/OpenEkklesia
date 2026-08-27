@@ -1,5 +1,6 @@
 #include "commandpalette.h"
 #include "mainwindow.h"
+#include "iconmanager.h"
 #include "../database/databasemanager.h"
 #include <QVBoxLayout>
 #include <QGraphicsDropShadowEffect>
@@ -97,8 +98,8 @@ void CommandPaletteDialog::setupUI() {
         "  color: palette(text); "
         "}"
         "QListWidget::item:selected { "
-        "  background-color: #89b4fa; "
-        "  color: #11111b; "
+        "  background-color: palette(highlight); "
+        "  color: palette(highlightedText); "
         "  font-weight: bold; "
         "}"
     );
@@ -133,32 +134,36 @@ bool CommandPaletteDialog::eventFilter(QObject* obj, QEvent* event) {
     return QDialog::eventFilter(obj, event);
 }
 
-void CommandPaletteDialog::addPaletteItem(const QString& text, const QString& type, int id) {
+void CommandPaletteDialog::addPaletteItem(const QString& text, const QString& type, int id, const QString& iconName) {
     QListWidgetItem* item = new QListWidgetItem(text, m_listWidget);
     item->setData(Qt::UserRole, type);
     item->setData(Qt::UserRole + 1, id);
+    if (!iconName.isEmpty()) {
+        item->setIcon(IconManager::instance().getIcon(iconName, QColor("#cdd6f4"), 16));
+    }
 }
 
 void CommandPaletteDialog::populateItems() {
     m_listWidget->clear();
 
     // 1. Navigation Actions
-    addPaletteItem("⚙ Navigation: Go to Dashboard", "Command", 1);
-    addPaletteItem("👥 Navigation: Go to People Directory (CRM)", "Command", 2);
-    addPaletteItem("🏷 Navigation: Go to Small Groups / Ministries List", "Command", 3);
-    addPaletteItem("💰 Navigation: Go to Giving & Sunday Batches", "Command", 4);
-    addPaletteItem("📜 Navigation: Go to Sunday Service Run-Sheet Builder", "Command", 5);
-    addPaletteItem("📊 Navigation: Go to Connections Relationship Graph", "Command", 6);
-    addPaletteItem("📦 Navigation: Go to Asset Inventory & Checkouts", "Command", 8);
-    addPaletteItem("🔒 Navigation: Go to Elder Board Document Vault", "Command", 9);
-    addPaletteItem("⛪ Navigation: Go to Shepherd's Care Workbench", "Command", 12);
-    addPaletteItem("📅 Navigation: Go to Ministry Planning & Roadmaps", "Command", 13);
-    addPaletteItem("🏢 Navigation: Go to Facilities & Room Reservations", "Command", 14);
-    addPaletteItem("⚙️ Navigation: Go to Settings & Preferences", "Command", 15);
+    addPaletteItem("Go to Dashboard", "Command", 1, "bar-chart-3");
+    addPaletteItem("Go to People Directory (CRM)", "Command", 2, "users");
+    addPaletteItem("Go to Small Groups / Ministries List", "Command", 3, "layers");
+    addPaletteItem("Go to Giving & Sunday Batches", "Command", 4, "hand-coins");
+    addPaletteItem("Go to Sunday Service Run-Sheet Builder", "Command", 5, "list-music");
+    addPaletteItem("Go to Connections Relationship Graph", "Command", 6, "network");
+    addPaletteItem("Go to Asset Inventory & Checkouts", "Command", 8, "package");
+    addPaletteItem("Go to Elder Board Document Vault", "Command", 9, "shield-check");
+    addPaletteItem("Go to Shepherd's Care Workbench", "Command", 12, "heart-handshake");
+    addPaletteItem("Go to Ministry Planning & Roadmaps", "Command", 13, "calendar");
+    addPaletteItem("Go to Facilities & Room Reservations", "Command", 14, "landmark");
+    addPaletteItem("Go to Settings & Preferences", "Command", 15, "settings");
 
     // 2. Control Commands
-    addPaletteItem("🌓 Theme: Toggle Light / Dark Stylesheet Mode", "Command", 10);
-    addPaletteItem("🖥 Kiosk: Launch Child Nursery Check-In Screen", "Command", 11);
+    addPaletteItem("Open User Manual & Help Center (F1)", "Command", 16, "book-open");
+    addPaletteItem("Toggle Light / Dark Theme Mode", "Command", 10, "sparkles");
+    addPaletteItem("Launch Child Nursery Check-In Screen", "Command", 11, "user-check");
 
     // 3. Database entities (People, Groups, Assets)
     QSqlDatabase db = DatabaseManager::instance().database();
@@ -167,14 +172,14 @@ void CommandPaletteDialog::populateItems() {
     while (qPeople.next()) {
         int id = qPeople.value(0).toInt();
         QString name = qPeople.value(1).toString();
-        addPaletteItem(QString("👤 CRM Profile: %1").arg(name), "Person", id);
+        addPaletteItem(QString("CRM Profile: %1").arg(name), "Person", id, "user");
     }
 
     QSqlQuery qGroups("SELECT id, name FROM groups", db);
     while (qGroups.next()) {
         int id = qGroups.value(0).toInt();
         QString name = qGroups.value(1).toString();
-        addPaletteItem(QString("🏷 Ministry Group: %1").arg(name), "Group", id);
+        addPaletteItem(QString("Ministry Group: %1").arg(name), "Group", id, "layers");
     }
 
     QSqlQuery qAssets("SELECT id, name, barcode FROM assets", db);
@@ -182,7 +187,7 @@ void CommandPaletteDialog::populateItems() {
         int id = qAssets.value(0).toInt();
         QString name = qAssets.value(1).toString();
         QString barcode = qAssets.value(2).toString();
-        addPaletteItem(QString("📦 Equipment Asset: %1 (%2)").arg(name, barcode), "Asset", id);
+        addPaletteItem(QString("Equipment Asset: %1 (%2)").arg(name, barcode), "Asset", id, "package");
     }
 
     if (m_listWidget->count() > 0) {
@@ -194,7 +199,7 @@ void CommandPaletteDialog::onSearchChanged(const QString& text) {
     QString q = text.trimmed().toLower();
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem* item = m_listWidget->item(i);
-        bool matches = item->text().toLower().contains(q);
+        bool matches = q.isEmpty() || item->text().toLower().contains(q);
         item->setHidden(!matches);
     }
 
@@ -232,6 +237,7 @@ void CommandPaletteDialog::onItemSelected(QListWidgetItem* item) {
                 case 13: mainWin->onPlanningClicked(); break;
                 case 14: mainWin->onFacilitiesClicked(); break;
                 case 15: mainWin->onSettingsClicked(); break;
+                case 16: mainWin->onShowUserManual(); break;
             }
         } else if (type == "Person") {
             mainWin->selectPerson(id);

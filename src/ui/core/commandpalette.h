@@ -24,7 +24,7 @@ private slots:
 private:
     void setupUI();
     void populateItems();
-    void addPaletteItem(const QString& text, const QString& type, int id = -1);
+    void addPaletteItem(const QString& text, const QString& type, int id = -1, const QString& iconName = "");
 
     QLineEdit* m_searchEdit;
     QListWidget* m_listWidget;

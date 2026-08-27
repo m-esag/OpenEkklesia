@@ -16,6 +16,7 @@
 #include <QDebug>
 
 #include "thememanager.h"
+#include "../core/iconmanager.h"
 
 PastoralAnalyticsWidget::PastoralAnalyticsWidget(QWidget *parent)
     : QWidget(parent)
@@ -68,7 +69,8 @@ void PastoralAnalyticsWidget::setupUI() {
     m_cmbScopeSelector->addItem("📅 Trailing 12 Months");
     connect(m_cmbScopeSelector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PastoralAnalyticsWidget::onScopeChanged);
 
-    m_btnConfigureStages = new QPushButton("⚙️ Configure Stages", this);
+    m_btnConfigureStages = new QPushButton(" Configure Stages", this);
+    m_btnConfigureStages->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
     m_btnConfigureStages->setObjectName("secondaryBtn");
     connect(m_btnConfigureStages, &QPushButton::clicked, this, &PastoralAnalyticsWidget::onConfigureStagesClicked);
 
@@ -270,15 +272,15 @@ void PastoralAnalyticsWidget::setupUI() {
     actLayout->setContentsMargins(20, 16, 20, 16);
     actLayout->setSpacing(12);
 
-    m_lblPastoralActionsTitle = new QLabel("📋 Pastoral Actions & Shepherd Recommendations", this);
+    m_lblPastoralActionsTitle = new QLabel("Pastoral Actions & Shepherd Recommendations", this);
     m_lblPastoralActionsTitle->setObjectName("detailHeader");
     actLayout->addWidget(m_lblPastoralActionsTitle);
 
     m_lstPastoralActions = new QListWidget(this);
     m_lstPastoralActions->setMaximumHeight(140);
     m_lstPastoralActions->setStyleSheet("QListWidget { background: transparent; border: none; font-size: 12px; }"
-                                         "QListWidget::item { padding: 8px; border-bottom: 1px solid #313244; color: palette(text); font-weight: bold; }"
-                                         "QListWidget::item:hover { background-color: rgba(137, 180, 250, 0.15); color: #89b4fa; border-radius: 6px; }");
+                                         "QListWidget::item { padding: 8px; border-bottom: 1px solid palette(mid); color: palette(text); font-weight: bold; }"
+                                         "QListWidget::item:hover { background-color: palette(mid); color: palette(highlight); border-radius: 6px; }");
 
     connect(m_lstPastoralActions, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         QString type = item->data(Qt::UserRole).toString();

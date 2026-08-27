@@ -279,6 +279,15 @@ bool test_splitSharingRoundTrip() {
     CHECK(DataSharing::tablesForScope("membership").contains("people"));
     CHECK(DataSharing::tablesForScope("finance").contains("contributions"));
 
+    // Credential hygiene: the users table (with login PINs) must never be part
+    // of any share — logins are per-machine, and a JSON archive must not carry
+    // a pin column or a users payload.
+    CHECK(!DataSharing::tablesForScope("full").contains("users"));
+    const QJsonObject fullDoc = DataSharing::exportTables(d, DataSharing::tablesForScope("full"));
+    const QString fullJson = QString::fromUtf8(QJsonDocument(fullDoc).toJson());
+    CHECK(!fullJson.contains("\"users\""));
+    CHECK(!fullJson.contains("\"pin\""));
+
     // Round-trip the membership scope through a portable JSON payload.
     const QJsonObject doc = DataSharing::exportTables(d, DataSharing::tablesForScope("membership"));
     const QByteArray payload = QJsonDocument(doc).toJson();
@@ -421,6 +430,35 @@ bool test_themeContrastGuardian() {
     CHECK(ThemeManager::contrastRating(21.0).contains("AAA Pass"));
     CHECK(ThemeManager::contrastRating(5.5).contains("AA Pass"));
     CHECK(ThemeManager::contrastRating(2.5).contains("Fail"));
+    return true;
+}
+
+bool test_allThemesContrastAA() {
+    // Every registered theme must clear WCAG 2.1 AA: body text >= 4.5:1 on the
+    // page background, and muted text >= 3:1 on the surface. This guards the
+    // theme registry against muted/body colors that read as accents or vanish
+    // (latte/sky/sage/nord previously shipped muted text at 1.4-2.6:1).
+    ThemeManager::instance().initialize();
+    const QStringList ids = ThemeManager::instance().availableThemes();
+    CHECK(ids.size() >= 20); // full curated registry (24 themes + system auto)
+    int checked = 0;
+    for (const QString& id : ids) {
+        ThemeTokens tok = ThemeManager::instance().getThemeTokens(id);
+        if (!tok.bgBase.isValid() || !tok.textPrimary.isValid() || !tok.textMuted.isValid()) {
+            CHECK(!"theme tokens must be fully populated");
+            continue;
+        }
+        const double body = ThemeManager::contrastRatio(tok.textPrimary, tok.bgBase);
+        const double mut  = ThemeManager::contrastRatio(tok.textMuted, tok.bgSurface);
+        const double sec  = ThemeManager::contrastRatio(tok.textSecondary, tok.bgSurface);
+        if (body < 4.5 || mut < 3.0 || sec < 3.0) {
+            std::cerr << "THEME CONTRAST FAIL " << id.toStdString()
+                      << " body=" << body << " sec=" << sec << " muted=" << mut << std::endl;
+            CHECK(!"theme fails WCAG AA contrast (body>=4.5, sec/muted>=3.0)");
+        }
+        ++checked;
+    }
+    CHECK_EQ(checked, ids.size());
     return true;
 }
 
@@ -1941,14 +1979,22 @@ bool test_userManualIntegrity() {
 
     // 4. Verify Key Module Terms and Guidance
     CHECK(html.contains("Smart Bridge v2.0"));
-    CHECK(html.contains("4 Laws of Team Chemistry"));
+    CHECK(html.contains("Chemistry Scoring"));
     CHECK(html.contains("Void Law"));
     CHECK(html.contains("Clash Law"));
     CHECK(html.contains("Equilibrium Law"));
-    CHECK(html.contains("Double-Entry"));
+    CHECK(html.contains("Always Advisory"));
+    CHECK(html.contains("household and relationship networks"));
+    CHECK(html.contains("double-entry accounting engine"));
+    CHECK(html.contains("WCAG 2.1 AA"));
     CHECK(html.contains("Ctrl+K"));
     CHECK(html.contains("F1"));
     CHECK(html.contains("Role-Based Access Control"));
+    // The vault claim must not overpromise encryption (no encryption in codebase).
+    CHECK(!html.contains("encrypted, local document"));
+    // Manual must not describe fictional RBAC roles.
+    CHECK(!html.contains("Ministry Leader</b></td>"));
+    CHECK(!html.contains("Auditor</b></td>"));
 
     // 5. Verify UI Construction & Instantiation
     UserManualDialog dlg;
@@ -2194,10 +2240,21 @@ bool test_peopleModuleStressAndBreakSuite() {
     CHECK(vcf.contains("EMAIL;TYPE=INTERNET,PREF:john.doe@test.com"));
     CHECK(vcf.contains("BDAY:1985-06-15"));
     CHECK(vcf.contains("ROLE:Member"));
-    CHECK(vcf.contains("NOTE:[Care Flag: Needs Contact] Pastoral notes here"));
     CHECK(vcf.contains("END:VCARD"));
+    // Confidentiality: the vCard must NEVER leak care flags or pastoral notes.
+    CHECK(!vcf.contains("Needs Contact"));
+    CHECK(!vcf.contains("Pastoral notes here"));
+    CHECK(!vcf.contains("NOTE:"));
 
     // 3. Test PeopleWidget UI and drill-through filter mapping
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, phone_number, email, membership_status, join_date, date_of_birth, gender) "
+                 "VALUES (9991, 'Alice', 'Zane', '555-8888', 'alice@test.com', 'Visitor', '2025-01-01', '1990-05-10', 'Female')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, phone_number, email, membership_status, join_date, date_of_birth, gender) "
+                 "VALUES (9992, 'Zack', 'Adams', '555-1111', 'zack@test.com', 'Member', '2026-06-01', '1980-01-01', 'Male')"));
+
     PeopleWidget pw;
     pw.applyDrillThroughFilter("status", "Active");
     pw.applyDrillThroughFilter("status", "Visitor");
@@ -2207,10 +2264,48 @@ bool test_peopleModuleStressAndBreakSuite() {
     pw.applyDrillThroughFilter("unconnected", "");
     pw.applyDrillThroughFilter("care_flag", "Needs Contact");
 
+    // 3b. Test Table and Column Sorting
+    PeopleProxyModel proxy;
+    QSqlRelationalTableModel srcModel(nullptr, d);
+    srcModel.setTable("people");
+    srcModel.select();
+    proxy.setSourceModel(&srcModel);
+
+    // Verify sort by Last Name Ascending
+    proxy.setSortMode(PeopleProxyModel::NormalColumnSort);
+    proxy.sort(0, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
+    // Verify sort by First Name Ascending
+    proxy.setSortMode(PeopleProxyModel::SortByFirstName);
+    proxy.sort(0, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
+    // Verify sort by Join Date
+    proxy.setSortMode(PeopleProxyModel::SortByJoinDate);
+    proxy.sort(0, Qt::DescendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
+    // Verify sort by Birth Date
+    proxy.setSortMode(PeopleProxyModel::SortByBirthDate);
+    proxy.sort(0, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
+    // Verify sort by Gender
+    proxy.setSortMode(PeopleProxyModel::SortByGender);
+    proxy.sort(0, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
+    // Verify remapped column sorts: Phone (col 2), Email (col 3), Status (col 4)
+    proxy.setSortMode(PeopleProxyModel::NormalColumnSort);
+    proxy.sort(2, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+    proxy.sort(3, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+    proxy.sort(4, Qt::AscendingOrder);
+    CHECK(proxy.rowCount() >= 2);
+
     // 4. Test Cascade Deletion & Double-Entry Accounting Ledger Integrity
-    QSqlDatabase d = db();
-    d.transaction();
-    QSqlQuery q(d);
     CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9995, 'TestDel', 'Member', 'Member')"));
     CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9995, 'Group', 1, 'member_of')"));
     CHECK(q.exec("INSERT INTO care_logs (person_id, care_type, notes) VALUES (9995, 'Prayer', 'Prayer request')"));
@@ -2357,6 +2452,7 @@ int main(int argc, char** argv) {
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
+        {"all_themes_contrast_aa", test_allThemesContrastAA},
         {"synergy_engine_and_migration_19", test_synergyEngineAndMigration19},
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},

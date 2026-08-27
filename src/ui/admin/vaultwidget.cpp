@@ -105,25 +105,25 @@ void VaultWidget::setupUI() {
     controls->addWidget(m_searchEdit);
 
     m_btnUpload = new QPushButton(" Upload Document (PDF)", this);
-    m_btnUpload->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
+    m_btnUpload->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnUpload->setObjectName("saveBtn");
     connect(m_btnUpload, &QPushButton::clicked, this, &VaultWidget::onUploadClicked);
     controls->addWidget(m_btnUpload);
 
     m_btnOpen = new QPushButton(" Open / View File", this);
-    m_btnOpen->setIcon(IconManager::instance().getIcon("eye", QColor("#11111b"), 14));
+    m_btnOpen->setIcon(IconManager::instance().getPrimaryIcon("eye", 14));
     m_btnOpen->setObjectName("primaryBtn");
     connect(m_btnOpen, &QPushButton::clicked, this, &VaultWidget::onOpenClicked);
     controls->addWidget(m_btnOpen);
 
     m_btnDelete = new QPushButton(" Remove Record", this);
-    m_btnDelete->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnDelete->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDelete->setObjectName("dangerBtn");
     connect(m_btnDelete, &QPushButton::clicked, this, &VaultWidget::onDeleteClicked);
     controls->addWidget(m_btnDelete);
 
     m_btnSweep = new QPushButton(" Sweep Orphans", this);
-    m_btnSweep->setIcon(IconManager::instance().getIcon("sparkles", QColor("#cdd6f4"), 14));
+    m_btnSweep->setIcon(IconManager::instance().getIcon("sparkles", QColor(), 14));
     m_btnSweep->setObjectName("secondaryBtn");
     m_btnSweep->setToolTip("Find files in the vault folder that no database record references (demo leftovers, record-only removals) and offer to delete them.");
     connect(m_btnSweep, &QPushButton::clicked, this, &VaultWidget::onSweepOrphans);
@@ -190,19 +190,19 @@ void VaultWidget::setupUI() {
 
     QHBoxLayout* minControls = new QHBoxLayout();
     m_btnAddMinutes = new QPushButton(" Log Board Motion / Minutes", this);
-    m_btnAddMinutes->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
+    m_btnAddMinutes->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnAddMinutes->setObjectName("primaryBtn");
     connect(m_btnAddMinutes, &QPushButton::clicked, this, &VaultWidget::onAddBoardMinutes);
     minControls->addWidget(m_btnAddMinutes);
 
     m_btnDeleteMinutes = new QPushButton(" Remove Motion Entry", this);
-    m_btnDeleteMinutes->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnDeleteMinutes->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDeleteMinutes->setObjectName("dangerBtn");
     connect(m_btnDeleteMinutes, &QPushButton::clicked, this, &VaultWidget::onDeleteMinutes);
     minControls->addWidget(m_btnDeleteMinutes);
 
     m_btnExportMinutesPDF = new QPushButton(" Export Board Minutes (PDF)", this);
-    m_btnExportMinutesPDF->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnExportMinutesPDF->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
     m_btnExportMinutesPDF->setObjectName("saveBtn");
     connect(m_btnExportMinutesPDF, &QPushButton::clicked, this, &VaultWidget::onExportMinutesPDF);
     minControls->addWidget(m_btnExportMinutesPDF);

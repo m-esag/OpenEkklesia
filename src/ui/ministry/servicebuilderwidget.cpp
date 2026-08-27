@@ -206,21 +206,21 @@ void ServiceBuilderWidget::setupUI() {
 
     QHBoxLayout* libActions = new QHBoxLayout();
     m_btnAddElement = new QPushButton(" Add Element", this);
-    m_btnAddElement->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
+    m_btnAddElement->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
     m_btnAddElement->setObjectName("secondaryBtn");
     m_btnAddElement->setToolTip("Add a custom element to the persistent library");
     connect(m_btnAddElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onAddElement);
     libActions->addWidget(m_btnAddElement);
 
     m_btnUsageStats = new QPushButton(" Usage Stats", this);
-    m_btnUsageStats->setIcon(IconManager::instance().getIcon("bar-chart-3", QColor("#cdd6f4"), 14));
+    m_btnUsageStats->setIcon(IconManager::instance().getIcon("bar-chart-3", QColor(), 14));
     m_btnUsageStats->setObjectName("secondaryBtn");
     m_btnUsageStats->setToolTip("Which elements get reused most across saved run sheets");
     connect(m_btnUsageStats, &QPushButton::clicked, this, &ServiceBuilderWidget::onElementUsage);
     libActions->addWidget(m_btnUsageStats);
 
     m_btnRemoveElement = new QPushButton(" Remove Element", this);
-    m_btnRemoveElement->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnRemoveElement->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnRemoveElement->setObjectName("ghostDangerBtn");
     m_btnRemoveElement->setToolTip("Remove the selected library element");
     connect(m_btnRemoveElement, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveElement);
@@ -244,11 +244,11 @@ void ServiceBuilderWidget::setupUI() {
         if (!item) return;
         QMenu menu(this);
         QAction* add = menu.addAction("Add to Run Sheet");
-        add->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
+        add->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
         QAction* edit = menu.addAction("Edit Element");
-        edit->setIcon(IconManager::instance().getIcon("pencil", QColor("#cdd6f4"), 14));
+        edit->setIcon(IconManager::instance().getIcon("pencil", QColor(), 14));
         QAction* remove = menu.addAction("Remove Element");
-        remove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+        remove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
         QAction* chosen = menu.exec(m_libraryList->viewport()->mapToGlobal(pos));
         if (chosen == add) addLibraryItemToRunSheet(item);
         else if (chosen == edit) onEditElement(item);
@@ -289,16 +289,16 @@ void ServiceBuilderWidget::setupUI() {
 
         QMenu menu(this);
         QAction* actUp = menu.addAction("Move Earlier in Service");
-        actUp->setIcon(IconManager::instance().getIcon("arrow-up", QColor("#cdd6f4"), 14));
+        actUp->setIcon(IconManager::instance().getIcon("arrow-up", QColor(), 14));
         actUp->setEnabled(row > 0);
         QAction* actDown = menu.addAction("Move Later in Service");
-        actDown->setIcon(IconManager::instance().getIcon("arrow-down", QColor("#cdd6f4"), 14));
+        actDown->setIcon(IconManager::instance().getIcon("arrow-down", QColor(), 14));
         actDown->setEnabled(row < m_playlist->count() - 1);
         QAction* actDup = menu.addAction("Duplicate Element");
-        actDup->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
+        actDup->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
         menu.addSeparator();
         QAction* actRemove = menu.addAction("Remove Element from Run Sheet");
-        actRemove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+        actRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
 
         QAction* sel = menu.exec(m_playlist->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -334,28 +334,28 @@ void ServiceBuilderWidget::setupUI() {
 
     QHBoxLayout* actionsLayout = new QHBoxLayout();
     m_btnRemove = minH(new QPushButton(" Remove Selected", this));
-    m_btnRemove->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnRemove->setObjectName("dangerBtn");
     m_btnRemove->setToolTip("Remove the selected element from the run sheet");
     connect(m_btnRemove, &QPushButton::clicked, this, &ServiceBuilderWidget::onRemoveItem);
     actionsLayout->addWidget(m_btnRemove);
 
     m_btnClear = minH(new QPushButton(" Clear All", this));
-    m_btnClear->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#cdd6f4"), 14));
+    m_btnClear->setIcon(IconManager::instance().getIcon("refresh-cw", QColor(), 14));
     m_btnClear->setObjectName("secondaryBtn");
     m_btnClear->setToolTip("Remove every element from the run sheet (asks first)");
     connect(m_btnClear, &QPushButton::clicked, this, &ServiceBuilderWidget::onClearPlaylist);
     actionsLayout->addWidget(m_btnClear);
 
     m_btnCoverageCheck = minH(new QPushButton(" Coverage Check", this));
-    m_btnCoverageCheck->setIcon(IconManager::instance().getIcon("search", QColor("#cdd6f4"), 14));
+    m_btnCoverageCheck->setIcon(IconManager::instance().getIcon("search", QColor(), 14));
     m_btnCoverageCheck->setObjectName("secondaryBtn");
     m_btnCoverageCheck->setToolTip("Check for missing sermon, unassigned core roles, or run-sheet/volunteer mismatches");
     connect(m_btnCoverageCheck, &QPushButton::clicked, this, &ServiceBuilderWidget::onCoverageCheck);
     actionsLayout->addWidget(m_btnCoverageCheck);
 
     m_btnExportPDF = minH(new QPushButton(" Export Run Sheet PDF", this));
-    m_btnExportPDF->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnExportPDF->setIcon(IconManager::instance().getIcon("download", ThemeManager::textOn(QColor("#74c7ec")), 14));
     m_btnExportPDF->setObjectName("accentBtnCyan");
     connect(m_btnExportPDF, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportRunSheet);
     actionsLayout->addWidget(m_btnExportPDF);
@@ -365,27 +365,27 @@ void ServiceBuilderWidget::setupUI() {
     // Second row: file backup + named templates (everything else auto-saves).
     QHBoxLayout* fileActions = new QHBoxLayout();
     m_btnSave = minH(new QPushButton(" Save Layout File", this));
-    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
+    m_btnSave->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnSave->setObjectName("saveBtn");
     m_btnSave->setToolTip("Backup the run sheet to a JSON file (the arrangement already auto-saves to this service)");
     connect(m_btnSave, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveService);
     fileActions->addWidget(m_btnSave);
 
     m_btnLoad = minH(new QPushButton(" Load Layout File", this));
-    m_btnLoad->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
+    m_btnLoad->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnLoad->setObjectName("primaryBtn");
     connect(m_btnLoad, &QPushButton::clicked, this, &ServiceBuilderWidget::onLoadService);
     fileActions->addWidget(m_btnLoad);
 
     m_btnSaveTemplate = minH(new QPushButton(" Save as Template", this));
-    m_btnSaveTemplate->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
+    m_btnSaveTemplate->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
     m_btnSaveTemplate->setObjectName("secondaryBtn");
     m_btnSaveTemplate->setToolTip("Save the current run sheet as a named template");
     connect(m_btnSaveTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onSaveTemplate);
     fileActions->addWidget(m_btnSaveTemplate);
 
     m_btnApplyTemplate = minH(new QPushButton(" Apply Template", this));
-    m_btnApplyTemplate->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
+    m_btnApplyTemplate->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
     m_btnApplyTemplate->setObjectName("secondaryBtn");
     m_btnApplyTemplate->setToolTip("Load a saved run-sheet template into the current date");
     connect(m_btnApplyTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onApplyTemplate);
@@ -489,12 +489,12 @@ void ServiceBuilderWidget::setupUI() {
 
         QMenu menu(this);
         QAction* actIcal = menu.addAction("Export Volunteer iCal (.ics)");
-        actIcal->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
+        actIcal->setIcon(IconManager::instance().getIcon("calendar", QColor(), 14));
         QAction* actAttended = menu.addAction("Mark Volunteers Attended");
-        actAttended->setIcon(IconManager::instance().getIcon("check", QColor("#a6e3a1"), 14));
+        actAttended->setIcon(IconManager::instance().getIcon("check", ThemeManager::instance().currentTokens().accentSuccess, 14));
         menu.addSeparator();
         QAction* actUnschedule = menu.addAction("Unassign Selected Volunteer");
-        actUnschedule->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+        actUnschedule->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
 
         QAction* sel = menu.exec(m_volunteerList->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -506,11 +506,13 @@ void ServiceBuilderWidget::setupUI() {
     volunteerLayout->addWidget(m_volunteerList, 1);
 
     QHBoxLayout* volActions = new QHBoxLayout();
-    m_btnSchedule = new QPushButton("Assign Volunteer", this);
+    m_btnSchedule = new QPushButton(" Assign Volunteer", this);
+    m_btnSchedule->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     m_btnSchedule->setObjectName("primaryBtn");
     connect(m_btnSchedule, &QPushButton::clicked, this, &ServiceBuilderWidget::onScheduleVolunteer);
 
-    m_btnUnschedule = new QPushButton("Unassign", this);
+    m_btnUnschedule = new QPushButton(" Unassign", this);
+    m_btnUnschedule->setIcon(IconManager::instance().getIcon("user-minus", QColor(), 14));
     m_btnUnschedule->setObjectName("secondaryBtn");
     connect(m_btnUnschedule, &QPushButton::clicked, this, &ServiceBuilderWidget::onUnscheduleVolunteer);
 
@@ -519,14 +521,14 @@ void ServiceBuilderWidget::setupUI() {
     volunteerLayout->addLayout(volActions);
 
     m_btnMarkAttended = new QPushButton(" Mark Volunteers Attended", this);
-    m_btnMarkAttended->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
+    m_btnMarkAttended->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnMarkAttended->setObjectName("saveBtn");
     m_btnMarkAttended->setToolTip("Record all scheduled volunteers as attended for this service date");
     connect(m_btnMarkAttended, &QPushButton::clicked, this, &ServiceBuilderWidget::onMarkAttended);
     volunteerLayout->addWidget(m_btnMarkAttended);
 
     m_btnExportIcal = new QPushButton(" Export Volunteer iCal", this);
-    m_btnExportIcal->setIcon(IconManager::instance().getIcon("calendar", QColor("#cdd6f4"), 14));
+    m_btnExportIcal->setIcon(IconManager::instance().getIcon("calendar", QColor(), 14));
     m_btnExportIcal->setObjectName("secondaryBtn");
     m_btnExportIcal->setToolTip("Export this date's volunteer roster as calendar events (.ics)");
     connect(m_btnExportIcal, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportIcal);
@@ -1190,20 +1192,21 @@ void ServiceBuilderWidget::updateDurationCalculator() {
     const int targetDuration = s.value("targetServiceDuration", 75).toInt();
     const int maxDuration = targetDuration + 15;
     const int overrun = totalMins - maxDuration;
+    const ThemeTokens tokDur = ThemeManager::instance().currentTokens();
     if (overrun > 0) {
         m_lblTotalDuration->setText(QString("Total: %1 mins — overruns by %2 min (limit %3)")
                                         .arg(totalMins)
                                         .arg(overrun)
                                         .arg(maxDuration));
-        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #f38ba8;");
+        m_lblTotalDuration->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tokDur.accentDanger.name()));
     } else if (totalMins > targetDuration) {
         m_lblTotalDuration->setText(QString("Total: %1 mins (aim ≤ %2 min)")
                                         .arg(totalMins)
                                         .arg(targetDuration));
-        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #f9e2af;");
+        m_lblTotalDuration->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tokDur.accentWarning.name()));
     } else {
         m_lblTotalDuration->setText(QString("Total: %1 mins").arg(totalMins));
-        m_lblTotalDuration->setStyleSheet("font-size: 13px; font-weight: bold; color: #a6e3a1;");
+        m_lblTotalDuration->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tokDur.accentSuccess.name()));
     }
 
     updateTimeline();

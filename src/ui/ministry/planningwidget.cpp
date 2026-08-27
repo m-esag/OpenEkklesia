@@ -13,7 +13,10 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QLocale>
+#include <QMenu>
 #include "../database/databasemanager.h"
+#include "../core/thememanager.h"
+#include "../core/iconmanager.h"
 
 PlanningWidget::PlanningWidget(QWidget *parent)
     : QWidget(parent)
@@ -48,23 +51,26 @@ void PlanningWidget::setupUI() {
     mainLayout->setSpacing(15);
 
     QHBoxLayout* headerLayout = new QHBoxLayout();
-    QLabel* header = new QLabel("🗓️ Ministry Planning: Roadmap & Gantt Charts", this);
+    QLabel* header = new QLabel("Ministry Planning: Roadmap & Gantt Charts", this);
     header->setObjectName("pageHeader");
     headerLayout->addWidget(header);
     headerLayout->addStretch();
 
-    m_btnAddTask = new QPushButton("➕ Add Initiative / Task", this);
+    m_btnAddTask = new QPushButton(" Add Initiative / Task", this);
+    m_btnAddTask->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnAddTask->setObjectName("primaryBtn");
     connect(m_btnAddTask, &QPushButton::clicked, this, &PlanningWidget::onAddTask);
     headerLayout->addWidget(m_btnAddTask);
 
-    m_btnEditTask = new QPushButton("✏️ Edit Selected", this);
+    m_btnEditTask = new QPushButton(" Edit Selected", this);
+    m_btnEditTask->setIcon(IconManager::instance().getIcon("pencil", QColor(), 14));
     m_btnEditTask->setObjectName("secondaryBtn");
     m_btnEditTask->setToolTip("Edit the selected task — including its status (Planned → In-Progress → Completed)");
     connect(m_btnEditTask, &QPushButton::clicked, this, &PlanningWidget::onEditTask);
     headerLayout->addWidget(m_btnEditTask);
 
-    m_btnDeleteTask = new QPushButton("🗑️ Remove Selected", this);
+    m_btnDeleteTask = new QPushButton(" Remove Selected", this);
+    m_btnDeleteTask->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDeleteTask->setObjectName("dangerBtn");
     connect(m_btnDeleteTask, &QPushButton::clicked, this, &PlanningWidget::onDeleteTask);
     headerLayout->addWidget(m_btnDeleteTask);
@@ -84,7 +90,8 @@ void PlanningWidget::setupUI() {
     m_roadmapTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_roadmapTable->setAlternatingRowColors(true);
     roadLayout->addWidget(m_roadmapTable);
-    tabs->addTab(roadmapTab, "🗺️ Ministry Product Roadmap");
+    tabs->addTab(roadmapTab, "Ministry Product Roadmap");
+    tabs->setTabIcon(0, IconManager::instance().getIcon("map", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // 2. Gantt Chart View (20-day rolling window anchored to a real date)
     QWidget* ganttTab = new QWidget(this);
@@ -113,7 +120,66 @@ void PlanningWidget::setupUI() {
     }
     m_ganttTable->setAlternatingRowColors(true);
     ganttLayout->addWidget(m_ganttTable);
-    tabs->addTab(ganttTab, "📈 Event Project Gantt Chart");
+    tabs->addTab(ganttTab, "Event Project Gantt Chart");
+    tabs->setTabIcon(1, IconManager::instance().getIcon("bar-chart-2", ThemeManager::instance().currentTokens().accentPrimary, 14));
+
+    auto setupPlanningContextMenu = [this](QTableWidget* tbl) {
+        tbl->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(tbl, &QTableWidget::customContextMenuRequested, this, [this, tbl](const QPoint& pos) {
+            int r = tbl->rowAt(pos.y());
+            if (r < 0 || !tbl->item(r, 0)) return;
+            tbl->selectRow(r);
+            int taskId = tbl->item(r, 0)->data(Qt::UserRole).toInt();
+            if (taskId <= 0) return;
+
+            const ThemeTokens tokPlan = ThemeManager::instance().currentTokens();
+            QMenu menu(this);
+            QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Task Details...");
+            QAction* actComplete = menu.addAction(IconManager::instance().getIcon("check-circle-2", tokPlan.accentSuccess, 14), "Mark Status as Completed");
+            QAction* actPlanned = menu.addAction(IconManager::instance().getIcon("calendar", QColor(), 14), "Mark Status as Planned");
+            QAction* actInProgress = menu.addAction(IconManager::instance().getIcon("clock", tokPlan.accentWarning, 14), "Mark Status as In-Progress");
+            menu.addSeparator();
+            QAction* actSnooze = menu.addAction(IconManager::instance().getIcon("calendar-plus", QColor(), 14), "Extend Due Date (+7 Days)");
+            menu.addSeparator();
+            QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Remove Task");
+
+            QAction* sel = menu.exec(tbl->viewport()->mapToGlobal(pos));
+            if (!sel) return;
+
+            if (sel == actEdit) {
+                openTaskDialog(taskId);
+            } else if (sel == actComplete || sel == actPlanned || sel == actInProgress) {
+                QString newStat = (sel == actComplete) ? "Completed" : ((sel == actPlanned) ? "Planned" : "In-Progress");
+                QSqlQuery uq;
+                uq.prepare("UPDATE ministry_tasks SET status = ? WHERE id = ?");
+                uq.addBindValue(newStat);
+                uq.addBindValue(taskId);
+                uq.exec();
+                refreshRoadmap();
+                refreshGanttChart();
+            } else if (sel == actSnooze) {
+                QSqlQuery q;
+                q.prepare("SELECT end_date FROM ministry_tasks WHERE id = ?");
+                q.addBindValue(taskId);
+                if (q.exec() && q.next()) {
+                    QDate curEnd = QDate::fromString(q.value(0).toString(), Qt::ISODate);
+                    if (!curEnd.isValid()) curEnd = QDate::currentDate();
+                    QDate newEnd = curEnd.addDays(7);
+                    QSqlQuery uq;
+                    uq.prepare("UPDATE ministry_tasks SET end_date = ? WHERE id = ?");
+                    uq.addBindValue(newEnd.toString(Qt::ISODate));
+                    uq.addBindValue(taskId);
+                    uq.exec();
+                    refreshRoadmap();
+                    refreshGanttChart();
+                }
+            } else if (sel == actDelete) {
+                onDeleteTask();
+            }
+        });
+    };
+    setupPlanningContextMenu(m_roadmapTable);
+    setupPlanningContextMenu(m_ganttTable);
 
     connect(tabs, &QTabWidget::currentChanged, this, &PlanningWidget::onTabChanged);
 
