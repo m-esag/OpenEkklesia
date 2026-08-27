@@ -1,6 +1,8 @@
 #include "transactiondialog.h"
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
+#include "../core/iconmanager.h"
+#include "../core/thememanager.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDate>
@@ -93,7 +95,9 @@ void TransactionDialog::setupUI() {
     // Dialog Actions
     QHBoxLayout* actionsLayout = new QHBoxLayout();
     QPushButton* btnCancel = new QPushButton("Cancel", this);
+    btnCancel->setObjectName("secondaryBtn");
     m_btnSave = new QPushButton("Save Transaction", this);
+    m_btnSave->setObjectName("primaryBtn");
     m_btnSave->setDefault(true);
     
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
@@ -104,17 +108,6 @@ void TransactionDialog::setupUI() {
     actionsLayout->addWidget(m_btnSave);
 
     mainLayout->addLayout(actionsLayout);
-
-    // Stylesheet adaptation for the dark theme
-    QString style = 
-        "QDialog { background-color: palette(base); color: palette(text); }"
-        "QLabel { color: palette(text); }"
-        "QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 6px; }"
-        "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 8px 15px; }"
-        "QPushButton:hover { background-color: #45475a; }"
-        "QPushButton#m_btnSave { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
-        "QPushButton:disabled { background-color: palette(base); color: #585b70; border: 1px solid #11111b; }";
-    setStyleSheet(style);
 }
 
 void TransactionDialog::loadDropdownData() {
@@ -174,7 +167,8 @@ void TransactionDialog::onAddSplitRow() {
     layout->addWidget(row.memberCombo, 2);
 
     // Remove row button
-    row.btnRemove = new QPushButton("✕", row.container);
+    row.btnRemove = new QPushButton(row.container);
+    row.btnRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     row.btnRemove->setObjectName("ghostDangerBtn");
     row.btnRemove->setFixedWidth(30);
     row.btnRemove->setToolTip("Remove this split row");

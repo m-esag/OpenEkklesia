@@ -83,18 +83,18 @@ void ContributionsWidget::setupUI() {
     titleRow->addStretch();
 
     m_btnBatchDefaults = new QPushButton(" Defaults", headerCard);
-    m_btnBatchDefaults->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
+    m_btnBatchDefaults->setIcon(IconManager::instance().getIcon("settings", QColor(), 14));
     m_btnBatchDefaults->setObjectName("secondaryBtn");
     m_btnBatchDefaults->setToolTip("Configure default date, payment method, and fund for this batch");
     connect(m_btnBatchDefaults, &QPushButton::clicked, this, &ContributionsWidget::onBatchDefaultsClicked);
 
     m_btnDeleteBatch = new QPushButton(" Delete Batch", headerCard);
-    m_btnDeleteBatch->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnDeleteBatch->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDeleteBatch->setObjectName("dangerBtn");
     connect(m_btnDeleteBatch, &QPushButton::clicked, this, &ContributionsWidget::onDeleteBatchClicked);
 
     m_btnCommitBatch = new QPushButton(" Commit Batch", headerCard);
-    m_btnCommitBatch->setIcon(IconManager::instance().getIcon("lock", QColor("#11111b"), 14));
+    m_btnCommitBatch->setIcon(IconManager::instance().getPrimaryIcon("lock", 14));
     m_btnCommitBatch->setObjectName("saveBtn");
     connect(m_btnCommitBatch, &QPushButton::clicked, this, &ContributionsWidget::onToggleBatchCommit);
 
@@ -142,7 +142,7 @@ void ContributionsWidget::setupUI() {
 
     QHBoxLayout* splitActionsRow = new QHBoxLayout();
     m_btnAddSplit = new QPushButton(" Add Fund Split", m_entryCard);
-    m_btnAddSplit->setIcon(IconManager::instance().getIcon("plus", QColor("#89b4fa"), 14));
+    m_btnAddSplit->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
     m_btnAddSplit->setObjectName("secondaryBtn");
     m_btnAddSplit->setStyleSheet("font-size: 11px; padding: 4px 10px;");
     connect(m_btnAddSplit, &QPushButton::clicked, this, [this]() { onAddSplitRow(0.0, -1); });
@@ -179,14 +179,14 @@ void ContributionsWidget::setupUI() {
 
     QHBoxLayout* entryActions = new QHBoxLayout();
     m_btnSave = new QPushButton(" Save & Next Donation (Enter)", m_entryCard);
-    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 16));
+    m_btnSave->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnSave->setObjectName("primaryBtn");
     m_btnSave->setMinimumHeight(36);
     m_btnSave->setStyleSheet("font-weight: bold; font-size: 13px; padding: 8px 18px;");
     connect(m_btnSave, &QPushButton::clicked, this, &ContributionsWidget::onSaveContribution);
 
     m_btnClearForm = new QPushButton(" Clear Form (Esc)", m_entryCard);
-    m_btnClearForm->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#cdd6f4"), 14));
+    m_btnClearForm->setIcon(IconManager::instance().getIcon("refresh-cw", QColor(), 14));
     m_btnClearForm->setObjectName("secondaryBtn");
     m_btnClearForm->setMinimumHeight(36);
     connect(m_btnClearForm, &QPushButton::clicked, this, &ContributionsWidget::onResetDonationForm);
@@ -227,13 +227,13 @@ void ContributionsWidget::setupUI() {
     tableFooter->addStretch();
 
     m_btnManageFunds = new QPushButton(" Manage Funds", tableCard);
-    m_btnManageFunds->setIcon(IconManager::instance().getIcon("tag", QColor("#cdd6f4"), 14));
+    m_btnManageFunds->setIcon(IconManager::instance().getIcon("tag", QColor(), 14));
     m_btnManageFunds->setObjectName("secondaryBtn");
     connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
     tableFooter->addWidget(m_btnManageFunds);
 
     m_btnGnuCashExport = new QPushButton(" Export for GnuCash (CSV)", tableCard);
-    m_btnGnuCashExport->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnGnuCashExport->setIcon(IconManager::instance().getIcon("download", ThemeManager::textOn(QColor("#74c7ec")), 14));
     m_btnGnuCashExport->setObjectName("accentBtnCyan");
     connect(m_btnGnuCashExport, &QPushButton::clicked, this, &ContributionsWidget::onExportGnuCashCsv);
     tableFooter->addWidget(m_btnGnuCashExport);
@@ -260,15 +260,17 @@ void ContributionsWidget::setupUI() {
     drawerCardLay->setSpacing(10);
 
     // Tabs: In Progress vs Committed
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
     QHBoxLayout* tabLayout = new QHBoxLayout();
     m_tabInProgress = new QPushButton(" In Progress", drawerCard);
-    m_tabInProgress->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
+    m_tabInProgress->setIcon(IconManager::instance().getIcon("sparkles", ThemeManager::textOn(tok.accentPrimary), 14));
     m_tabCommitted = new QPushButton(" Committed", drawerCard);
-    m_tabCommitted->setIcon(IconManager::instance().getIcon("check", QColor("#a6e3a1"), 14));
+    m_tabCommitted->setIcon(IconManager::instance().getIcon("check", tok.accentSuccess, 14));
     m_tabInProgress->setCheckable(true);
     m_tabCommitted->setCheckable(true);
     m_tabInProgress->setChecked(true);
-    m_tabInProgress->setStyleSheet("font-weight: bold; background-color: #89b4fa; color: #11111b; border-radius: 6px; padding: 6px;");
+    m_tabInProgress->setStyleSheet(QString("font-weight: bold; background-color: %1; color: %2; border-radius: 6px; padding: 6px;")
+        .arg(tok.accentPrimary.name(), ThemeManager::textOn(tok.accentPrimary).name()));
     m_tabCommitted->setStyleSheet("padding: 6px; border-radius: 6px;");
 
     tabLayout->addWidget(m_tabInProgress);
@@ -276,7 +278,7 @@ void ContributionsWidget::setupUI() {
     drawerCardLay->addLayout(tabLayout);
 
     m_btnNewBatch = new QPushButton(" New Batch", drawerCard);
-    m_btnNewBatch->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
+    m_btnNewBatch->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnNewBatch->setObjectName("primaryBtn");
     m_btnNewBatch->setMinimumHeight(34);
     connect(m_btnNewBatch, &QPushButton::clicked, this, &ContributionsWidget::onNewBatchClicked);
@@ -291,9 +293,9 @@ void ContributionsWidget::setupUI() {
     // Create batches list widget BEFORE wireup
     m_batchesList = new QListWidget(drawerCard);
     m_batchesList->setStyleSheet("QListWidget { border: none; background: transparent; }"
-                                 "QListWidget::item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.05); }"
-                                 "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
-                                 "QListWidget::item:hover:!selected { background-color: rgba(255,255,255,0.06); }");
+                                 "QListWidget::item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid palette(mid); }"
+                                 "QListWidget::item:selected { background-color: palette(highlight); color: palette(highlightedText); font-weight: bold; }"
+                                 "QListWidget::item:hover:!selected { background-color: palette(mid); }");
     connect(m_batchesList, &QListWidget::itemClicked, this, &ContributionsWidget::onBatchSelected);
     m_batchesList->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_batchesList, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
@@ -305,11 +307,12 @@ void ContributionsWidget::setupUI() {
         loadBatch(bId);
 
         QMenu menu(this);
-        QAction* actToggleCommit = menu.addAction(m_batchStatus == "Committed" ? "🔓 Reopen Batch for Editing" : "📦 Commit & Lock Batch");
-        QAction* actRename = menu.addAction("✏️ Rename Batch...");
-        QAction* actExport = menu.addAction("📊 Export Batch to GnuCash CSV");
+        QAction* actToggleCommit = menu.addAction(IconManager::instance().getIcon(m_batchStatus == "Committed" ? "unlock" : "package", QColor(), 14),
+                                                  m_batchStatus == "Committed" ? "Reopen Batch for Editing" : "Commit & Lock Batch");
+        QAction* actRename = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Rename Batch...");
+        QAction* actExport = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14), "Export Batch to GnuCash CSV");
         menu.addSeparator();
-        QAction* actDelete = menu.addAction("🗑️ Delete Batch...");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Batch...");
 
         QAction* sel = menu.exec(m_batchesList->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -341,8 +344,11 @@ void ContributionsWidget::setupUI() {
         if (!m_batchesList || !m_tabInProgress || !m_tabCommitted) return;
         m_tabInProgress->setChecked(inProgress);
         m_tabCommitted->setChecked(!inProgress);
-        m_tabInProgress->setStyleSheet(inProgress ? "font-weight: bold; background-color: #89b4fa; color: #11111b; border-radius: 6px; padding: 6px;" : "padding: 6px; border-radius: 6px;");
-        m_tabCommitted->setStyleSheet(!inProgress ? "font-weight: bold; background-color: #a6e3a1; color: #11111b; border-radius: 6px; padding: 6px;" : "padding: 6px; border-radius: 6px;");
+        ThemeTokens curTok = ThemeManager::instance().currentTokens();
+        m_tabInProgress->setStyleSheet(inProgress ? QString("font-weight: bold; background-color: %1; color: %2; border-radius: 6px; padding: 6px;")
+            .arg(curTok.accentPrimary.name(), ThemeManager::textOn(curTok.accentPrimary).name()) : "padding: 6px; border-radius: 6px;");
+        m_tabCommitted->setStyleSheet(!inProgress ? QString("font-weight: bold; background-color: %1; color: %2; border-radius: 6px; padding: 6px;")
+            .arg(curTok.accentSuccess.name(), ThemeManager::textOn(curTok.accentSuccess).name()) : "padding: 6px; border-radius: 6px;");
         refreshBatchesList();
     };
 
@@ -391,9 +397,11 @@ void ContributionsWidget::onAddSplitRow(double initialAmount, int fundId) {
         if (idx >= 0) row.fundCombo->setCurrentIndex(idx);
     }
 
-    row.btnRemove = new QPushButton("🗑️", row.container);
+    row.btnRemove = new QPushButton(row.container);
+    row.btnRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
+    row.btnRemove->setObjectName("ghostDangerBtn");
     row.btnRemove->setToolTip("Remove this split line");
-    row.btnRemove->setMaximumWidth(36);
+    row.btnRemove->setMaximumWidth(32);
     QWidget* c = row.container;
     connect(row.btnRemove, &QPushButton::clicked, this, [this, c]() { onRemoveSplitRow(c); });
 
@@ -1107,10 +1115,10 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
     QString amountStr = m_historyModel->index(row, 6).data().toString();
 
     QMenu menu(this);
-    QAction* actEdit = menu.addAction("✏️ Edit Amount...");
-    QAction* actMoveFund = menu.addAction("🏷️ Move to Another Fund...");
+    QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Amount...");
+    QAction* actMoveFund = menu.addAction(IconManager::instance().getIcon("tag", QColor(), 14), "Move to Another Fund...");
     menu.addSeparator();
-    QAction* actDelete = menu.addAction("❌ Delete Giving Record");
+    QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Giving Record");
 
     QAction* selected = menu.exec(m_historyTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
@@ -1209,9 +1217,12 @@ void ContributionsWidget::onManageFunds() {
 
     QDialogButtonBox* btns = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
     connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    QPushButton* btnAdd = btns->addButton("➕ Add Fund", QDialogButtonBox::ActionRole);
-    QPushButton* btnRename = btns->addButton("✏️ Rename", QDialogButtonBox::ActionRole);
-    QPushButton* btnToggle = btns->addButton("Deactivate / Reactivate", QDialogButtonBox::ActionRole);
+    QPushButton* btnAdd = btns->addButton(" Add Fund", QDialogButtonBox::ActionRole);
+    btnAdd->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    QPushButton* btnRename = btns->addButton(" Rename", QDialogButtonBox::ActionRole);
+    btnRename->setIcon(IconManager::instance().getIcon("edit-3", QColor(), 14));
+    QPushButton* btnToggle = btns->addButton(" Deactivate / Reactivate", QDialogButtonBox::ActionRole);
+    btnToggle->setIcon(IconManager::instance().getIcon("refresh-cw", QColor(), 14));
     lay->addWidget(btns);
 
     connect(btnAdd, &QPushButton::clicked, this, [this, &refreshList]() {

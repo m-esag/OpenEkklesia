@@ -111,7 +111,7 @@ public:
         connect(m_pinEdit, &QLineEdit::returnPressed, this, &LoginDialog::onLogin);
         lay->addWidget(m_pinEdit);
 
-        QLabel* hint = new QLabel("<small style='color: #89b4fa;'>Default PINs: Admin <b>1234</b> | Pastor <b>5555</b> | Finance <b>7777</b></small>", this);
+        QLabel* hint = new QLabel("<small style='color: palette(highlight);'>Default PINs: Admin <b>1234</b> | Pastor <b>5555</b> | Finance <b>7777</b></small>", this);
         hint->setTextFormat(Qt::RichText);
         lay->addWidget(hint);
 
@@ -373,7 +373,8 @@ void MainWindow::setupMenuBar() {
         lay->addWidget(lblDesc);
 
         QHBoxLayout* btnRow = new QHBoxLayout();
-        QPushButton* btnManual = new QPushButton("📖 Open User Manual (F1)", &dlg);
+        QPushButton* btnManual = new QPushButton(" Open User Manual (F1)", &dlg);
+        btnManual->setIcon(IconManager::instance().getPrimaryIcon("book-open", 14));
         btnManual->setObjectName("primaryBtn");
         connect(btnManual, &QPushButton::clicked, this, [this, &dlg]() {
             dlg.accept();
@@ -424,7 +425,7 @@ void MainWindow::setupUI() {
     QSettings settings("OpenEkklesia", "CHMS");
 
     // 1. CONGREGATION Section
-    m_headerCongregation = new QPushButton("▼ CONGREGATION", this);
+    m_headerCongregation = new QPushButton(" CONGREGATION", this);
     m_headerCongregation->setObjectName("sectionHeaderBtn");
     m_headerCongregation->setCursor(Qt::PointingHandCursor);
     
@@ -464,18 +465,18 @@ void MainWindow::setupUI() {
 
     bool showCong = settings.value("sidebarSecCongregation", true).toBool();
     m_secCongregation->setVisible(showCong);
-    m_headerCongregation->setText(showCong ? "▼ CONGREGATION" : "▶ CONGREGATION");
+    m_headerCongregation->setIcon(IconManager::instance().getIcon(showCong ? "chevron-down" : "chevron-right", QColor(), 12));
 
     connect(m_headerCongregation, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secCongregation->isVisible();
         m_secCongregation->setVisible(nowVis);
-        m_headerCongregation->setText(nowVis ? "▼ CONGREGATION" : "▶ CONGREGATION");
+        m_headerCongregation->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecCongregation", nowVis);
     });
 
     // 2. MINISTRY & SERVICES Section
-    m_headerMinistry = new QPushButton("▼ MINISTRY & SERVICES", this);
+    m_headerMinistry = new QPushButton(" MINISTRY & SERVICES", this);
     m_headerMinistry->setObjectName("sectionHeaderBtn");
     m_headerMinistry->setCursor(Qt::PointingHandCursor);
     
@@ -510,18 +511,18 @@ void MainWindow::setupUI() {
 
     bool showMin = settings.value("sidebarSecMinistry", true).toBool();
     m_secMinistry->setVisible(showMin);
-    m_headerMinistry->setText(showMin ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
+    m_headerMinistry->setIcon(IconManager::instance().getIcon(showMin ? "chevron-down" : "chevron-right", QColor(), 12));
 
     connect(m_headerMinistry, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secMinistry->isVisible();
         m_secMinistry->setVisible(nowVis);
-        m_headerMinistry->setText(nowVis ? "▼ MINISTRY & SERVICES" : "▶ MINISTRY & SERVICES");
+        m_headerMinistry->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecMinistry", nowVis);
     });
 
     // 3. FINANCE & OPERATIONS Section
-    m_headerFinance = new QPushButton("▼ FINANCE & OPERATIONS", this);
+    m_headerFinance = new QPushButton(" FINANCE & OPERATIONS", this);
     m_headerFinance->setObjectName("sectionHeaderBtn");
     m_headerFinance->setCursor(Qt::PointingHandCursor);
     
@@ -551,12 +552,12 @@ void MainWindow::setupUI() {
 
     bool showFin = settings.value("sidebarSecFinance", true).toBool();
     m_secFinance->setVisible(showFin);
-    m_headerFinance->setText(showFin ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
+    m_headerFinance->setIcon(IconManager::instance().getIcon(showFin ? "chevron-down" : "chevron-right", QColor(), 12));
 
     connect(m_headerFinance, &QPushButton::clicked, this, [this]() {
         bool nowVis = !m_secFinance->isVisible();
         m_secFinance->setVisible(nowVis);
-        m_headerFinance->setText(nowVis ? "▼ FINANCE & OPERATIONS" : "▶ FINANCE & OPERATIONS");
+        m_headerFinance->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
         QSettings s("OpenEkklesia", "CHMS");
         s.setValue("sidebarSecFinance", nowVis);
     });
@@ -755,7 +756,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_chkShowMembersInTree);
 
     QPushButton* btnAddGroup = new QPushButton(" Add Group", this);
-    btnAddGroup->setIcon(IconManager::instance().getIcon("plus", QColor("#11111b"), 14));
+    btnAddGroup->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     btnAddGroup->setObjectName("primaryBtn");
     connect(btnAddGroup, &QPushButton::clicked, this, [this]() {
         int defaultParentId = 0;
@@ -857,7 +858,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_btnArchiveGroup);
 
     m_btnDeleteGroup = new QPushButton(" Delete Group", this);
-    m_btnDeleteGroup->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnDeleteGroup->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDeleteGroup->setObjectName("dangerBtn");
     connect(m_btnDeleteGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -1063,7 +1064,7 @@ void MainWindow::populatePages() {
     rosterHeaderRow->addStretch();
 
     QPushButton* btnAddRosterMember = new QPushButton(" Add Member", m_groupDetailCard);
-    btnAddRosterMember->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 14));
+    btnAddRosterMember->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     btnAddRosterMember->setObjectName("primaryBtn");
     btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
     connect(btnAddRosterMember, &QPushButton::clicked, this, [this]() {
@@ -1286,7 +1287,7 @@ QWidget* MainWindow::createDashboardPage() {
 
     // Quick Actions Bar
     QPushButton* btnAddPersonQuick = new QPushButton(" Add Person", page);
-    btnAddPersonQuick->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 14));
+    btnAddPersonQuick->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     btnAddPersonQuick->setObjectName("primaryBtn");
     connect(btnAddPersonQuick, &QPushButton::clicked, this, [this]() {
         onMembersClicked();
@@ -1294,17 +1295,17 @@ QWidget* MainWindow::createDashboardPage() {
     });
 
     QPushButton* btnGivingQuick = new QPushButton(" Giving", page);
-    btnGivingQuick->setIcon(IconManager::instance().getIcon("hand-coins", QColor("#cdd6f4"), 14));
+    btnGivingQuick->setIcon(IconManager::instance().getIcon("hand-coins", QColor(), 14));
     btnGivingQuick->setObjectName("secondaryBtn");
     connect(btnGivingQuick, &QPushButton::clicked, this, &MainWindow::onContributionsClicked);
 
     QPushButton* btnServiceQuick = new QPushButton(" Services", page);
-    btnServiceQuick->setIcon(IconManager::instance().getIcon("list-music", QColor("#cdd6f4"), 14));
+    btnServiceQuick->setIcon(IconManager::instance().getIcon("list-music", QColor(), 14));
     btnServiceQuick->setObjectName("secondaryBtn");
     connect(btnServiceQuick, &QPushButton::clicked, this, &MainWindow::onServiceClicked);
 
     QPushButton* btnCmdQuick = new QPushButton(" Search (Ctrl+K)", page);
-    btnCmdQuick->setIcon(IconManager::instance().getIcon("search", QColor("#cdd6f4"), 14));
+    btnCmdQuick->setIcon(IconManager::instance().getIcon("search", QColor(), 14));
     btnCmdQuick->setObjectName("secondaryBtn");
     connect(btnCmdQuick, &QPushButton::clicked, this, [this]() {
         CommandPaletteDialog palette(this);
@@ -1371,9 +1372,9 @@ QWidget* MainWindow::createDashboardPage() {
 
     QHBoxLayout* alertsTitleRow = new QHBoxLayout();
     QLabel* alertsCardTitle = new QLabel("Member Inactivity & Care Alerts", alertsCard);
-    alertsCardTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #f38ba8;");
+    alertsCardTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: " + ThemeManager::instance().currentTokens().accentDanger.name() + ";");
     QPushButton* btnQuickNote = new QPushButton(" Quick Note", alertsCard);
-    btnQuickNote->setIcon(IconManager::instance().getIcon("pencil", QColor("#11111b"), 14));
+    btnQuickNote->setIcon(IconManager::instance().getPrimaryIcon("pencil", 14));
     btnQuickNote->setObjectName("primaryBtn");
     btnQuickNote->setStyleSheet("padding: 2px 8px; font-size: 11px;");
     connect(btnQuickNote, &QPushButton::clicked, this, [this]() {
@@ -1436,7 +1437,7 @@ QWidget* MainWindow::createDashboardPage() {
 
     // Upcoming Services List
     QLabel* upcomingServicesTitle = new QLabel("Upcoming Worship & Services", alertsCard);
-    upcomingServicesTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: #89b4fa;");
+    upcomingServicesTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: palette(highlight);");
     m_lstUpcomingServices = new QListWidget(alertsCard);
     m_lstUpcomingServices->setMaximumHeight(100);
     connect(m_lstUpcomingServices, &QListWidget::itemDoubleClicked, this, [this]() {
@@ -3295,12 +3296,14 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
         QHBoxLayout* archRow = new QHBoxLayout();
         archRow->setSpacing(6);
         QLabel* lblPriBadge = new QLabel(QString("Primary: %1 %2").arg(priIcon, bp.primaryArchetype), card);
-        lblPriBadge->setStyleSheet("background-color: rgba(137, 180, 250, 0.15); border: 1px solid #89b4fa; border-radius: 6px; padding: 2px 6px; font-size: 10px; font-weight: bold; color: #89b4fa;");
+        lblPriBadge->setStyleSheet(QString("background-color: rgba(%1, %2, %3, 0.15); border: 1px solid %4; border-radius: 6px; padding: 2px 6px; font-size: 10px; font-weight: bold; color: %4;")
+            .arg(tok.accentPrimary.red()).arg(tok.accentPrimary.green()).arg(tok.accentPrimary.blue()).arg(tok.accentPrimary.name()));
         archRow->addWidget(lblPriBadge);
 
         if (!bp.secondaryArchetype.isEmpty() && bp.secondaryArchetype != "None") {
             QLabel* lblSecBadge = new QLabel(QString("Secondary: %1 %2").arg(secIcon, bp.secondaryArchetype), card);
-            lblSecBadge->setStyleSheet("background-color: rgba(166, 227, 161, 0.15); border: 1px solid #a6e3a1; border-radius: 6px; padding: 2px 6px; font-size: 10px; font-weight: bold; color: #a6e3a1;");
+            lblSecBadge->setStyleSheet(QString("background-color: rgba(%1, %2, %3, 0.15); border: 1px solid %4; border-radius: 6px; padding: 2px 6px; font-size: 10px; font-weight: bold; color: %4;")
+                .arg(tok.accentSuccess.red()).arg(tok.accentSuccess.green()).arg(tok.accentSuccess.blue()).arg(tok.accentSuccess.name()));
             archRow->addWidget(lblSecBadge);
         }
         archRow->addStretch();
@@ -3326,7 +3329,8 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
         cardLay->addWidget(lblVector);
 
         // Action Button
-        QPushButton* btnCreate = new QPushButton("➕ Launch Team from Blueprint", card);
+        QPushButton* btnCreate = new QPushButton(" Launch Team from Blueprint", card);
+        btnCreate->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
         btnCreate->setObjectName("primaryBtn");
         btnCreate->setStyleSheet("font-size: 11px; padding: 4px 10px;");
         QString bpName = bp.displayName;

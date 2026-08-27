@@ -61,6 +61,7 @@ public slots:
     void onAnalyticsClicked();
     void onPlanningClicked();
     void onShepherdClicked();
+    void onShowUserManual(const QString& section = QString());
     // Groups-tree context-menu actions (right-click on a group).
     void onEditGroup();
     void onAddGroup();
@@ -117,6 +118,7 @@ private:
     QAction* m_actCont;
     QAction* m_actInventory;
     QAction* m_actVault;
+    QAction* m_actUserManual;
 
     PeopleWidget* m_peopleWidget;
     ContributionsWidget* m_contributionsWidget;
@@ -150,6 +152,11 @@ private:
 
     GroupsTreeWidget* m_groupsTreeWidget;
     QCheckBox* m_chkShowArchivedGroups;
+    QCheckBox* m_chkShowMembersInTree;
+    QPushButton* m_btnEditGroup;
+    QPushButton* m_btnDuplicateGroup;
+    QPushButton* m_btnArchiveGroup;
+    QPushButton* m_btnDeleteGroup;
     QWidget* m_groupDetailCard;
     QLabel* m_lblGroupDetailTitle;
     QLabel* m_lblGroupDetailMeta;
@@ -157,9 +164,14 @@ private:
     QLabel* m_lblGroupChemistryReport;
     int m_selectedGroupId;
 
+    QTabWidget* m_groupsTabWidget;
+    QWidget* m_tabMinistryBlueprints;
+    void setupMinistryBlueprintsTab(QWidget* container);
+
     void refreshGroupsTree();
     void refreshGroupDetailPanel(int groupId);
-    void showGroupDialog(int groupId = 0, bool isDuplicate = false);
+    void showGroupDialog(int groupId = 0, bool isDuplicate = false, int defaultParentId = 0);
+    void refreshSidebarIcons();
 
     QLabel* m_lblWelcomeHeader;
     QLabel* m_lblSubHeader;

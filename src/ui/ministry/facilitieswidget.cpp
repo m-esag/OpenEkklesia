@@ -9,7 +9,13 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QHeaderView>
+#include <QMenu>
+#include <QFileDialog>
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
 #include "../database/databasemanager.h"
+#include "../core/iconmanager.h"
 
 FacilitiesWidget::FacilitiesWidget(QWidget *parent)
     : QWidget(parent)
@@ -26,17 +32,19 @@ void FacilitiesWidget::setupUI() {
     mainLayout->setSpacing(15);
 
     QHBoxLayout* headerLayout = new QHBoxLayout();
-    QLabel* header = new QLabel("🏫 Facilities & Equipment Scheduling Matrix", this);
+    QLabel* header = new QLabel("Facilities & Equipment Scheduling Matrix", this);
     header->setObjectName("pageHeader");
     headerLayout->addWidget(header);
     headerLayout->addStretch();
 
-    m_btnBook = new QPushButton("➕ Book Space / Gear", this);
+    m_btnBook = new QPushButton(" Book Space / Gear", this);
+    m_btnBook->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnBook->setObjectName("primaryBtn");
     connect(m_btnBook, &QPushButton::clicked, this, &FacilitiesWidget::onBookFacility);
     headerLayout->addWidget(m_btnBook);
 
-    m_btnDelete = new QPushButton("🗑️ Cancel Reservation", this);
+    m_btnDelete = new QPushButton(" Cancel Reservation", this);
+    m_btnDelete->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDelete->setObjectName("dangerBtn");
     connect(m_btnDelete, &QPushButton::clicked, this, &FacilitiesWidget::onDeleteReservation);
     headerLayout->addWidget(m_btnDelete);
@@ -63,6 +71,49 @@ void FacilitiesWidget::setupUI() {
     m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setAlternatingRowColors(true);
+    m_table->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_table, &QTableView::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QModelIndex idx = m_table->indexAt(pos);
+        if (!idx.isValid()) return;
+        int row = idx.row();
+        m_table->selectRow(row);
+        int resId = m_model->index(row, 0).data().toInt();
+        QString facility = m_model->index(row, 1).data().toString();
+        QString eventName = m_model->index(row, 2).data().toString();
+        QString dateStr = m_model->index(row, 3).data().toString();
+        QString timeWindow = m_model->index(row, 4).data().toString();
+
+        QMenu menu(this);
+        QAction* actIcal = menu.addAction(IconManager::instance().getIcon("calendar", QColor(), 14), "Export Calendar Reminder (.ics)...");
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Cancel Reservation");
+
+        QAction* sel = menu.exec(m_table->viewport()->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actIcal) {
+            QString defaultFile = QString("Booking_%1_%2.ics").arg(facility, dateStr).replace(" ", "_").replace("/", "_");
+            QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Event (.ics)", defaultFile, "iCalendar Files (*.ics)");
+            if (!fileName.isEmpty()) {
+                QFile file(fileName);
+                if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    QTextStream out(&file);
+                    out << "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//OpenEkklesia//Facilities//EN\nBEGIN:VEVENT\n";
+                    out << QString("UID:facility-%1@openekklesia.local\n").arg(resId);
+                    out << QString("DTSTAMP:%1\n").arg(QDateTime::currentDateTimeUtc().toString("yyyyMMddThhmmssZ"));
+                    out << QString("DTSTART;VALUE=DATE:%1\n").arg(dateStr.remove("-"));
+                    out << QString("SUMMARY:%1 (%2)\n").arg(eventName, facility);
+                    out << QString("LOCATION:%1\n").arg(facility);
+                    out << QString("DESCRIPTION:Facility Booking: %1\\nTime: %2\n").arg(eventName, timeWindow);
+                    out << "STATUS:CONFIRMED\nEND:VEVENT\nEND:VCALENDAR\n";
+                    file.close();
+                    QMessageBox::information(this, "Success", "Calendar file exported!");
+                }
+            }
+        } else if (sel == actDelete) {
+            onDeleteReservation();
+        }
+    });
     mainLayout->addWidget(m_table);
 }
 

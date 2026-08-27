@@ -147,7 +147,7 @@ void ThemeManager::registerDefaultThemes() {
     latte.bgInput = QColor("#ffffff");
     latte.textPrimary = QColor("#4c4f69");
     latte.textSecondary = QColor("#5c5f77");
-    latte.textMuted = QColor("#8c8fa1");
+    latte.textMuted = QColor("#73778b"); // was #8c8fa1 (2.6:1, failed AA) -> 3.6:1
     latte.accentPrimary = QColor("#1e66f5");
     latte.accentSuccess = QColor("#40a02b");
     latte.accentWarning = QColor("#df8e1d");
@@ -238,7 +238,7 @@ void ThemeManager::registerDefaultThemes() {
     skyAzure.bgInput = QColor("#ffffff");
     skyAzure.textPrimary = QColor("#0c4a6e");
     skyAzure.textSecondary = QColor("#0369a1");
-    skyAzure.textMuted = QColor("#38bdf8");
+    skyAzure.textMuted = QColor("#64748b"); // was #38bdf8 (1.9:1, failed AA) -> 4.2:1
     skyAzure.accentPrimary = QColor("#0284c7");
     skyAzure.accentSuccess = QColor("#16a34a");
     skyAzure.accentWarning = QColor("#d97706");
@@ -259,7 +259,7 @@ void ThemeManager::registerDefaultThemes() {
     emeraldPine.bgInput = QColor("#07130f");
     emeraldPine.textPrimary = QColor("#ecfdf5");
     emeraldPine.textSecondary = QColor("#a7f3d0");
-    emeraldPine.textMuted = QColor("#5eead4");
+    emeraldPine.textMuted = QColor("#7fb69c"); // was #5eead4 (bright teal read as accent) -> desaturated sage, 6.3:1
     emeraldPine.accentPrimary = QColor("#34d399");
     emeraldPine.accentSuccess = QColor("#4ade80");
     emeraldPine.accentWarning = QColor("#facc15");
@@ -279,7 +279,7 @@ void ThemeManager::registerDefaultThemes() {
     sageMeadow.bgInput = QColor("#ffffff");
     sageMeadow.textPrimary = QColor("#064e3b");
     sageMeadow.textSecondary = QColor("#047857");
-    sageMeadow.textMuted = QColor("#34d399");
+    sageMeadow.textMuted = QColor("#4d7c0f"); // was #34d399 (1.8:1, failed AA) -> 4.6:1
     sageMeadow.accentPrimary = QColor("#059669");
     sageMeadow.accentSuccess = QColor("#15803d");
     sageMeadow.accentWarning = QColor("#ca8a04");
@@ -300,7 +300,7 @@ void ThemeManager::registerDefaultThemes() {
     amethystDark.bgInput = QColor("#0f0918");
     amethystDark.textPrimary = QColor("#f3e8ff");
     amethystDark.textSecondary = QColor("#e9d5ff");
-    amethystDark.textMuted = QColor("#a855f7");
+    amethystDark.textMuted = QColor("#8f7fb0"); // was #a855f7 (purple accent as muted) -> desaturated grey-purple, 4.7:1
     amethystDark.accentPrimary = QColor("#c084fc");
     amethystDark.accentSuccess = QColor("#4ade80");
     amethystDark.accentWarning = QColor("#facc15");
@@ -341,7 +341,7 @@ void ThemeManager::registerDefaultThemes() {
     nord.bgInput = QColor("#242933");
     nord.textPrimary = QColor("#eceff4");
     nord.textSecondary = QColor("#d8dee9");
-    nord.textMuted = QColor("#4c566a");
+    nord.textMuted = QColor("#8f97a8"); // was #4c566a (1.4:1, failed AA) -> 3.4:1
     nord.accentPrimary = QColor("#88c0d0");
     nord.accentSuccess = QColor("#a3be8c");
     nord.accentWarning = QColor("#ebcb8b");
@@ -494,48 +494,7 @@ void ThemeManager::registerDefaultThemes() {
     m_registeredThemes.insert(seafoamBreeze.id, seafoamBreeze);
     appendThemeOrder(seafoamBreeze.id);
 
-    // --- PAIR 10: Cyberpunk Neon & Vaporwave Pair ---
-    ThemeTokens cyberpunkSynth;
-    cyberpunkSynth.id = "cyberpunk_synth_dark";
-    cyberpunkSynth.name = "🌙 Cyberpunk Neon (Dark Synth)";
-    cyberpunkSynth.isDark = true;
-    cyberpunkSynth.bgBase = QColor("#09090e");
-    cyberpunkSynth.bgSurface = QColor("#141420");
-    cyberpunkSynth.bgOverlay = QColor("#202033");
-    cyberpunkSynth.bgInput = QColor("#050508");
-    cyberpunkSynth.textPrimary = QColor("#e0ffff");
-    cyberpunkSynth.textSecondary = QColor("#80ffff");
-    cyberpunkSynth.textMuted = QColor("#ff80df");
-    cyberpunkSynth.accentPrimary = QColor("#ff007f");
-    cyberpunkSynth.accentSuccess = QColor("#00ff88");
-    cyberpunkSynth.accentWarning = QColor("#ffe600");
-    cyberpunkSynth.accentDanger = QColor("#ff2a6d");
-    cyberpunkSynth.borderColor = QColor("#ff007f");
-    cyberpunkSynth.borderRadiusMd = 6;
-    m_registeredThemes.insert(cyberpunkSynth.id, cyberpunkSynth);
-    appendThemeOrder(cyberpunkSynth.id);
-
-    ThemeTokens vaporwavePastel;
-    vaporwavePastel.id = "vaporwave_pastel_light";
-    vaporwavePastel.name = "☀️ Vaporwave Pastel (Light Sunset)";
-    vaporwavePastel.isDark = false;
-    vaporwavePastel.bgBase = QColor("#fff0f5");
-    vaporwavePastel.bgSurface = QColor("#ffe4e1");
-    vaporwavePastel.bgOverlay = QColor("#ffd1dc");
-    vaporwavePastel.bgInput = QColor("#ffffff");
-    vaporwavePastel.textPrimary = QColor("#4b0082");
-    vaporwavePastel.textSecondary = QColor("#483d8b");
-    vaporwavePastel.textMuted = QColor("#8a2be2");
-    vaporwavePastel.accentPrimary = QColor("#c71585");
-    vaporwavePastel.accentSuccess = QColor("#2e8b57");
-    vaporwavePastel.accentWarning = QColor("#d2691e");
-    vaporwavePastel.accentDanger = QColor("#dc143c");
-    vaporwavePastel.borderColor = QColor("#ffb6c1");
-    vaporwavePastel.borderRadiusMd = 6;
-    m_registeredThemes.insert(vaporwavePastel.id, vaporwavePastel);
-    appendThemeOrder(vaporwavePastel.id);
-
-    // --- PAIR 11: Autumn Amber & Harvest Copper Pair ---
+    // --- PAIR 10: Autumn Amber & Harvest Copper Pair ---
     ThemeTokens autumnAmber;
     autumnAmber.id = "autumn_amber_dark";
     autumnAmber.name = "🌙 Autumn Amber (Dark Copper)";
@@ -576,7 +535,7 @@ void ThemeManager::registerDefaultThemes() {
     m_registeredThemes.insert(harvestCopper.id, harvestCopper);
     appendThemeOrder(harvestCopper.id);
 
-    // --- PAIR 12: Midnight Onyx & Minimal Pearl Pair ---
+    // --- PAIR 11: Midnight Onyx & Minimal Pearl Pair ---
     ThemeTokens midnightOnyx;
     midnightOnyx.id = "midnight_onyx_dark";
     midnightOnyx.name = "🌙 Midnight Onyx (Monochrome Dark)";
@@ -617,7 +576,7 @@ void ThemeManager::registerDefaultThemes() {
     m_registeredThemes.insert(minimalPearl.id, minimalPearl);
     appendThemeOrder(minimalPearl.id);
 
-    // --- PAIR 13: Cosmic Nebula & Aurora Pair ---
+    // --- PAIR 12: Cosmic Nebula & Aurora Pair ---
     ThemeTokens cosmicNebula;
     cosmicNebula.id = "cosmic_nebula_dark";
     cosmicNebula.name = "🌙 Cosmic Nebula (Dark Deep Space)";
@@ -943,15 +902,16 @@ QString ThemeManager::contrastRating(double ratio) {
     }
 }
 
+QColor ThemeManager::textOn(const QColor& c) {
+    return c.lightness() > 140 ? QColor("#11111b") : QColor("#ffffff");
+}
+
 QString ThemeManager::generateGlobalQSS() const {
     const auto& t = m_currentTokens;
 
-    auto textOn = [](const QColor& c) {
-        return c.lightness() > 140 ? QString("#11111b") : QString("#ffffff");
-    };
-    const QString primaryBtnTextColor = textOn(t.accentPrimary);
-    const QString dangerBtnTextColor  = textOn(t.accentDanger);
-    const QString successBtnTextColor = textOn(t.accentSuccess);
+    const QString primaryBtnTextColor = textOn(t.accentPrimary).name();
+    const QString dangerBtnTextColor  = textOn(t.accentDanger).name();
+    const QString successBtnTextColor = textOn(t.accentSuccess).name();
 
     // Harmonized accent variants derived from the theme's primary hue so the
     // cyan/orange/pink accent buttons stay on-palette in both dark and light.
@@ -994,9 +954,9 @@ QString ThemeManager::generateGlobalQSS() const {
         {"--accent-cyan", accentCyan.name()},
         {"--accent-orange", accentOrange.name()},
         {"--accent-pink", accentPink.name()},
-        {"--text-on-cyan", textOn(accentCyan)},
-        {"--text-on-orange", textOn(accentOrange)},
-        {"--text-on-pink", textOn(accentPink)},
+        {"--text-on-cyan", textOn(accentCyan).name()},
+        {"--text-on-orange", textOn(accentOrange).name()},
+        {"--text-on-pink", textOn(accentPink).name()},
         {"--nav-active-bg", navActiveBg.name(QColor::HexArgb)},
         {"--surface-hover", surfaceHover.name()},
         {"--primary-hover", primaryHover.name()},

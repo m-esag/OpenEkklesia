@@ -58,7 +58,7 @@ void SettingsWidget::setupUI() {
     topBar->addStretch();
 
     m_btnSaveSettings = new QPushButton(" Save All Changes", this);
-    m_btnSaveSettings->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 14));
+    m_btnSaveSettings->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnSaveSettings->setObjectName("saveBtn");
     m_btnSaveSettings->setMinimumHeight(38);
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
@@ -89,8 +89,8 @@ void SettingsWidget::setupUI() {
     m_navList->setStyleSheet(
         "QListWidget#settingsNavList { border-radius: 8px; padding: 4px; }"
         "QListWidget::item { padding: 9px 12px; border-radius: 6px; margin-bottom: 2px; }"
-        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
-        "QListWidget::item:hover:!selected { background-color: rgba(255, 255, 255, 0.06); }"
+        "QListWidget::item:selected { background-color: palette(highlight); color: palette(highlightedText); font-weight: bold; }"
+        "QListWidget::item:hover:!selected { background-color: palette(mid); }"
     );
 
     struct NavCategory { const char* text; const char* icon; };
@@ -108,7 +108,7 @@ void SettingsWidget::setupUI() {
 
     for (const auto& cat : categories) {
         QListWidgetItem* item = new QListWidgetItem(cat.text, m_navList);
-        item->setIcon(IconManager::instance().getIcon(cat.icon, QColor("#cdd6f4"), 16));
+        item->setIcon(IconManager::instance().getIcon(cat.icon, QColor(), 16));
         item->setSizeHint(QSize(200, 38));
     }
 
@@ -160,7 +160,7 @@ void SettingsWidget::setupUI() {
     m_logoPreview->setText("No logo\nselected");
     m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
     m_btnPickLogo = new QPushButton(" Upload Church Logo", pageGeneral);
-    m_btnPickLogo->setIcon(IconManager::instance().getIcon("upload", QColor("#11111b"), 14));
+    m_btnPickLogo->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnPickLogo->setObjectName("primaryBtn");
     connect(m_btnPickLogo, &QPushButton::clicked, this, &SettingsWidget::onPickLogo);
 
@@ -331,7 +331,7 @@ void SettingsWidget::setupUI() {
     brandForm->setSpacing(10);
 
     m_btnPickBrandColor = new QPushButton(" Pick Primary Church Brand Color", pageTheme);
-    m_btnPickBrandColor->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
+    m_btnPickBrandColor->setIcon(IconManager::instance().getPrimaryIcon("sparkles", 14));
     m_btnPickBrandColor->setObjectName("primaryBtn");
     connect(m_btnPickBrandColor, &QPushButton::clicked, this, &SettingsWidget::onGenerateChurchBrand);
 
@@ -371,12 +371,12 @@ void SettingsWidget::setupUI() {
 
     QHBoxLayout* presetBtns = new QHBoxLayout();
     m_btnSavePreset = new QPushButton(" Save Custom Preset (.json)", pageTheme);
-    m_btnSavePreset->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnSavePreset->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
     m_btnSavePreset->setObjectName("primaryBtn");
     connect(m_btnSavePreset, &QPushButton::clicked, this, &SettingsWidget::onSaveCustomPreset);
 
     m_btnResetTheme = new QPushButton(" Reset Default Theme", pageTheme);
-    m_btnResetTheme->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#11111b"), 14));
+    m_btnResetTheme->setIcon(IconManager::instance().getDangerIcon("refresh-cw", 14));
     m_btnResetTheme->setObjectName("dangerBtn");
     connect(m_btnResetTheme, &QPushButton::clicked, this, &SettingsWidget::onResetDefaultTheme);
 
@@ -389,7 +389,7 @@ void SettingsWidget::setupUI() {
     m_lblContrastButtonAccent = new QLabel(pageTheme);
     m_lblContrastButtonAccent->setStyleSheet("font-size: 11px; font-weight: bold;");
     m_lblContrastWarning = new QLabel(pageTheme);
-    m_lblContrastWarning->setStyleSheet("font-size: 11px; color: #f38ba8; font-weight: bold;");
+    m_lblContrastWarning->setStyleSheet(QString("font-size: 11px; color: %1; font-weight: bold;").arg(ThemeManager::instance().currentTokens().accentDanger.name()));
     m_lblContrastWarning->setVisible(false);
 
     customForm->addRow("Window Background:", m_btnBgBaseColor);
@@ -422,11 +422,11 @@ void SettingsWidget::setupUI() {
     QGroupBox* grpModPresets = new QGroupBox("Quick Module Presets", pageModules);
     QHBoxLayout* layModPresets = new QHBoxLayout(grpModPresets);
     QPushButton* btnModAll = new QPushButton(" Enable All Modules", pageModules);
-    btnModAll->setIcon(IconManager::instance().getIcon("sparkles", QColor("#89b4fa"), 14));
+    btnModAll->setIcon(IconManager::instance().getIcon("sparkles", QColor(), 14));
     QPushButton* btnModStandard = new QPushButton(" Standard Church (Roster + Finance + Groups)", pageModules);
-    btnModStandard->setIcon(IconManager::instance().getIcon("landmark", QColor("#89b4fa"), 14));
+    btnModStandard->setIcon(IconManager::instance().getIcon("landmark", QColor(), 14));
     QPushButton* btnModMinimal = new QPushButton(" Minimal (Roster + Liturgy Only)", pageModules);
-    btnModMinimal->setIcon(IconManager::instance().getIcon("layers", QColor("#89b4fa"), 14));
+    btnModMinimal->setIcon(IconManager::instance().getIcon("layers", QColor(), 14));
     btnModAll->setObjectName("secondaryBtn");
     btnModStandard->setObjectName("secondaryBtn");
     btnModMinimal->setObjectName("secondaryBtn");
@@ -750,7 +750,7 @@ void SettingsWidget::setupUI() {
 
     QHBoxLayout* dbActions = new QHBoxLayout();
     m_btnBackupDb = new QPushButton(" Export Database Backup (.db)", pageData);
-    m_btnBackupDb->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnBackupDb->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
     m_btnBackupDb->setObjectName("primaryBtn");
     connect(m_btnBackupDb, &QPushButton::clicked, this, [this]() {
         QString defaultName = QString("open_ekklesia_backup_%1.db").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
@@ -765,7 +765,7 @@ void SettingsWidget::setupUI() {
     });
 
     m_btnRestoreDb = new QPushButton(" Restore Database from Backup", pageData);
-    m_btnRestoreDb->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
+    m_btnRestoreDb->setIcon(IconManager::instance().getIcon("upload", QColor(), 14));
     m_btnRestoreDb->setObjectName("secondaryBtn");
     connect(m_btnRestoreDb, &QPushButton::clicked, this, [this]() {
         QString openPath = QFileDialog::getOpenFileName(this, "Restore Database from Backup", QString(), "SQLite Database (*.db)");
@@ -791,7 +791,7 @@ void SettingsWidget::setupUI() {
     });
 
     m_btnCompactDb = new QPushButton(" Compact Database (VACUUM)", pageData);
-    m_btnCompactDb->setIcon(IconManager::instance().getIcon("sparkles", QColor("#11111b"), 14));
+    m_btnCompactDb->setIcon(IconManager::instance().getIcon("sparkles", ThemeManager::textOn(QColor("#fab387")), 14));
     m_btnCompactDb->setObjectName("accentBtnOrange");
     connect(m_btnCompactDb, &QPushButton::clicked, this, [this]() {
         QSqlDatabase db = DatabaseManager::instance().database();
@@ -805,7 +805,7 @@ void SettingsWidget::setupUI() {
     });
 
     m_btnViewAuditLogs = new QPushButton(" View Audit Logs", pageData);
-    m_btnViewAuditLogs->setIcon(IconManager::instance().getIcon("shield-check", QColor("#cdd6f4"), 14));
+    m_btnViewAuditLogs->setIcon(IconManager::instance().getIcon("shield-check", QColor(), 14));
     m_btnViewAuditLogs->setObjectName("secondaryBtn");
     connect(m_btnViewAuditLogs, &QPushButton::clicked, this, [this]() {
         QDialog dlg(this);
@@ -835,7 +835,7 @@ void SettingsWidget::setupUI() {
     });
 
     m_btnSelectiveShare = new QPushButton(" Selective Data Export / Import", pageData);
-    m_btnSelectiveShare->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+    m_btnSelectiveShare->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
     m_btnSelectiveShare->setObjectName("primaryBtn");
     connect(m_btnSelectiveShare, &QPushButton::clicked, this, [this]() {
         QDialog dlg(this);
@@ -860,9 +860,9 @@ void SettingsWidget::setupUI() {
 
         QHBoxLayout* btnRow = new QHBoxLayout();
         QPushButton* btnExport = new QPushButton(" Export Scope to JSON", &dlg);
-        btnExport->setIcon(IconManager::instance().getIcon("download", QColor("#11111b"), 14));
+        btnExport->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
         QPushButton* btnImport = new QPushButton(" Import Scope from JSON", &dlg);
-        btnImport->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
+        btnImport->setIcon(IconManager::instance().getIcon("upload", QColor(), 14));
         btnExport->setObjectName("primaryBtn");
         btnImport->setObjectName("secondaryBtn");
         btnRow->addWidget(btnExport);
@@ -905,7 +905,7 @@ void SettingsWidget::setupUI() {
     });
 
     m_btnPlanningCenter = new QPushButton(" Planning Center Sync Wizard", pageData);
-    m_btnPlanningCenter->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#11111b"), 14));
+    m_btnPlanningCenter->setIcon(IconManager::instance().getPrimaryIcon("refresh-cw", 14));
     m_btnPlanningCenter->setObjectName("primaryBtn");
     connect(m_btnPlanningCenter, &QPushButton::clicked, this, [this]() {
         PlanningCenterDialog dlg(this);
@@ -937,13 +937,14 @@ void SettingsWidget::setupUI() {
     layDanger->setSpacing(16);
 
     QGroupBox* grpDanger = new QGroupBox("Irreversible Administrative Actions", pageDanger);
-    grpDanger->setStyleSheet("QGroupBox { border: 2px solid #f38ba8; border-radius: 8px; margin-top: 12px; padding-top: 16px; font-weight: bold; color: #f38ba8; }");
+    const ThemeTokens tokDanger = ThemeManager::instance().currentTokens();
+    grpDanger->setStyleSheet(QString("QGroupBox { border: 2px solid %1; border-radius: 8px; margin-top: 12px; padding-top: 16px; font-weight: bold; color: %1; }").arg(tokDanger.accentDanger.name()));
     QVBoxLayout* dangerLay = new QVBoxLayout(grpDanger);
     dangerLay->setSpacing(14);
 
     QLabel* lblDangerNotice = new QLabel("Actions in this section permanently alter or delete database records. Please ensure you have exported a database backup before executing any of these actions.", pageDanger);
     lblDangerNotice->setWordWrap(true);
-    lblDangerNotice->setStyleSheet("color: #f38ba8; font-size: 13px;");
+    lblDangerNotice->setStyleSheet(QString("color: %1; font-size: 13px;").arg(tokDanger.accentDanger.name()));
     dangerLay->addWidget(lblDangerNotice);
 
     // Purge Demo Data
@@ -959,7 +960,7 @@ void SettingsWidget::setupUI() {
     rowPurge->addStretch();
 
     m_btnPurgeDemoData = new QPushButton(" Purge Demo Data", pageDanger);
-    m_btnPurgeDemoData->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnPurgeDemoData->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnPurgeDemoData->setObjectName("dangerBtn");
     m_btnPurgeDemoData->setMinimumHeight(36);
     connect(m_btnPurgeDemoData, &QPushButton::clicked, this, [this]() {
@@ -998,7 +999,7 @@ void SettingsWidget::setupUI() {
     rowReset->addStretch();
 
     m_btnResetAppDefaults = new QPushButton(" Reset Settings", pageDanger);
-    m_btnResetAppDefaults->setIcon(IconManager::instance().getIcon("refresh-cw", QColor("#f38ba8"), 14));
+    m_btnResetAppDefaults->setIcon(IconManager::instance().getDangerIcon("refresh-cw", 14));
     m_btnResetAppDefaults->setObjectName("dangerBtn");
     m_btnResetAppDefaults->setMinimumHeight(36);
     connect(m_btnResetAppDefaults, &QPushButton::clicked, this, [this]() {

@@ -14,6 +14,8 @@
 #include <QMessageBox>
 
 #include "../database/databasemanager.h"
+#include "../core/iconmanager.h"
+#include "../core/thememanager.h"
 
 MatchDialog::MatchDialog(int groupId, QWidget* parent)
     : QDialog(parent), m_groupId(groupId)
@@ -114,7 +116,8 @@ void MatchDialog::setupUI() {
 
     lay->addLayout(form);
 
-    auto* btnRun = new QPushButton("🔎 Find Suggestions", this);
+    auto* btnRun = new QPushButton(" Find Suggestions", this);
+    btnRun->setIcon(IconManager::instance().getPrimaryIcon("search", 14));
     btnRun->setObjectName("primaryBtn");
     connect(btnRun, &QPushButton::clicked, this, &MatchDialog::runMatch);
     lay->addWidget(btnRun);
@@ -142,12 +145,14 @@ void MatchDialog::setupUI() {
 
     // --- Actions ----------------------------------------------------------
     auto* btnRow = new QHBoxLayout();
-    auto* btnAdd = new QPushButton("➕ Add Selected to Group", this);
+    auto* btnAdd = new QPushButton(" Add Selected to Group", this);
+    btnAdd->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     btnAdd->setObjectName("primaryBtn");
     connect(btnAdd, &QPushButton::clicked, this, &MatchDialog::addSelected);
     btnRow->addWidget(btnAdd);
 
-    auto* btnProfile = new QPushButton("View Profile", this);
+    auto* btnProfile = new QPushButton(" View Profile", this);
+    btnProfile->setIcon(IconManager::instance().getIcon("user", QColor(), 14));
     btnProfile->setObjectName("secondaryBtn");
     connect(btnProfile, &QPushButton::clicked, this, &MatchDialog::viewProfile);
     btnRow->addWidget(btnProfile);
@@ -212,10 +217,11 @@ void MatchDialog::populateTable() {
         chk->setEnabled(!alreadyAdded);
         m_table->setCellWidget(i, 0, chk);
 
+        const ThemeTokens tokMatch = ThemeManager::instance().currentTokens();
         QColor scoreColor;
-        if (r.score >= 70) scoreColor = QColor("#a6e3a1");
-        else if (r.score >= 40) scoreColor = QColor("#f9e2af");
-        else scoreColor = QColor("#f38ba8");
+        if (r.score >= 70) scoreColor = tokMatch.accentSuccess;
+        else if (r.score >= 40) scoreColor = tokMatch.accentWarning;
+        else scoreColor = tokMatch.accentDanger;
         auto* scoreItem = new QTableWidgetItem(QString("%1%").arg(r.score));
         scoreItem->setForeground(scoreColor);
         scoreItem->setTextAlignment(Qt::AlignCenter);

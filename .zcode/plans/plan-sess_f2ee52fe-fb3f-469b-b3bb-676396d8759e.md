@@ -1,55 +1,35 @@
-# Giving Module: Simple Entry + Pastoral Connection (Unified Plan, Phases 1–2)
+# Fix: Graph module renders empty canvas (scene corruption)
 
-Implements the agreed synthesis: Plan B's stripped entry form as the chassis, Plan A's pastoral signals as the engine. Tax-statement PDFs are deleted per user decision (Planning Center covers the rare statement need). Deviation from the source document: `payment_method`/`check_number` columns are kept (nullable, PC-import provenance + history) but removed from the entry form — non-destructive.
+Root cause is memory corruption in the QGraphicsScene from widget/item lifetime bugs in the recent graph rework — NOT data, schema, or filters (all verified healthy). Fix the lifetime bugs; the nodes will render again.
 
-## Step 0 — Safety net
-- `git init`, add `.gitignore` (`build/`, `build_release/`, `AppDir/`, `*.db`, `linuxdeploy-*.AppImage`, `deb_package/`), baseline commit of current state. Makes the tax-code deletion and migration reversible.
+## 1. Stop the Smart-Bridge panel widget churn (`graphwidget.cpp`)
+`clearGhostEdges()` (:1623-1636) + `clearLayoutRecursively()` (:42-54) delete child widgets of `m_smartBridgeLayout` while it remains the installed layout of the live `m_smartBridgeSection` — runs on every person-node click.
+Fix: rebuild the section contents into an inner container widget; on refresh, remove/dispose that container with `deleteLater()` instead of deleting children of the installed layout. Alternatively clear via the QLayoutItem take + `widget()->deleteLater()` pattern. One structural change, no behavior change.
 
-## Phase 1 — Simple Sunday entry + anonymous gifts
+## 2. QPointer-guard raw item pointers across `exec()` loops
+- `showNodeContextMenu` (:2663-2726): hold `QPointer<NodeItem> node`; bail if null after `menu.exec()`.
+- Edge-sever path (:2440-2494): same for `EdgeItem*`; no use of `edge` after the confirm dialog and `delete`.
+- Sweep the whole file for other capture-then-`exec()`-then-dereference patterns (QMessageBox/question/dialog exec) and guard each.
 
-### 1. Migration 10 (`databasemanager.cpp`, bump `kLatestSchemaVersion` 9→10)
-Rebuild `contributions` via create-new/copy/drop/rename in a transaction (SQLite can't relax NOT NULL in place):
-- `person_id` → **nullable** (anonymous plate offerings)
-- `payment_method` → nullable (relaxed; no longer written by the entry form)
-- add `note TEXT`
-- keep `check_number`, `external_id`, all else
-- recreate the 3 indexes (`idx_contributions_external_id` unique-partial, `_date`, `_person`)
-- update `createTables()` fresh-install definition to the same shape; follow existing pragma-guarded migration style
+## 3. Never clear the scene from inside an item's handler stack
+`onGroupSuggest` (:1616) and `onQuickAssignGroup` (:2511) call `loadGraph()` (which `m_scene->clear()`s and deletes every item) while the originating NodeItem handler is still running.
+Fix: defer the reload with `QTimer::singleShot(0, this, [this]{ loadGraph(); });` so it runs after the stack unwinds. Audit for other in-handler `loadGraph()` calls and defer them too.
 
-### 2. Entry form strip (`contributionswidget.cpp`)
-- Remove Payment Method + Check Number rows, `m_paymentCombo`, `m_checkNumberEdit`, `onPaymentMethodChanged`; clean `applyRole`
-- Add optional **Note** field (`m_noteEdit`)
-- **Anonymous**: "— Anonymous —" entry in person combo bound to NULL; validation accepts it (typed-name fallback still resolves real names); `member_history`/audit logging skipped for anonymous
-- INSERT binds note, omits payment fields
-- Delete tax-statement code: `onExportTaxStatements`, `m_btnExportPDF`, `m_progressBar` (+ header decls)
-
-### 3. Nullable-safe displays (4 sites)
-- `refreshHistoryModel`: LEFT JOIN people, `COALESCE(name,'— Anonymous —')`, method `COALESCE '—'`, add Note column
-- GnuCash CSV per-gift branch: donor 'Anonymous', method `COALESCE '—'`
-- `PeopleWidget::updateGivingSummary` recent-gifts rows: method `COALESCE '—'`
-
-## Phase 2 — Pastoral connection
-
-### 4. First-gift milestone (`onSaveContribution`)
-Pre-insert `COUNT(*)==0` check → `logMemberHistory(personId, "First Gift", ...)` (named donors only).
-
-### 5. Household giving metric (`peoplewidget.cpp`)
-- 4th `makeMetric("Household (with spouse)")` in the giving card (row at :745-747, members :196-199)
-- In `updateGivingSummary`: spouse lookup via `entity_relationships` (both directions, `relationship_type='Spouse'`, no reusable helper exists — write the small query); sum both person ids; "—" when no spouse
-- Fix existing mislabel: "YTD Total Giving" metric actually sums all-time → rename "Total Giving" (its text is also read by the member-PDF painter at :776 — keep the label populated)
-
-### 6. Shepherd "Giving Care" tab (`shepherdwidget.cpp/.h`)
-- New 4th tab mirroring the existing pattern (widget member + setupUI section + `refreshLapsedGivers()` called from `refreshAll()`)
-- Query: `membership_status IN ('Member','Regular Attender')` AND gave in ≥3 distinct months in the 6-month window ending 60 days ago AND nothing in the last 60 days
-- Double-click → existing `navigateToMember(int)` signal for jump-to-profile
-
-### 7. PC import skip count (`planningcenterdialog.cpp` :252-254)
-Append log line when `sum.donationsSkipped > 0` (currently never displayed).
+## 4. Build hygiene (no deletions without user confirmation)
+- The canonical binary is `build/OpenEkklesia`; `build_release/OpenEkklesia` (09:51) and `dist/*.AppImage` are stale/pre-rework. I will NOT delete them; I'll report paths so you (or Gemini) can clean up, and rebuild only the canonical `build/` for verification.
+- Recommendation to pass to Gemini: commit the uncommitted migration-18 bump (`databasemanager.{cpp,h}`) so HEAD matches the live DB. I will not commit their WIP myself.
 
 ## Verification
-- `cmake --build build_release` clean; `ctest` passes
-- Migration rehearsal: copy live DB (`~/.local/share/OpenEkklesia/open_ekklesia.db`) to /tmp, apply migration SQL via sqlite3, verify column shape/indexes/row counts (104 people, 4 contributions), re-run = no-op
-- Note for user: `datasharing.cpp` generic import writes contributions by explicit column list — unaffected by rebuild
+1. Build the canonical target: `cmake --build build` — clean compile.
+2. Run the test suite (`ctest` in build/); note the pre-existing ICS/TRIGGER test failure belongs to Gemini's WIP, not this fix.
+3. ASan validation: configure `build-asan` (Debug + `-fsanitize=address -fno-omit-frame-pointer`), launch under xvfb, script the trigger sequence — open graph, click a person node (exercises clearGhostEdges), open a node context menu, run the suggest/quick-assign flow, close the app (the teardown abort). Before the fix ASan should flag the invalid free/use-after-free; after the fix, clean run.
+4. Manual smoke via xvfb screenshot: graph canvas shows nodes (105 people / 19 groups) after the interaction sequence.
 
-## Out of scope (documented, later)
-Deposit batches (their Phase 3), pledges, envelope numbers, recurring-giver detection, `funds.gnu_account` mapping, PCO incremental import.
+## Out of scope
+- Smart Bridge v2 (migration 19, SynergyEngine, archetypes) — plan-doc only, untouched.
+- Any redesign of the graph's features — lifetime fixes only, preserving Gemini's UX as committed.
+
+## Files touched
+- `src/ui/ministry/graphwidget.cpp` (all fixes; currently committed-clean, so no collision with Gemini's uncommitted WIP in databasemanager/mainwindow/CMakeLists/iconmanager)
+- Possibly `src/ui/ministry/graphwidget.h` if the section-container refactor needs a member
+- Commit: only these files, explicit paths, leaving Gemini's WIP untouched.

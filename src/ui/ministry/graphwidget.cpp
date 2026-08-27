@@ -756,7 +756,8 @@ void GraphWidget::setupUI() {
         if (m_dockTabs) m_dockTabs->setCurrentWidget(m_hierarchyTab);
     });
 
-    m_btnToggleSelectMode = new QPushButton("Pan Canvas", this);
+    m_btnToggleSelectMode = new QPushButton(" Pan Canvas", this);
+    m_btnToggleSelectMode->setIcon(IconManager::instance().getIcon("move", QColor(), 14));
     m_btnToggleSelectMode->setCheckable(true);
     m_btnToggleSelectMode->setChecked(false);
     m_btnToggleSelectMode->setObjectName("secondaryBtn");
@@ -842,12 +843,14 @@ void GraphWidget::setupUI() {
     row1->addWidget(m_btnToggleFamilyDynasty);
     row1->addStretch();
 
-    m_btnToggleLayout = new QPushButton("⚡ Force-Directed", this);
+    m_btnToggleLayout = new QPushButton(" Force-Directed", this);
+    m_btnToggleLayout->setIcon(IconManager::instance().getIcon("activity", QColor(), 14));
     m_btnToggleLayout->setObjectName("secondaryBtn");
     m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnToggleLayout, &QPushButton::clicked, this, &GraphWidget::onToggleLayoutMode);
 
-    m_btnToggleFreeze = new QPushButton("❄️ Freeze Layout", this);
+    m_btnToggleFreeze = new QPushButton(" Freeze Layout", this);
+    m_btnToggleFreeze->setIcon(IconManager::instance().getIcon("pause", QColor(), 14));
     m_btnToggleFreeze->setObjectName("secondaryBtn");
     m_btnToggleFreeze->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     m_btnToggleFreeze->setToolTip("Freeze / Unfreeze the dynamic force-directed physics layout");
@@ -856,38 +859,44 @@ void GraphWidget::setupUI() {
         else resumePhysics();
     });
 
-    m_btnToggleStatusCluster = new QPushButton("🏷️ Cluster by Status", this);
+    m_btnToggleStatusCluster = new QPushButton(" Cluster by Status", this);
+    m_btnToggleStatusCluster->setIcon(IconManager::instance().getIcon("tag", QColor(), 14));
     m_btnToggleStatusCluster->setObjectName("secondaryBtn");
     m_btnToggleStatusCluster->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     m_btnToggleStatusCluster->setToolTip("Recolor people by membership status (Member / Attender / Visitor)");
     connect(m_btnToggleStatusCluster, &QPushButton::clicked, this, &GraphWidget::onToggleStatusCluster);
 
-    m_btnIsolatedBanner = new QPushButton("⚠️ 0 Unconnected Members", this);
+    m_btnIsolatedBanner = new QPushButton(" 0 Unconnected Members", this);
+    m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentWarning, 14));
     m_btnIsolatedBanner->setCursor(Qt::PointingHandCursor);
     connect(m_btnIsolatedBanner, &QPushButton::clicked, this, &GraphWidget::onSpotlightIsolatedClicked);
 
     m_graphSearchEdit = new QLineEdit(this);
-    m_graphSearchEdit->setPlaceholderText("🔍 Search graph...");
+    m_graphSearchEdit->setPlaceholderText("Search graph...");
     m_graphSearchEdit->setFixedWidth(130);
     m_graphSearchEdit->setStyleSheet("font-size: 11px; padding: 4px;");
     connect(m_graphSearchEdit, &QLineEdit::textChanged, this, &GraphWidget::onGraphSearchChanged);
 
-    m_btnPathfind = new QPushButton("🔍 Pathfinder", this);
+    m_btnPathfind = new QPushButton(" Pathfinder", this);
+    m_btnPathfind->setIcon(IconManager::instance().getIcon("search", QColor(), 14));
     m_btnPathfind->setObjectName("secondaryBtn");
     m_btnPathfind->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnPathfind, &QPushButton::clicked, this, &GraphWidget::onPathfindToggle);
 
-    m_btnRunAudit = new QPushButton("📊 Audit Report", this);
+    m_btnRunAudit = new QPushButton(" Audit Report", this);
+    m_btnRunAudit->setIcon(IconManager::instance().getIcon("bar-chart-2", QColor(), 14));
     m_btnRunAudit->setObjectName("secondaryBtn");
     m_btnRunAudit->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnRunAudit, &QPushButton::clicked, this, &GraphWidget::onRunAudit);
 
-    m_btnExportPNG = new QPushButton("📷 Export PNG", this);
+    m_btnExportPNG = new QPushButton(" Export PNG", this);
+    m_btnExportPNG->setIcon(IconManager::instance().getIcon("camera", QColor(), 14));
     m_btnExportPNG->setObjectName("secondaryBtn");
     m_btnExportPNG->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnExportPNG, &QPushButton::clicked, this, &GraphWidget::onExportPNG);
 
-    m_btnLegendToggle = new QPushButton("❓ Legend", this);
+    m_btnLegendToggle = new QPushButton(" Legend", this);
+    m_btnLegendToggle->setIcon(IconManager::instance().getIcon("help-circle", QColor(), 14));
     m_btnLegendToggle->setObjectName("secondaryBtn");
     m_btnLegendToggle->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnLegendToggle, &QPushButton::clicked, this, &GraphWidget::onToggleLegend);
@@ -921,15 +930,18 @@ void GraphWidget::setupUI() {
     fzLay->setContentsMargins(4, 4, 4, 4);
     fzLay->setSpacing(4);
 
-    QPushButton* fzIn = new QPushButton("➕", m_floatingZoomBar);
+    QPushButton* fzIn = new QPushButton(m_floatingZoomBar);
+    fzIn->setIcon(IconManager::instance().getIcon("zoom-in", QColor(), 14));
     fzIn->setToolTip("Zoom In");
-    fzIn->setStyleSheet("background: transparent; color: #89b4fa; font-size: 13px; font-weight: bold; border: none; padding: 3px 6px;");
-    QPushButton* fzOut = new QPushButton("➖", m_floatingZoomBar);
+    fzIn->setStyleSheet("background: transparent; border: none; padding: 3px 6px;");
+    QPushButton* fzOut = new QPushButton(m_floatingZoomBar);
+    fzOut->setIcon(IconManager::instance().getIcon("zoom-out", QColor(), 14));
     fzOut->setToolTip("Zoom Out");
-    fzOut->setStyleSheet("background: transparent; color: #89b4fa; font-size: 13px; font-weight: bold; border: none; padding: 3px 6px;");
-    QPushButton* fzReset = new QPushButton("⟲", m_floatingZoomBar);
+    fzOut->setStyleSheet("background: transparent; border: none; padding: 3px 6px;");
+    QPushButton* fzReset = new QPushButton(m_floatingZoomBar);
+    fzReset->setIcon(IconManager::instance().getIcon("maximize-2", QColor(), 14));
     fzReset->setToolTip("Fit Network");
-    fzReset->setStyleSheet("background: transparent; color: #89b4fa; font-size: 13px; font-weight: bold; border: none; padding: 3px 6px;");
+    fzReset->setStyleSheet("background: transparent; border: none; padding: 3px 6px;");
 
     connect(fzIn, &QPushButton::clicked, this, &GraphWidget::onZoomIn);
     connect(fzOut, &QPushButton::clicked, this, &GraphWidget::onZoomOut);
@@ -946,7 +958,8 @@ void GraphWidget::setupUI() {
     fvoLay->setContentsMargins(6, 4, 6, 4);
     fvoLay->setSpacing(5);
 
-    m_btnToggleInspectorDock = new QPushButton("🏷️ Inspector (On)", m_floatingViewOptionsBar);
+    m_btnToggleInspectorDock = new QPushButton(" Inspector (On)", m_floatingViewOptionsBar);
+    m_btnToggleInspectorDock->setIcon(IconManager::instance().getIcon("sidebar", QColor(), 14));
     m_btnToggleInspectorDock->setCheckable(true);
     m_btnToggleInspectorDock->setChecked(true);
     m_btnToggleInspectorDock->setToolTip("Toggle Context Inspector & Hierarchy Panel (Expand / Collapse)");
@@ -981,7 +994,8 @@ void GraphWidget::setupUI() {
     sep2->setFrameShape(QFrame::VLine);
     sep2->setFrameShadow(QFrame::Sunken);
 
-    m_btnToggleConnectors = new QPushButton("👁️ Links On", m_floatingViewOptionsBar);
+    m_btnToggleConnectors = new QPushButton(" Links On", m_floatingViewOptionsBar);
+    m_btnToggleConnectors->setIcon(IconManager::instance().getIcon("link", QColor(), 14));
     m_btnToggleConnectors->setCheckable(true);
     m_btnToggleConnectors->setChecked(true);
     m_btnToggleConnectors->setToolTip("Toggle All Relational Connector Lines (Hide for clean Tree View & Cluster Layout)");
@@ -998,7 +1012,8 @@ void GraphWidget::setupUI() {
     fvoLay->addWidget(m_btnToggleConnectors);
 
     // Floating Expand Tab on Right Edge (visible when dock is collapsed)
-    m_btnFloatingExpandDock = new QPushButton("⇤ Open Inspector", m_canvasView);
+    m_btnFloatingExpandDock = new QPushButton(" Open Inspector", m_canvasView);
+    m_btnFloatingExpandDock->setIcon(IconManager::instance().getPrimaryIcon("chevron-left", 14));
     m_btnFloatingExpandDock->setObjectName("primaryBtn");
     m_btnFloatingExpandDock->setToolTip("Expand Context Inspector & Hierarchy Panel");
     m_btnFloatingExpandDock->hide();
@@ -1016,9 +1031,10 @@ void GraphWidget::setupUI() {
 
     // Dock Header with Title and Collapse Toggle
     QHBoxLayout* dockHeader = new QHBoxLayout();
-    QLabel* dockTitle = new QLabel("🏷️ Context Inspector", m_detailsDock);
-    dockTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #89b4fa;");
-    m_btnCollapseDock = new QPushButton("⇥ Collapse", m_detailsDock);
+    QLabel* dockTitle = new QLabel("Context Inspector", m_detailsDock);
+    dockTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: palette(highlight);");
+    m_btnCollapseDock = new QPushButton(" Collapse", m_detailsDock);
+    m_btnCollapseDock->setIcon(IconManager::instance().getIcon("chevron-right", QColor(), 14));
     m_btnCollapseDock->setObjectName("secondaryBtn");
     m_btnCollapseDock->setStyleSheet("padding: 3px 8px; font-size: 10px;");
     connect(m_btnCollapseDock, &QPushButton::clicked, this, &GraphWidget::onToggleCollapseDock);
@@ -1039,7 +1055,8 @@ void GraphWidget::setupUI() {
     m_detailsScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_detailsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollBar:vertical { width: 6px; background: transparent; } QScrollBar::handle:vertical { background: #313244; border-radius: 3px; }");
     m_detailsScrollArea->setWidget(m_detailsStack);
-    m_dockTabs->addTab(m_detailsScrollArea, "🏷️ Inspector");
+    m_dockTabs->addTab(m_detailsScrollArea, "Inspector");
+    m_dockTabs->setTabIcon(0, IconManager::instance().getIcon("sidebar", tok.accentPrimary, 14));
 
     // Tab 2: Hierarchy Tree Explorer
     m_hierarchyTab = new QWidget(m_dockTabs);
@@ -1049,12 +1066,14 @@ void GraphWidget::setupUI() {
 
     QHBoxLayout* hControls = new QHBoxLayout();
     m_txtHierarchySearch = new QLineEdit(m_hierarchyTab);
-    m_txtHierarchySearch->setPlaceholderText("🔍 Filter ministry tree...");
+    m_txtHierarchySearch->setPlaceholderText("Filter ministry tree...");
     m_txtHierarchySearch->setClearButtonEnabled(true);
-    m_btnExpandAllHierarchy = new QPushButton("➕", m_hierarchyTab);
+    m_btnExpandAllHierarchy = new QPushButton(m_hierarchyTab);
+    m_btnExpandAllHierarchy->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
     m_btnExpandAllHierarchy->setToolTip("Expand All");
     m_btnExpandAllHierarchy->setStyleSheet("padding: 3px 6px; font-size: 11px;");
-    m_btnCollapseAllHierarchy = new QPushButton("➖", m_hierarchyTab);
+    m_btnCollapseAllHierarchy = new QPushButton(m_hierarchyTab);
+    m_btnCollapseAllHierarchy->setIcon(IconManager::instance().getIcon("minus", QColor(), 14));
     m_btnCollapseAllHierarchy->setToolTip("Collapse All");
     m_btnCollapseAllHierarchy->setStyleSheet("padding: 3px 6px; font-size: 11px;");
 
@@ -1121,11 +1140,11 @@ void GraphWidget::setupUI() {
 
         QMenu menu(this);
         if (type == "Person") {
-            QAction* actProfile = menu.addAction("👤 View Full Profile");
-            QAction* actPhone = menu.addAction("📞 Copy Phone Number");
-            QAction* actEmail = menu.addAction("✉️ Copy Email Address");
+            QAction* actProfile = menu.addAction(IconManager::instance().getIcon("user", QColor(), 14), "View Full Profile");
+            QAction* actPhone = menu.addAction(IconManager::instance().getIcon("phone", QColor(), 14), "Copy Phone Number");
+            QAction* actEmail = menu.addAction(IconManager::instance().getIcon("mail", QColor(), 14), "Copy Email Address");
             menu.addSeparator();
-            QAction* actFocus = menu.addAction("🕸️ Focus on Canvas");
+            QAction* actFocus = menu.addAction(IconManager::instance().getIcon("crosshair", QColor(), 14), "Focus on Canvas");
 
             QAction* sel = menu.exec(m_hierarchyTreeWidget->viewport()->mapToGlobal(pos));
             if (!sel) return;
@@ -1147,8 +1166,8 @@ void GraphWidget::setupUI() {
                 }
             }
         } else if (type == "Group") {
-            QAction* actFocus = menu.addAction("🕸️ Focus on Canvas");
-            QAction* actMinistries = menu.addAction("✏️ View in Ministries Tab");
+            QAction* actFocus = menu.addAction(IconManager::instance().getIcon("crosshair", QColor(), 14), "Focus on Canvas");
+            QAction* actMinistries = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "View in Ministries Tab");
 
             QAction* sel = menu.exec(m_hierarchyTreeWidget->viewport()->mapToGlobal(pos));
             if (!sel) return;
@@ -1166,7 +1185,8 @@ void GraphWidget::setupUI() {
         }
     });
 
-    m_dockTabs->addTab(m_hierarchyTab, "🌲 Ministry Tree");
+    m_dockTabs->addTab(m_hierarchyTab, "Ministry Tree");
+    m_dockTabs->setTabIcon(1, IconManager::instance().getIcon("folder-tree", tok.accentPrimary, 14));
     dockLayout->addWidget(m_dockTabs, 1);
 
     // Page 0: Person Node Inspector
@@ -1180,17 +1200,19 @@ void GraphWidget::setupUI() {
     m_lblPersonName = new QLabel("Person Name", m_pagePerson);
     m_lblPersonName->setStyleSheet("font-size: 16px; font-weight: bold; color: palette(text);");
     m_lblPersonStatus = new QLabel("Status: Active Member", m_pagePerson);
-    m_lblPersonStatus->setStyleSheet("font-size: 12px; color: #89b4fa; font-weight: 500;");
+    m_lblPersonStatus->setStyleSheet("font-size: 12px; color: palette(highlight); font-weight: 500;");
 
     m_lblPersonBrokerBadge = new QLabel("🌉 Relational Broker", m_pagePerson);
     m_lblPersonBrokerBadge->setStyleSheet("background-color: #3c2656; color: #cba6f7; border: 1px solid #cba6f7; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight: bold;");
     m_lblPersonBrokerBadge->hide();
 
     QHBoxLayout* contactRow = new QHBoxLayout();
-    m_btnCopyPhone = new QPushButton("📞 Copy Phone", m_pagePerson);
+    m_btnCopyPhone = new QPushButton(" Copy Phone", m_pagePerson);
+    m_btnCopyPhone->setIcon(IconManager::instance().getIcon("phone", QColor(), 14));
     m_btnCopyPhone->setObjectName("secondaryBtn");
     m_btnCopyPhone->setStyleSheet("font-size: 11px; padding: 4px 8px; font-weight: bold;");
-    m_btnCopyEmail = new QPushButton("✉️ Copy Email", m_pagePerson);
+    m_btnCopyEmail = new QPushButton(" Copy Email", m_pagePerson);
+    m_btnCopyEmail->setIcon(IconManager::instance().getIcon("mail", QColor(), 14));
     m_btnCopyEmail->setObjectName("secondaryBtn");
     m_btnCopyEmail->setStyleSheet("font-size: 11px; padding: 4px 8px; font-weight: bold;");
     connect(m_btnCopyPhone, &QPushButton::clicked, this, [this]() {
@@ -1203,7 +1225,7 @@ void GraphWidget::setupUI() {
     contactRow->addWidget(m_btnCopyEmail);
 
     QLabel* lblCare = new QLabel("Care Flag:", m_pagePerson);
-    lblCare->setStyleSheet("font-size: 12px; font-weight: bold; color: #bac2de;");
+    lblCare->setStyleSheet("font-size: 12px; font-weight: bold; color: palette(text);");
     m_cmbCareFlag = new QComboBox(m_pagePerson);
     m_cmbCareFlag->addItems({"Normal", "Active Member", "Leader", "At-Risk", "New Visitor", "Needs Contact"});
     m_cmbCareFlag->setStyleSheet("font-size: 11px; padding: 5px;");
@@ -1223,12 +1245,14 @@ void GraphWidget::setupUI() {
     m_txtAdminNotes->setPlaceholderText("Pastoral admin notes & observations...");
     m_txtAdminNotes->setMaximumHeight(75);
 
-    m_btnSaveNotes = new QPushButton("💾 Save Notes", m_pagePerson);
+    m_btnSaveNotes = new QPushButton(" Save Notes", m_pagePerson);
+    m_btnSaveNotes->setIcon(IconManager::instance().getIcon("save", QColor(), 14));
     m_btnSaveNotes->setObjectName("secondaryBtn");
     m_btnSaveNotes->setStyleSheet("font-size: 11px; padding: 5px; font-weight: bold;");
     connect(m_btnSaveNotes, &QPushButton::clicked, this, &GraphWidget::onSaveNotes);
 
-    m_btnOpenProfile = new QPushButton("👤 View Full Member Dossier", m_pagePerson);
+    m_btnOpenProfile = new QPushButton(" View Full Member Dossier", m_pagePerson);
+    m_btnOpenProfile->setIcon(IconManager::instance().getPrimaryIcon("user", 14));
     m_btnOpenProfile->setObjectName("primaryBtn");
     m_btnOpenProfile->setCursor(Qt::PointingHandCursor);
     m_btnOpenProfile->setStyleSheet("font-size: 11px; padding: 7px; font-weight: bold;");
@@ -1273,7 +1297,8 @@ void GraphWidget::setupUI() {
     pLay->addWidget(m_btnOpenProfile);
 
     // Reconnect workflow: log a contact attempt -> pastoral_activities + flag.
-    m_btnLogContact = new QPushButton("📞 Log Contact Attempt", m_pagePerson);
+    m_btnLogContact = new QPushButton(" Log Contact Attempt", m_pagePerson);
+    m_btnLogContact->setIcon(IconManager::instance().getIcon("phone-call", QColor(), 14));
     m_btnLogContact->setObjectName("secondaryBtn");
     m_btnLogContact->setStyleSheet("font-size: 11px; padding: 5px;");
     m_btnLogContact->setToolTip("Records a contact attempt (pastoral log) and marks the person 'Needs Contact'");
@@ -1314,10 +1339,12 @@ void GraphWidget::setupUI() {
     connect(m_lstRoster, &QListWidget::itemClicked, this, &GraphWidget::onRosterItemClicked);
 
     QHBoxLayout* groupBtnRow = new QHBoxLayout();
-    m_btnGroupAddMember = new QPushButton("➕ Add Member", m_pageGroup);
+    m_btnGroupAddMember = new QPushButton(" Add Member", m_pageGroup);
+    m_btnGroupAddMember->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     m_btnGroupAddMember->setObjectName("primaryBtn");
     m_btnGroupAddMember->setStyleSheet("font-size: 10px; padding: 4px 6px;");
-    m_btnGroupCopyEmails = new QPushButton("✉️ Copy Emails", m_pageGroup);
+    m_btnGroupCopyEmails = new QPushButton(" Copy Emails", m_pageGroup);
+    m_btnGroupCopyEmails->setIcon(IconManager::instance().getIcon("mail", QColor(), 14));
     m_btnGroupCopyEmails->setObjectName("secondaryBtn");
     m_btnGroupCopyEmails->setStyleSheet("font-size: 10px; padding: 4px 6px;");
     connect(m_btnGroupAddMember, &QPushButton::clicked, this, [this]() {
@@ -1343,7 +1370,8 @@ void GraphWidget::setupUI() {
 
     // Suggest People: launch the Ministry Match recommender for this group
     // (declared skills/age profile, ranked, one-click add).
-    m_btnGroupSuggest = new QPushButton("✨ Suggest People", m_pageGroup);
+    m_btnGroupSuggest = new QPushButton(" Suggest People", m_pageGroup);
+    m_btnGroupSuggest->setIcon(IconManager::instance().getIcon("sparkles", QColor(), 14));
     m_btnGroupSuggest->setObjectName("accentBtnCyan");
     m_btnGroupSuggest->setStyleSheet("font-size: 10px; padding: 4px 6px;");
     m_btnGroupSuggest->setToolTip("Find people who fit this ministry and add them in one click");
@@ -1393,8 +1421,8 @@ void GraphWidget::setupUI() {
     eLay->setContentsMargins(0, 0, 0, 0);
     eLay->setSpacing(8);
 
-    m_lblEdgeTitle = new QLabel("🔗 Relationship Details", m_pageEdge);
-    m_lblEdgeTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #89b4fa;");
+    m_lblEdgeTitle = new QLabel("Relationship Details", m_pageEdge);
+    m_lblEdgeTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: palette(highlight);");
     m_lblEdgeBetween = new QLabel("Between: Person ↔ Group", m_pageEdge);
     m_lblEdgeBetween->setStyleSheet("font-size: 12px; font-weight: bold;");
     m_lblEdgeBetween->setWordWrap(true);
@@ -1405,7 +1433,8 @@ void GraphWidget::setupUI() {
     m_cmbEdgeRole->addItems({"Member", "Leader", "Co-Leader", "Volunteer", "Spouse", "Child", "Parent"});
     connect(m_cmbEdgeRole, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onEdgeRoleChanged);
 
-    m_btnSeverEdge = new QPushButton("🗑️ Sever Connection / Remove", m_pageEdge);
+    m_btnSeverEdge = new QPushButton(" Sever Connection / Remove", m_pageEdge);
+    m_btnSeverEdge->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnSeverEdge->setObjectName("dangerBtn");
     m_btnSeverEdge->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnSeverEdge, &QPushButton::clicked, this, &GraphWidget::onSeverSelectedEdge);
@@ -1423,11 +1452,13 @@ void GraphWidget::setupUI() {
     eLay->addWidget(m_lblEdgeSource);
 
     QHBoxLayout* edgeNav = new QHBoxLayout();
-    m_btnEdgeOpenLeft = new QPushButton("◀ Open Source", m_pageEdge);
+    m_btnEdgeOpenLeft = new QPushButton(" Open Source", m_pageEdge);
+    m_btnEdgeOpenLeft->setIcon(IconManager::instance().getIcon("arrow-left", QColor(), 14));
     m_btnEdgeOpenLeft->setObjectName("secondaryBtn");
     m_btnEdgeOpenLeft->setStyleSheet("font-size: 10px; padding: 4px 6px;");
     edgeNav->addWidget(m_btnEdgeOpenLeft);
-    m_btnEdgeOpenRight = new QPushButton("Open Target ▶", m_pageEdge);
+    m_btnEdgeOpenRight = new QPushButton(" Open Target", m_pageEdge);
+    m_btnEdgeOpenRight->setIcon(IconManager::instance().getIcon("arrow-right", QColor(), 14));
     m_btnEdgeOpenRight->setObjectName("secondaryBtn");
     m_btnEdgeOpenRight->setStyleSheet("font-size: 10px; padding: 4px 6px;");
     edgeNav->addWidget(m_btnEdgeOpenRight);
@@ -1445,20 +1476,22 @@ void GraphWidget::setupUI() {
     empLay->setContentsMargins(0, 0, 0, 0);
     empLay->setSpacing(8);
 
-    QLabel* empTitle = new QLabel("🧹 Data Hygiene & Quick Focus", m_pageEmpty);
-    empTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #a6e3a1;");
+    QLabel* empTitle = new QLabel("Data Hygiene & Quick Focus", m_pageEmpty);
+    empTitle->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tok.accentSuccess.name()));
     m_lblHygieneMissingPhone = new QLabel("• 0 records missing phone", m_pageEmpty);
     m_lblHygieneMissingEmail = new QLabel("• 0 records missing email", m_pageEmpty);
     m_lblHygieneIsolated = new QLabel("• 0 isolated / unconnected members", m_pageEmpty);
     m_lblHygieneBridgeCount = new QLabel("• 0 bridge connectors identified", m_pageEmpty);
 
-    m_btnSpotlightIncomplete = new QPushButton("🔍 Spotlight Incomplete Records", m_pageEmpty);
+    m_btnSpotlightIncomplete = new QPushButton(" Spotlight Incomplete Records", m_pageEmpty);
+    m_btnSpotlightIncomplete->setIcon(IconManager::instance().getPrimaryIcon("search", 14));
     m_btnSpotlightIncomplete->setObjectName("primaryBtn");
     m_btnSpotlightIncomplete->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     connect(m_btnSpotlightIncomplete, &QPushButton::clicked, this, &GraphWidget::spotlightHygieneNodes);
 
     // Undo the most recent sever (this session only).
-    m_btnUndoSever = new QPushButton("↩️ Undo Last Sever", m_pageEmpty);
+    m_btnUndoSever = new QPushButton(" Undo Last Sever", m_pageEmpty);
+    m_btnUndoSever->setIcon(IconManager::instance().getIcon("rotate-ccw", QColor(), 14));
     m_btnUndoSever->setObjectName("secondaryBtn");
     m_btnUndoSever->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     m_btnUndoSever->setEnabled(false);
@@ -1480,30 +1513,34 @@ void GraphWidget::setupUI() {
     batchLay->setContentsMargins(0, 0, 0, 0);
     batchLay->setSpacing(8);
 
-    QLabel* batchTitle = new QLabel("🔲 Batch Selection Hub", m_pageBatch);
-    batchTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #89b4fa;");
+    QLabel* batchTitle = new QLabel("Batch Selection Hub", m_pageBatch);
+    batchTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: palette(highlight);");
     m_lblBatchSummary = new QLabel("Selected 0 Entities", m_pageBatch);
     m_lblBatchSummary->setStyleSheet("font-size: 12px;");
 
     m_lstBatchMembers = new QListWidget(m_pageBatch);
     m_lstBatchMembers->setMaximumHeight(120);
 
-    m_btnBatchEmails = new QPushButton("✉️ Copy Selected Emails", m_pageBatch);
+    m_btnBatchEmails = new QPushButton(" Copy Selected Emails", m_pageBatch);
+    m_btnBatchEmails->setIcon(IconManager::instance().getPrimaryIcon("mail", 14));
     m_btnBatchEmails->setObjectName("primaryBtn");
     m_btnBatchEmails->setStyleSheet("font-size: 11px; padding: 5px;");
     connect(m_btnBatchEmails, &QPushButton::clicked, this, &GraphWidget::onBatchCopyEmails);
 
-    m_btnBatchPhones = new QPushButton("📞 Copy Selected Phones", m_pageBatch);
+    m_btnBatchPhones = new QPushButton(" Copy Selected Phones", m_pageBatch);
+    m_btnBatchPhones->setIcon(IconManager::instance().getIcon("phone", QColor(), 14));
     m_btnBatchPhones->setObjectName("secondaryBtn");
     m_btnBatchPhones->setStyleSheet("font-size: 11px; padding: 5px;");
     connect(m_btnBatchPhones, &QPushButton::clicked, this, &GraphWidget::onBatchCopyPhones);
 
-    m_btnBatchCSV = new QPushButton("📄 Export Selected to CSV", m_pageBatch);
+    m_btnBatchCSV = new QPushButton(" Export Selected to CSV", m_pageBatch);
+    m_btnBatchCSV->setIcon(IconManager::instance().getIcon("file-text", QColor(), 14));
     m_btnBatchCSV->setObjectName("secondaryBtn");
     m_btnBatchCSV->setStyleSheet("font-size: 11px; padding: 5px;");
     connect(m_btnBatchCSV, &QPushButton::clicked, this, &GraphWidget::onBatchExportCSV);
 
-    m_btnBatchAssign = new QPushButton("➕ Batch Assign to Group...", m_pageBatch);
+    m_btnBatchAssign = new QPushButton(" Batch Assign to Group...", m_pageBatch);
+    m_btnBatchAssign->setIcon(IconManager::instance().getIcon("users", QColor(), 14));
     m_btnBatchAssign->setObjectName("secondaryBtn");
     m_btnBatchAssign->setStyleSheet("font-size: 11px; padding: 5px;");
     connect(m_btnBatchAssign, &QPushButton::clicked, this, &GraphWidget::onBatchAssignGroup);
@@ -1528,10 +1565,12 @@ void GraphWidget::setupUI() {
         if (m_btnFloatingExpandDock) m_btnFloatingExpandDock->setVisible(isCollapsed);
         if (m_btnToggleInspectorDock) {
             m_btnToggleInspectorDock->setChecked(!isCollapsed);
-            m_btnToggleInspectorDock->setText(isCollapsed ? "🏷️ Inspector (Off)" : "🏷️ Inspector (On)");
+            m_btnToggleInspectorDock->setText(isCollapsed ? " Inspector (Off)" : " Inspector (On)");
+            m_btnToggleInspectorDock->setIcon(IconManager::instance().getIcon("sidebar", QColor(), 14));
         }
         if (m_btnCollapseDock) {
-            m_btnCollapseDock->setText(isCollapsed ? "⇥ Expand" : "⇥ Collapse");
+            m_btnCollapseDock->setText(isCollapsed ? " Expand" : " Collapse");
+            m_btnCollapseDock->setIcon(IconManager::instance().getIcon(isCollapsed ? "chevron-left" : "chevron-right", QColor(), 14));
         }
         updateFloatingControlsPosition();
     });
@@ -1622,12 +1661,16 @@ void GraphWidget::updateFloatingControlsPosition() {
 
 void GraphWidget::onToggleSelectMode() {
     m_isSelectMode = m_btnToggleSelectMode->isChecked();
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
     if (m_isSelectMode) {
-        m_btnToggleSelectMode->setText("🔲 Box Select");
-        m_btnToggleSelectMode->setStyleSheet("background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 5px 10px; font-size: 11px;");
+        m_btnToggleSelectMode->setText(" Box Select");
+        m_btnToggleSelectMode->setIcon(IconManager::instance().getIcon("crop", ThemeManager::textOn(tok.accentPrimary), 14));
+        m_btnToggleSelectMode->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 10px; font-size: 11px;")
+            .arg(tok.accentPrimary.name(), ThemeManager::textOn(tok.accentPrimary).name()));
         m_canvasView->setSelectMode(true);
     } else {
-        m_btnToggleSelectMode->setText("✋ Pan Canvas");
+        m_btnToggleSelectMode->setText(" Pan Canvas");
+        m_btnToggleSelectMode->setIcon(IconManager::instance().getIcon("move", QColor(), 14));
         m_btnToggleSelectMode->setStyleSheet("font-size: 11px; padding: 5px 10px;");
         m_canvasView->setSelectMode(false);
     }
@@ -1999,12 +2042,13 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
         lblReason->setStyleSheet("font-size: 11px; color: palette(text); background: transparent; border: none;");
         lblReason->setWordWrap(true);
 
-        QPushButton* btnConnect = new QPushButton("⚡ Connect", rowWidget);
+        QPushButton* btnConnect = new QPushButton(" Connect", rowWidget);
+        btnConnect->setIcon(IconManager::instance().getPrimaryIcon("zap", 14));
         btnConnect->setCursor(Qt::PointingHandCursor);
         btnConnect->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; font-weight: bold; font-size: 11px; border-radius: 5px; padding: 4px 10px; border: none; }"
             "QPushButton:hover { background-color: %3; }"
-        ).arg(tok.accentPrimary.name(), tok.isDark ? "#11111b" : "#ffffff", tok.accentPrimary.darker(115).name()));
+        ).arg(tok.accentPrimary.name(), ThemeManager::textOn(tok.accentPrimary).name(), tok.accentPrimary.darker(115).name()));
         int pid = c.personId;
         int gid = c.groupId;
         int matchScore = c.score;
@@ -2072,21 +2116,29 @@ void GraphWidget::onToggleCollapseDock() {
     bool isCollapsed = (sizes.size() >= 2 && sizes[1] <= 15);
     if (!isCollapsed) {
         m_splitter->setSizes({width(), 0});
-        if (m_btnCollapseDock) m_btnCollapseDock->setText("⇥ Expand");
+        if (m_btnCollapseDock) {
+            m_btnCollapseDock->setText(" Expand");
+            m_btnCollapseDock->setIcon(IconManager::instance().getIcon("chevron-left", QColor(), 14));
+        }
         if (m_btnFloatingExpandDock) m_btnFloatingExpandDock->show();
         if (m_btnToggleInspectorDock) {
             m_btnToggleInspectorDock->setChecked(false);
-            m_btnToggleInspectorDock->setText("🏷️ Inspector (Off)");
+            m_btnToggleInspectorDock->setText(" Inspector (Off)");
+            m_btnToggleInspectorDock->setIcon(IconManager::instance().getIcon("sidebar", QColor(), 14));
         }
     } else {
         int targetDockWidth = 340;
         int leftWidth = qMax(300, width() - targetDockWidth);
         m_splitter->setSizes({leftWidth, targetDockWidth});
-        if (m_btnCollapseDock) m_btnCollapseDock->setText("⇥ Collapse");
+        if (m_btnCollapseDock) {
+            m_btnCollapseDock->setText(" Collapse");
+            m_btnCollapseDock->setIcon(IconManager::instance().getIcon("chevron-right", QColor(), 14));
+        }
         if (m_btnFloatingExpandDock) m_btnFloatingExpandDock->hide();
         if (m_btnToggleInspectorDock) {
             m_btnToggleInspectorDock->setChecked(true);
-            m_btnToggleInspectorDock->setText("🏷️ Inspector (On)");
+            m_btnToggleInspectorDock->setText(" Inspector (On)");
+            m_btnToggleInspectorDock->setIcon(IconManager::instance().getIcon("sidebar", QColor(), 14));
         }
     }
     updateFloatingControlsPosition();
@@ -2106,7 +2158,8 @@ void GraphWidget::setConnectorSizeLevel(int level) {
     auto styleBtn = [&](QPushButton* btn, bool active) {
         if (!btn) return;
         if (active) {
-            btn->setStyleSheet(QString("background-color: %1; color: #11111b; font-weight: bold; font-size: 10px; padding: 3px 6px; border-radius: 4px; border: none;").arg(tok.accentPrimary.name()));
+            btn->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; font-size: 10px; padding: 3px 6px; border-radius: 4px; border: none;")
+                .arg(tok.accentPrimary.name(), ThemeManager::textOn(tok.accentPrimary).name()));
         } else {
             btn->setStyleSheet(QString("background-color: %1; color: %2; font-size: 10px; padding: 3px 6px; border-radius: 4px; border: 1px solid %3;").arg(tok.bgSurface.name(), tok.textSecondary.name(), tok.borderColor.name()));
         }
@@ -2128,11 +2181,13 @@ void GraphWidget::setShowConnectors(bool show) {
         m_btnToggleConnectors->setChecked(m_showConnectors);
         ThemeTokens tok = ThemeManager::instance().currentTokens();
         if (m_showConnectors) {
-            m_btnToggleConnectors->setText("👁️ Links On");
+            m_btnToggleConnectors->setText(" Links On");
+            m_btnToggleConnectors->setIcon(IconManager::instance().getIcon("link", tok.textPrimary, 14));
             m_btnToggleConnectors->setStyleSheet(QString("background-color: %1; color: %2; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 5px; border: 1px solid %3;").arg(tok.bgSurface.name(), tok.textPrimary.name(), tok.borderColor.name()));
         } else {
-            m_btnToggleConnectors->setText("🚫 Links Off");
-            m_btnToggleConnectors->setStyleSheet(QString("background-color: %1; color: #11111b; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 5px; border: none;").arg(tok.accentWarning.name()));
+            m_btnToggleConnectors->setText(" Links Off");
+            m_btnToggleConnectors->setIcon(IconManager::instance().getIcon("link-2", ThemeManager::textOn(tok.accentWarning), 14));
+            m_btnToggleConnectors->setStyleSheet(QString("background-color: %1; color: %2; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 5px; border: none;").arg(tok.accentWarning.name(), ThemeManager::textOn(tok.accentWarning).name()));
         }
     }
     if (m_scene) m_scene->update();
@@ -2163,34 +2218,41 @@ void GraphWidget::onToggleLegend() {
 }
 
 void GraphWidget::onToggleLayoutMode() {
+    const ThemeTokens tokLay = ThemeManager::instance().currentTokens();
     if (m_selectedMinistryParentId > 0) {
         if (m_layoutMode == ForceDirected) {
             m_layoutMode = TreeHierarchy;
-            m_btnToggleLayout->setText("🌲 Tree Org-Chart");
-            m_btnToggleLayout->setStyleSheet("background-color: #a6e3a1; color: #11111b; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;");
+            m_btnToggleLayout->setText(" Tree Org-Chart");
+            m_btnToggleLayout->setIcon(IconManager::instance().getIcon("folder-tree", ThemeManager::textOn(tokLay.accentSuccess), 14));
+            m_btnToggleLayout->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;")
+                .arg(tokLay.accentSuccess.name(), ThemeManager::textOn(tokLay.accentSuccess).name()));
             pausePhysics();
             applyTreeHierarchyLayout();
         } else if (m_layoutMode == TreeHierarchy) {
             m_layoutMode = Clustered;
-            m_btnToggleLayout->setText("🧩 Clustered");
+            m_btnToggleLayout->setText(" Clustered");
+            m_btnToggleLayout->setIcon(IconManager::instance().getIcon("grid", QColor(), 14));
             m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
             pausePhysics();
             applyClusteredLayout();
         } else {
             m_layoutMode = ForceDirected;
-            m_btnToggleLayout->setText("⚡ Force-Directed");
+            m_btnToggleLayout->setText(" Force-Directed");
+            m_btnToggleLayout->setIcon(IconManager::instance().getIcon("activity", QColor(), 14));
             m_btnToggleLayout->setStyleSheet("font-size: 11px; padding: 5px 8px;");
             resumePhysics();
         }
     } else {
         if (m_layoutMode == ForceDirected) {
             m_layoutMode = Clustered;
-            m_btnToggleLayout->setText("🧩 Clustered");
+            m_btnToggleLayout->setText(" Clustered");
+            m_btnToggleLayout->setIcon(IconManager::instance().getIcon("grid", QColor(), 14));
             pausePhysics();
             applyClusteredLayout();
         } else {
             m_layoutMode = ForceDirected;
-            m_btnToggleLayout->setText("⚡ Force-Directed");
+            m_btnToggleLayout->setText(" Force-Directed");
+            m_btnToggleLayout->setIcon(IconManager::instance().getIcon("activity", QColor(), 14));
             resumePhysics();
         }
     }
@@ -2450,8 +2512,9 @@ void GraphWidget::updateIsolationQuery() {
 
     if (m_btnIsolatedBanner) {
         int count = m_isolatedPersonIds.size();
-        m_btnIsolatedBanner->setText(QString("⚠️ %1 Unconnected Members").arg(count));
+        m_btnIsolatedBanner->setText(QString(" %1 Unconnected Members").arg(count));
         const ThemeTokens t = ThemeManager::instance().currentTokens();
+        m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", t.accentDanger, 14));
         QColor dangerBg = t.accentDanger;
         dangerBg.setAlpha(40);
         m_btnIsolatedBanner->setStyleSheet(
@@ -2994,14 +3057,15 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
     QMenu m(this);
 
     if (node->isPersonNode()) {
-        QAction* aProfile = m.addAction("👤 View Full Profile");
-        QAction* aPhone = m.addAction("📞 Copy Phone Number");
-        QAction* aEmail = m.addAction("✉️ Copy Email Address");
+        QAction* aProfile = m.addAction(IconManager::instance().getIcon("user", QColor(), 14), "View Full Profile");
+        QAction* aPhone = m.addAction(IconManager::instance().getIcon("phone", QColor(), 14), "Copy Phone Number");
+        QAction* aEmail = m.addAction(IconManager::instance().getIcon("mail", QColor(), 14), "Copy Email Address");
         m.addSeparator();
-        QAction* aPin = m.addAction(node->isPinned() ? "🔓 Unpin / Unfreeze Node" : "📌 Pin / Freeze Node in Place");
+        QAction* aPin = m.addAction(IconManager::instance().getIcon(node->isPinned() ? "unlock" : "pin", QColor(), 14),
+                                    node->isPinned() ? "Unpin / Unfreeze Node" : "Pin / Freeze Node in Place");
         m.addSeparator();
-        QAction* aAssign = m.addAction("➕ Assign to Group...");
-        QMenu* mCare = m.addMenu("🚩 Set Care Flag");
+        QAction* aAssign = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Group...");
+        QMenu* mCare = m.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
         QAction* cActive = mCare->addAction("Active Member");
         QAction* cLeader = mCare->addAction("Leader");
@@ -3032,11 +3096,12 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
             m_scene->update();
         }
     } else if (node->nodeType() == NodeItem::Group) {
-        QAction* aHighlight = m.addAction("📋 Highlight Roster on Canvas");
-        QAction* aPin = m.addAction(node->isPinned() ? "🔓 Unpin / Unfreeze Node" : "📌 Pin / Freeze Node in Place");
-        QAction* aAdd = m.addAction("➕ Add Member to Group...");
-        QAction* aEmails = m.addAction("✉️ Copy All Member Emails");
-        QAction* aMinistries = m.addAction("✏️ View in Ministries Tab");
+        QAction* aHighlight = m.addAction(IconManager::instance().getIcon("list", QColor(), 14), "Highlight Roster on Canvas");
+        QAction* aPin = m.addAction(IconManager::instance().getIcon(node->isPinned() ? "unlock" : "pin", QColor(), 14),
+                                    node->isPinned() ? "Unpin / Unfreeze Node" : "Pin / Freeze Node in Place");
+        QAction* aAdd = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Add Member to Group...");
+        QAction* aEmails = m.addAction(IconManager::instance().getIcon("mail", QColor(), 14), "Copy All Member Emails");
+        QAction* aMinistries = m.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "View in Ministries Tab");
 
         QAction* sel = m.exec(globalPos);
         if (sel == aHighlight) {
@@ -3237,7 +3302,9 @@ void GraphWidget::onGraphSearchChanged(const QString& text) {
 void GraphWidget::onPathfindToggle() {
     m_pathfindActive = !m_pathfindActive;
     if (m_pathfindActive) {
-        m_btnPathfind->setStyleSheet("background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 5px 10px; font-size: 11px;");
+        const ThemeTokens tokPath = ThemeManager::instance().currentTokens();
+        m_btnPathfind->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; padding: 5px 10px; font-size: 11px;")
+            .arg(tokPath.accentPrimary.name(), ThemeManager::textOn(tokPath.accentPrimary).name()));
         m_lblPathStatus = new QLabel("Click first person/node", this);
     } else {
         m_btnPathfind->setStyleSheet("font-size: 11px; padding: 5px 10px;");
@@ -3490,7 +3557,8 @@ void GraphWidget::onRunAudit() {
     lay->addWidget(stats);
 
     QHBoxLayout* btnRow = new QHBoxLayout();
-    QPushButton* btnExport = new QPushButton("📤 Export CSV", &dlg);
+    QPushButton* btnExport = new QPushButton(" Export CSV", &dlg);
+    btnExport->setIcon(IconManager::instance().getIcon("download", QColor(), 14));
     btnExport->setObjectName("secondaryBtn");
     btnRow->addWidget(btnExport);
     btnRow->addStretch();
@@ -3734,8 +3802,11 @@ void GraphWidget::pausePhysics() {
     m_physicsRunning = false;
     m_timer->stop();
     if (m_btnToggleFreeze) {
-        m_btnToggleFreeze->setText("▶️ Resume Physics");
-        m_btnToggleFreeze->setStyleSheet("background-color: #fab387; color: #11111b; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;");
+        const ThemeTokens tokFrz = ThemeManager::instance().currentTokens();
+        m_btnToggleFreeze->setText(" Resume Physics");
+        m_btnToggleFreeze->setIcon(IconManager::instance().getIcon("play", ThemeManager::textOn(tokFrz.accentWarning), 14));
+        m_btnToggleFreeze->setStyleSheet(QString("background-color: %1; color: %2; font-weight: bold; font-size: 11px; padding: 5px 8px; border-radius: 6px;")
+            .arg(tokFrz.accentWarning.name(), ThemeManager::textOn(tokFrz.accentWarning).name()));
     }
 }
 
@@ -3743,7 +3814,8 @@ void GraphWidget::resumePhysics() {
     m_physicsRunning = true;
     m_settleTicks = 0;
     if (m_btnToggleFreeze) {
-        m_btnToggleFreeze->setText("❄️ Freeze Layout");
+        m_btnToggleFreeze->setText(" Freeze Layout");
+        m_btnToggleFreeze->setIcon(IconManager::instance().getIcon("pause", QColor(), 14));
         m_btnToggleFreeze->setStyleSheet("font-size: 11px; padding: 5px 8px;");
     }
     if (!m_nodes.isEmpty() && !m_timer->isActive()) {
@@ -3875,7 +3947,8 @@ void GraphWidget::restoreFilterState() {
         styleFilterButton(m_btnToggleFamilyDynasty, m_filterFamilyActive, tok.accentWarning);
     }
     if (m_btnToggleLayout) {
-        m_btnToggleLayout->setText(m_layoutMode == Clustered ? "🧩 Clustered" : "⚡ Force-Directed");
+        m_btnToggleLayout->setText(m_layoutMode == Clustered ? " Clustered" : " Force-Directed");
+        m_btnToggleLayout->setIcon(IconManager::instance().getIcon(m_layoutMode == Clustered ? "grid" : "activity", QColor(), 14));
     }
     onFilterToggled();
 }
@@ -3906,9 +3979,9 @@ void GraphWidget::restyleChrome(const ThemeTokens& tok) {
     }
     if (m_btnFloatingExpandDock) {
         m_btnFloatingExpandDock->setStyleSheet(QString(
-            "QPushButton { background-color: %1; color: #11111b; font-weight: bold; font-size: 11px; padding: 6px 12px; border-radius: 6px; border: none; }"
-            "QPushButton:hover { background-color: #b4befe; }"
-        ).arg(tok.accentPrimary.name()));
+            "QPushButton { background-color: %1; color: %2; font-weight: bold; font-size: 11px; padding: 6px 12px; border-radius: 6px; border: none; }"
+            "QPushButton:hover { background-color: %3; }"
+        ).arg(tok.accentPrimary.name(), ThemeManager::textOn(tok.accentPrimary).name(), tok.accentPrimary.darker(115).name()));
     }
     if (m_legendOverlay) {
         m_legendOverlay->setStyleSheet(QString(
@@ -4006,6 +4079,7 @@ void GraphWidget::refreshHierarchyTree() {
         groupMembers[gId].append(m);
     }
 
+    const ThemeTokens tokTree = ThemeManager::instance().currentTokens();
     std::function<void(QTreeWidgetItem*, const QVariantMap&)> addGroupItem;
     addGroupItem = [&](QTreeWidgetItem* parentItem, const QVariantMap& gData) {
         int gId = gData["id"].toInt();
@@ -4015,14 +4089,16 @@ void GraphWidget::refreshHierarchyTree() {
         QTreeWidgetItem* gItem = nullptr;
         if (parentItem) {
             gItem = new QTreeWidgetItem(parentItem);
-            gItem->setText(0, QString("↳ 🏛️ %1").arg(gName));
-            gItem->setForeground(0, QBrush(QColor("#89b4fa")));
+            gItem->setText(0, gName);
+            gItem->setIcon(0, IconManager::instance().getIcon("layers", tokTree.accentPrimary, 16));
+            gItem->setForeground(0, QBrush(tokTree.accentPrimary));
             gItem->setFont(0, QFont("Segoe UI", 9, QFont::DemiBold));
         } else {
             gItem = new QTreeWidgetItem(m_hierarchyTreeWidget);
-            gItem->setText(0, QString("🏛️ %1").arg(gName));
+            gItem->setText(0, gName);
+            gItem->setIcon(0, IconManager::instance().getIcon("building-2", tokTree.accentSuccess, 16));
             gItem->setFont(0, QFont("Segoe UI", 10, QFont::Bold));
-            gItem->setForeground(0, QBrush(QColor("#a6e3a1")));
+            gItem->setForeground(0, QBrush(tokTree.accentSuccess));
         }
         gItem->setText(1, cat.isEmpty() ? "Ministry Group" : cat);
         int mCount = groupMembers.value(gId).size();
@@ -4045,20 +4121,21 @@ void GraphWidget::refreshHierarchyTree() {
                 QString careFlag = mem["care_flag"].toString();
                 QString status = mem["status"].toString();
 
-                pItem->setText(0, QString("    👤 %1").arg(mem["name"].toString()));
+                pItem->setText(0, mem["name"].toString());
+                pItem->setIcon(0, IconManager::instance().getIcon("user", tokTree.textPrimary, 14));
                 pItem->setFont(0, QFont("Segoe UI", 9));
                 pItem->setText(1, role.isEmpty() ? "Member" : role);
                 if (role == "Leader" || role == "Co-Leader") {
-                    pItem->setForeground(1, QBrush(QColor("#f9e2af")));
+                    pItem->setForeground(1, QBrush(tokTree.accentWarning));
                     pItem->setFont(1, QFont("Segoe UI", 9, QFont::Bold));
                 } else {
-                    pItem->setForeground(1, QBrush(QColor("#a6adc8")));
+                    pItem->setForeground(1, QBrush(tokTree.textSecondary));
                 }
 
                 QString statDisplay = status;
                 if (!careFlag.isEmpty() && careFlag != "Normal") {
                     statDisplay += QString(" [%1]").arg(careFlag);
-                    if (careFlag == "At-Risk") pItem->setForeground(2, QBrush(QColor("#f38ba8")));
+                    if (careFlag == "At-Risk") pItem->setForeground(2, QBrush(ThemeManager::instance().currentTokens().accentDanger));
                 }
                 pItem->setText(2, statDisplay);
 

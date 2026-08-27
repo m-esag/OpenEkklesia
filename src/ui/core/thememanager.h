@@ -74,10 +74,11 @@ public:
     bool isSystemDark() const;
     void syncSystemTheme();
 
-    // WCAG 2.1 Contrast Guardian
+    // WCAG 2.1 Contrast Guardian & Accessibility
     static double relativeLuminance(const QColor& color);
     static double contrastRatio(const QColor& c1, const QColor& c2);
     static QString contrastRating(double ratio);
+    static QColor textOn(const QColor& c);
 
 signals:
     void themeChanged(const ThemeTokens& tokens);

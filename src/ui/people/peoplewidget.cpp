@@ -158,6 +158,22 @@ QVariant PeopleProxyModel::data(const QModelIndex& index, int role) const {
         } else if (col == 4) { // Status
             return sourceModel()->data(sourceModel()->index(srcRow, 11));
         }
+    } else if (role == Qt::ToolTipRole) {
+        QModelIndex srcRowIndex = mapToSource(index.sibling(index.row(), 0));
+        int srcRow = srcRowIndex.row();
+        if (col == 0) {
+            QString careFlag = sourceModel()->data(sourceModel()->index(srcRow, 9)).toString();
+            QString status = sourceModel()->data(sourceModel()->index(srcRow, 11)).toString();
+            QString tip = QString("Status: %1").arg(status.isEmpty() ? "Unassigned" : status);
+            if (!careFlag.isEmpty() && careFlag != "Normal") {
+                tip += QString("\nCare Flag: %1").arg(careFlag);
+            }
+            return tip;
+        } else if (col == 2) {
+            return "Click to select; Right-click to copy phone.";
+        } else if (col == 3) {
+            return "Click to select; Right-click to copy email.";
+        }
     }
 
     return QSortFilterProxyModel::data(index, role);
@@ -178,21 +194,86 @@ QVariant PeopleProxyModel::headerData(int section, Qt::Orientation orientation, 
 }
 
 bool PeopleProxyModel::lessThan(const QModelIndex& left, const QModelIndex& right) const {
+    if (!sourceModel()) return false;
+
+    // In QSortFilterProxyModel::lessThan, left and right are ALREADY source model indices
+    int leftRow = left.row();
+    int rightRow = right.row();
+
+    // 1. Custom multi-field sort modes from m_cmbSortBy
+    if (m_sortMode == SortByFirstName) {
+        QString lFirst = sourceModel()->data(sourceModel()->index(leftRow, 2)).toString().trimmed().toLower();
+        QString rFirst = sourceModel()->data(sourceModel()->index(rightRow, 2)).toString().trimmed().toLower();
+        if (lFirst != rFirst) return lFirst < rFirst;
+        QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
+        QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
+        return lLast < rLast;
+    }
+
+    if (m_sortMode == SortByJoinDate) {
+        QString lJd = sourceModel()->data(sourceModel()->index(leftRow, 13)).toString().trimmed();
+        QString rJd = sourceModel()->data(sourceModel()->index(rightRow, 13)).toString().trimmed();
+        if (lJd.isEmpty()) lJd = "0000-00-00";
+        if (rJd.isEmpty()) rJd = "0000-00-00";
+        return lJd < rJd;
+    }
+
+    if (m_sortMode == SortByBirthDate) {
+        QString lDob = sourceModel()->data(sourceModel()->index(leftRow, 6)).toString().trimmed();
+        QString rDob = sourceModel()->data(sourceModel()->index(rightRow, 6)).toString().trimmed();
+        if (lDob.isEmpty()) lDob = "0000-00-00";
+        if (rDob.isEmpty()) rDob = "0000-00-00";
+        return lDob < rDob;
+    }
+
+    if (m_sortMode == SortByGender) {
+        QString lG = sourceModel()->data(sourceModel()->index(leftRow, 14)).toString().trimmed().toLower();
+        QString rG = sourceModel()->data(sourceModel()->index(rightRow, 14)).toString().trimmed().toLower();
+        if (lG != rG) return lG < rG;
+        QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
+        QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
+        return lLast < rLast;
+    }
+
+    // 2. Column-based sorting (clicking headers or selecting standard sorts)
     int col = left.column();
-    if (col == 0) { // Sort by Last Name, then First Name
-        QModelIndex leftSrc = mapToSource(left);
-        QModelIndex rightSrc = mapToSource(right);
-
-        QString leftLast = sourceModel()->data(sourceModel()->index(leftSrc.row(), 3)).toString().toLower();
-        QString rightLast = sourceModel()->data(sourceModel()->index(rightSrc.row(), 3)).toString().toLower();
-
-        if (leftLast != rightLast) {
-            return leftLast < rightLast;
+    switch (col) {
+        case 0: { // Name: Last Name, then First Name
+            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
+            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
+            if (lLast != rLast) return lLast < rLast;
+            QString lFirst = sourceModel()->data(sourceModel()->index(leftRow, 2)).toString().trimmed().toLower();
+            QString rFirst = sourceModel()->data(sourceModel()->index(rightRow, 2)).toString().trimmed().toLower();
+            return lFirst < rFirst;
         }
-
-        QString leftFirst = sourceModel()->data(sourceModel()->index(leftSrc.row(), 2)).toString().toLower();
-        QString rightFirst = sourceModel()->data(sourceModel()->index(rightSrc.row(), 2)).toString().toLower();
-        return leftFirst < rightFirst;
+        case 1: { // Household / Family (source col 1)
+            QString lHouse = sourceModel()->data(sourceModel()->index(leftRow, 1)).toString().trimmed().toLower();
+            QString rHouse = sourceModel()->data(sourceModel()->index(rightRow, 1)).toString().trimmed().toLower();
+            if (lHouse != rHouse) return lHouse < rHouse;
+            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
+            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
+            return lLast < rLast;
+        }
+        case 2: { // Phone: source col 4 (NOT source col 2 which is first_name!)
+            QString lPhone = sourceModel()->data(sourceModel()->index(leftRow, 4)).toString().trimmed();
+            QString rPhone = sourceModel()->data(sourceModel()->index(rightRow, 4)).toString().trimmed();
+            return lPhone < rPhone;
+        }
+        case 3: { // Email: source col 5 (NOT source col 3 which is last_name!)
+            QString lEmail = sourceModel()->data(sourceModel()->index(leftRow, 5)).toString().trimmed().toLower();
+            QString rEmail = sourceModel()->data(sourceModel()->index(rightRow, 5)).toString().trimmed().toLower();
+            return lEmail < rEmail;
+        }
+        case 4: { // Membership Status: source col 11 (NOT source col 4 which is phone!)
+            QString lStat = sourceModel()->data(sourceModel()->index(leftRow, 11)).toString().trimmed().toLower();
+            QString rStat = sourceModel()->data(sourceModel()->index(rightRow, 11)).toString().trimmed().toLower();
+            if (lStat != rStat) return lStat < rStat;
+            QString lLast = sourceModel()->data(sourceModel()->index(leftRow, 3)).toString().trimmed().toLower();
+            QString rLast = sourceModel()->data(sourceModel()->index(rightRow, 3)).toString().trimmed().toLower();
+            return lLast < rLast;
+        }
+        default:
+            break;
     }
 
     return QSortFilterProxyModel::lessThan(left, right);
@@ -306,17 +387,19 @@ void PeopleWidget::setupUI() {
     QHBoxLayout* row1 = new QHBoxLayout();
     row1->setSpacing(6);
     m_btnAddPerson = new QPushButton(" Add Person (Ctrl+N)", this);
-    m_btnAddPerson->setIcon(IconManager::instance().getIcon("user-plus", QColor("#11111b"), 16));
+    m_btnAddPerson->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     m_btnAddPerson->setObjectName("primaryBtn");
     connect(m_btnAddPerson, &QPushButton::clicked, this, &PeopleWidget::onAddPerson);
 
     m_btnAddHousehold = new QPushButton(" Add Family", this);
-    m_btnAddHousehold->setIcon(IconManager::instance().getIcon("users", QColor("#11111b"), 16));
+    m_btnAddHousehold->setIcon(IconManager::instance().getIcon("users", ThemeManager::textOn(QColor("#f5c2e7")), 14));
     m_btnAddHousehold->setObjectName("accentBtnPink");
     connect(m_btnAddHousehold, &QPushButton::clicked, this, &PeopleWidget::onAddHousehold);
 
-    m_btnManageHouseholds = new QPushButton("Purge/Manage Families", this);
+    m_btnManageHouseholds = new QPushButton(" Families", this);
+    m_btnManageHouseholds->setIcon(IconManager::instance().getIcon("folder", QColor(), 14));
     m_btnManageHouseholds->setObjectName("secondaryBtn");
+    m_btnManageHouseholds->setToolTip("Manage or purge registered family households");
     connect(m_btnManageHouseholds, &QPushButton::clicked, this, &PeopleWidget::onDeleteHousehold);
 
     row1->addWidget(m_btnAddPerson);
@@ -327,23 +410,21 @@ void PeopleWidget::setupUI() {
     QHBoxLayout* row2 = new QHBoxLayout();
     row2->setSpacing(6);
 
+    ThemeTokens curTok = ThemeManager::instance().currentTokens();
     m_btnDeleteSelected = new QPushButton(" Delete Selected", this);
-    m_btnDeleteSelected->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
-    m_btnDeleteSelected->setObjectName("dangerGhostBtn");
-    m_btnDeleteSelected->setStyleSheet(
-        "QPushButton#dangerGhostBtn { background-color: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 10px; font-weight: bold; font-size: 11px; }"
-        "QPushButton#dangerGhostBtn:hover { background-color: rgba(243, 139, 168, 0.15); }"
-    );
+    m_btnDeleteSelected->setIcon(IconManager::instance().getIcon("trash-2", curTok.accentDanger, 14));
+    m_btnDeleteSelected->setObjectName("ghostDangerBtn");
     connect(m_btnDeleteSelected, &QPushButton::clicked, this, &PeopleWidget::onDeleteSelectedMembers);
 
     m_btnBatchStatus = new QPushButton(" Batch Status", this);
-    m_btnBatchStatus->setIcon(IconManager::instance().getIcon("tag", QColor("#cdd6f4"), 14));
+    m_btnBatchStatus->setIcon(IconManager::instance().getIcon("tag", QColor(), 14));
     m_btnBatchStatus->setObjectName("secondaryBtn");
     connect(m_btnBatchStatus, &QPushButton::clicked, this, &PeopleWidget::onBatchSetStatus);
 
     QPushButton* btnCopyRoster = new QPushButton(" Roster SMS", this);
-    btnCopyRoster->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
+    btnCopyRoster->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
     btnCopyRoster->setObjectName("secondaryBtn");
+    btnCopyRoster->setToolTip("Copy all member phone numbers in current filter to clipboard");
     connect(btnCopyRoster, &QPushButton::clicked, this, [this]() {
         QStringList phoneNumbers;
         for (int r = 0; r < m_proxyModel->rowCount(); ++r) {
@@ -361,13 +442,15 @@ void PeopleWidget::setupUI() {
     });
 
     QPushButton* btnPrintDirectory = new QPushButton(" Print", this);
-    btnPrintDirectory->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
+    btnPrintDirectory->setIcon(IconManager::instance().getIcon("printer", QColor(), 14));
     btnPrintDirectory->setObjectName("secondaryBtn");
+    btnPrintDirectory->setToolTip("Print official church directory with church letterhead");
     connect(btnPrintDirectory, &QPushButton::clicked, this, &PeopleWidget::onPrintDirectory);
 
     m_btnImportCSV = new QPushButton(" Import CSV", this);
-    m_btnImportCSV->setIcon(IconManager::instance().getIcon("upload", QColor("#cdd6f4"), 14));
+    m_btnImportCSV->setIcon(IconManager::instance().getIcon("upload", QColor(), 14));
     m_btnImportCSV->setObjectName("secondaryBtn");
+    m_btnImportCSV->setToolTip("Import member roster from CSV file");
     connect(m_btnImportCSV, &QPushButton::clicked, this, &PeopleWidget::onImportCSV);
 
     row2->addWidget(m_btnDeleteSelected);
@@ -398,7 +481,7 @@ void PeopleWidget::setupUI() {
     QLabel* lblEmptyTitle = new QLabel("No Member Profile Selected", m_emptyStateWidget);
     lblEmptyTitle->setStyleSheet("font-size: 17px; font-weight: bold; color: palette(text);");
     lblEmptyTitle->setAlignment(Qt::AlignCenter);
-    QLabel* lblEmptySub = new QLabel("Select a member from the directory on the left or click '➕ Add Person' to manage profiles.", m_emptyStateWidget);
+    QLabel* lblEmptySub = new QLabel("Select a member from the directory on the left or click 'Add Person' to manage profiles.", m_emptyStateWidget);
     lblEmptySub->setStyleSheet("font-size: 12px; color: palette(placeholderText); max-width: 320px; text-align: center;");
     lblEmptySub->setWordWrap(true);
     lblEmptySub->setAlignment(Qt::AlignCenter);
@@ -446,8 +529,12 @@ void PeopleWidget::setupUI() {
     m_lblHeaderStatusBadge->setStyleSheet("color: #2ef098; background-color: rgba(46, 240, 152, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
     badgesRow->addWidget(m_lblHeaderStatusBadge);
 
-    m_lblHeaderCareBadge = new QLabel("🔴 Care Alert", m_headerWidget);
-    m_lblHeaderCareBadge->setStyleSheet("color: #f38ba8; background-color: rgba(243, 139, 168, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+    m_lblHeaderCareBadge = new QLabel("Care Alert", m_headerWidget);
+    m_lblHeaderCareBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+        .arg(ThemeManager::instance().currentTokens().accentDanger.name())
+        .arg(ThemeManager::instance().currentTokens().accentDanger.red())
+        .arg(ThemeManager::instance().currentTokens().accentDanger.green())
+        .arg(ThemeManager::instance().currentTokens().accentDanger.blue()));
     m_lblHeaderCareBadge->setVisible(false);
     badgesRow->addWidget(m_lblHeaderCareBadge);
 
@@ -468,8 +555,8 @@ void PeopleWidget::setupUI() {
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
             "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(placeholderText); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: palette(mid); color: palette(text); border-color: #45475a; }"
-            "QPushButton:checked { background-color: palette(mid); color: #89b4fa; border: 1px solid #89b4fa; }"
+            "QPushButton:hover { background-color: palette(mid); color: palette(text); border-color: palette(highlight); }"
+            "QPushButton:checked { background-color: palette(mid); color: palette(highlight); border: 1px solid palette(highlight); }"
         );
         connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
             m_detailStack->setCurrentIndex(pageIdx);
@@ -513,7 +600,7 @@ void PeopleWidget::setupUI() {
     layCardIdent->setSpacing(8);
 
     QLabel* lblIdentTitle = new QLabel("👤 PERSONAL & CONTACT DETAILS", cardIdent);
-    lblIdentTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblIdentTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardIdent->addWidget(lblIdentTitle);
 
     QFormLayout* formIdent = new QFormLayout();
@@ -559,7 +646,7 @@ void PeopleWidget::setupUI() {
     layCardHouse->setSpacing(8);
 
     QLabel* lblHouseTitle = new QLabel("🏠 HOUSEHOLD & FAMILY ASSIGNMENT", cardHouse);
-    lblHouseTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblHouseTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardHouse->addWidget(lblHouseTitle);
 
     QFormLayout* formHouse = new QFormLayout();
@@ -591,7 +678,7 @@ void PeopleWidget::setupUI() {
     layCardMember->setSpacing(8);
 
     QLabel* lblMemberTitle = new QLabel("🏷️ MEMBERSHIP & MILESTONES", cardMember);
-    lblMemberTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblMemberTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardMember->addWidget(lblMemberTitle);
 
     QFormLayout* formMember = new QFormLayout();
@@ -631,7 +718,7 @@ void PeopleWidget::setupUI() {
     layCardDocs->setSpacing(8);
 
     QLabel* lblDocsTitle = new QLabel("📄 LINKED DOCUMENTS", cardDocs);
-    lblDocsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblDocsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardDocs->addWidget(lblDocsTitle);
 
     m_lstPersonDocs = new QListWidget(cardDocs);
@@ -662,11 +749,12 @@ void PeopleWidget::setupUI() {
 
     QHBoxLayout* pastHeaderRow = new QHBoxLayout();
     QLabel* lblPastTitle = new QLabel("🕊️ PASTORAL CARE & TRIAGE", cardPastoral);
-    lblPastTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblPastTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     pastHeaderRow->addWidget(lblPastTitle);
     pastHeaderRow->addStretch();
 
-    m_btnLogCare = new QPushButton("➕ Log Care Entry", cardPastoral);
+    m_btnLogCare = new QPushButton(" Log Care Entry", cardPastoral);
+    m_btnLogCare->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnLogCare->setObjectName("primaryBtn");
     m_btnLogCare->setFixedHeight(26);
     connect(m_btnLogCare, &QPushButton::clicked, this, &PeopleWidget::onLogCareEntry);
@@ -698,7 +786,7 @@ void PeopleWidget::setupUI() {
     layCardTimeline->setSpacing(8);
 
     QLabel* lblTimelineTitle = new QLabel("📅 PASTORAL CARE & ACTIVITY TIMELINE", cardTimeline);
-    lblTimelineTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblTimelineTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardTimeline->addWidget(lblTimelineTitle);
 
     m_historyList = new QListWidget(cardTimeline);
@@ -729,7 +817,7 @@ void PeopleWidget::setupUI() {
     layCardGroups->setSpacing(8);
 
     QLabel* lblGroupsTitle = new QLabel("👥 ACTIVE MINISTRY GROUPS & SERVING TEAMS", cardGroups);
-    lblGroupsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblGroupsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardGroups->addWidget(lblGroupsTitle);
 
     m_connectionsList = new QListWidget(cardGroups);
@@ -758,7 +846,7 @@ void PeopleWidget::setupUI() {
     layCardGiving->setSpacing(10);
 
     QLabel* lblGivingTitle = new QLabel("💰 STEWARDSHIP & GIVING OVERVIEW", cardGiving);
-    lblGivingTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblGivingTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardGiving->addWidget(lblGivingTitle);
 
     QHBoxLayout* givingMetricsRow = new QHBoxLayout();
@@ -797,7 +885,8 @@ void PeopleWidget::setupUI() {
     m_lstRecentGiving->setMinimumHeight(120);
     layCardGiving->addWidget(m_lstRecentGiving);
 
-    m_btnGenerateStatement = new QPushButton("📄 Generate End-of-Year Giving Tax Statement (PDF)", cardGiving);
+    m_btnGenerateStatement = new QPushButton(" Generate End-of-Year Giving Tax Statement (PDF)", cardGiving);
+    m_btnGenerateStatement->setIcon(IconManager::instance().getIcon("file-text", QColor(), 14));
     m_btnGenerateStatement->setObjectName("secondaryBtn");
     connect(m_btnGenerateStatement, &QPushButton::clicked, this, [this]() {
         if (m_currentPersonId <= 0) return;
@@ -848,7 +937,7 @@ void PeopleWidget::setupUI() {
 
     // 1. Primary & Secondary Archetypes
     QLabel* lblArchetypeTitle = new QLabel("🔥 MINISTRY ARCHETYPE & BEHAVIORAL DNA", cardMin);
-    lblArchetypeTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;");
+    lblArchetypeTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardMin->addWidget(lblArchetypeTitle);
 
     m_primaryArchetypeEdit = new QLineEdit(cardMin);
@@ -937,8 +1026,8 @@ void PeopleWidget::setupUI() {
         chip->setProperty("rawName", g);
         chip->setStyleSheet(
             "QPushButton { background-color: palette(mid); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #89b4fa; color: #89b4fa; }"
-            "QPushButton:checked { background-color: rgba(137, 180, 250, 0.25); border: 1px solid #89b4fa; color: #89b4fa; }"
+            "QPushButton:hover { border: 1px solid palette(highlight); color: palette(highlight); }"
+            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlightedText); }"
         );
         connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
             // Constrain to max 4 selected gifts
@@ -1068,14 +1157,14 @@ void PeopleWidget::setupUI() {
     footerLayout->addStretch();
 
     m_btnSave = new QPushButton(" Save Profile (Ctrl+S)", m_footerFrame);
-    m_btnSave->setIcon(IconManager::instance().getIcon("check", QColor("#11111b"), 16));
+    m_btnSave->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnSave->setObjectName("primaryBtn");
     m_btnSave->setFixedHeight(34);
     connect(m_btnSave, &QPushButton::clicked, this, &PeopleWidget::onSaveProfile);
     footerLayout->addWidget(m_btnSave);
 
     QPushButton* btnExportVCard = new QPushButton(" Export vCard", m_footerFrame);
-    btnExportVCard->setIcon(IconManager::instance().getIcon("download", QColor("#cdd6f4"), 14));
+    btnExportVCard->setIcon(IconManager::instance().getIcon("download", QColor(), 14));
     btnExportVCard->setObjectName("secondaryBtn");
     btnExportVCard->setFixedHeight(34);
     btnExportVCard->setToolTip("Export contact as standard .vcf format for smartphones, Apple Contacts, or Outlook.");
@@ -1083,12 +1172,8 @@ void PeopleWidget::setupUI() {
     footerLayout->addWidget(btnExportVCard);
 
     m_btnDeletePerson = new QPushButton(" Delete Profile", m_footerFrame);
-    m_btnDeletePerson->setIcon(IconManager::instance().getIcon("trash-2", QColor("#f38ba8"), 14));
+    m_btnDeletePerson->setIcon(IconManager::instance().getIcon("trash-2", curTok.accentDanger, 14));
     m_btnDeletePerson->setObjectName("ghostDangerBtn");
-    m_btnDeletePerson->setStyleSheet(
-        "QPushButton#ghostDangerBtn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: bold; }"
-        "QPushButton#ghostDangerBtn:hover { background-color: rgba(243, 139, 168, 0.2); color: #ff5555; }"
-    );
     connect(m_btnDeletePerson, &QPushButton::clicked, this, &PeopleWidget::onDeletePerson);
     footerLayout->addWidget(m_btnDeletePerson);
 
@@ -1140,6 +1225,23 @@ void PeopleWidget::setupModels() {
     m_peopleTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive); // Phone
     m_peopleTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Interactive); // Email
     m_peopleTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents); // Status
+
+    connect(m_peopleTable->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int logicalIndex) {
+        m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+        if (logicalIndex == 0) {
+            m_cmbSortBy->blockSignals(true);
+            m_cmbSortBy->setCurrentIndex(m_peopleTable->horizontalHeader()->sortIndicatorOrder() == Qt::AscendingOrder ? 0 : 1);
+            m_cmbSortBy->blockSignals(false);
+        } else if (logicalIndex == 1) {
+            m_cmbSortBy->blockSignals(true);
+            m_cmbSortBy->setCurrentIndex(4); // Family Name
+            m_cmbSortBy->blockSignals(false);
+        } else if (logicalIndex == 4) {
+            m_cmbSortBy->blockSignals(true);
+            m_cmbSortBy->setCurrentIndex(5); // Status
+            m_cmbSortBy->blockSignals(false);
+        }
+    });
 
     // Populate household dropdown
     populateHouseholdCombo();
@@ -1282,8 +1384,8 @@ void PeopleWidget::renderTagChips() {
 
         QPushButton* chip = new QPushButton(QString("%1  ✕").arg(tag), m_tagsChipsContainer);
         chip->setStyleSheet(
-            "QPushButton { background-color: palette(mid); color: #89b4fa; border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #f38ba8; color: #11111b; }"
+            "QPushButton { background-color: palette(mid); color: palette(highlight); border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { background-color: palette(highlight); color: palette(highlightedText); }"
         );
         connect(chip, &QPushButton::clicked, this, [this, tag]() {
             removeInterestTag(tag);
@@ -1413,17 +1515,21 @@ void PeopleWidget::updateHeader(const QString& name, const QString& status, cons
     }
 
     if (m_lblHeaderCareBadge) {
+        const ThemeTokens tokBadge = ThemeManager::instance().currentTokens();
         if (careFlag == "Needs Contact" || careFlag == "At-Risk" || careFlag == "At Risk") {
-            m_lblHeaderCareBadge->setText("🔴 " + careFlag);
-            m_lblHeaderCareBadge->setStyleSheet("color: #f38ba8; background-color: rgba(243, 139, 168, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setText(careFlag);
+            m_lblHeaderCareBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+                .arg(tokBadge.accentDanger.name()).arg(tokBadge.accentDanger.red()).arg(tokBadge.accentDanger.green()).arg(tokBadge.accentDanger.blue()));
             m_lblHeaderCareBadge->setVisible(true);
         } else if (careFlag == "Follow-up" || careFlag == "Grief Support") {
-            m_lblHeaderCareBadge->setText("🟡 " + careFlag);
-            m_lblHeaderCareBadge->setStyleSheet("color: #f9e2af; background-color: rgba(249, 226, 175, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setText(careFlag);
+            m_lblHeaderCareBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+                .arg(tokBadge.accentWarning.name()).arg(tokBadge.accentWarning.red()).arg(tokBadge.accentWarning.green()).arg(tokBadge.accentWarning.blue()));
             m_lblHeaderCareBadge->setVisible(true);
         } else if (careFlag == "Leader") {
-            m_lblHeaderCareBadge->setText("⭐ Leader");
-            m_lblHeaderCareBadge->setStyleSheet("color: #89b4fa; background-color: rgba(137, 180, 250, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;");
+            m_lblHeaderCareBadge->setText("Leader");
+            m_lblHeaderCareBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+                .arg(tokBadge.accentPrimary.name()).arg(tokBadge.accentPrimary.red()).arg(tokBadge.accentPrimary.green()).arg(tokBadge.accentPrimary.blue()));
             m_lblHeaderCareBadge->setVisible(true);
         } else {
             m_lblHeaderCareBadge->setVisible(false);
@@ -1868,13 +1974,53 @@ void PeopleWidget::refreshModel() {
 
 void PeopleWidget::onSortByChanged(int index) {
     switch (index) {
-        case 0: m_proxyModel->sort(0, Qt::AscendingOrder); break;
-        case 1: m_proxyModel->sort(0, Qt::DescendingOrder); break;
-        case 2: m_proxyModel->sort(0, Qt::AscendingOrder); break;
-        case 3: m_proxyModel->sort(0, Qt::DescendingOrder); break;
-        case 4: m_proxyModel->sort(1, Qt::AscendingOrder); break;
-        case 5: m_proxyModel->sort(4, Qt::AscendingOrder); break;
-        default: m_proxyModel->sort(0, Qt::AscendingOrder); break;
+        case 0: // Last Name (A - Z)
+            m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+        case 1: // Last Name (Z - A)
+            m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+            m_proxyModel->sort(0, Qt::DescendingOrder);
+            break;
+        case 2: // First Name (A - Z)
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByFirstName);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+        case 3: // First Name (Z - A)
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByFirstName);
+            m_proxyModel->sort(0, Qt::DescendingOrder);
+            break;
+        case 4: // Family Name (A - Z)
+            m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+            m_proxyModel->sort(1, Qt::AscendingOrder);
+            break;
+        case 5: // Membership Status
+            m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+            m_proxyModel->sort(4, Qt::AscendingOrder);
+            break;
+        case 6: // Join Date (Newest)
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByJoinDate);
+            m_proxyModel->sort(0, Qt::DescendingOrder);
+            break;
+        case 7: // Join Date (Oldest)
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByJoinDate);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+        case 8: // Birth Date
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByBirthDate);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+        case 9: // Gender
+            m_proxyModel->setSortMode(PeopleProxyModel::SortByGender);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+        default:
+            m_proxyModel->setSortMode(PeopleProxyModel::NormalColumnSort);
+            m_proxyModel->sort(0, Qt::AscendingOrder);
+            break;
+    }
+    if (m_peopleTable->currentIndex().isValid()) {
+        m_peopleTable->scrollTo(m_peopleTable->currentIndex());
     }
 }
 
@@ -1958,7 +2104,7 @@ void PeopleWidget::loadAvatar(const QString& path) {
             p.end();
 
             m_avatarLabel->setPixmap(rounded);
-            m_avatarLabel->setStyleSheet("border: 2px solid #89b4fa; border-radius: 32px;");
+            m_avatarLabel->setStyleSheet("border: 2px solid palette(highlight); border-radius: 32px;");
             return;
         }
     }
@@ -2335,13 +2481,16 @@ void PeopleWidget::onDeleteHousehold() {
     refreshHouseholds();
 
     QHBoxLayout* btnRow = new QHBoxLayout();
-    QPushButton* btnAdd = new QPushButton("➕ Add Family", &dlg);
+    QPushButton* btnAdd = new QPushButton(" Add Family", &dlg);
+    btnAdd->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     btnAdd->setObjectName("primaryBtn");
 
-    QPushButton* btnEdit = new QPushButton("✏️ Rename / Edit", &dlg);
-    btnEdit->setObjectName("accentBtnOrange");
+    QPushButton* btnEdit = new QPushButton(" Rename / Edit", &dlg);
+    btnEdit->setIcon(IconManager::instance().getIcon("edit-3", QColor(), 14));
+    btnEdit->setObjectName("secondaryBtn");
 
-    QPushButton* btnDelete = new QPushButton("🗑️ Purge Record", &dlg);
+    QPushButton* btnDelete = new QPushButton(" Purge Record", &dlg);
+    btnDelete->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     btnDelete->setObjectName("dangerBtn");
 
     QPushButton* btnClose = new QPushButton("Close", &dlg);
@@ -2552,18 +2701,10 @@ QString PeopleWidget::generateVCard(const QString& firstName, const QString& las
     } else {
         vcf += "CATEGORIES:OpenEkklesia\r\n";
     }
-    QString noteCombined;
-    if (!careFlag.isEmpty() && careFlag != "Normal") {
-        noteCombined += QString("[Care Flag: %1] ").arg(careFlag);
-    }
-    if (!notes.isEmpty()) {
-        noteCombined += notes;
-    }
-    if (!noteCombined.isEmpty()) {
-        QString escapedNotes = noteCombined;
-        escapedNotes.replace("\n", "\\n");
-        vcf += QString("NOTE:%1\r\n").arg(escapedNotes);
-    }
+    // Confidentiality: the vCard intentionally carries no care flag and no
+    // admin/pastoral notes — a contact export must never leak the care trail.
+    Q_UNUSED(careFlag);
+    Q_UNUSED(notes);
     vcf += "ORG:OpenEkklesia Congregation\r\n";
     vcf += "END:VCARD\r\n";
     return vcf;
@@ -2729,18 +2870,18 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
     if (fullName.isEmpty()) fullName = "Member";
 
     QMenu menu(this);
-    QAction* actProfile = menu.addAction(QString("👤 View %1's Dossier").arg(fullName));
-    QAction* actCareNote = menu.addAction("✍️ Log Pastoral Care Note...");
-    QAction* actAssignGroup = menu.addAction("➕ Assign to Small Group...");
+    QAction* actProfile = menu.addAction(IconManager::instance().getIcon("user", QColor(), 14), QString("View %1's Dossier").arg(fullName));
+    QAction* actCareNote = menu.addAction(IconManager::instance().getIcon("heart", QColor(), 14), "Log Pastoral Care Note...");
+    QAction* actAssignGroup = menu.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Small Group...");
     
-    QMenu* menuCare = menu.addMenu("🚩 Set Pastoral Flag");
+    QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Pastoral Flag");
     QAction* actFlagNormal = menuCare->addAction("Normal / None");
     QAction* actFlagLeader = menuCare->addAction("Leader");
     QAction* actFlagRisk = menuCare->addAction("At-Risk");
     QAction* actFlagContact = menuCare->addAction("Needs Contact");
     QAction* actFlagGrief = menuCare->addAction("Grief Support");
 
-    QMenu* menuStatus = menu.addMenu("🏷️ Set Membership Status");
+    QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), "Set Membership Status");
     QAction* actStatMember = menuStatus->addAction("Member");
     QAction* actStatAttender = menuStatus->addAction("Regular Attender");
     QAction* actStatVisitor = menuStatus->addAction("Visitor");
@@ -2748,13 +2889,13 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
     QAction* actCopyPhone = nullptr;
-    if (!phone.isEmpty()) actCopyPhone = menu.addAction(QString("📞 Copy Phone (%1)").arg(phone));
+    if (!phone.isEmpty()) actCopyPhone = menu.addAction(IconManager::instance().getIcon("phone", QColor(), 14), QString("Copy Phone (%1)").arg(phone));
     QAction* actCopyEmail = nullptr;
-    if (!email.isEmpty()) actCopyEmail = menu.addAction(QString("✉️ Copy Email (%1)").arg(email));
-    QAction* actExportVCard = menu.addAction("📇 Export Contact as vCard (.vcf)...");
+    if (!email.isEmpty()) actCopyEmail = menu.addAction(IconManager::instance().getIcon("mail", QColor(), 14), QString("Copy Email (%1)").arg(email));
+    QAction* actExportVCard = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14), "Export Contact as vCard (.vcf)...");
 
     menu.addSeparator();
-    QAction* actDelete = menu.addAction("🗑️ Delete Profile...");
+    QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Profile...");
 
     QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
@@ -2835,8 +2976,8 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
     if (logId <= 0 || srcTable.isEmpty()) return;
 
     QMenu menu(this);
-    QAction* actEdit = menu.addAction("✏️ Edit Log Note...");
-    QAction* actDelete = menu.addAction("🗑️ Delete Log Entry");
+    QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Log Note...");
+    QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Log Entry");
 
     QAction* selected = menu.exec(m_historyList->viewport()->mapToGlobal(pos));
     if (!selected) return;

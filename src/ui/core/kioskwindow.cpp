@@ -1,6 +1,7 @@
 #include "kioskwindow.h"
 #include "../database/databasemanager.h"
 #include "thememanager.h"
+#include "iconmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -111,7 +112,9 @@ void KioskWindow::setupUI() {
     connect(btnZero, &QPushButton::clicked, this, &KioskWindow::onNumberClicked);
     keypad->addWidget(btnZero, 3, 1);
 
-    QPushButton* btnBack = new QPushButton("⌫", this);
+    QPushButton* btnBack = new QPushButton(this);
+    btnBack->setIcon(IconManager::instance().getIcon("delete", QColor(), 22));
+    btnBack->setToolTip("Backspace");
     connect(btnBack, &QPushButton::clicked, this, &KioskWindow::onBackspaceClicked);
     keypad->addWidget(btnBack, 3, 2);
 
@@ -120,12 +123,14 @@ void KioskWindow::setupUI() {
     // Bottom Action buttons
     QHBoxLayout* actions = new QHBoxLayout();
     
-    QPushButton* btnUnlock = new QPushButton("🔒 Exit Kiosk", this);
+    QPushButton* btnUnlock = new QPushButton(" Exit Kiosk", this);
+    btnUnlock->setIcon(IconManager::instance().getDangerIcon("lock", 16));
     btnUnlock->setObjectName("unlockBtn");
     connect(btnUnlock, &QPushButton::clicked, this, &KioskWindow::onAdminUnlockClicked);
     actions->addWidget(btnUnlock);
 
-    QPushButton* btnCheckin = new QPushButton("✓ CHECK IN", this);
+    QPushButton* btnCheckin = new QPushButton(" CHECK IN", this);
+    btnCheckin->setIcon(IconManager::instance().getPrimaryIcon("check", 16));
     btnCheckin->setObjectName("checkinBtn");
     connect(btnCheckin, &QPushButton::clicked, this, &KioskWindow::onCheckinClicked);
     actions->addWidget(btnCheckin);
@@ -179,10 +184,13 @@ void KioskWindow::onCheckinClicked() {
 
 void KioskWindow::flashStatus(const QString& message, bool success) {
     m_statusLabel->setText(message);
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
     if (success) {
-        m_statusLabel->setStyleSheet("color: #11111b; background-color: #a6e3a1; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 8px;");
+        m_statusLabel->setStyleSheet(QString("color: %1; background-color: %2; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 8px;")
+                                        .arg(ThemeManager::textOn(tok.accentSuccess).name(), tok.accentSuccess.name()));
     } else {
-        m_statusLabel->setStyleSheet("color: #11111b; background-color: #f38ba8; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 8px;");
+        m_statusLabel->setStyleSheet(QString("color: %1; background-color: %2; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 8px;")
+                                        .arg(ThemeManager::textOn(tok.accentDanger).name(), tok.accentDanger.name()));
     }
 
     // Automatically hide the toast notification after 3.5 seconds
