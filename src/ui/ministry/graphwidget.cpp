@@ -1682,7 +1682,7 @@ void GraphWidget::refreshMinistryBranches() {
     m_cmbMinistryBranch->addItem("🌐 All Ministries & Groups", 0);
 
     QSqlQuery q;
-    if (q.exec("SELECT id, name FROM groups WHERE parent_id IS NULL OR parent_id = 0 ORDER BY name")) {
+    if (q.exec("SELECT id, name FROM groups WHERE (parent_id IS NULL OR parent_id = 0) AND (is_hidden = 0 OR is_hidden IS NULL) ORDER BY name")) {
         while (q.next()) {
             m_cmbMinistryBranch->addItem(QString("🏛️ %1").arg(q.value(1).toString()), q.value(0).toInt());
         }
@@ -1821,7 +1821,7 @@ void GraphWidget::onBatchAssignGroup() {
     QFormLayout* form = new QFormLayout(&dlg);
 
     QComboBox* grpCombo = new QComboBox(&dlg);
-    QSqlQuery q("SELECT id, name FROM groups ORDER BY name");
+    QSqlQuery q("SELECT id, name FROM groups WHERE is_hidden = 0 OR is_hidden IS NULL ORDER BY name");
     while (q.next()) grpCombo->addItem(q.value(1).toString(), q.value(0).toInt());
     form->addRow("Select Group:", grpCombo);
 
@@ -1891,6 +1891,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
         QString reason;
         QString archetype;
         bool isSolid = false;
+        QStringList warnings; // advisory flags a pastor can override
     };
     QList<Candidate> candidates;
 
@@ -1922,7 +1923,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
             if (it == allGroups.constEnd()) continue;
 
             SynergyMatchResult res = SynergyEngine::evaluate(personProf, it.value());
-            if (res.isEligible && res.score >= minScore) {
+            if (!res.hardBlocked && res.score >= minScore) {
                 Candidate c;
                 c.targetNode = gn;
                 c.personId = personId;
@@ -1931,6 +1932,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
                 c.reason = res.primaryReason;
                 c.archetype = MinistryArchetypeRegistry::archetypeName(it.value().idealPrimary);
                 c.isSolid = it.value().hasHouseholdFamilyTie;
+                c.warnings = res.warnings;
                 candidates.append(c);
             }
         }
@@ -1980,7 +1982,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
             }
 
             SynergyMatchResult res = SynergyEngine::evaluate(it.value(), grpWithCandidate);
-            if (res.isEligible && res.score >= minScore) {
+            if (!res.hardBlocked && res.score >= minScore) {
                 Candidate c;
                 c.targetNode = pn;
                 c.personId = pn->id();
@@ -1989,6 +1991,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
                 c.reason = res.primaryReason;
                 c.archetype = MinistryArchetypeRegistry::archetypeName(it.value().primaryArchetype);
                 c.isSolid = grpWithCandidate.hasHouseholdFamilyTie;
+                c.warnings = res.warnings;
                 candidates.append(c);
             }
         }
@@ -2052,8 +2055,9 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
         int pid = c.personId;
         int gid = c.groupId;
         int matchScore = c.score;
-        connect(btnConnect, &QPushButton::clicked, this, [this, pid, gid, matchScore]() {
-            onConnectSmartBridge(pid, gid, "Member", matchScore);
+        QStringList warnList = c.warnings;
+        connect(btnConnect, &QPushButton::clicked, this, [this, pid, gid, matchScore, warnList]() {
+            onConnectSmartBridge(pid, gid, "Member", matchScore, warnList);
         });
 
         bottomRow->addWidget(lblReason, 1);
@@ -2061,6 +2065,15 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
 
         cardLay->addLayout(topRow);
         cardLay->addLayout(bottomRow);
+
+        // Advisory chip: pastor review recommended but Connect stays enabled.
+        if (!c.warnings.isEmpty()) {
+            QLabel* lblWarn = new QLabel("⚠️ " + c.warnings.join("  •  "), rowWidget);
+            lblWarn->setStyleSheet(QString("font-size: 10px; font-weight: bold; color: %1; background: transparent; border: none;")
+                                       .arg(tok.accentWarning.name()));
+            lblWarn->setWordWrap(true);
+            cardLay->addWidget(lblWarn);
+        }
 
         m_smartBridgeLayout->addWidget(rowWidget);
     }
@@ -2078,7 +2091,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
     }
 }
 
-void GraphWidget::onConnectSmartBridge(int personId, int groupId, const QString& role, int score) {
+void GraphWidget::onConnectSmartBridge(int personId, int groupId, const QString& role, int score, const QStringList& warnings) {
     // Dedup guard: never create a second relationship for the same pair.
     QSqlQuery exists;
     exists.prepare("SELECT 1 FROM entity_relationships "
@@ -2100,6 +2113,14 @@ void GraphWidget::onConnectSmartBridge(int personId, int groupId, const QString&
     q.addBindValue(role);
     q.addBindValue(score);
     q.exec();
+
+    // Override audit: connecting despite advisory warnings is a deliberate
+    // pastoral decision — log it so the trail shows who overrode what.
+    if (!warnings.isEmpty()) {
+        DatabaseManager::logAudit("entity_relationships", 0, "smart_bridge_override",
+                                  warnings.join(" | "), QString("person=%1 group=%2 score=%3").arg(personId).arg(groupId).arg(score),
+                                  "pastor");
+    }
 
     loadGraph();
     for (NodeItem* n : m_nodes) {
@@ -2288,7 +2309,7 @@ void GraphWidget::loadGraph() {
         QColor("#cba6f7"), QColor("#94e2d5"), QColor("#fab387"), QColor("#74c7ec"),
     };
     int groupIdx = 0;
-    if (q.exec("SELECT id, name, category FROM groups")) {
+    if (q.exec("SELECT id, name, category FROM groups WHERE is_hidden = 0 OR is_hidden IS NULL")) {
         while (q.next()) {
             int gid = q.value("id").toInt();
             QString name = q.value("name").toString();
@@ -3015,7 +3036,7 @@ void GraphWidget::onQuickAssignGroup(NodeItem* node) {
     QFormLayout* form = new QFormLayout(&dlg);
 
     QComboBox* grpCombo = new QComboBox(&dlg);
-    QSqlQuery q("SELECT id, name FROM groups ORDER BY name");
+    QSqlQuery q("SELECT id, name FROM groups WHERE is_hidden = 0 OR is_hidden IS NULL ORDER BY name");
     while (q.next()) {
         grpCombo->addItem(q.value(1).toString(), q.value(0).toInt());
     }
@@ -4046,7 +4067,7 @@ void GraphWidget::refreshHierarchyTree() {
     QMap<int, QList<QVariantMap>> childrenMap;
     QList<QVariantMap> rootGroups;
 
-    QSqlQuery qGroups("SELECT id, name, category, parent_id FROM groups ORDER BY name", db);
+    QSqlQuery qGroups("SELECT id, name, category, parent_id FROM groups WHERE is_hidden = 0 OR is_hidden IS NULL ORDER BY name", db);
     while (qGroups.next()) {
         QVariantMap g;
         g["id"] = qGroups.value(0).toInt();

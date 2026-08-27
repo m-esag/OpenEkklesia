@@ -657,6 +657,11 @@ void SettingsWidget::setupUI() {
     m_spnSmartBridgeThreshold->setSuffix("%");
     m_spnSmartBridgeThreshold->setValue(40);
 
+    m_spnMaxGroupsServing = new QSpinBox(pagePastoral);
+    m_spnMaxGroupsServing->setRange(2, 6);
+    m_spnMaxGroupsServing->setValue(3);
+    m_spnMaxGroupsServing->setToolTip("Advisory workload threshold: Smart Bridge flags a candidate serving in this many groups for pastor review (never a hard block).");
+
     m_chkGraphPhysicsDamping = new QCheckBox("Enable Live Force-Directed Physics Animation", pagePastoral);
     m_chkGraphPhysicsDamping->setChecked(true);
 
@@ -665,6 +670,7 @@ void SettingsWidget::setupUI() {
     formGraph->addRow("Ministry Family Dominance Alert Percentage:", m_spnFamilyDominancePercent);
     formGraph->addRow("Default Pastoral Care Follow-up Window:", m_spnFollowUpDays);
     formGraph->addRow("Smart Bridge Minimum Match Threshold:", m_spnSmartBridgeThreshold);
+    formGraph->addRow("Smart Bridge Workload Advisory (Groups):", m_spnMaxGroupsServing);
     formGraph->addRow("Graph Dynamics:", m_chkGraphPhysicsDamping);
 
     layPastoral->addWidget(grpThresholds);
@@ -1279,6 +1285,7 @@ void SettingsWidget::loadSettings() {
     m_spnFamilyDominancePercent->setValue(s.value("familyDominancePercent", 50).toInt());
     m_spnFollowUpDays->setValue(s.value("followUpDays", 14).toInt());
     m_spnSmartBridgeThreshold->setValue(s.value("smartBridgeMinScore", 40).toInt());
+    m_spnMaxGroupsServing->setValue(s.value("maxGroupsServing", 3).toInt());
     m_chkGraphPhysicsDamping->setChecked(s.value("graphPhysicsEnabled", true).toBool());
 
     m_spnKioskTimeout->setValue(s.value("kioskTimeoutSeconds", 45).toInt());
@@ -1366,6 +1373,7 @@ void SettingsWidget::saveSettings() {
     s.setValue("familyDominancePercent", m_spnFamilyDominancePercent->value());
     s.setValue("followUpDays", m_spnFollowUpDays->value());
     s.setValue("smartBridgeMinScore", m_spnSmartBridgeThreshold->value());
+    s.setValue("maxGroupsServing", m_spnMaxGroupsServing->value());
     s.setValue("graphPhysicsEnabled", m_chkGraphPhysicsDamping->isChecked());
 
     s.setValue("kioskTimeoutSeconds", m_spnKioskTimeout->value());

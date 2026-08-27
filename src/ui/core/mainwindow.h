@@ -67,6 +67,7 @@ public slots:
     void onAddGroup(int defaultParentId = 0);
     void onArchiveGroup();
     void onDeleteGroup();
+    void onToggleHiddenGroup();
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -152,6 +153,7 @@ private:
 
     GroupsTreeWidget* m_groupsTreeWidget;
     QCheckBox* m_chkShowArchivedGroups;
+    QCheckBox* m_chkShowHiddenGroups;
     QCheckBox* m_chkShowMembersInTree;
     QPushButton* m_btnEditGroup;
     QPushButton* m_btnDuplicateGroup;

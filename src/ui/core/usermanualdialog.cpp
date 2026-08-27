@@ -531,21 +531,26 @@ QString UserManualDialog::getFullManualHtml() {
 </ol>
 
 <div class="alert-warning">
-    <img src="%20" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Hard Disqualification Gatekeeper:</b>
-    Candidates are automatically barred from match recommendations if:
-    <ul>
-        <li><b>Serving Overload:</b> Already active in 3 or more serving groups.</li>
-        <li><b>Schedule Conflict:</b> Group meeting day and time clashes with an existing team commitment.</li>
-        <li><b>Governance Exemption:</b> The group is an elected governance body (Church Board, Elders, Deacons) or a Director-led body.</li>
-        <li><b>Closed Cohort:</b> The group status is set to Closed or Seasonal.</li>
-        <li><b>Stale Group:</b> No logged activity in over 180 days.</li>
-        <li><b>Leader Under Care:</b> The group leader currently carries an <code>At-Risk</code> or <code>Needs Contact</code> care flag.</li>
-        <li><b>Pastoral Care Safety:</b> The candidate has an <code>At-Risk</code> care flag and the team is currently understaffed.</li>
-    </ul>
+    <img src="%20" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Structural Gatekeeper (hard block):</b>
+    Candidates are never recommended for <b>elected governance bodies</b> (Church Board, Elders, Deacons, Director-led bodies) or <b>Closed / Seasonal cohorts</b> — the cohort itself is not open to placement.
 </div>
 
 <div class="alert-tip">
-    <img src="%21" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Always Advisory:</b> Smart Bridge only makes <i>recommendations</i> — it never edits the roster itself. Every candidate card shows its fit score and the specific reason for the score, and a pastor or administrator can always add any member to any group directly from group management, regardless of the engine's suggestion.
+    <img src="%21" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Advisory Warnings — pastor review, not blocks:</b>
+    The engine flags — but never silently hides — a candidate when:
+    <ul>
+        <li><b>Serving Overload:</b> already active in 3 or more serving groups (threshold configurable in Settings).</li>
+        <li><b>Schedule Conflict:</b> group meeting day and time clashes with an existing commitment.</li>
+        <li><b>Stale Group:</b> no logged activity in over 180 days.</li>
+        <li><b>Leader Under Care:</b> the group leader carries an <code>At-Risk</code> or <code>Needs Contact</code> care flag.</li>
+        <li><b>Oversaturation:</b> &ge;3 Catalysts or &ge;4 Sparks already on the team.</li>
+        <li><b>Pastoral Care Safety:</b> the candidate is in active care and the team is currently understaffed.</li>
+    </ul>
+    Each flag appears as a yellow warning on the candidate card; "⚡ Connect" stays enabled, and connecting despite a warning is logged as an override in the audit trail.
+</div>
+
+<div class="alert-tip">
+    <img src="%21" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Always Advisory:</b> Smart Bridge only makes <i>recommendations</i> — it never edits the roster itself. Every candidate card shows its fit score, the specific reason, and any pastor-review flags; a pastor or administrator can always add any member to any group directly from group management, regardless of the engine's suggestion.
 </div>
 
 <hr>

@@ -131,6 +131,7 @@ private:
     QSpinBox* m_spnFollowUpDays;
     QCheckBox* m_chkGraphPhysicsDamping;
     QSpinBox* m_spnSmartBridgeThreshold;
+    QSpinBox* m_spnMaxGroupsServing;
 
     // --- Page 7: Kiosk & Nursery Security ---
     QSpinBox* m_spnKioskTimeout;

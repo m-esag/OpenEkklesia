@@ -321,7 +321,7 @@ private slots:
     void onBatchCopyPhones();
     void onBatchExportCSV();
     void onBatchAssignGroup();
-    void onConnectSmartBridge(int personId, int groupId, const QString& role, int score = 0);
+    void onConnectSmartBridge(int personId, int groupId, const QString& role, int score = 0, const QStringList& warnings = {});
     void onGroupSuggest();
     void onLogContact();
     void onUndoSever();

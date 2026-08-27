@@ -279,11 +279,15 @@ QList<MatchResult> MinistryRecommender::recommend(const QSqlDatabase& db, int gr
         }
 
         // 3. Serving load / burnout guard (weight -5 per group, cap -15).
+        // Advisory model: workload never excludes — it flags for pastor review.
         const int serving = groupCount.value(pid, 0);
-        if (serving > criteria.maxGroupsServing) continue;
         if (serving > 0) {
             raw -= qMin(15, serving * 5);
-            reasons << QString("Already serving in %1 group(s)").arg(serving);
+            if (serving >= criteria.maxGroupsServing) {
+                reasons << QString("⚠️ Already serving in %1 group(s) — pastor review recommended").arg(serving);
+            } else {
+                reasons << QString("Already serving in %1 group(s)").arg(serving);
+            }
         }
 
         // 4. Engagement boost (weight up to +20, no attendance = -10).

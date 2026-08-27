@@ -58,14 +58,26 @@ struct SynergyMatchResult {
     int score = 0; // 0..100
     QString primaryReason;
     QStringList breakdownLines;
+    // Advisory model (dev-review decision): only STRUCTURAL group properties
+    // (elected/closed/seasonal cohort) hard-block a recommendation. Personal
+    // circumstances (workload, schedule, care flags, staleness) are warnings a
+    // pastor may consciously override — the engine suggests, the human decides.
+    bool hardBlocked = false;
     bool isEligible = true;
-    QString disqualifyReason;
+    QString hardBlockReason;
+    QStringList warnings;
 };
 
 class SynergyEngine {
 public:
-    // Disqualification Gatekeeper (Phase 1)
-    static bool isEligible(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing = 3, QString* disqualifyReason = nullptr);
+    // Structural gatekeeper (Phase 1): false ONLY for elected/closed/seasonal
+    // governance cohorts. Personal circumstances are advisory warnings, not
+    // blocks — see collectWarnings().
+    static bool isEligible(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing = 3, QString* hardBlockReason = nullptr);
+
+    // Advisory flags (workload, schedule clash, stale group, leader under care,
+    // oversaturation, at-risk + understaffed). Empty = no pastor review needed.
+    static QStringList collectWarnings(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing = 3);
 
     // Dynamic Team Chemistry Scoring (Phase 2)
     static SynergyMatchResult evaluate(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing = 3);
