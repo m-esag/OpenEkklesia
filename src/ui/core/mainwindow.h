@@ -64,7 +64,7 @@ public slots:
     void onShowUserManual(const QString& section = QString());
     // Groups-tree context-menu actions (right-click on a group).
     void onEditGroup();
-    void onAddGroup();
+    void onAddGroup(int defaultParentId = 0);
     void onArchiveGroup();
     void onDeleteGroup();
 protected:

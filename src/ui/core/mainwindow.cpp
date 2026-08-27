@@ -298,7 +298,7 @@ void MainWindow::setupMenuBar() {
     // 3. Ministry & Services Menu
     QMenu* minMenu = mb->addMenu("&Ministry");
 
-    m_actGroups = minMenu->addAction("Small Groups & Serving Teams");
+    m_actGroups = minMenu->addAction("Groups & Ministries");
     m_actGroups->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
     m_actGroups->setShortcut(QKeySequence("Ctrl+3"));
     connect(m_actGroups, &QAction::triggered, this, &MainWindow::onGroupsClicked);
@@ -487,9 +487,9 @@ void MainWindow::setupUI() {
     layMin->setContentsMargins(0, 0, 0, 0);
     layMin->setSpacing(6);
 
-    m_btnGroups = new QPushButton("Groups", this);
+    m_btnGroups = new QPushButton("Groups & Ministries", this);
     m_btnGroups->setObjectName("navButton");
-    m_btnGroups->setToolTip("Groups: Coordinate small groups, classes, and volunteer teams.");
+    m_btnGroups->setToolTip("Groups & Ministries: Coordinate small groups, classes, ministry blueprints, and volunteer teams.");
     layMin->addWidget(m_btnGroups);
 
     m_btnService = new QPushButton("Service Builder", this);
@@ -736,7 +736,7 @@ void MainWindow::populatePages() {
 
     // Header Row
     QHBoxLayout* grpHeaderLayout = new QHBoxLayout();
-    QLabel* grpHeader = new QLabel("Active Ministries & Serving Teams", this);
+    QLabel* grpHeader = new QLabel("Active Groups & Ministries", this);
     grpHeader->setObjectName("pageHeader");
     grpHeaderLayout->addWidget(grpHeader);
     grpHeaderLayout->addStretch();
@@ -781,7 +781,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(btnAddGroup);
 
     m_btnEditGroup = new QPushButton(" Edit Group", this);
-    m_btnEditGroup->setIcon(IconManager::instance().getIcon("pencil", QColor("#cdd6f4"), 14));
+    m_btnEditGroup->setIcon(IconManager::instance().getIcon("pencil", QColor(), 14));
     m_btnEditGroup->setObjectName("secondaryBtn");
     connect(m_btnEditGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -795,7 +795,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_btnEditGroup);
 
     m_btnDuplicateGroup = new QPushButton(" Duplicate Group", this);
-    m_btnDuplicateGroup->setIcon(IconManager::instance().getIcon("copy", QColor("#cdd6f4"), 14));
+    m_btnDuplicateGroup->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
     m_btnDuplicateGroup->setObjectName("secondaryBtn");
     connect(m_btnDuplicateGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
@@ -809,115 +809,15 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_btnDuplicateGroup);
 
     m_btnArchiveGroup = new QPushButton(" Archive / Unarchive", this);
-    m_btnArchiveGroup->setIcon(IconManager::instance().getIcon("archive", QColor("#cdd6f4"), 14));
+    m_btnArchiveGroup->setIcon(IconManager::instance().getIcon("archive", QColor(), 14));
     m_btnArchiveGroup->setObjectName("secondaryBtn");
-    connect(m_btnArchiveGroup, &QPushButton::clicked, this, [this]() {
-        QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
-        if (!item) {
-            QMessageBox::warning(this, "No Selection", "Please select a group first.");
-            return;
-        }
-        bool isRoot = item->data(0, Qt::UserRole + 3).toBool();
-        if (isRoot) {
-            QMessageBox::information(this, "Protected Ministry", "Top-level Ministry Blueprints are system-locked and cannot be archived.");
-            return;
-        }
-        int groupId = item->data(0, Qt::UserRole).toInt();
-        QString name = item->text(0);
-        if (name.startsWith("↳ ")) name = name.mid(2);
-        if (name.endsWith(" [ARCHIVED]")) name.chop(11);
-
-        int isArchived = 0;
-        QSqlQuery qCheck("SELECT is_archived FROM groups WHERE id = ?");
-        qCheck.addBindValue(groupId);
-        if (qCheck.exec() && qCheck.next()) {
-            isArchived = qCheck.value(0).toInt();
-        }
-
-        int targetState = (isArchived == 1) ? 0 : 1;
-        QString actionName = (targetState == 1) ? "archive" : "unarchive";
-
-        auto res = QMessageBox::question(this, "Confirm Action", 
-                                         QString("Are you sure you want to %1 the group '%2'?").arg(actionName, name),
-                                         QMessageBox::Yes | QMessageBox::No);
-        if (res == QMessageBox::Yes) {
-            QSqlQuery update;
-            update.prepare("UPDATE groups SET is_archived = ? WHERE id = ?");
-            update.addBindValue(targetState);
-            update.addBindValue(groupId);
-            if (update.exec()) {
-                refreshGroupsTree();
-                refreshGroupDetailPanel(groupId);
-                if (m_graphWidget) m_graphWidget->loadGraph();
-                QMessageBox::information(this, "Success", QString("Group '%1' successfully %2d.").arg(name, actionName));
-            } else {
-                QMessageBox::critical(this, "Database Error", "Failed to update archive state: " + update.lastError().text());
-            }
-        }
-    });
+    connect(m_btnArchiveGroup, &QPushButton::clicked, this, &MainWindow::onArchiveGroup);
     grpHeaderLayout->addWidget(m_btnArchiveGroup);
 
     m_btnDeleteGroup = new QPushButton(" Delete Group", this);
     m_btnDeleteGroup->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnDeleteGroup->setObjectName("dangerBtn");
-    connect(m_btnDeleteGroup, &QPushButton::clicked, this, [this]() {
-        QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
-        if (!item) {
-            QMessageBox::warning(this, "No Selection", "Please select a group first.");
-            return;
-        }
-        bool isRoot = item->data(0, Qt::UserRole + 3).toBool();
-        if (isRoot) {
-            QMessageBox::information(this, "Protected Ministry", "Top-level Ministry Blueprints are system-locked and cannot be deleted.");
-            return;
-        }
-        int groupId = item->data(0, Qt::UserRole).toInt();
-        QString groupName = item->text(0);
-        if (groupName.startsWith("↳ ")) groupName = groupName.mid(2);
-        if (groupName.endsWith(" [ARCHIVED]")) groupName.chop(11);
-        
-        auto res = QMessageBox::question(this, "Confirm Deletion", 
-                                         QString("Are you sure you want to delete the group '%1'? This will clear member assignments.").arg(groupName), 
-                                         QMessageBox::Yes | QMessageBox::No);
-        if (res == QMessageBox::Yes) {
-            QSqlDatabase db = QSqlDatabase::database();
-            db.transaction();
-
-            int deletedGroupParentId = 0;
-            QSqlQuery qParentCheck(db);
-            qParentCheck.prepare("SELECT parent_id FROM groups WHERE id = ?");
-            qParentCheck.addBindValue(groupId);
-            if (qParentCheck.exec() && qParentCheck.next()) {
-                deletedGroupParentId = qParentCheck.value(0).toInt();
-            }
-
-            QSqlQuery qOrphans(db);
-            qOrphans.prepare("UPDATE groups SET parent_id = ? WHERE parent_id = ?");
-            qOrphans.addBindValue(deletedGroupParentId > 0 ? QVariant(deletedGroupParentId) : QVariant(QMetaType(QMetaType::Int)));
-            qOrphans.addBindValue(groupId);
-            qOrphans.exec();
-
-            QSqlQuery query(db);
-            query.prepare("DELETE FROM entity_relationships WHERE target_type = 'Group' AND target_id = ?");
-            query.addBindValue(groupId);
-            query.exec();
-            
-            QSqlQuery query2(db);
-            query2.prepare("DELETE FROM groups WHERE id = ?");
-            query2.addBindValue(groupId);
-            if (query2.exec()) {
-                db.commit();
-                m_selectedGroupId = 0;
-                refreshGroupsTree();
-                refreshGroupDetailPanel(0);
-                if (m_graphWidget) m_graphWidget->loadGraph();
-                QMessageBox::information(this, "Success", "Group deleted successfully.");
-            } else {
-                db.rollback();
-                QMessageBox::critical(this, "Database Error", "Failed to delete group: " + query2.lastError().text());
-            }
-        }
-    });
+    connect(m_btnDeleteGroup, &QPushButton::clicked, this, &MainWindow::onDeleteGroup);
     grpHeaderLayout->addWidget(m_btnDeleteGroup);
 
     tabActiveLayout->addLayout(grpHeaderLayout);
@@ -989,7 +889,7 @@ void MainWindow::populatePages() {
         if (sel == actEdit) {
             onEditGroup();
         } else if (sel == actAddSub) {
-            onAddGroup();
+            onAddGroup(groupId); // right-clicked group becomes the default parent
         } else if (sel == actAddMember) {
             m_selectedGroupId = groupId;
             refreshGroupDetailPanel(groupId);
@@ -2309,6 +2209,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 void MainWindow::refreshGroupsTree() {
     if (!m_groupsTreeWidget) return;
     m_groupsTreeWidget->clear();
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
 
     bool showArchived = m_chkShowArchivedGroups && m_chkShowArchivedGroups->isChecked();
 
@@ -2379,7 +2280,7 @@ void MainWindow::refreshGroupsTree() {
         if (parentItem) {
             item = new QTreeWidgetItem(parentItem);
             item->setText(0, QString("↳ %1").arg(name));
-            item->setForeground(0, QBrush(isArchived ? QColor("#6c7086") : QColor("#04a5e5")));
+            item->setForeground(0, QBrush(isArchived ? tok.textMuted : tok.accentPrimary));
             item->setFont(0, QFont("Segoe UI", 9, QFont::DemiBold));
             item->setData(0, Qt::UserRole + 3, false); // Child group
         } else {
@@ -2390,9 +2291,9 @@ void MainWindow::refreshGroupsTree() {
             }
             item->setText(0, displayTitle);
             if (isArchived) {
-                item->setForeground(0, QBrush(QColor("#6c7086")));
+                item->setForeground(0, QBrush(tok.textMuted));
             } else {
-                item->setForeground(0, QBrush(QColor("#f9e2af"))); // Bold yellow highlight for fixed ministries
+                item->setForeground(0, QBrush(tok.accentWarning)); // Bold highlight for fixed ministries
             }
             item->setFont(0, QFont("Segoe UI", 10, QFont::Bold));
             item->setData(0, Qt::UserRole + 3, true); // Root ministry blueprint
@@ -2426,12 +2327,12 @@ void MainWindow::refreshGroupsTree() {
                     QString pCare = qMembers.value(6).toString();
 
                     pItem->setText(0, QString("      %1").arg(pName));
-                    pItem->setIcon(0, IconManager::instance().getIcon("users", QColor("#cdd6f4"), 14));
+                    pItem->setIcon(0, IconManager::instance().getIcon("users", QColor(), 14));
                     pItem->setFont(0, QFont("Segoe UI", 9));
-                    pItem->setForeground(0, QBrush(QColor("#cdd6f4")));
+                    pItem->setForeground(0, QBrush(tok.textPrimary));
                     pItem->setText(1, pRole.isEmpty() ? "Member" : pRole);
                     if (pRole == "Leader" || pRole == "Co-Leader") {
-                        pItem->setForeground(1, QBrush(QColor("#f9e2af")));
+                        pItem->setForeground(1, QBrush(tok.accentWarning));
                         pItem->setFont(1, QFont("Segoe UI", 9, QFont::Bold));
                     }
                     QString contact = pPhone.isEmpty() ? pEmail : pPhone;
@@ -2854,7 +2755,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
     } else if (groupId > 0) {
         dlg.setWindowTitle(QString("Edit Group — %1").arg(currentName));
     } else {
-        dlg.setWindowTitle("Create New Group / Serving Team");
+        dlg.setWindowTitle("Create New Group / Ministry");
     }
 
     dlg.resize(480, 620);
@@ -3174,8 +3075,8 @@ void MainWindow::onEditGroup() {
     }
 }
 
-void MainWindow::onAddGroup() {
-    showGroupDialog(0, false); // parent chosen in the dialog (cycle-safe)
+void MainWindow::onAddGroup(int defaultParentId) {
+    showGroupDialog(0, false, defaultParentId);
 }
 
 void MainWindow::onArchiveGroup() {
@@ -3183,12 +3084,37 @@ void MainWindow::onArchiveGroup() {
         QMessageBox::warning(this, "No Selection", "Please select a group first.");
         return;
     }
+    // Root guard: top-level ministry blueprints are system-locked.
+    QSqlQuery rootQ;
+    rootQ.prepare("SELECT parent_id FROM groups WHERE id = ?");
+    rootQ.addBindValue(m_selectedGroupId);
+    const bool isRoot = (!rootQ.exec() || !rootQ.next()) ? false : rootQ.value(0).isNull();
+    if (isRoot) {
+        QMessageBox::information(this, "Protected Ministry", "Top-level Ministry Blueprints are system-locked and cannot be archived.");
+        return;
+    }
+
+    QSqlQuery qState;
+    qState.prepare("SELECT is_archived FROM groups WHERE id = ?");
+    qState.addBindValue(m_selectedGroupId);
+    const int current = (qState.exec() && qState.next()) ? qState.value(0).toInt() : 0;
+    const int target = (current == 1) ? 0 : 1;
+    const QString action = (target == 1) ? "archive" : "unarchive";
+
+    if (QMessageBox::question(this, "Confirm Action",
+                              QString("Are you sure you want to %1 this group?").arg(action),
+                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
+
     QSqlQuery q;
-    q.prepare("UPDATE groups SET is_archived = CASE WHEN is_archived = 1 THEN 0 ELSE 1 END WHERE id = ?");
+    q.prepare("UPDATE groups SET is_archived = ? WHERE id = ?");
+    q.addBindValue(target);
     q.addBindValue(m_selectedGroupId);
     if (q.exec()) {
         refreshGroupsTree();
         refreshGroupDetailPanel(m_selectedGroupId);
+        if (m_graphWidget) m_graphWidget->loadGraph();
     } else {
         QMessageBox::critical(this, "Database Error", "Failed to toggle archive status: " + q.lastError().text());
     }
@@ -3199,13 +3125,23 @@ void MainWindow::onDeleteGroup() {
         QMessageBox::warning(this, "No Selection", "Please select a group first.");
         return;
     }
+    // Root guard: top-level ministry blueprints are system-locked.
+    QSqlQuery rootQ;
+    rootQ.prepare("SELECT parent_id FROM groups WHERE id = ?");
+    rootQ.addBindValue(m_selectedGroupId);
+    const bool isRoot = (!rootQ.exec() || !rootQ.next()) ? false : rootQ.value(0).isNull();
+    if (isRoot) {
+        QMessageBox::information(this, "Protected Ministry", "Top-level Ministry Blueprints are system-locked and cannot be deleted.");
+        return;
+    }
+
     QSqlQuery nameQ;
     nameQ.prepare("SELECT name FROM groups WHERE id = ?");
     nameQ.addBindValue(m_selectedGroupId);
     QString name = (nameQ.exec() && nameQ.next()) ? nameQ.value(0).toString() : QString("Group #%1").arg(m_selectedGroupId);
 
     if (QMessageBox::question(this, "Delete Group",
-                              QString("Delete '%1' and its sub-groups? Members are kept — only the group links are removed.")
+                              QString("Delete '%1'? Members are kept; sub-groups are moved up to its parent.")
                                   .arg(name),
                               QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
         return;
@@ -3214,16 +3150,29 @@ void MainWindow::onDeleteGroup() {
     QSqlDatabase db = DatabaseManager::instance().database();
     db.transaction();
     QSqlQuery q(db);
-    // Detach sub-groups and remove member links first (FK-safe).
-    q.exec("UPDATE groups SET parent_id = NULL WHERE parent_id = " + QString::number(m_selectedGroupId));
+    // Preserve hierarchy: re-parent sub-groups to this group's parent (null if top-level),
+    // then remove member links and the group itself.
+    QSqlQuery qParent(db);
+    qParent.prepare("SELECT parent_id FROM groups WHERE id = ?");
+    qParent.addBindValue(m_selectedGroupId);
+    int grandparent = 0;
+    if (qParent.exec() && qParent.next()) grandparent = qParent.value(0).toInt();
+
+    q.prepare("UPDATE groups SET parent_id = ? WHERE parent_id = ?");
+    q.addBindValue(grandparent > 0 ? QVariant(grandparent) : QVariant(QMetaType(QMetaType::Int)));
+    q.addBindValue(m_selectedGroupId);
+    q.exec();
+
     q.prepare("DELETE FROM entity_relationships WHERE target_type = 'Group' AND target_id = ?");
     q.addBindValue(m_selectedGroupId);
     q.exec();
+
     q.prepare("DELETE FROM groups WHERE id = ?");
     q.addBindValue(m_selectedGroupId);
     const bool ok = q.exec();
     if (ok) {
         db.commit();
+        m_selectedGroupId = 0;
         refreshGroupsTree();
         refreshGroupDetailPanel(0);
         if (m_graphWidget) m_graphWidget->loadGraph();
