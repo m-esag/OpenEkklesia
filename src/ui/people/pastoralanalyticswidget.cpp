@@ -1,5 +1,6 @@
 #include "pastoralanalyticswidget.h"
 #include "../database/databasemanager.h"
+#include "../../common/appdateformatter.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -13,6 +14,7 @@
 #include <QScrollArea>
 #include <QDateTime>
 #include <QDate>
+#include <QSettings>
 #include <QDebug>
 
 #include "thememanager.h"
@@ -53,7 +55,8 @@ void PastoralAnalyticsWidget::setupUI() {
     QLabel* header = new QLabel("📊 Pastoral Analytics", this);
     header->setObjectName("pageHeader");
 
-    m_lblSubtitle = new QLabel("Current Snapshot as of August 2026 • Real-Time Congregation Health Indicators", this);
+    m_lblSubtitle = new QLabel(QString("Current Snapshot as of %1 • Real-Time Congregation Health Indicators")
+                                   .arg(AppDateFormatter::formatDate(QDate::currentDate())), this);
     m_lblSubtitle->setStyleSheet("color: palette(placeholderText); font-size: 12px; font-weight: bold;");
 
     titleBox->addWidget(header);
@@ -63,14 +66,18 @@ void PastoralAnalyticsWidget::setupUI() {
 
     // Controls: Scope Selector & Stage Configuration
     m_cmbScopeSelector = new QComboBox(this);
-    m_cmbScopeSelector->addItem("📅 Current Snapshot (Real-time)");
-    m_cmbScopeSelector->addItem("📅 Q3 2026 Snapshot");
-    m_cmbScopeSelector->addItem("📅 Year-to-Date 2026");
-    m_cmbScopeSelector->addItem("📅 Trailing 12 Months");
+    {
+        const QDate now = QDate::currentDate();
+        const int quarter = (now.month() - 1) / 3 + 1;
+        m_cmbScopeSelector->addItem("📅 Current Snapshot (Real-time)");
+        m_cmbScopeSelector->addItem(QString("📅 Q%1 %2 Snapshot").arg(quarter).arg(now.year()));
+        m_cmbScopeSelector->addItem(QString("📅 Year-to-Date %1").arg(now.year()));
+        m_cmbScopeSelector->addItem("📅 Trailing 12 Months");
+    }
     connect(m_cmbScopeSelector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PastoralAnalyticsWidget::onScopeChanged);
 
     m_btnConfigureStages = new QPushButton(" Configure Stages", this);
-    m_btnConfigureStages->setIcon(IconManager::instance().getIcon("settings", QColor("#cdd6f4"), 14));
+    m_btnConfigureStages->setIcon(IconManager::instance().getIcon("settings", QColor(), 14)); // theme-aware
     m_btnConfigureStages->setObjectName("secondaryBtn");
     connect(m_btnConfigureStages, &QPushButton::clicked, this, &PastoralAnalyticsWidget::onConfigureStagesClicked);
 
@@ -355,107 +362,173 @@ void PastoralAnalyticsWidget::onConfigureStagesClicked() {
     dlg.exec();
 }
 
-void PastoralAnalyticsWidget::refreshAnalytics() {
+PastoralAnalyticsWidget::AnalyticsSnapshot PastoralAnalyticsWidget::computeSnapshot(int scopeIndex) const {
+    AnalyticsSnapshot s;
+    s.snapshotDate = QDate::currentDate();
     QSqlDatabase db = DatabaseManager::instance().database();
+
+    // Scope window. Semantics: "people who entered the pipeline (joined or
+    // first visited) inside the selected window". Index 0 = all time.
+    QString windowClausePeople;   // applied to people rows
+    QString windowClauseJoined;   // applied to entity_relationships.joined_date
+    QString windowClauseFirstVisit; // applied to people.first_visit_date only
+    {
+        QString startS, endS;
+        if (scopeIndex == 1) {    // current calendar quarter
+            const int q = (s.snapshotDate.month() - 1) / 3 + 1;
+            const QDate start(s.snapshotDate.year(), (q - 1) * 3 + 1, 1);
+            startS = start.toString("yyyy-MM-dd");
+            endS = start.addMonths(3).addDays(-1).toString("yyyy-MM-dd");
+        } else if (scopeIndex == 2) { // year to date
+            startS = QDate(s.snapshotDate.year(), 1, 1).toString("yyyy-MM-dd");
+            endS = s.snapshotDate.toString("yyyy-MM-dd");
+        } else if (scopeIndex == 3) { // trailing 12 months
+            startS = s.snapshotDate.addMonths(-12).toString("yyyy-MM-dd");
+            endS = s.snapshotDate.toString("yyyy-MM-dd");
+        }
+        if (!startS.isEmpty()) {
+            windowClausePeople = QString(" AND ((join_date BETWEEN '%1' AND '%2') OR (first_visit_date BETWEEN '%1' AND '%2'))").arg(startS, endS);
+            windowClauseJoined = QString(" AND joined_date BETWEEN '%1' AND '%2'").arg(startS, endS);
+            windowClauseFirstVisit = QString(" AND first_visit_date BETWEEN '%1' AND '%2'").arg(startS, endS);
+        } else if (scopeIndex == 0) {
+            // Live snapshot: "new visitors" means first visit within this month.
+            const QDate mStart(s.snapshotDate.year(), s.snapshotDate.month(), 1);
+            windowClauseFirstVisit = QString(" AND first_visit_date BETWEEN '%1' AND '%2'")
+                                         .arg(mStart.toString("yyyy-MM-dd"), s.snapshotDate.toString("yyyy-MM-dd"));
+        }
+    }
+
     QSqlQuery q(db);
+    auto countPeople = [&q, &windowClausePeople](const QString& extra) {
+        if (!q.exec(QString("SELECT COUNT(*) FROM people WHERE 1=1%1%2").arg(windowClausePeople, extra))) return 0;
+        return q.next() ? q.value(0).toInt() : 0;
+    };
 
-    int scopeIdx = m_cmbScopeSelector ? m_cmbScopeSelector->currentIndex() : 0;
-    QDate now = QDate::currentDate();
-    QString dateCondition;
-    if (scopeIdx == 1) { // Q3 2026 Snapshot
-        dateCondition = " AND (join_date BETWEEN '2026-07-01' AND '2026-09-30' OR first_visit_date BETWEEN '2026-07-01' AND '2026-09-30')";
-    } else if (scopeIdx == 2) { // Year-to-Date 2026
-        QString startOfYear = QString("%1-01-01").arg(now.year());
-        dateCondition = QString(" AND (join_date >= '%1' OR first_visit_date >= '%1')").arg(startOfYear);
-    } else if (scopeIdx == 3) { // Trailing 12 Months
-        QString start12m = now.addMonths(-12).toString("yyyy-MM-dd");
-        dateCondition = QString(" AND (join_date >= '%1' OR first_visit_date >= '%1')").arg(start12m);
+    s.totalPeople = countPeople(""); // raw count; percentages guard against 0
+    s.visitors  = countPeople(" AND membership_status = 'Visitor'");
+    s.attenders = countPeople(" AND membership_status = 'Regular Attender'");
+    s.members   = countPeople(" AND membership_status = 'Member'");
+    s.atRisk    = countPeople(" AND care_flag IN ('At-Risk', 'Needs Contact')");
+
+    // Leaders: consistent with the rest of the app (Leader/Co-Leader/Teacher).
+    if (q.exec(QString("SELECT COUNT(DISTINCT source_id) FROM entity_relationships "
+                       "WHERE source_type = 'Person' AND target_type = 'Group' "
+                       "AND relationship_type IN ('Leader', 'Co-Leader', 'Teacher')%1").arg(windowClauseJoined)))
+        if (q.next()) s.leaders = q.value(0).toInt();
+
+    // Small-group coverage + serving: only live (non-archived) groups count.
+    const QString groupJoin = "entity_relationships er JOIN groups g ON er.target_id = g.id "
+                              "WHERE er.source_type = 'Person' AND er.target_type = 'Group' AND g.is_archived = 0";
+    if (q.exec(QString("SELECT COUNT(DISTINCT er.source_id) FROM %1%2").arg(groupJoin, windowClauseJoined)))
+        if (q.next()) s.smallGroupConnected = q.value(0).toInt();
+    if (q.exec(QString("SELECT COUNT(DISTINCT er.source_id), COUNT(DISTINCT er.target_id) FROM %1%2").arg(groupJoin, windowClauseJoined)))
+        if (q.next()) { s.servingCount = q.value(0).toInt(); s.servingTeams = q.value(1).toInt(); }
+
+    // New visitors in the scope window (this month for the live snapshot),
+    // plus the previous calendar month for the trend.
+    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE first_visit_date IS NOT NULL AND first_visit_date != ''%1").arg(windowClauseFirstVisit)))
+        if (q.next()) s.newVisitorsInScope = q.value(0).toInt();
+    {
+        const QDate prevStart = QDate(s.snapshotDate.year(), s.snapshotDate.month(), 1).addMonths(-1);
+        const QDate prevEnd = prevStart.addMonths(1).addDays(-1);
+        QSqlQuery qPrev(db);
+        qPrev.prepare("SELECT COUNT(*) FROM people WHERE first_visit_date IS NOT NULL AND first_visit_date BETWEEN ? AND ?");
+        qPrev.addBindValue(prevStart.toString("yyyy-MM-dd"));
+        qPrev.addBindValue(prevEnd.toString("yyyy-MM-dd"));
+        if (qPrev.exec() && qPrev.next()) s.newVisitorsLastMonth = qPrev.value(0).toInt();
     }
 
-    int visitors = 0, attenders = 0, members = 0, leaders = 0, atRisk = 0, totalPeople = 1;
+    // Overdue follow-ups: current workload, not scope-filtered.
+    if (q.exec("SELECT COUNT(*) FROM pastoral_activities WHERE follow_up_date IS NOT NULL "
+               "AND follow_up_date <= date('now', 'localtime') AND follow_up_done = 0"))
+        if (q.next()) s.overdueFollowUps = q.value(0).toInt();
 
-    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE 1=1%1").arg(dateCondition))) {
-        if (q.next()) totalPeople = qMax(1, q.value(0).toInt());
-    }
+    // Lapsed givers: Members/Attenders with a giving history but nothing since
+    // the configured inactivity window (same rule as the dashboard).
+    QSettings set("OpenEkklesia", "CHMS");
+    const int inactivityDays = qBound(7, set.value("inactivityDays", 30).toInt(), 365);
+    QSqlQuery qLapsed(db);
+    qLapsed.prepare(QString(
+        "SELECT COUNT(*) FROM people "
+        "WHERE membership_status IN ('Member', 'Regular Attender') "
+        "  AND id IN (SELECT DISTINCT person_id FROM contributions) "
+        "  AND id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-%1 days'))")
+        .arg(inactivityDays));
+    if (qLapsed.exec() && qLapsed.next()) s.lapsedGivers = qLapsed.value(0).toInt();
 
-    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Visitor'%1").arg(dateCondition))) {
-        if (q.next()) visitors = q.value(0).toInt();
-    }
-    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Regular Attender'%1").arg(dateCondition))) {
-        if (q.next()) attenders = q.value(0).toInt();
-    }
-    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE membership_status = 'Member'%1").arg(dateCondition))) {
-        if (q.next()) members = q.value(0).toInt();
-    }
-    if (q.exec(QString("SELECT COUNT(*) FROM people WHERE care_flag IN ('At-Risk', 'Needs Contact')%1").arg(dateCondition))) {
-        if (q.next()) atRisk = q.value(0).toInt();
-    }
-    if (q.exec("SELECT COUNT(DISTINCT source_id) FROM entity_relationships WHERE source_type = 'Person' AND relationship_type LIKE '%Leader%'")) {
-        if (q.next()) leaders = q.value(0).toInt();
-    }
+    const int active = s.visitors + s.attenders + s.members;
+    const int denom = qMax(1, s.totalPeople);
+    s.groupPct = qMin(100, (s.smallGroupConnected * 100) / denom);
+    s.conversionPct = qMin(100, (s.members * 100) / qMax(1, active));
+    s.servingPct = qMin(100, (s.servingCount * 100) / denom);
+    return s;
+}
 
-    // Dynamic New Visitors This Month
-    QString thisMonthStart = QDate(now.year(), now.month(), 1).toString("yyyy-MM-dd");
-    int visitorsThisMonth = 0;
-    QSqlQuery qVM;
-    qVM.prepare("SELECT COUNT(*) FROM people WHERE (membership_status = 'Visitor' OR first_visit_date >= ?)");
-    qVM.addBindValue(thisMonthStart);
-    if (qVM.exec() && qVM.next()) {
-        visitorsThisMonth = qVM.value(0).toInt();
-    }
+void PastoralAnalyticsWidget::refreshAnalytics() {
+    const int scopeIdx = m_cmbScopeSelector ? m_cmbScopeSelector->currentIndex() : 0;
+    const AnalyticsSnapshot s = computeSnapshot(scopeIdx);
 
-    // Update Top Metric Cards
-    m_lblVisitorsVal->setText(QString::number(visitorsThisMonth));
-    m_lblAtRiskVal->setText(QString::number(atRisk));
+    // Top metric cards
+    m_lblVisitorsVal->setText(QString::number(s.newVisitorsInScope));
+    const int vDelta = s.newVisitorsInScope - s.newVisitorsLastMonth;
+    m_lblVisitorsTrend->setText(vDelta > 0 ? QString("↑ +%1 vs. last month  •  Click to view roster").arg(vDelta)
+                                : vDelta < 0 ? QString("↓ %1 vs. last month  •  Click to view roster").arg(vDelta)
+                                : "— same as last month  •  Click to view roster");
 
-    int smallGroupConnected = 0;
-    if (q.exec("SELECT COUNT(DISTINCT source_id) FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group'")) {
-        if (q.next()) smallGroupConnected = q.value(0).toInt();
-    }
-    int groupPct = qMin(100, (smallGroupConnected * 100) / totalPeople);
-    int groupUnconnectedPct = 100 - groupPct;
+    m_lblAtRiskVal->setText(QString::number(s.atRisk));
+    m_lblAtRiskTrend->setText(QString("%1 follow-up%2 overdue in the Shepherd queue  •  Click to review")
+                                  .arg(s.overdueFollowUps).arg(s.overdueFollowUps == 1 ? "" : "s"));
 
-    m_lblGroupCoverageVal->setText(QString("%1%").arg(groupPct));
-    m_lblGroupInverseVal->setText(QString("⚠️ %1% unconnected to a small group (Pastoral Concern)").arg(groupUnconnectedPct));
+    m_lblGroupCoverageVal->setText(QString("%1%").arg(s.groupPct));
+    m_lblGroupInverseVal->setText(QString("⚠️ %1% unconnected to a small group (%2 members) (Pastoral Concern)")
+                                      .arg(100 - s.groupPct).arg(s.totalPeople - s.smallGroupConnected));
 
-    int conversionPct = qMin(100, (members * 100) / qMax(1, visitors + attenders + members));
-    m_lblConversionVal->setText(QString("%1%").arg(conversionPct));
+    m_lblConversionVal->setText(QString("%1%").arg(s.conversionPct));
+    m_lblConversionTrend->setText(QString("%1 of %2 active are formal Members  •  Visitors progressing to member")
+                                      .arg(s.members).arg(qMax(1, s.visitors + s.attenders + s.members)));
 
-    int servingPct = qMin(100, (leaders * 100 + attenders) / totalPeople);
-    m_lblServingVal->setText(QString("%1%").arg(servingPct));
+    m_lblServingVal->setText(QString("%1%").arg(s.servingPct));
+    m_lblServingTrend->setText(QString("%1 volunteer%2 across %3 team%4  •  Click to view volunteers")
+                                   .arg(s.servingCount).arg(s.servingCount == 1 ? "" : "s")
+                                   .arg(s.servingTeams).arg(s.servingTeams == 1 ? "" : "s"));
 
-    // Update Funnel Stages
-    m_lblStage1Val->setText(QString("%1 people (%2%)").arg(visitors).arg((visitors * 100) / totalPeople));
-    m_lblStage2Val->setText(QString("%1 people (%2%)").arg(attenders).arg((attenders * 100) / totalPeople));
-    m_lblStage3Val->setText(QString("%1 people (%2%)").arg(members).arg((members * 100) / totalPeople));
-    m_lblStage4Val->setText(QString("%1 people (%2%)").arg(leaders).arg((leaders * 100) / totalPeople));
+    // Funnel stages (denominator guarded — snapshot carries raw counts)
+    const int denom = qMax(1, s.totalPeople);
+    m_lblStage1Val->setText(QString("%1 people (%2%)").arg(s.visitors).arg((s.visitors * 100) / denom));
+    m_lblStage2Val->setText(QString("%1 people (%2%)").arg(s.attenders).arg((s.attenders * 100) / denom));
+    m_lblStage3Val->setText(QString("%1 people (%2%)").arg(s.members).arg((s.members * 100) / denom));
+    m_lblStage4Val->setText(QString("%1 people (%2%)").arg(s.leaders).arg((s.leaders * 100) / denom));
 
-    int conv1 = visitors > 0 ? (attenders * 100) / visitors : 74;
-    int conv2 = attenders > 0 ? (members * 100) / attenders : 81;
-    int conv3 = members > 0 ? (leaders * 100) / members : 65;
+    const int conv1 = s.visitors > 0 ? qMin(100, (s.attenders * 100) / s.visitors) : 0;
+    const int conv2 = s.attenders > 0 ? qMin(100, (s.members * 100) / s.attenders) : 0;
+    const int conv3 = s.members > 0 ? qMin(100, (s.leaders * 100) / s.members) : 0;
+    m_lblConv1To2->setText(QString("⬇️ %1% conversion to Regular Attenders  •  %2% drop-off").arg(conv1).arg(100 - conv1));
+    m_lblConv2To3->setText(QString("⬇️ %1% conversion to Formal Members  •  %2% drop-off").arg(conv2).arg(100 - conv2));
+    m_lblConv3To4->setText(QString("⬇️ %1% conversion to Ministry Leaders  •  %2% drop-off").arg(conv3).arg(100 - conv3));
 
-    m_lblConv1To2->setText(QString("⬇️ %1% conversion to Regular Attenders  •  %2% drop-off").arg(qMin(100, conv1)).arg(100 - qMin(100, conv1)));
-    m_lblConv2To3->setText(QString("⬇️ %1% conversion to Formal Members  •  %2% drop-off").arg(qMin(100, conv2)).arg(100 - qMin(100, conv2)));
-    m_lblConv3To4->setText(QString("⬇️ %1% conversion to Ministry Leaders  •  %2% drop-off").arg(qMin(100, conv3)).arg(100 - qMin(100, conv3)));
-
-    // Populate Pastoral Actions Needed List
+    // Pastoral actions (every entry backed by a real count)
     m_lstPastoralActions->clear();
+    auto addAction = [this](const QString& text, const QString& type, const QString& val) {
+        QListWidgetItem* item = new QListWidgetItem(text, m_lstPastoralActions);
+        item->setData(Qt::UserRole, type);
+        item->setData(Qt::UserRole + 1, val);
+    };
 
-    QListWidgetItem* item1 = new QListWidgetItem(QString("⚠️ %1 Members flagged At-Risk with pastoral follow-up pending (Click to view)").arg(qMax(1, atRisk)), m_lstPastoralActions);
-    item1->setData(Qt::UserRole, "care_flag");
-    item1->setData(Qt::UserRole + 1, "At-Risk");
-
-    QListWidgetItem* item2 = new QListWidgetItem(QString("👥 %1% of congregation unconnected to a small group (%2 members)").arg(groupUnconnectedPct).arg(totalPeople - smallGroupConnected), m_lstPastoralActions);
-    item2->setData(Qt::UserRole, "unconnected");
-    item2->setData(Qt::UserRole + 1, "");
-
-    QListWidgetItem* item3 = new QListWidgetItem(QString("🤝 %1 New Visitors this month awaiting welcome team follow-up").arg(qMax(1, visitorsThisMonth)), m_lstPastoralActions);
-    item3->setData(Qt::UserRole, "status");
-    item3->setData(Qt::UserRole + 1, "Visitor");
-
-    QListWidgetItem* item4 = new QListWidgetItem("💸 Stewardship review: Inactive contributor households flagged for pastoral outreach", m_lstPastoralActions);
-    item4->setData(Qt::UserRole, "status");
-    item4->setData(Qt::UserRole + 1, "Regular Attender");
+    if (s.atRisk > 0)
+        addAction(QString("⚠️ %1 member%2 flagged At-Risk or needing contact (click to review)").arg(s.atRisk).arg(s.atRisk == 1 ? "" : "s"),
+                  "care_flag", "At-Risk");
+    if (s.overdueFollowUps > 0)
+        addAction(QString("🕊️ %1 follow-up%2 overdue — work the Shepherd's queue").arg(s.overdueFollowUps).arg(s.overdueFollowUps == 1 ? "" : "s"),
+                  "care_flag", "Follow-up");
+    if (100 - s.groupPct > 0)
+        addAction(QString("👥 %1% of congregation unconnected to a small group (%2 members)").arg(100 - s.groupPct).arg(s.totalPeople - s.smallGroupConnected),
+                  "unconnected", "");
+    if (s.newVisitorsInScope > 0)
+        addAction(QString("🤝 %1 new visitor%2 awaiting welcome-team follow-up").arg(s.newVisitorsInScope).arg(s.newVisitorsInScope == 1 ? "" : "s"),
+                  "status", "Visitor");
+    if (s.lapsedGivers > 0)
+        addAction(QString("💸 %1 lapsed giver%2 (no contribution in 30+ days) — click to view").arg(s.lapsedGivers).arg(s.lapsedGivers == 1 ? "" : "s"),
+                  "lapsed_giver", "");
 }
 
 void PastoralAnalyticsWidget::applyTheme(const ThemeTokens& tokens) {
