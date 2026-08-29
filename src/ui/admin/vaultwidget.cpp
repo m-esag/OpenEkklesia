@@ -4,8 +4,11 @@
 #include <QDate>
 #include "../database/databasemanager.h"
 #include "../core/iconmanager.h"
+#include "../core/thememanager.h"
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -146,12 +149,24 @@ void VaultWidget::setupUI() {
         int row = idx.row();
         m_tableView->selectRow(row);
         int docId = m_queryModel->index(row, 0).data().toInt();
+        QString docTitle = m_queryModel->index(row, 1).data().toString();
+        QString docDate = m_queryModel->index(row, 2).data().toString();
+        QString docCategory = m_queryModel->index(row, 3).data().toString();
+
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
 
         QMenu menu(this);
-        QAction* actOpen = menu.addAction("👁️ Open / View Document");
-        QAction* actExport = menu.addAction("💾 Save Copy to Local Disk...");
+        QAction* actOpen = menu.addAction(IconManager::instance().getIcon("eye", tok.accentPrimary, 14), "Open / View Document");
+        QAction* actExport = menu.addAction(IconManager::instance().getIcon("download", QColor(), 14), "Save Copy to Local Disk...");
+        QAction* actCopyInfo = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Document Info");
         menu.addSeparator();
-        QAction* actDelete = menu.addAction("🗑️ Remove Document Record");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Remove Document Record");
+        if (isReadOnly) {
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_tableView->viewport()->mapToGlobal(pos));
         if (!sel) return;
@@ -160,7 +175,7 @@ void VaultWidget::setupUI() {
             onOpenClicked();
         } else if (sel == actExport) {
             QSqlQuery q;
-            q.prepare("SELECT file_path FROM documents WHERE id = ?");
+            q.prepare("SELECT file_path FROM vault_documents WHERE id = ?");
             q.addBindValue(docId);
             if (q.exec() && q.next()) {
                 QString relPath = q.value(0).toString();
@@ -174,7 +189,10 @@ void VaultWidget::setupUI() {
                     }
                 }
             }
-        } else if (sel == actDelete) {
+        } else if (sel == actCopyInfo) {
+            QString info = QString("Document: %1 | Date: %2 | Category: %3").arg(docTitle, docDate, docCategory);
+            QGuiApplication::clipboard()->setText(info);
+        } else if (sel == actDelete && !isReadOnly) {
             onDeleteClicked();
         }
     });
@@ -222,16 +240,42 @@ void VaultWidget::setupUI() {
         if (!idx.isValid()) return;
         m_minutesView->selectRow(idx.row());
 
+        int mRow = idx.row();
+        QString mDate = m_minutesModel->index(mRow, 1).data().toString();
+        QString mTitle = m_minutesModel->index(mRow, 2).data().toString();
+        QString mMoved = m_minutesModel->index(mRow, 3).data().toString();
+        QString mSeconded = m_minutesModel->index(mRow, 4).data().toString();
+        QString mResult = m_minutesModel->index(mRow, 5).data().toString();
+
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
-        QAction* actExport = menu.addAction("📄 Export Board Minutes (PDF)");
+        QAction* actExport = menu.addAction(IconManager::instance().getIcon("file-text", tok.accentPrimary, 14),
+                                            "Export Board Minutes (PDF)");
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14),
+                                          "Copy Motion Summary");
         menu.addSeparator();
-        QAction* actDelete = menu.addAction("🗑️ Remove Motion Entry");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14),
+                                            "Remove Motion Entry");
+        if (isReadOnly) {
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_minutesView->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actExport) onExportMinutesPDF();
-        else if (sel == actDelete) onDeleteMinutes();
+        if (sel == actExport) {
+            onExportMinutesPDF();
+        } else if (sel == actCopy) {
+            QString summary = QString("[%1] %2 | Moved by: %3 | Seconded by: %4 | Result: %5")
+                                  .arg(mDate, mTitle, mMoved, mSeconded, mResult);
+            QGuiApplication::clipboard()->setText(summary);
+        } else if (sel == actDelete && !isReadOnly) {
+            onDeleteMinutes();
+        }
     });
     minLay->addWidget(m_minutesView);
 
@@ -287,16 +331,6 @@ void VaultWidget::onUploadClicked() {
 
     // Optional links: membership documents belong to a person, sign-up
     // sheets to a ministry. Rows show/hide with the category.
-    QComboBox* personCombo = new QComboBox(&dlg);
-    personCombo->addItem("— none —", 0);
-    {
-        QSqlQuery pq;
-        pq.exec("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name");
-        while (pq.next()) personCombo->addItem(pq.value(1).toString(), pq.value(0).toInt());
-    }
-    const int personRow = form->rowCount();
-    form->addRow("Person:", personCombo);
-
     QComboBox* groupCombo = new QComboBox(&dlg);
     groupCombo->addItem("— none —", 0);
     {
@@ -304,6 +338,53 @@ void VaultWidget::onUploadClicked() {
         gq.exec("SELECT id, name FROM groups ORDER BY name");
         while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
     }
+
+    QComboBox* personCombo = new QComboBox(&dlg);
+    auto populateVaultPeople = [personCombo, groupCombo]() {
+        int previousSelectedId = personCombo->currentData().toInt();
+        personCombo->clear();
+        personCombo->addItem("— none —", 0);
+
+        int groupId = groupCombo->currentData().toInt();
+        if (groupId > 0) {
+            QSqlQuery pq;
+            pq.prepare(
+                "SELECT p.id, p.first_name || ' ' || p.last_name || ' (' || COALESCE(er.relationship_type, 'Member') || ')' "
+                "FROM entity_relationships er "
+                "JOIN people p ON er.source_id = p.id "
+                "WHERE er.target_type = 'Group' AND er.target_id = ? "
+                "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
+            pq.addBindValue(groupId);
+            if (pq.exec()) {
+                bool hasMembers = false;
+                while (pq.next()) {
+                    personCombo->addItem(pq.value(1).toString(), pq.value(0).toInt());
+                    hasMembers = true;
+                }
+                if (hasMembers) {
+                    personCombo->insertSeparator(personCombo->count());
+                }
+            }
+        }
+
+        QSqlQuery pqAll("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name");
+        while (pqAll.next()) {
+            int pid = pqAll.value(0).toInt();
+            if (personCombo->findData(pid) < 0) {
+                personCombo->addItem(pqAll.value(1).toString(), pid);
+            }
+        }
+
+        if (previousSelectedId > 0) {
+            int idx = personCombo->findData(previousSelectedId);
+            if (idx >= 0) personCombo->setCurrentIndex(idx);
+        }
+    };
+    connect(groupCombo, &QComboBox::currentIndexChanged, &dlg, populateVaultPeople);
+    populateVaultPeople();
+
+    const int personRow = form->rowCount();
+    form->addRow("Person:", personCombo);
     const int groupRow = form->rowCount();
     form->addRow("Group:", groupCombo);
 
@@ -498,10 +579,19 @@ void VaultWidget::onSweepOrphans() {
 }
 
 void VaultWidget::applyRole(const QString& role) {
-    // Only the read-only Guest role is restricted; modules gate feature access.
-    if (role == "readonly") {
+    m_userRole = role;
+    if (role == "readonly" || role == "guest") {
+        const QString roTip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
         m_btnUpload->setEnabled(false);
         m_btnDelete->setEnabled(false);
+        m_btnSweep->setEnabled(false);
+        m_btnAddMinutes->setEnabled(false);
+        m_btnDeleteMinutes->setEnabled(false);
+        m_btnUpload->setToolTip(roTip);
+        m_btnDelete->setToolTip(roTip);
+        m_btnSweep->setToolTip(roTip);
+        m_btnAddMinutes->setToolTip(roTip);
+        m_btnDeleteMinutes->setToolTip(roTip);
     }
 }
 
@@ -638,21 +728,20 @@ void VaultWidget::onExportMinutesPDF() {
     QSettings settings("OpenEkklesia", "CHMS");
     QString churchName = settings.value("churchName", "OpenEkklesia Church").toString();
 
-    QString html = QString(
+    QString html =
         "<html><head><style>"
-        "body { font-family: sans-serif; margin: 20px; color: #1e1e2e; }"
-        "h1 { color: #1e1e2e; border-bottom: 2px solid #89b4fa; padding-bottom: 5px; }"
+        "body { font-family: sans-serif; margin: 20px; color: #11111b; }"
+        "h1 { color: #1e66f5; border-bottom: 2px solid #1e66f5; padding-bottom: 5px; }"
         "table { width: 100%; border-collapse: collapse; margin-top: 15px; }"
         "th { background-color: #f4f4f4; text-align: left; padding: 8px; border: 1px solid #ddd; font-size: 11px; }"
         "td { padding: 8px; border: 1px solid #ddd; font-size: 10px; }"
-        ".footer { margin-top: 30px; font-size: 9px; color: #777; font-style: italic; }"        "</style></head><body>"
+        ".footer { margin-top: 30px; font-size: 9px; color: #777; font-style: italic; }"
+        "</style></head><body>"
         + ChurchProfile::renderHtmlHeader("Official Board Minutes & Motion History",
                                           QString("Generated %1").arg(AppDateFormatter::formatDate(QDate::currentDate())),
                                           /*includeTaxId=*/true)
         + "<table>"
-        "<table>"
-        "<tr><th>Meeting Date</th><th>Motion / Resolution</th><th>Moved By</th><th>Seconded By</th><th>Vote Result</th></tr>"
-    ).arg(churchName, QDate::currentDate().toString("MMMM d, yyyy"));
+          "<tr><th>Meeting Date</th><th>Motion / Resolution</th><th>Moved By</th><th>Seconded By</th><th>Vote Result</th></tr>";
 
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q("SELECT meeting_date, motion_title, moved_by, seconded_by, vote_result FROM board_motions ORDER BY meeting_date DESC", db);

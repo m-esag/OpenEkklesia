@@ -257,6 +257,7 @@ private:
 
     int m_currentPersonId = 0;
     bool m_isDirty = false;
+    bool m_isReadOnly = false;
 
     // Models & Mapping
     QSqlRelationalTableModel* m_peopleModel;

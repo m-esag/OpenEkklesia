@@ -14,6 +14,8 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
+#include <QClipboard>
+#include <QGuiApplication>
 #include "../database/databasemanager.h"
 #include "../core/iconmanager.h"
 
@@ -24,7 +26,20 @@ FacilitiesWidget::FacilitiesWidget(QWidget *parent)
     refreshReservations();
 }
 
-FacilitiesWidget::~FacilitiesWidget() {}
+void FacilitiesWidget::applyRole(const QString& role) {
+    m_userRole = role;
+    const bool isReadOnly = (role == "readonly" || role == "guest");
+    const bool canEdit = !isReadOnly;
+    const QString roTip = isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify." : "";
+    if (m_btnBook) {
+        m_btnBook->setEnabled(canEdit);
+        m_btnBook->setToolTip(roTip);
+    }
+    if (m_btnDelete) {
+        m_btnDelete->setEnabled(canEdit);
+        m_btnDelete->setToolTip(roTip);
+    }
+}
 
 void FacilitiesWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -83,15 +98,26 @@ void FacilitiesWidget::setupUI() {
         QString dateStr = m_model->index(row, 3).data().toString();
         QString timeWindow = m_model->index(row, 4).data().toString();
 
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Reservation Details");
         QAction* actIcal = menu.addAction(IconManager::instance().getIcon("calendar", QColor(), 14), "Export Calendar Reminder (.ics)...");
         menu.addSeparator();
         QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Cancel Reservation");
+        if (isReadOnly) {
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_table->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actIcal) {
+        if (sel == actCopy) {
+            QString summary = QString("%1 | Facility: %2 | Date: %3 | Time: %4").arg(eventName, facility, dateStr, timeWindow);
+            QGuiApplication::clipboard()->setText(summary);
+        } else if (sel == actIcal) {
             QString defaultFile = QString("Booking_%1_%2.ics").arg(facility, dateStr).replace(" ", "_").replace("/", "_");
             QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Event (.ics)", defaultFile, "iCalendar Files (*.ics)");
             if (!fileName.isEmpty()) {
@@ -110,7 +136,7 @@ void FacilitiesWidget::setupUI() {
                     QMessageBox::information(this, "Success", "Calendar file exported!");
                 }
             }
-        } else if (sel == actDelete) {
+        } else if (sel == actDelete && !isReadOnly) {
             onDeleteReservation();
         }
     });

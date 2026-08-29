@@ -22,6 +22,7 @@ public:
 
     void loadSettings();
     void saveSettings();
+    void selectCategory(int index);
 
 signals:
     void settingsSaved();

@@ -347,22 +347,22 @@ void PeopleWidget::setupUI() {
     searchSortRow->setSpacing(8);
 
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("🔍 Search members (Ctrl+F)...");
+    m_searchEdit->setPlaceholderText("Search members (Ctrl+F)...");
     m_searchEdit->setObjectName("searchEdit");
     m_searchEdit->setClearButtonEnabled(true);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &PeopleWidget::onSearchTextChanged);
 
     m_cmbSortBy = new QComboBox(this);
-    m_cmbSortBy->addItem("🔤 Last Name (A - Z)");
-    m_cmbSortBy->addItem("🔤 Last Name (Z - A)");
-    m_cmbSortBy->addItem("👤 First Name (A - Z)");
-    m_cmbSortBy->addItem("👤 First Name (Z - A)");
-    m_cmbSortBy->addItem("🏠 Family Name (A - Z)");
-    m_cmbSortBy->addItem("🏷️ Membership Status");
-    m_cmbSortBy->addItem("📅 Join Date (Newest)");
-    m_cmbSortBy->addItem("📅 Join Date (Oldest)");
-    m_cmbSortBy->addItem("🎂 Birth Date");
-    m_cmbSortBy->addItem("♂️♀️ Gender");
+    m_cmbSortBy->addItem("Last Name (A - Z)");
+    m_cmbSortBy->addItem("Last Name (Z - A)");
+    m_cmbSortBy->addItem("First Name (A - Z)");
+    m_cmbSortBy->addItem("First Name (Z - A)");
+    m_cmbSortBy->addItem("Family Name (A - Z)");
+    m_cmbSortBy->addItem("Membership Status");
+    m_cmbSortBy->addItem("Join Date (Newest)");
+    m_cmbSortBy->addItem("Join Date (Oldest)");
+    m_cmbSortBy->addItem("Birth Date");
+    m_cmbSortBy->addItem("Gender");
     connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PeopleWidget::onSortByChanged);
     connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::activated), this, &PeopleWidget::onSortByChanged);
 
@@ -573,8 +573,11 @@ void PeopleWidget::setupUI() {
     navLayout->setContentsMargins(0, 0, 0, 0);
     navLayout->setSpacing(4);
 
-    auto makeNavBtn = [this](const QString& text, int pageIdx) {
+    auto makeNavBtn = [this](const QString& text, int pageIdx, const QString& iconName) {
         QPushButton* btn = new QPushButton(text, m_navRail);
+        if (!iconName.isEmpty()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName, QColor(), 13));
+        }
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
@@ -593,11 +596,11 @@ void PeopleWidget::setupUI() {
         return btn;
     };
 
-    m_btnNavIdentity = makeNavBtn("👤 Identity", 0);
-    m_btnNavPastoral = makeNavBtn("🕊️ Pastoral", 1);
-    m_btnNavGroups = makeNavBtn("👥 Groups", 2);
-    m_btnNavGiving = makeNavBtn("💰 Giving", 3);
-    m_btnNavMinistry = makeNavBtn("✨ Gifts & Tags", 4);
+    m_btnNavIdentity = makeNavBtn(" Identity", 0, "user");
+    m_btnNavPastoral = makeNavBtn(" Pastoral", 1, "heart");
+    m_btnNavGroups = makeNavBtn(" Groups", 2, "users");
+    m_btnNavGiving = makeNavBtn(" Giving", 3, "dollar-sign");
+    m_btnNavMinistry = makeNavBtn(" Gifts & Tags", 4, "sparkles");
     m_btnNavIdentity->setChecked(true);
 
     navLayout->addWidget(m_btnNavIdentity);
@@ -623,7 +626,7 @@ void PeopleWidget::setupUI() {
     layCardIdent->setContentsMargins(12, 10, 12, 10);
     layCardIdent->setSpacing(8);
 
-    QLabel* lblIdentTitle = new QLabel("👤 PERSONAL & CONTACT DETAILS", cardIdent);
+    QLabel* lblIdentTitle = new QLabel("PERSONAL & CONTACT DETAILS", cardIdent);
     lblIdentTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardIdent->addWidget(lblIdentTitle);
 
@@ -669,7 +672,7 @@ void PeopleWidget::setupUI() {
     layCardHouse->setContentsMargins(12, 10, 12, 10);
     layCardHouse->setSpacing(8);
 
-    QLabel* lblHouseTitle = new QLabel("🏠 HOUSEHOLD & FAMILY ASSIGNMENT", cardHouse);
+    QLabel* lblHouseTitle = new QLabel("HOUSEHOLD & FAMILY ASSIGNMENT", cardHouse);
     lblHouseTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardHouse->addWidget(lblHouseTitle);
 
@@ -701,7 +704,7 @@ void PeopleWidget::setupUI() {
     layCardMember->setContentsMargins(12, 10, 12, 10);
     layCardMember->setSpacing(8);
 
-    QLabel* lblMemberTitle = new QLabel("🏷️ MEMBERSHIP & MILESTONES", cardMember);
+    QLabel* lblMemberTitle = new QLabel("MEMBERSHIP & MILESTONES", cardMember);
     lblMemberTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardMember->addWidget(lblMemberTitle);
 
@@ -741,7 +744,7 @@ void PeopleWidget::setupUI() {
     layCardDocs->setContentsMargins(12, 10, 12, 10);
     layCardDocs->setSpacing(8);
 
-    QLabel* lblDocsTitle = new QLabel("📄 LINKED DOCUMENTS", cardDocs);
+    QLabel* lblDocsTitle = new QLabel("LINKED DOCUMENTS", cardDocs);
     lblDocsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardDocs->addWidget(lblDocsTitle);
 
@@ -772,7 +775,7 @@ void PeopleWidget::setupUI() {
     layCardPastoral->setSpacing(8);
 
     QHBoxLayout* pastHeaderRow = new QHBoxLayout();
-    QLabel* lblPastTitle = new QLabel("🕊️ PASTORAL CARE & TRIAGE", cardPastoral);
+    QLabel* lblPastTitle = new QLabel("PASTORAL CARE & TRIAGE", cardPastoral);
     lblPastTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     pastHeaderRow->addWidget(lblPastTitle);
     pastHeaderRow->addStretch();
@@ -809,7 +812,7 @@ void PeopleWidget::setupUI() {
     layCardTimeline->setContentsMargins(12, 10, 12, 10);
     layCardTimeline->setSpacing(8);
 
-    QLabel* lblTimelineTitle = new QLabel("📅 PASTORAL CARE & ACTIVITY TIMELINE", cardTimeline);
+    QLabel* lblTimelineTitle = new QLabel("PASTORAL CARE & ACTIVITY TIMELINE", cardTimeline);
     lblTimelineTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardTimeline->addWidget(lblTimelineTitle);
 
@@ -840,7 +843,7 @@ void PeopleWidget::setupUI() {
     layCardGroups->setContentsMargins(12, 10, 12, 10);
     layCardGroups->setSpacing(8);
 
-    QLabel* lblGroupsTitle = new QLabel("👥 ACTIVE MINISTRY GROUPS & SERVING TEAMS", cardGroups);
+    QLabel* lblGroupsTitle = new QLabel("ACTIVE MINISTRY GROUPS & SERVING TEAMS", cardGroups);
     lblGroupsTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardGroups->addWidget(lblGroupsTitle);
 
@@ -869,7 +872,7 @@ void PeopleWidget::setupUI() {
     layCardGiving->setContentsMargins(12, 10, 12, 10);
     layCardGiving->setSpacing(10);
 
-    QLabel* lblGivingTitle = new QLabel("💰 STEWARDSHIP & GIVING OVERVIEW", cardGiving);
+    QLabel* lblGivingTitle = new QLabel("STEWARDSHIP & GIVING OVERVIEW", cardGiving);
     lblGivingTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardGiving->addWidget(lblGivingTitle);
 
@@ -885,7 +888,8 @@ void PeopleWidget::setupUI() {
         QLabel* t = new QLabel(title);
         t->setStyleSheet("font-size: 10px; color: palette(placeholderText); font-weight: bold;");
         QLabel* val = new QLabel(defVal);
-        val->setStyleSheet("font-size: 15px; font-weight: bold; color: #2ef098;");
+        ThemeTokens curTok = ThemeManager::instance().currentTokens();
+        val->setStyleSheet(QString("font-size: 15px; font-weight: bold; color: %1;").arg(curTok.accentSuccess.name()));
         *outLabel = val;
         v->addWidget(t);
         v->addWidget(val);
@@ -960,7 +964,7 @@ void PeopleWidget::setupUI() {
     layCardMin->setSpacing(10);
 
     // 1. Primary & Secondary Archetypes
-    QLabel* lblArchetypeTitle = new QLabel("🔥 MINISTRY ARCHETYPE & BEHAVIORAL DNA", cardMin);
+    QLabel* lblArchetypeTitle = new QLabel("MINISTRY ARCHETYPE & BEHAVIORAL DNA", cardMin);
     lblArchetypeTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardMin->addWidget(lblArchetypeTitle);
 
@@ -1027,7 +1031,7 @@ void PeopleWidget::setupUI() {
     layCardMin->addLayout(formSec);
 
     // 2. Spiritual Gifts (Max 4)
-    QLabel* lblMinTitle = new QLabel("✨ SPIRITUAL GIFTS (Max 4 Primary):", cardMin);
+    QLabel* lblMinTitle = new QLabel("SPIRITUAL GIFTS (Max 4 Primary):", cardMin);
     lblMinTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblMinTitle);
 
@@ -1086,7 +1090,7 @@ void PeopleWidget::setupUI() {
     layCardMin->addLayout(giftsChipBox);
 
     // 3. Relational Styles (Single-Select)
-    QLabel* lblStyleHeader = new QLabel("🧠 RELATIONAL STYLE (Single-Select):", cardMin);
+    QLabel* lblStyleHeader = new QLabel("RELATIONAL STYLE (Single-Select):", cardMin);
     lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblStyleHeader);
 
@@ -1129,7 +1133,7 @@ void PeopleWidget::setupUI() {
     layCardMin->addLayout(styleRow);
 
     // 4. Interest Tags
-    QLabel* lblTagsHeader = new QLabel("🏷️ INTEREST TAGS:", cardMin);
+    QLabel* lblTagsHeader = new QLabel("INTEREST TAGS:", cardMin);
     lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblTagsHeader);
 
@@ -1949,8 +1953,8 @@ void PeopleWidget::selectPerson(int personId) {
 
 void PeopleWidget::applyRole(const QString& role) {
     // Roles only gate full-access vs read-only (Guest); modules gate features.
-    bool isReadOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 || role.compare("guest", Qt::CaseInsensitive) == 0);
-    bool canEdit = !isReadOnly;
+    m_isReadOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 || role.compare("guest", Qt::CaseInsensitive) == 0);
+    bool canEdit = !m_isReadOnly;
     m_btnSave->setEnabled(canEdit);
     m_btnDeletePerson->setEnabled(canEdit);
     m_btnAddPerson->setEnabled(canEdit);
@@ -1959,7 +1963,7 @@ void PeopleWidget::applyRole(const QString& role) {
     m_btnDeleteSelected->setEnabled(canEdit);
     m_btnBatchStatus->setEnabled(canEdit);
 
-    QString tip = isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify records." : "";
+    QString tip = m_isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify records." : "";
     m_btnSave->setToolTip(tip);
     m_btnDeletePerson->setToolTip(tip);
     m_btnAddPerson->setToolTip(tip);
@@ -2956,6 +2960,15 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
     menu.addSeparator();
     QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Profile...");
 
+    if (m_isReadOnly) {
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+        actCareNote->setEnabled(false); actCareNote->setToolTip(roTooltip);
+        actAssignGroup->setEnabled(false); actAssignGroup->setToolTip(roTooltip);
+        menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
+        menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
+        actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
+    }
+
     QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
 
@@ -3035,13 +3048,23 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
     if (logId <= 0 || srcTable.isEmpty()) return;
 
     QMenu menu(this);
+    QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Note Text");
+    menu.addSeparator();
     QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Log Note...");
     QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Log Entry");
+
+    if (m_isReadOnly) {
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+        actEdit->setEnabled(false); actEdit->setToolTip(roTooltip);
+        actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
+    }
 
     QAction* selected = menu.exec(m_historyList->viewport()->mapToGlobal(pos));
     if (!selected) return;
 
-    if (selected == actEdit) {
+    if (selected == actCopy) {
+        QGuiApplication::clipboard()->setText(noteText);
+    } else if (selected == actEdit && !m_isReadOnly) {
         bool ok = false;
         QString newText = QInputDialog::getMultiLineText(this, "Edit Care Note", "Notes / Details:", noteText, &ok);
         if (ok && !newText.trimmed().isEmpty()) {
@@ -3056,7 +3079,7 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
             uq.exec();
             updateHistoryTimeline(m_currentPersonId);
         }
-    } else if (selected == actDelete) {
+    } else if (selected == actDelete && !m_isReadOnly) {
         if (QMessageBox::question(this, "Delete Log Entry", "Are you sure you want to delete this care timeline entry?") == QMessageBox::Yes) {
             QSqlQuery dq;
             if (srcTable == "care_logs") {

@@ -17,6 +17,7 @@ public:
     ~ShepherdWidget() override = default;
 
     void refreshAll();
+    void applyRole(const QString& role);
 
 signals:
     void navigateToMember(int personId);
@@ -66,6 +67,8 @@ private:
     // Giving Care tab: lapsed-giver watchlist drawn from contributions
     QListWidget* m_lapsedGiverList;
     void refreshLapsedGivers();
+
+    QString m_userRole;
 };
 
 #endif // SHEPHERDWIDGET_H

@@ -50,6 +50,8 @@ private:
     QPushButton* m_btnAddMinutes;
     QPushButton* m_btnDeleteMinutes;
     QPushButton* m_btnExportMinutesPDF;
+
+    QString m_userRole;
 };
 
 #endif // VAULTWIDGET_H

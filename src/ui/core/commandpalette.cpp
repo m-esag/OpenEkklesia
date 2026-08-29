@@ -139,7 +139,7 @@ void CommandPaletteDialog::addPaletteItem(const QString& text, const QString& ty
     item->setData(Qt::UserRole, type);
     item->setData(Qt::UserRole + 1, id);
     if (!iconName.isEmpty()) {
-        item->setIcon(IconManager::instance().getIcon(iconName, QColor("#cdd6f4"), 16));
+        item->setIcon(IconManager::instance().getIcon(iconName, QColor(), 16));
     }
 }
 

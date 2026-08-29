@@ -3077,6 +3077,9 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
     if (!node) return;
     QMenu m(this);
 
+    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
     if (node->isPersonNode()) {
         QAction* aProfile = m.addAction(IconManager::instance().getIcon("user", QColor(), 14), "View Full Profile");
         QAction* aPhone = m.addAction(IconManager::instance().getIcon("phone", QColor(), 14), "Copy Phone Number");
@@ -3093,6 +3096,11 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* cRisk = mCare->addAction("At-Risk");
         QAction* cContact = mCare->addAction("Needs Contact");
 
+        if (isReadOnly) {
+            aAssign->setEnabled(false); aAssign->setToolTip(roTooltip);
+            mCare->setEnabled(false); mCare->setToolTip(roTooltip);
+        }
+
         QAction* sel = m.exec(globalPos);
         if (sel == aProfile) {
             emit navigateToProfile("Person", node->id());
@@ -3103,9 +3111,9 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         } else if (sel == aPin) {
             node->setPinned(!node->isPinned());
             m_scene->update();
-        } else if (sel == aAssign) {
+        } else if (sel == aAssign && !isReadOnly) {
             onQuickAssignGroup(node);
-        } else if (sel && mCare->actions().contains(sel)) {
+        } else if (sel && mCare->actions().contains(sel) && !isReadOnly) {
             QString newFlag = (sel == cNone) ? "Normal" : sel->text();
             node->setCareFlag(newFlag);
             QSqlQuery uq;
@@ -3124,13 +3132,17 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aEmails = m.addAction(IconManager::instance().getIcon("mail", QColor(), 14), "Copy All Member Emails");
         QAction* aMinistries = m.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "View in Ministries Tab");
 
+        if (isReadOnly) {
+            aAdd->setEnabled(false); aAdd->setToolTip(roTooltip);
+        }
+
         QAction* sel = m.exec(globalPos);
         if (sel == aHighlight) {
             highlightConnections(node);
         } else if (sel == aPin) {
             node->setPinned(!node->isPinned());
             m_scene->update();
-        } else if (sel == aAdd) {
+        } else if (sel == aAdd && !isReadOnly) {
             onQuickAssignGroup(node);
         } else if (sel == aEmails) {
             m_btnGroupCopyEmails->click();
