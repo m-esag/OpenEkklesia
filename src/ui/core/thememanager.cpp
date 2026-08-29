@@ -863,8 +863,13 @@ QPalette ThemeManager::generateQPalette() const {
     pal.setColor(QPalette::Link, m_currentTokens.accentPrimary);
     pal.setColor(QPalette::LinkVisited, m_currentTokens.accentPrimary);
 
-    QString highlightText = (m_currentTokens.accentPrimary.lightness() > 140) ? "#11111b" : "#ffffff";
-    pal.setColor(QPalette::HighlightedText, QColor(highlightText));
+    pal.setColor(QPalette::Mid, m_currentTokens.bgOverlay);
+    pal.setColor(QPalette::Midlight, m_currentTokens.bgSurface);
+    pal.setColor(QPalette::Dark, m_currentTokens.borderColor);
+    pal.setColor(QPalette::Light, m_currentTokens.bgBase);
+    pal.setColor(QPalette::Shadow, m_currentTokens.isDark ? QColor(0, 0, 0, 160) : QColor(0, 0, 0, 40));
+
+    pal.setColor(QPalette::HighlightedText, textOn(m_currentTokens.accentPrimary));
 
     // Disabled state: muted text on the surface color for legibility.
     pal.setColor(QPalette::Disabled, QPalette::Text, m_currentTokens.textMuted);
@@ -931,6 +936,20 @@ QString ThemeManager::generateGlobalQSS() const {
                                     ? t.accentDanger.darker(112)  : t.accentDanger.lighter(115);
     const QColor surfaceHover = (t.bgSurface.lightness() > 128)
                                     ? t.bgSurface.darker(104)     : t.bgSurface.lighter(112);
+    const QColor cyanHover    = (accentCyan.lightness() > 128)
+                                    ? accentCyan.darker(110)      : accentCyan.lighter(115);
+    const QColor orangeHover  = (accentOrange.lightness() > 128)
+                                    ? accentOrange.darker(110)    : accentOrange.lighter(115);
+    const QColor pinkHover    = (accentPink.lightness() > 128)
+                                    ? accentPink.darker(110)      : accentPink.lighter(115);
+
+    // Pressed states for tactile click feedback.
+    const QColor primaryPressed = (t.accentPrimary.lightness() > 128)
+                                      ? t.accentPrimary.darker(122) : t.accentPrimary.lighter(125);
+    const QColor dangerPressed  = (t.accentDanger.lightness() > 128)
+                                      ? t.accentDanger.darker(122)  : t.accentDanger.lighter(125);
+    const QColor surfacePressed = (t.bgSurface.lightness() > 128)
+                                      ? t.bgSurface.darker(112)     : t.bgSurface.lighter(118);
 
     QMap<QString, QString> tokenMap = {
         {"--bg-base", t.bgBase.name()},
@@ -960,7 +979,13 @@ QString ThemeManager::generateGlobalQSS() const {
         {"--nav-active-bg", navActiveBg.name(QColor::HexArgb)},
         {"--surface-hover", surfaceHover.name()},
         {"--primary-hover", primaryHover.name()},
-        {"--danger-hover", dangerHover.name()}
+        {"--danger-hover", dangerHover.name()},
+        {"--cyan-hover", cyanHover.name()},
+        {"--orange-hover", orangeHover.name()},
+        {"--pink-hover", pinkHover.name()},
+        {"--surface-pressed", surfacePressed.name()},
+        {"--primary-pressed", primaryPressed.name()},
+        {"--danger-pressed", dangerPressed.name()}
     };
 
     QString qss = R"(
@@ -978,28 +1003,48 @@ QPushButton {
   background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px 16px; border-radius: var(--radius-md); font-weight: bold; font-size: var(--font-size);
 }
 QPushButton:hover { background-color: var(--surface-hover); }
+QPushButton:pressed { background-color: var(--surface-pressed); }
+QPushButton:disabled {
+  background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+}
 QPushButton#primaryBtn, QPushButton#saveBtn {
   background-color: var(--accent-primary); color: var(--text-on-primary); border: none;
 }
 QPushButton#primaryBtn:hover, QPushButton#saveBtn:hover { background-color: var(--primary-hover); }
+QPushButton#primaryBtn:pressed, QPushButton#saveBtn:pressed { background-color: var(--primary-pressed); }
+QPushButton#primaryBtn:disabled, QPushButton#saveBtn:disabled {
+  background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+}
 QPushButton#secondaryBtn {
   background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color);
 }
 QPushButton#secondaryBtn:hover { background-color: var(--surface-hover); }
+QPushButton#secondaryBtn:pressed { background-color: var(--surface-pressed); }
+QPushButton#secondaryBtn:disabled {
+  background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+}
 QPushButton#dangerBtn {
   background-color: var(--accent-danger); color: var(--text-on-danger); border: none;
 }
 QPushButton#dangerBtn:hover { background-color: var(--danger-hover); }
+QPushButton#dangerBtn:pressed { background-color: var(--danger-pressed); }
+QPushButton#dangerBtn:disabled {
+  background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+}
 QPushButton#ghostDangerBtn, QPushButton#dangerGhostBtn {
   background: transparent; color: var(--accent-danger); border: none; font-weight: bold;
 }
 QPushButton#ghostDangerBtn:hover, QPushButton#dangerGhostBtn:hover { text-decoration: underline; }
+QPushButton#ghostDangerBtn:disabled, QPushButton#dangerGhostBtn:disabled { color: var(--text-muted); text-decoration: none; }
 QPushButton#accentBtnCyan   { background-color: var(--accent-cyan); color: var(--text-on-cyan); border: none; }
-QPushButton#accentBtnCyan:hover   { background-color: var(--accent-cyan); }
+QPushButton#accentBtnCyan:hover   { background-color: var(--cyan-hover); }
+QPushButton#accentBtnCyan:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
 QPushButton#accentBtnOrange { background-color: var(--accent-orange); color: var(--text-on-orange); border: none; }
-QPushButton#accentBtnOrange:hover { background-color: var(--accent-orange); }
+QPushButton#accentBtnOrange:hover { background-color: var(--orange-hover); }
+QPushButton#accentBtnOrange:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
 QPushButton#accentBtnPink   { background-color: var(--accent-pink); color: var(--text-on-pink); border: none; }
-QPushButton#accentBtnPink:hover   { background-color: var(--accent-pink); }
+QPushButton#accentBtnPink:hover   { background-color: var(--pink-hover); }
+QPushButton#accentBtnPink:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
 QPushButton#navButton {
   background: transparent; border: none; text-align: left; padding: 9px 12px; border-radius: 6px; color: var(--text-primary); font-weight: 500;
 }
@@ -1008,9 +1053,11 @@ QPushButton#navButton[active="true"] { background-color: var(--nav-active-bg); c
 QPushButton#checkinBtn {
   background-color: var(--accent-success); color: var(--text-on-success); border: none; border-radius: 10px; font-size: 18px;
 }
+QPushButton#checkinBtn:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
 QPushButton#unlockBtn {
   background-color: var(--accent-danger); color: var(--text-on-danger); border: none; border-radius: 8px; font-size: 15px;
 }
+QPushButton#unlockBtn:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
 QPushButton#sectionHeaderBtn {
   font-size: 11px; font-weight: bold; color: var(--accent-primary); text-align: left; background: transparent; border: none; padding: 4px 0px;
 }
@@ -1033,20 +1080,106 @@ QFrame#cardWidget, QFrame#hintPanel {
 QCheckBox, QRadioButton {
   color: var(--text-primary); font-weight: bold; font-size: var(--font-size);
 }
-QComboBox::drop-down { border: none; width: 26px; }
+QComboBox {
+  padding: 6px 28px 6px 10px;
+}
+QComboBox:hover {
+  border: 1px solid var(--accent-primary);
+}
+QComboBox:on {
+  border: 1px solid var(--accent-primary);
+}
+QComboBox:disabled {
+  background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+}
+QComboBox::drop-down {
+  subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border: none;
+}
 QComboBox::down-arrow {
-  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-secondary); margin-right: 8px;
+  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--text-secondary); width: 0px; height: 0px; margin-right: 8px;
+}
+QComboBox::down-arrow:hover {
+  border-top: 5px solid var(--text-primary);
+}
+QComboBox::down-arrow:on {
+  border-top: none; border-bottom: 5px solid var(--accent-primary);
+}
+QComboBox::down-arrow:disabled {
+  border-top: 5px solid var(--text-muted);
 }
 QComboBox QAbstractItemView {
-  background-color: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); border-radius: var(--radius-md);
+  background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); border-radius: var(--radius-md); padding: 4px; outline: none;
 }
-QMenu { background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); }
-QMenu::item { color: var(--text-primary); padding: 6px 22px; }
-QMenu::item:selected { background-color: var(--accent-primary); color: var(--text-on-primary); }
-QMenu::item:disabled { color: var(--text-secondary); }
-QMenu::separator { height: 1px; background-color: var(--border-color); margin: 4px 10px; }
-QMenuBar { background-color: var(--bg-base); color: var(--text-primary); }
-QMenuBar::item:selected { background-color: var(--bg-surface); border-radius: var(--radius-md); }
+QComboBox QAbstractItemView::item {
+  min-height: 24px; padding: 4px 8px; border-radius: 4px;
+}
+QComboBox QAbstractItemView::item:selected {
+  background-color: var(--accent-primary); color: var(--text-on-primary);
+}
+QDateEdit::drop-down {
+  subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border: none;
+}
+QDateEdit::down-arrow {
+  image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--text-secondary); width: 0px; height: 0px; margin-right: 8px;
+}
+QDateEdit::down-arrow:hover {
+  border-top: 5px solid var(--text-primary);
+}
+QDateEdit::down-arrow:disabled {
+  border-top: 5px solid var(--text-muted);
+}
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+  subcontrol-origin: border; subcontrol-position: top right; width: 18px; border-left: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); background: var(--bg-surface); border-top-right-radius: var(--radius-md);
+}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+  background: var(--surface-hover);
+}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+  image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 4px solid var(--text-secondary); width: 0px; height: 0px;
+}
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+  subcontrol-origin: border; subcontrol-position: bottom right; width: 18px; border-left: 1px solid var(--border-color); background: var(--bg-surface); border-bottom-right-radius: var(--radius-md);
+}
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+  background: var(--surface-hover);
+}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+  image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid var(--text-secondary); width: 0px; height: 0px;
+}
+QCalendarWidget QWidget { alternate-background-color: var(--bg-surface); background-color: var(--bg-surface); }
+QCalendarWidget QAbstractItemView:enabled { color: var(--text-primary); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); }
+QCalendarWidget QMenu { background-color: var(--bg-surface); color: var(--text-primary); }
+QCalendarWidget QSpinBox { background-color: var(--bg-input); color: var(--text-primary); }
+QMenuBar {
+  background-color: var(--bg-base); color: var(--text-primary); padding: 2px 6px; border-bottom: 1px solid var(--border-color); font-size: var(--font-size);
+}
+QMenuBar::item {
+  background: transparent; padding: 5px 10px; border-radius: var(--radius-sm); color: var(--text-primary); font-weight: 500;
+}
+QMenuBar::item:selected {
+  background-color: var(--bg-surface); color: var(--accent-primary);
+}
+QMenuBar::item:pressed {
+  background-color: var(--surface-pressed); color: var(--accent-primary);
+}
+QMenu {
+  background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 4px; font-size: var(--font-size);
+}
+QMenu::item {
+  color: var(--text-primary); padding: 6px 24px 6px 26px; border-radius: var(--radius-sm);
+}
+QMenu::item:selected {
+  background-color: var(--accent-primary); color: var(--text-on-primary);
+}
+QMenu::item:disabled {
+  color: var(--text-muted);
+}
+QMenu::icon {
+  padding-left: 6px;
+}
+QMenu::separator {
+  height: 1px; background-color: var(--border-color); margin: 4px 8px;
+}
 )";
 
     for (auto it = tokenMap.cbegin(); it != tokenMap.cend(); ++it) {

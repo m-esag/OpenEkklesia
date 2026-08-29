@@ -174,6 +174,7 @@ private:
     void refreshGroupDetailPanel(int groupId);
     void showGroupDialog(int groupId = 0, bool isDuplicate = false, int defaultParentId = 0);
     void refreshSidebarIcons();
+    void openSettingsCategory(int categoryIndex);
 
     QLabel* m_lblWelcomeHeader;
     QLabel* m_lblSubHeader;
@@ -211,6 +212,11 @@ private:
 
     QPushButton* m_activeNavButton;
     void setActiveNav(QPushButton* btn);
+
+    QPushButton* m_btnTopSearch = nullptr;
+    QPushButton* m_btnTopTheme = nullptr;
+    QPushButton* m_btnTopRole = nullptr;
+    void updateTopBarRoleBadge();
 };
 
 #endif // MAINWINDOW_H

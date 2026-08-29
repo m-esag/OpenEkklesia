@@ -53,6 +53,10 @@ private:
     int m_selectedAssetId;
     QString m_selectedAssetBarcode;
     bool m_selectedAssetIsCheckedOut;
+    QString m_userRole;
+
+private slots:
+    void onHistoryContextMenu(const QPoint& pos);
 };
 
 #endif // INVENTORYWIDGET_H

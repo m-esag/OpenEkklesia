@@ -24,12 +24,27 @@
 #include <QTextStream>
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QClipboard>
+#include <QGuiApplication>
 
 ShepherdWidget::ShepherdWidget(QWidget *parent)
     : QWidget(parent)
 {
     setupUI();
     refreshAll();
+}
+
+void ShepherdWidget::applyRole(const QString& role) {
+    m_userRole = role;
+    const bool isReadOnly = (role == "readonly" || role == "guest");
+    const bool canEdit = !isReadOnly;
+    const QString roTip = isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify." : "";
+    if (m_btnMarkDone) { m_btnMarkDone->setEnabled(canEdit); m_btnMarkDone->setToolTip(roTip); }
+    if (m_btnReschedule) { m_btnReschedule->setEnabled(canEdit); m_btnReschedule->setToolTip(roTip); }
+    if (m_btnLogFollowUp) { m_btnLogFollowUp->setEnabled(canEdit); m_btnLogFollowUp->setToolTip(roTip); }
+    if (m_btnLogActivity) { m_btnLogActivity->setEnabled(canEdit); m_btnLogActivity->setToolTip(roTip); }
+    if (m_btnAddPrayer) { m_btnAddPrayer->setEnabled(canEdit); m_btnAddPrayer->setToolTip(roTip); }
+    if (m_btnPrayerDone) { m_btnPrayerDone->setEnabled(canEdit); m_btnPrayerDone->setToolTip(roTip); }
 }
 
 void ShepherdWidget::setupUI() {
@@ -40,7 +55,7 @@ void ShepherdWidget::setupUI() {
     // Header + stats
     QHBoxLayout* headerRow = new QHBoxLayout();
     QVBoxLayout* titleCol = new QVBoxLayout();
-    QLabel* header = new QLabel("🛐 Shepherd's Workbench", this);
+    QLabel* header = new QLabel("Shepherd's Workbench", this);
     header->setObjectName("pageHeader");
     QLabel* sub = new QLabel("Today's pastoral priorities — the people who need you, gathered in one place.", this);
     sub->setStyleSheet("font-size: 13px; opacity: 0.8;");
@@ -157,14 +172,28 @@ void ShepherdWidget::setupUI() {
         int actId = item->data(Qt::UserRole).toInt();
         if (actId <= 0) return;
 
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Notes Text");
+        menu.addSeparator();
         QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Activity Notes...");
         QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Activity Log");
+
+        if (isReadOnly) {
+            actEdit->setEnabled(false);
+            actEdit->setToolTip(roTooltip);
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_timelineList->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actEdit) {
+        if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(item->toolTip());
+        } else if (sel == actEdit && !isReadOnly) {
             bool ok = false;
             QString curNotes = item->toolTip();
             QString newNotes = QInputDialog::getMultiLineText(this, "Edit Activity Notes", "Notes:", curNotes, &ok);
@@ -176,7 +205,7 @@ void ShepherdWidget::setupUI() {
                 uq.exec();
                 refreshTimeline();
             }
-        } else if (sel == actDelete) {
+        } else if (sel == actDelete && !isReadOnly) {
             if (QMessageBox::question(this, "Confirm Delete", "Delete this pastoral activity record?") == QMessageBox::Yes) {
                 QSqlQuery dq;
                 dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
@@ -205,22 +234,38 @@ void ShepherdWidget::setupUI() {
         if (pId <= 0) return;
 
         const ThemeTokens tokPray = ThemeManager::instance().currentTokens();
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Prayer Request");
+        menu.addSeparator();
         QAction* actAnswer = menu.addAction(IconManager::instance().getIcon("check-circle-2", tokPray.accentSuccess, 14), "Mark Prayer Answered");
         QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Prayer Request...");
         menu.addSeparator();
         QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Prayer Request");
 
+        if (isReadOnly) {
+            actAnswer->setEnabled(false);
+            actAnswer->setToolTip(roTooltip);
+            actEdit->setEnabled(false);
+            actEdit->setToolTip(roTooltip);
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
+
         QAction* sel = menu.exec(m_prayerList->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actAnswer) {
+        if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(item->toolTip());
+        } else if (sel == actAnswer && !isReadOnly) {
             QSqlQuery q;
             q.prepare("UPDATE pastoral_activities SET follow_up_done = 1 WHERE id = ?");
             q.addBindValue(pId);
             q.exec();
             refreshPrayerList();
-        } else if (sel == actEdit) {
+        } else if (sel == actEdit && !isReadOnly) {
             bool ok = false;
             QString newNotes = QInputDialog::getMultiLineText(this, "Edit Prayer Request", "Prayer details / updates:", item->toolTip(), &ok);
             if (ok && !newNotes.trimmed().isEmpty()) {
@@ -231,7 +276,7 @@ void ShepherdWidget::setupUI() {
                 uq.exec();
                 refreshPrayerList();
             }
-        } else if (sel == actDelete) {
+        } else if (sel == actDelete && !isReadOnly) {
             if (QMessageBox::question(this, "Confirm Delete", "Delete this prayer request?") == QMessageBox::Yes) {
                 QSqlQuery dq;
                 dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
@@ -353,13 +398,14 @@ void ShepherdWidget::refreshLapsedGivers() {
         int months = q.value(2).toInt();
         QString last = q.value(3).toString();
         QListWidgetItem* item = new QListWidgetItem(
-            QString("📉 %1 — gave in %2 of the last 6 months, silent since %3")
+            QString("%1 — gave in %2 of the last 6 months, silent since %3")
                 .arg(name).arg(months).arg(last.isEmpty() ? "—" : last),
             m_lapsedGiverList);
+        item->setIcon(IconManager::instance().getDangerIcon("trending-down", 14));
         item->setData(Qt::UserRole, id);
     }
     if (m_lapsedGiverList->count() == 0) {
-        m_lapsedGiverList->addItem("No lapsed givers — regular giving patterns are all current. 🎉");
+        m_lapsedGiverList->addItem("No lapsed givers — regular giving patterns are all current.");
     }
 }
 
@@ -633,23 +679,40 @@ void ShepherdWidget::onQueueContextMenu(const QPoint& pos) {
     m_queueTable->selectRow(row);
     int personId = m_queueTable->item(row, 1)->data(Qt::UserRole + 1).toInt();
     QString memberName = m_queueTable->item(row, 1)->text();
+    QString dueDate = m_queueTable->item(row, 0)->text();
+    QString actionType = m_queueTable->item(row, 2)->text();
+
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
 
     QMenu menu(this);
-    QAction* actDone = menu.addAction("✅ Mark Follow-up Done");
-    QAction* actReschedule = menu.addAction("🗓️ Reschedule / Snooze...");
-    QAction* actCalendar = menu.addAction("📅 Export Calendar Reminder (.ics)...");
+    QAction* actDone = menu.addAction(IconManager::instance().getIcon("check-circle-2", tok.accentSuccess, 14), "Mark Follow-up Done");
+    QAction* actReschedule = menu.addAction(IconManager::instance().getIcon("clock", tok.accentWarning, 14), "Reschedule / Snooze...");
+    QAction* actCalendar = menu.addAction(IconManager::instance().getIcon("calendar", QColor(), 14), "Export Calendar Reminder (.ics)...");
     menu.addSeparator();
-    QAction* actProfile = menu.addAction(QString("👤 View %1 in Directory").arg(memberName));
+    QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Task Summary");
+    QAction* actProfile = menu.addAction(IconManager::instance().getIcon("user", tok.accentPrimary, 14), QString("View %1 in Directory").arg(memberName));
+
+    if (isReadOnly) {
+        actDone->setEnabled(false);
+        actDone->setToolTip(roTooltip);
+        actReschedule->setEnabled(false);
+        actReschedule->setToolTip(roTooltip);
+    }
 
     QAction* selected = menu.exec(m_queueTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
 
-    if (selected == actDone) {
+    if (selected == actDone && !isReadOnly) {
         onMarkFollowUpDone();
-    } else if (selected == actReschedule) {
+    } else if (selected == actReschedule && !isReadOnly) {
         onRescheduleFollowUp();
     } else if (selected == actCalendar) {
         onExportCalendarEvent();
+    } else if (selected == actCopy) {
+        QString summary = QString("%1: Follow-up with %2 (Due: %3)").arg(actionType, memberName, dueDate);
+        QGuiApplication::clipboard()->setText(summary);
     } else if (selected == actProfile) {
         if (personId > 0) emit navigateToMember(personId);
     }

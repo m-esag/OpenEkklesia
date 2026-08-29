@@ -164,6 +164,8 @@ add_executable(openekklesia_tests
     src/ui/ministry/synergyengine.cpp
     src/ui/people/pastoralanalyticswidget.cpp
     src/ui/people/pastoralanalyticswidget.h
+    src/ui/ministry/facilitieswidget.cpp
+    src/ui/ministry/facilitieswidget.h
     src/ui/people/peoplewidget.cpp
     src/ui/people/peoplewidget.h
 )

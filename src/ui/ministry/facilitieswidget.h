@@ -15,7 +15,7 @@ class FacilitiesWidget : public QWidget {
 
 public:
     explicit FacilitiesWidget(QWidget *parent = nullptr);
-    ~FacilitiesWidget();
+    void applyRole(const QString& role);
 
 private slots:
     void onBookFacility();
@@ -32,6 +32,8 @@ private:
 
     QPushButton* m_btnBook;
     QPushButton* m_btnDelete;
+
+    QString m_userRole;
 };
 
 #endif // FACILITIESWIDGET_H

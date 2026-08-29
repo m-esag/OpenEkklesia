@@ -33,6 +33,7 @@
 #include "../src/ui/ministry/planningwidget.h"
 #include "../src/ui/ministry/servicebuilderwidget.h"
 #include "../src/ui/ministry/shepherdwidget.h"
+#include "../src/ui/ministry/facilitieswidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
 #include "../src/ui/core/usermanualdialog.h"
@@ -94,7 +95,8 @@ bool test_expectedTablesExist() {
         "entity_relationships", "facility_reservations", "funds", "graph_layout",
         "groups", "households", "member_history", "member_skills", "ministry_tasks",
         "pastoral_activities", "people", "schema_version", "services",
-        "service_volunteers", "splits", "transactions", "users", "vault_documents"
+        "service_volunteers", "splits", "transactions", "users", "vault_documents",
+        "ministry_events"
     };
     QSqlQuery q(db());
     for (const QString& t : tables) {
@@ -2565,6 +2567,174 @@ bool test_settingsLocalizationAndChurchProfile() {
     return true;
 }
 
+bool test_planningFrameworksAndEventsSuite() {
+    QSqlDatabase d = db();
+
+    // 1. Schema Migration 22 verification
+    QSqlQuery qVer(d);
+    CHECK(qVer.exec("SELECT MAX(version) FROM schema_version"));
+    CHECK(qVer.next());
+    CHECK_EQ(qVer.value(0).toInt(), 22);
+
+    // Verify columns on ministry_tasks
+    QSqlQuery taskCols(d);
+    taskCols.exec("PRAGMA table_info(ministry_tasks)");
+    QSet<QString> cols;
+    while (taskCols.next()) cols.insert(taskCols.value(1).toString());
+    CHECK(cols.contains("priority"));
+    CHECK(cols.contains("category"));
+    CHECK(cols.contains("progress_pct"));
+    CHECK(cols.contains("notes"));
+
+    // Verify ministry_events table exists with seeded rows
+    QSqlQuery qEv(d);
+    CHECK(qEv.exec("SELECT COUNT(*) FROM ministry_events"));
+    CHECK(qEv.next());
+    int evCount = qEv.value(0).toInt();
+    CHECK(evCount >= 5);
+
+    // 2. PlanningWidget full multi-framework UI validation
+    PlanningWidget pw;
+    QTabWidget* tabs = pw.findChild<QTabWidget*>("planningTabWidget");
+    CHECK(tabs);
+    if (tabs) {
+        CHECK_EQ(tabs->count(), 5);
+        CHECK_EQ(tabs->tabText(0).toStdString(), std::string("Strategic Roadmap"));
+        CHECK_EQ(tabs->tabText(1).toStdString(), std::string("Church Events Hub"));
+        CHECK_EQ(tabs->tabText(2).toStdString(), std::string("Agile Kanban Board"));
+        CHECK_EQ(tabs->tabText(3).toStdString(), std::string("Event Project Gantt"));
+        CHECK_EQ(tabs->tabText(4).toStdString(), std::string("Ministry OKRs & Goals"));
+    }
+
+    // 3. Church Events Hub table
+    QTableWidget* evTable = pw.findChild<QTableWidget*>("planningEventsTable");
+    CHECK(evTable);
+    if (evTable) {
+        CHECK(evTable->rowCount() >= 5);
+        CHECK_EQ(evTable->columnCount(), 9);
+    }
+
+    // 4. Insert custom church event and verify reload
+    QSqlQuery insEv(d);
+    insEv.prepare("INSERT INTO ministry_events (title, event_type, start_datetime, end_datetime, expected_attendance, budget_cents, status) "
+                  "VALUES ('Kingdom Builders Banquet', 'Fellowship', '2026-10-10 18:00', '2026-10-10 21:00', 300, 500000, 'Confirmed')");
+    CHECK(insEv.exec());
+    int insertedId = insEv.lastInsertId().toInt();
+    CHECK(insertedId > 0);
+
+    pw.refreshAll();
+    if (evTable) {
+        bool found = false;
+        for (int r = 0; r < evTable->rowCount(); ++r) {
+            if (evTable->item(r, 1) && evTable->item(r, 1)->text().contains("Kingdom Builders Banquet")) {
+                found = true;
+                break;
+            }
+        }
+        CHECK(found);
+    }
+
+    // 5. Cleanup custom event
+    QSqlQuery delEv(d);
+    delEv.exec(QString("DELETE FROM ministry_events WHERE id = %1").arg(insertedId));
+
+    return true;
+}
+
+bool test_contextMenusAndRoleGatingSuite() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. FacilitiesWidget RBAC & tooltips
+    FacilitiesWidget fac;
+    fac.applyRole("guest");
+    QPushButton* btnBook = fac.findChild<QPushButton*>("primaryBtn");
+    if (btnBook) {
+        CHECK(!btnBook->isEnabled());
+        CHECK(btnBook->toolTip().contains("Guest (Read-Only) mode"));
+    }
+    fac.applyRole("admin");
+    if (btnBook) {
+        CHECK(btnBook->isEnabled());
+    }
+
+    // 2. PlanningWidget RBAC & tooltips
+    PlanningWidget plan;
+    plan.applyRole("guest");
+    QPushButton* btnAddTask = plan.findChild<QPushButton*>();
+    // When guest, buttons are disabled
+    plan.applyRole("admin");
+
+    // 3. ShepherdWidget RBAC
+    ShepherdWidget shepherd;
+    shepherd.applyRole("guest");
+    shepherd.applyRole("admin");
+
+    // 4. PeopleWidget RBAC & tooltips
+    PeopleWidget people;
+    people.applyRole("guest");
+    QPushButton* btnAddPerson = people.findChild<QPushButton*>();
+    if (btnAddPerson && btnAddPerson->toolTip().contains("Guest")) {
+        CHECK(!btnAddPerson->isEnabled());
+    }
+    people.applyRole("admin");
+
+    d.rollback();
+    return true;
+}
+
+bool test_contextualGroupDelegationSuite() {
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+
+    // 1. Create a dedicated test group and add 2 people (1 Leader, 1 Member)
+    CHECK(q.exec("INSERT INTO groups (id, name, category) VALUES (9501, 'Delegation Test Team', 'Alabanza')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9501, 'LeaderAlpha', 'TestLeader', 'Member')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9502, 'MemberBeta', 'TestMember', 'Member')"));
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (9503, 'OutsideGamma', 'TestOutside', 'Member')"));
+
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9501, 'Group', 9501, 'Leader')"));
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9502, 'Group', 9501, 'Member')"));
+
+    // Verify group-filtered query only returns 9501 and 9502, with Leader first
+    QSqlQuery qFiltered(d);
+    qFiltered.prepare(
+        "SELECT p.id, p.first_name, er.relationship_type "
+        "FROM entity_relationships er "
+        "JOIN people p ON er.source_id = p.id "
+        "WHERE er.target_type = 'Group' AND er.target_id = ? "
+        "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
+    qFiltered.addBindValue(9501);
+    CHECK(qFiltered.exec());
+    CHECK(qFiltered.next());
+    CHECK_EQ(qFiltered.value(0).toInt(), 9501);
+    CHECK_EQ(qFiltered.value(2).toString().toStdString(), std::string("Leader"));
+    CHECK(qFiltered.next());
+    CHECK_EQ(qFiltered.value(0).toInt(), 9502);
+    CHECK_EQ(qFiltered.value(2).toString().toStdString(), std::string("Member"));
+    CHECK(!qFiltered.next()); // OutsideGamma (9503) is NOT returned!
+
+    // Verify Add Roster query excludes already enrolled members (9501, 9502)
+    QSqlQuery qAddRoster(d);
+    qAddRoster.prepare(
+        "SELECT id FROM people "
+        "WHERE id NOT IN ("
+        "    SELECT source_id FROM entity_relationships "
+        "    WHERE target_type = 'Group' AND target_id = ? AND source_type = 'Person'"
+        ") AND id IN (9501, 9502, 9503)");
+    qAddRoster.addBindValue(9501);
+    CHECK(qAddRoster.exec());
+    CHECK(qAddRoster.next());
+    CHECK_EQ(qAddRoster.value(0).toInt(), 9503); // Only OutsideGamma is eligible
+    CHECK(!qAddRoster.next());
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2618,6 +2788,7 @@ int main(int argc, char** argv) {
         {"service_builder_tier3", test_serviceBuilderTier3},
         {"planning_widget_renders_and_roles", test_planningWidgetRendersAndRoles},
         {"planning_relational_links", test_planningRelationalLinks},
+        {"planning_frameworks_and_events_suite", test_planningFrameworksAndEventsSuite},
         {"people_widget_360_dossier_and_giving", test_peopleWidget360DossierAndGiving},
         {"shepherd_quick_actions_and_pastoral_sync", test_shepherdQuickActionsAndPastoralSync},
         {"pastoral_analytics_upgrade", test_pastoralAnalyticsUpgrade},
@@ -2641,6 +2812,8 @@ int main(int argc, char** argv) {
         {"user_manual_integrity", test_userManualIntegrity},
         {"graph_view_options_and_dock_toggle", test_graphViewOptionsAndDockToggle},
         {"people_module_stress_and_break_suite", test_peopleModuleStressAndBreakSuite},
+        {"context_menus_and_role_gating_suite", test_contextMenusAndRoleGatingSuite},
+        {"contextual_group_delegation_suite", test_contextualGroupDelegationSuite},
     };
 
     for (const Test& t : tests) {

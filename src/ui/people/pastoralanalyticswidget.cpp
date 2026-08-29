@@ -19,6 +19,9 @@
 
 #include "thememanager.h"
 #include "../core/iconmanager.h"
+#include <QMenu>
+#include <QClipboard>
+#include <QGuiApplication>
 
 PastoralAnalyticsWidget::PastoralAnalyticsWidget(QWidget *parent)
     : QWidget(parent)
@@ -52,7 +55,7 @@ void PastoralAnalyticsWidget::setupUI() {
     QVBoxLayout* titleBox = new QVBoxLayout();
     titleBox->setSpacing(4);
 
-    QLabel* header = new QLabel("📊 Pastoral Analytics", this);
+    QLabel* header = new QLabel("Pastoral Analytics", this);
     header->setObjectName("pageHeader");
 
     m_lblSubtitle = new QLabel(QString("Current Snapshot as of %1 • Real-Time Congregation Health Indicators")
@@ -69,10 +72,10 @@ void PastoralAnalyticsWidget::setupUI() {
     {
         const QDate now = QDate::currentDate();
         const int quarter = (now.month() - 1) / 3 + 1;
-        m_cmbScopeSelector->addItem("📅 Current Snapshot (Real-time)");
-        m_cmbScopeSelector->addItem(QString("📅 Q%1 %2 Snapshot").arg(quarter).arg(now.year()));
-        m_cmbScopeSelector->addItem(QString("📅 Year-to-Date %1").arg(now.year()));
-        m_cmbScopeSelector->addItem("📅 Trailing 12 Months");
+        m_cmbScopeSelector->addItem("Current Snapshot (Real-time)");
+        m_cmbScopeSelector->addItem(QString("Q%1 %2 Snapshot").arg(quarter).arg(now.year()));
+        m_cmbScopeSelector->addItem(QString("Year-to-Date %1").arg(now.year()));
+        m_cmbScopeSelector->addItem("Trailing 12 Months");
     }
     connect(m_cmbScopeSelector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PastoralAnalyticsWidget::onScopeChanged);
 
@@ -193,7 +196,7 @@ void PastoralAnalyticsWidget::setupUI() {
     funnelLayout->setContentsMargins(20, 16, 20, 16);
     funnelLayout->setSpacing(12);
 
-    m_lblFunnelTitle = new QLabel("🕊️ Discipleship Pathway Funnel (Progression & Drop-off)", this);
+    m_lblFunnelTitle = new QLabel("Discipleship Pathway Funnel (Progression & Drop-off)", this);
     m_lblFunnelTitle->setObjectName("detailHeader");
     funnelLayout->addWidget(m_lblFunnelTitle);
 
@@ -288,6 +291,27 @@ void PastoralAnalyticsWidget::setupUI() {
     m_lstPastoralActions->setStyleSheet("QListWidget { background: transparent; border: none; font-size: 12px; }"
                                          "QListWidget::item { padding: 8px; border-bottom: 1px solid palette(mid); color: palette(text); font-weight: bold; }"
                                          "QListWidget::item:hover { background-color: palette(mid); color: palette(highlight); border-radius: 6px; }");
+    m_lstPastoralActions->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_lstPastoralActions, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_lstPastoralActions->itemAt(pos);
+        if (!item) return;
+
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        QMenu menu(this);
+        QAction* actDrill = menu.addAction(IconManager::instance().getIcon("users", tok.accentPrimary, 14), "Drill Down to Affected Members");
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Recommendation");
+
+        QAction* sel = menu.exec(m_lstPastoralActions->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actDrill) {
+            QString type = item->data(Qt::UserRole).toString();
+            QString val = item->data(Qt::UserRole + 1).toString();
+            emit drillThroughRequested(type, val);
+        } else if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(item->text());
+        }
+    });
 
     connect(m_lstPastoralActions, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         QString type = item->data(Qt::UserRole).toString();
@@ -503,32 +527,34 @@ void PastoralAnalyticsWidget::refreshAnalytics() {
     const int conv2 = s.attenders > 0 ? qMin(100, (s.members * 100) / s.attenders) : 0;
     const int conv3 = s.members > 0 ? qMin(100, (s.leaders * 100) / s.members) : 0;
     m_lblConv1To2->setText(QString("⬇️ %1% conversion to Regular Attenders  •  %2% drop-off").arg(conv1).arg(100 - conv1));
-    m_lblConv2To3->setText(QString("⬇️ %1% conversion to Formal Members  •  %2% drop-off").arg(conv2).arg(100 - conv2));
-    m_lblConv3To4->setText(QString("⬇️ %1% conversion to Ministry Leaders  •  %2% drop-off").arg(conv3).arg(100 - conv3));
+    m_lblConv2To3->setText(QString("%1% conversion to Formal Members  •  %2% drop-off").arg(conv2).arg(100 - conv2));
+    m_lblConv3To4->setText(QString("%1% conversion to Ministry Leaders  •  %2% drop-off").arg(conv3).arg(100 - conv3));
 
     // Pastoral actions (every entry backed by a real count)
     m_lstPastoralActions->clear();
-    auto addAction = [this](const QString& text, const QString& type, const QString& val) {
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+    auto addAction = [this](const QString& text, const QString& type, const QString& val, const QString& iconName, const QColor& col) {
         QListWidgetItem* item = new QListWidgetItem(text, m_lstPastoralActions);
+        item->setIcon(IconManager::instance().getIcon(iconName, col, 14));
         item->setData(Qt::UserRole, type);
         item->setData(Qt::UserRole + 1, val);
     };
 
     if (s.atRisk > 0)
-        addAction(QString("⚠️ %1 member%2 flagged At-Risk or needing contact (click to review)").arg(s.atRisk).arg(s.atRisk == 1 ? "" : "s"),
-                  "care_flag", "At-Risk");
+        addAction(QString("%1 member%2 flagged At-Risk or needing contact (click to review)").arg(s.atRisk).arg(s.atRisk == 1 ? "" : "s"),
+                  "care_flag", "At-Risk", "alert-triangle", tok.accentDanger);
     if (s.overdueFollowUps > 0)
-        addAction(QString("🕊️ %1 follow-up%2 overdue — work the Shepherd's queue").arg(s.overdueFollowUps).arg(s.overdueFollowUps == 1 ? "" : "s"),
-                  "care_flag", "Follow-up");
+        addAction(QString("%1 follow-up%2 overdue — work the Shepherd's queue").arg(s.overdueFollowUps).arg(s.overdueFollowUps == 1 ? "" : "s"),
+                  "care_flag", "Follow-up", "clock", tok.accentWarning);
     if (100 - s.groupPct > 0)
-        addAction(QString("👥 %1% of congregation unconnected to a small group (%2 members)").arg(100 - s.groupPct).arg(s.totalPeople - s.smallGroupConnected),
-                  "unconnected", "");
+        addAction(QString("%1% of congregation unconnected to a small group (%2 members)").arg(100 - s.groupPct).arg(s.totalPeople - s.smallGroupConnected),
+                  "unconnected", "", "users", tok.accentPrimary);
     if (s.newVisitorsInScope > 0)
-        addAction(QString("🤝 %1 new visitor%2 awaiting welcome-team follow-up").arg(s.newVisitorsInScope).arg(s.newVisitorsInScope == 1 ? "" : "s"),
-                  "status", "Visitor");
+        addAction(QString("%1 new visitor%2 awaiting welcome-team follow-up").arg(s.newVisitorsInScope).arg(s.newVisitorsInScope == 1 ? "" : "s"),
+                  "status", "Visitor", "user-plus", tok.accentSuccess);
     if (s.lapsedGivers > 0)
-        addAction(QString("💸 %1 lapsed giver%2 (no contribution in 30+ days) — click to view").arg(s.lapsedGivers).arg(s.lapsedGivers == 1 ? "" : "s"),
-                  "lapsed_giver", "");
+        addAction(QString("%1 lapsed giver%2 (no contribution in 30+ days) — click to view").arg(s.lapsedGivers).arg(s.lapsedGivers == 1 ? "" : "s"),
+                  "lapsed_giver", "", "trending-down", tok.accentDanger);
 }
 
 void PastoralAnalyticsWidget::applyTheme(const ThemeTokens& tokens) {

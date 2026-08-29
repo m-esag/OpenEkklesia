@@ -1,0 +1,57 @@
+MESA: error: Failed to query drm device.
+glx: failed to create dri3 screen
+failed to load driver: iris
+MESA: error: Failed to query drm device.
+glx: failed to create dri3 screen
+failed to load driver: iris
+[PASS] schema_version_is_latest
+[PASS] expected_tables_exist
+[PASS] expected_indexes_exist
+[PASS] seed_data_counts
+[PASS] care_timeline_query
+[PASS] connections_query
+[PASS] unconnected_filter
+[PASS] attendance_count
+[PASS] ytd_income_and_expenses_filter_by_year
+[PASS] split_sharing_round_trip
+[PASS] pastoral_queue
+[PASS] person_gender_and_household_save
+[PASS] restore_from_backup
+[PASS] purge_demo_data
+[PASS] theme_named_tokens_template
+[PASS] theme_contrast_guardian
+[PASS] all_themes_contrast_aa
+[PASS] synergy_engine_and_migration_19
+[PASS] ministry_match_recommend_and_exclude
+[PASS] ministry_match_add_members_dedup
+[PASS] ministry_match_declared_profile_wins
+[PASS] ministry_match_rank_by_role
+[PASS] service_builder_role_and_duration
+[PASS] service_builder_library_filter_and_autosave
+[PASS] service_builder_run_sheet_persistence
+[PASS] service_builder_tier2
+[PASS] service_builder_tier3
+[PASS] planning_widget_renders_and_roles
+[PASS] planning_relational_links
+[PASS] people_widget_360_dossier_and_giving
+[PASS] shepherd_quick_actions_and_pastoral_sync
+[PASS] dashboard_kpi_config_and_quick_notes
+[PASS] graph_dual_panel_and_data_hygiene
+[PASS] graph_batch_operations_and_smart_bridge
+[PASS] graph_tier3_bridge_nodes_and_family_dynasties
+[PASS] graph_health_features
+[PASS] smart_bridge_engine_and_source_logging
+[PASS] graph_inspector_upgrade
+[PASS] graph_collision_resolution
+[PASS] settings_localization_and_churchprofile
+[PASS] graph_filter_persistence
+[PASS] group_recommendation_disablers
+[PASS] vault_and_settings_integrity
+[PASS] facilities_conflict_engine
+[PASS] contributions_split_and_anonymous
+[PASS] comprehensive_settings_round_trip
+[PASS] giving_batches_and_multi_fund_splits
+[PASS] user_manual_integrity
+[PASS] graph_view_options_and_dock_toggle
+[PASS] people_module_stress_and_break_suite
+Ran 723 checks, 0 failed

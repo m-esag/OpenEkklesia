@@ -28,6 +28,8 @@
 #include <QPainter>
 #include <QPen>
 #include <QDragEnterEvent>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
 #include "servicebuilderwidget.h"
@@ -242,17 +244,28 @@ void ServiceBuilderWidget::setupUI() {
     connect(m_libraryList, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
         QListWidgetItem* item = m_libraryList->itemAt(pos);
         if (!item) return;
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
-        QAction* add = menu.addAction("Add to Run Sheet");
-        add->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
-        QAction* edit = menu.addAction("Edit Element");
-        edit->setIcon(IconManager::instance().getIcon("pencil", QColor(), 14));
-        QAction* remove = menu.addAction("Remove Element");
-        remove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
+        QAction* add = menu.addAction(IconManager::instance().getIcon("plus", QColor(), 14), "Add to Run Sheet");
+        QAction* copy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Element Name");
+        menu.addSeparator();
+        QAction* edit = menu.addAction(IconManager::instance().getIcon("pencil", QColor(), 14), "Edit Element");
+        QAction* remove = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Remove Element");
+
+        if (m_readOnly) {
+            add->setEnabled(false); add->setToolTip(roTooltip);
+            edit->setEnabled(false); edit->setToolTip(roTooltip);
+            remove->setEnabled(false); remove->setToolTip(roTooltip);
+        }
+
         QAction* chosen = menu.exec(m_libraryList->viewport()->mapToGlobal(pos));
-        if (chosen == add) addLibraryItemToRunSheet(item);
-        else if (chosen == edit) onEditElement(item);
-        else if (chosen == remove) onRemoveElement();
+        if (!chosen) return;
+
+        if (chosen == add && !m_readOnly) addLibraryItemToRunSheet(item);
+        else if (chosen == copy) QGuiApplication::clipboard()->setText(item->text());
+        else if (chosen == edit && !m_readOnly) onEditElement(item);
+        else if (chosen == remove && !m_readOnly) onRemoveElement();
     });
 
     mainLayout->addWidget(libraryPanel, 1);
@@ -286,35 +299,43 @@ void ServiceBuilderWidget::setupUI() {
         QListWidgetItem* item = m_playlist->itemAt(pos);
         if (!item) return;
         int row = m_playlist->row(item);
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
 
         QMenu menu(this);
-        QAction* actUp = menu.addAction("Move Earlier in Service");
-        actUp->setIcon(IconManager::instance().getIcon("arrow-up", QColor(), 14));
-        actUp->setEnabled(row > 0);
-        QAction* actDown = menu.addAction("Move Later in Service");
-        actDown->setIcon(IconManager::instance().getIcon("arrow-down", QColor(), 14));
-        actDown->setEnabled(row < m_playlist->count() - 1);
-        QAction* actDup = menu.addAction("Duplicate Element");
-        actDup->setIcon(IconManager::instance().getIcon("copy", QColor(), 14));
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Element Details");
         menu.addSeparator();
-        QAction* actRemove = menu.addAction("Remove Element from Run Sheet");
-        actRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
+        QAction* actUp = menu.addAction(IconManager::instance().getIcon("arrow-up", QColor(), 14), "Move Earlier in Service");
+        actUp->setEnabled(row > 0 && !m_readOnly);
+        QAction* actDown = menu.addAction(IconManager::instance().getIcon("arrow-down", QColor(), 14), "Move Later in Service");
+        actDown->setEnabled(row < m_playlist->count() - 1 && !m_readOnly);
+        QAction* actDup = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Duplicate Element");
+        menu.addSeparator();
+        QAction* actRemove = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Remove Element from Run Sheet");
+
+        if (m_readOnly) {
+            actDup->setEnabled(false); actDup->setToolTip(roTooltip);
+            actRemove->setEnabled(false); actRemove->setToolTip(roTooltip);
+            actUp->setToolTip(roTooltip);
+            actDown->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_playlist->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actUp && row > 0) {
+        if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(item->text());
+        } else if (sel == actUp && row > 0 && !m_readOnly) {
             QListWidgetItem* taken = m_playlist->takeItem(row);
             m_playlist->insertItem(row - 1, taken);
             m_playlist->setCurrentItem(taken);
-        } else if (sel == actDown && row < m_playlist->count() - 1) {
+        } else if (sel == actDown && row < m_playlist->count() - 1 && !m_readOnly) {
             QListWidgetItem* taken = m_playlist->takeItem(row);
             m_playlist->insertItem(row + 1, taken);
             m_playlist->setCurrentItem(taken);
-        } else if (sel == actDup) {
+        } else if (sel == actDup && !m_readOnly) {
             QListWidgetItem* dup = new QListWidgetItem(*item);
             m_playlist->insertItem(row + 1, dup);
-        } else if (sel == actRemove) {
+        } else if (sel == actRemove && !m_readOnly) {
             onRemoveItem();
         }
     });
@@ -486,22 +507,33 @@ void ServiceBuilderWidget::setupUI() {
         int r = m_volunteerList->rowAt(pos.y());
         if (r < 0) return;
         m_volunteerList->selectRow(r);
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
+        QString vName = m_volunteerList->item(r, 0) ? m_volunteerList->item(r, 0)->text() : "";
+        QString vRole = m_volunteerList->item(r, 1) ? m_volunteerList->item(r, 1)->text() : "";
+        QString vStatus = m_volunteerList->item(r, 2) ? m_volunteerList->item(r, 2)->text() : "";
 
         QMenu menu(this);
-        QAction* actIcal = menu.addAction("Export Volunteer iCal (.ics)");
-        actIcal->setIcon(IconManager::instance().getIcon("calendar", QColor(), 14));
-        QAction* actAttended = menu.addAction("Mark Volunteers Attended");
-        actAttended->setIcon(IconManager::instance().getIcon("check", ThemeManager::instance().currentTokens().accentSuccess, 14));
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Volunteer Assignment");
+        QAction* actIcal = menu.addAction(IconManager::instance().getIcon("calendar", QColor(), 14), "Export Volunteer iCal (.ics)");
         menu.addSeparator();
-        QAction* actUnschedule = menu.addAction("Unassign Selected Volunteer");
-        actUnschedule->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
+        QAction* actAttended = menu.addAction(IconManager::instance().getIcon("check-circle-2", ThemeManager::instance().currentTokens().accentSuccess, 14), "Mark Volunteer Attended");
+        menu.addSeparator();
+        QAction* actUnschedule = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Unassign Selected Volunteer");
+
+        if (m_readOnly) {
+            actAttended->setEnabled(false); actAttended->setToolTip(roTooltip);
+            actUnschedule->setEnabled(false); actUnschedule->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_volunteerList->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actIcal) onExportIcal();
-        else if (sel == actAttended) onMarkAttended();
-        else if (sel == actUnschedule) onUnscheduleVolunteer();
+        if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(QString("%1 | Role: %2 | Status: %3").arg(vName, vRole, vStatus));
+        } else if (sel == actIcal) onExportIcal();
+        else if (sel == actAttended && !m_readOnly) onMarkAttended();
+        else if (sel == actUnschedule && !m_readOnly) onUnscheduleVolunteer();
     });
     volunteerLayout->addWidget(m_volunteerList, 1);
 
@@ -1052,49 +1084,125 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
     roleCombo->addItems({"Preacher", "Worship Leader", "Acoustic Guitar", "Electric Guitar", "Vocalist", "Bass Guitar", "Drums", "Nursery Care", "Audio Engineer", "Slide Operator", "Usher"});
     layout->addRow("Assign Role:", roleCombo);
 
+    QComboBox* teamFilterCombo = new QComboBox(&dlg);
+    teamFilterCombo->addItem("— Relevant Ministry Team (Auto) —", 0);
+    teamFilterCombo->addItem("All Church Members", -1);
+    QSqlQuery qGroups("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name", db);
+    while (qGroups.next()) {
+        teamFilterCombo->addItem(qGroups.value(1).toString(), qGroups.value(0).toInt());
+    }
+    layout->addRow("Ministry Team:", teamFilterCombo);
+
     QComboBox* personCombo = new QComboBox(&dlg);
 
-    // Rank candidates for the selected role: skill fit dominates, team load
+    // Rank candidates for the selected role & team: skill fit dominates, team load
     // and recent service frequency are penalized (burnout guard). Falls back
-    // to the plain alphabetical list with availability tags for roles the
-    // ranker does not recognize.
+    // to group roster / alphabetical list with availability tags.
     auto populatePeople = [&]() {
         const QString role = roleCombo->currentText();
+        int selectedTeamId = teamFilterCombo->currentData().toInt();
         personCombo->clear();
+
+        // Resolve auto-matching group if index == 0
+        int filterGroupId = selectedTeamId;
+        if (selectedTeamId == 0) {
+            QString keyword;
+            if (role.contains("Audio", Qt::CaseInsensitive) || role.contains("Slide", Qt::CaseInsensitive)) {
+                keyword = "%Tech%";
+            } else if (role.contains("Worship", Qt::CaseInsensitive) || role.contains("Guitar", Qt::CaseInsensitive) ||
+                       role.contains("Vocalist", Qt::CaseInsensitive) || role.contains("Drums", Qt::CaseInsensitive) ||
+                       role.contains("Bass", Qt::CaseInsensitive)) {
+                keyword = "%Worship%";
+            } else if (role.contains("Nursery", Qt::CaseInsensitive)) {
+                keyword = "%Children%";
+            } else if (role.contains("Usher", Qt::CaseInsensitive)) {
+                keyword = "%Hospitality%";
+            }
+
+            if (!keyword.isEmpty()) {
+                QSqlQuery qFind(db);
+                qFind.prepare("SELECT id FROM groups WHERE name LIKE ? OR category LIKE ? LIMIT 1");
+                qFind.addBindValue(keyword);
+                qFind.addBindValue(keyword);
+                if (qFind.exec() && qFind.next()) {
+                    filterGroupId = qFind.value(0).toInt();
+                }
+            }
+        }
+
+        QSet<int> teamMemberIds;
+        bool filterByTeam = (filterGroupId > 0);
+        if (filterByTeam) {
+            QSqlQuery qTm(db);
+            qTm.prepare("SELECT source_id FROM entity_relationships WHERE target_type = 'Group' AND target_id = ? AND source_type = 'Person'");
+            qTm.addBindValue(filterGroupId);
+            if (qTm.exec()) {
+                while (qTm.next()) teamMemberIds.insert(qTm.value(0).toInt());
+            }
+        }
 
         const QList<MatchResult> ranked = MinistryRecommender::rankByRole(db, role);
         if (ranked.isEmpty()) {
-            QSqlQuery qPeople(
-                "SELECT p.id, p.first_name || ' ' || p.last_name, "
-                "       (SELECT COUNT(*) FROM entity_relationships er WHERE er.source_type = 'Person' AND er.source_id = p.id AND er.target_type = 'Group') AS group_count, "
-                "       (SELECT COUNT(*) FROM service_volunteers sv WHERE sv.person_id = p.id AND sv.service_date >= date('now', '-30 days')) AS recent_serves "
-                "FROM people p ORDER BY last_name, first_name", db);
-            while (qPeople.next()) {
-                int pid = qPeople.value(0).toInt();
-                QString name = qPeople.value(1).toString();
-                int groupCount = qPeople.value(2).toInt();
-                int recentServes = qPeople.value(3).toInt();
+            QSqlQuery qPeople(db);
+            if (filterByTeam && !teamMemberIds.isEmpty()) {
+                qPeople.prepare(
+                    "SELECT p.id, p.first_name || ' ' || p.last_name, "
+                    "       (SELECT COUNT(*) FROM entity_relationships er WHERE er.source_type = 'Person' AND er.source_id = p.id AND er.target_type = 'Group') AS group_count, "
+                    "       (SELECT COUNT(*) FROM service_volunteers sv WHERE sv.person_id = p.id AND sv.service_date >= date('now', '-30 days')) AS recent_serves, "
+                    "       er2.relationship_type "
+                    "FROM people p "
+                    "JOIN entity_relationships er2 ON er2.source_id = p.id AND er2.target_type = 'Group' AND er2.target_id = ? "
+                    "ORDER BY (er2.relationship_type LIKE '%Leader%') DESC, last_name, first_name");
+                qPeople.addBindValue(filterGroupId);
+            } else {
+                qPeople.prepare(
+                    "SELECT p.id, p.first_name || ' ' || p.last_name, "
+                    "       (SELECT COUNT(*) FROM entity_relationships er WHERE er.source_type = 'Person' AND er.source_id = p.id AND er.target_type = 'Group') AS group_count, "
+                    "       (SELECT COUNT(*) FROM service_volunteers sv WHERE sv.person_id = p.id AND sv.service_date >= date('now', '-30 days')) AS recent_serves, "
+                    "       '' "
+                    "FROM people p ORDER BY last_name, first_name");
+            }
+            if (qPeople.exec()) {
+                while (qPeople.next()) {
+                    int pid = qPeople.value(0).toInt();
+                    QString name = qPeople.value(1).toString();
+                    int groupCount = qPeople.value(2).toInt();
+                    int recentServes = qPeople.value(3).toInt();
+                    QString groupRole = qPeople.value(4).toString();
 
-                QString tag = name;
-                if (recentServes >= 3) {
-                    tag += QString(" (Served %1x past 30 days)").arg(recentServes);
-                } else if (groupCount >= 3) {
-                    tag += QString(" (In %1 active teams)").arg(groupCount);
-                } else {
-                    tag += " (Available)";
+                    QString tag = name;
+                    if (!groupRole.isEmpty()) {
+                        tag += QString(" [%1]").arg(groupRole);
+                    }
+                    if (recentServes >= 3) {
+                        tag += QString(" (Served %1x past 30 days)").arg(recentServes);
+                    } else if (groupCount >= 3) {
+                        tag += QString(" (In %1 active teams)").arg(groupCount);
+                    } else {
+                        tag += " (Available)";
+                    }
+                    personCombo->addItem(tag, pid);
                 }
-                personCombo->addItem(tag, pid);
+            }
+            if (personCombo->count() == 0 && filterByTeam) {
+                personCombo->addItem("— No members enrolled in this ministry team yet —", 0);
             }
             return;
         }
 
         for (const MatchResult& r : ranked) {
+            if (filterByTeam && !teamMemberIds.contains(r.personId)) continue;
             QString label = QString("%1  [%2%]").arg(r.name).arg(r.score);
             if (!r.reasons.isEmpty()) label += "  · " + r.reasons.join(" · ");
             personCombo->addItem(label, r.personId);
         }
+
+        if (personCombo->count() == 0 && filterByTeam) {
+            personCombo->addItem("— No team members match this specific role (Switch to All Church Members) —", 0);
+        }
     };
     connect(roleCombo, &QComboBox::currentIndexChanged, &dlg, [&](int) { populatePeople(); });
+    connect(teamFilterCombo, &QComboBox::currentIndexChanged, &dlg, [&](int) { populatePeople(); });
     populatePeople();
     layout->addRow("Select Volunteer:", personCombo);
 

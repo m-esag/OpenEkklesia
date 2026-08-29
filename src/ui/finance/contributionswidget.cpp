@@ -23,6 +23,8 @@
 #include <QDialogButtonBox>
 #include <QTextStream>
 #include <QColor>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QFileDialog>
 #include <QSplitter>
 #include <QGroupBox>
@@ -50,6 +52,7 @@ void ContributionsWidget::setupUI() {
     // LEFT MAIN CANVAS (Batch Workspace)
     // =========================================================================
     QWidget* mainWorkspace = new QWidget(this);
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
     QVBoxLayout* mainLayout = new QVBoxLayout(mainWorkspace);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(12);
@@ -74,7 +77,7 @@ void ContributionsWidget::setupUI() {
     m_batchDateEdit->setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px 10px; border-radius: 6px;");
     connect(m_batchDateEdit, &QDateEdit::dateChanged, this, &ContributionsWidget::onSaveBatchHeaderDetails);
 
-    m_lblBatchStatusBadge = new QLabel("🟡 In Progress", headerCard);
+    m_lblBatchStatusBadge = new QLabel("In Progress", headerCard);
     m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(249, 226, 175, 0.2); color: #f9e2af;");
 
     titleRow->addWidget(m_txtBatchName, 3);
@@ -119,14 +122,14 @@ void ContributionsWidget::setupUI() {
     entryLayout->setSpacing(12);
 
     QHBoxLayout* donorRow = new QHBoxLayout();
-    QLabel* lblDonor = new QLabel("👤 Contributor:", m_entryCard);
+    QLabel* lblDonor = new QLabel("Contributor:", m_entryCard);
     lblDonor->setStyleSheet("font-weight: bold; font-size: 13px;");
     m_personCombo = new QComboBox(m_entryCard);
     m_personCombo->setEditable(true);
     m_personCombo->setStyleSheet("padding: 6px 10px; font-size: 13px;");
 
     m_lblTotalHeadline = new QLabel(appCurrencySymbol() + " 0.00", m_entryCard);
-    m_lblTotalHeadline->setStyleSheet("font-size: 22px; font-weight: bold; color: #a6e3a1; padding-left: 15px;");
+    m_lblTotalHeadline->setStyleSheet(QString("font-size: 22px; font-weight: bold; color: %1; padding-left: 15px;").arg(tok.accentSuccess.name()));
 
     donorRow->addWidget(lblDonor);
     donorRow->addWidget(m_personCombo, 1);
@@ -260,7 +263,6 @@ void ContributionsWidget::setupUI() {
     drawerCardLay->setSpacing(10);
 
     // Tabs: In Progress vs Committed
-    ThemeTokens tok = ThemeManager::instance().currentTokens();
     QHBoxLayout* tabLayout = new QHBoxLayout();
     m_tabInProgress = new QPushButton(" In Progress", drawerCard);
     m_tabInProgress->setIcon(IconManager::instance().getIcon("sparkles", ThemeManager::textOn(tok.accentPrimary), 14));
@@ -285,7 +287,7 @@ void ContributionsWidget::setupUI() {
     drawerCardLay->addWidget(m_btnNewBatch);
 
     m_txtBatchSearch = new QLineEdit(drawerCard);
-    m_txtBatchSearch->setPlaceholderText("🔍 Filter batches...");
+    m_txtBatchSearch->setPlaceholderText("Filter batches...");
     m_txtBatchSearch->setClearButtonEnabled(true);
     connect(m_txtBatchSearch, &QLineEdit::textChanged, this, &ContributionsWidget::onBatchFilterChanged);
     drawerCardLay->addWidget(m_txtBatchSearch);
@@ -306,6 +308,9 @@ void ContributionsWidget::setupUI() {
         m_batchesList->setCurrentItem(item);
         loadBatch(bId);
 
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
         QAction* actToggleCommit = menu.addAction(IconManager::instance().getIcon(m_batchStatus == "Committed" ? "unlock" : "package", QColor(), 14),
                                                   m_batchStatus == "Committed" ? "Reopen Batch for Editing" : "Commit & Lock Batch");
@@ -314,12 +319,21 @@ void ContributionsWidget::setupUI() {
         menu.addSeparator();
         QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Batch...");
 
+        if (isReadOnly) {
+            actToggleCommit->setEnabled(false);
+            actToggleCommit->setToolTip(roTooltip);
+            actRename->setEnabled(false);
+            actRename->setToolTip(roTooltip);
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
+
         QAction* sel = menu.exec(m_batchesList->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actToggleCommit) {
+        if (sel == actToggleCommit && !isReadOnly) {
             onToggleBatchCommit();
-        } else if (sel == actRename) {
+        } else if (sel == actRename && !isReadOnly) {
             bool ok = false;
             QString curName = m_txtBatchName ? m_txtBatchName->text() : "Batch";
             QString newName = QInputDialog::getText(this, "Rename Batch", "Batch Name:", QLineEdit::Normal, curName, &ok);
@@ -334,7 +348,7 @@ void ContributionsWidget::setupUI() {
             }
         } else if (sel == actExport) {
             onExportGnuCashCsv();
-        } else if (sel == actDelete) {
+        } else if (sel == actDelete && !isReadOnly) {
             onDeleteBatchClicked();
         }
     });
@@ -716,23 +730,25 @@ void ContributionsWidget::loadBatch(int batchId) {
         const bool isCommitted = (m_batchStatus == "Committed");
         if (m_lblBatchStatusBadge) {
             if (isCommitted) {
-                m_lblBatchStatusBadge->setText("🟢 Committed (Locked)");
+                m_lblBatchStatusBadge->setText("Committed (Locked)");
                 const bool dark = ThemeManager::instance().currentTokens().isDark;
                 m_lblBatchStatusBadge->setStyleSheet(QString("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; "
                     "background-color: %1; color: %2;").arg(dark ? "rgba(166, 227, 161, 0.2)" : "rgba(21, 128, 61, 0.10)",
                     dark ? "#a6e3a1" : "#15803d"));
             } else {
-                m_lblBatchStatusBadge->setText("🟡 In Progress");
+                m_lblBatchStatusBadge->setText("In Progress");
                 m_lblBatchStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; background-color: rgba(249, 226, 175, 0.2); color: #f9e2af;");
             }
         }
 
         if (m_btnCommitBatch) {
             if (isCommitted) {
-                m_btnCommitBatch->setText("🔓 Reopen Batch");
+                m_btnCommitBatch->setText(" Reopen Batch");
+                m_btnCommitBatch->setIcon(IconManager::instance().getIcon("unlock", QColor(), 14));
                 m_btnCommitBatch->setObjectName("secondaryBtn");
             } else {
-                m_btnCommitBatch->setText("📦 Commit Batch");
+                m_btnCommitBatch->setText(" Commit Batch");
+                m_btnCommitBatch->setIcon(IconManager::instance().getPrimaryIcon("lock", 14));
                 m_btnCommitBatch->setObjectName("saveBtn");
             }
         }
@@ -824,7 +840,7 @@ void ContributionsWidget::refreshFundPills() {
     const QString colors[] = {"#89b4fa", "#a6e3a1", "#f9e2af", "#cba6f7", "#fab387", "#94e2d5"};
     int cIdx = 0;
 
-    QLabel* lblHeader = new QLabel("🏷️ Batch Funds:", m_pillsContainer);
+    QLabel* lblHeader = new QLabel("Batch Funds:", m_pillsContainer);
     lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(placeholderText);");
     m_pillsLayout->addWidget(lblHeader);
 
@@ -1103,7 +1119,7 @@ void ContributionsWidget::onBatchFilterChanged() {
 }
 
 void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
-    if (m_userRole == "readonly" || m_batchStatus == "Committed" || !m_historyTable || !m_historyModel) return;
+    if (!m_historyTable || !m_historyModel) return;
 
     QModelIndex index = m_historyTable->indexAt(pos);
     if (!index.isValid()) return;
@@ -1112,16 +1128,40 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
     int contributionId = m_historyModel->index(row, 0).data().toInt();
     QString name = m_historyModel->index(row, 2).data().toString();
     QString fundName = m_historyModel->index(row, 3).data().toString();
+    QString dateStr = m_historyModel->index(row, 1).data().toString();
     QString amountStr = m_historyModel->index(row, 6).data().toString();
 
+    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+    const bool isCommitted = (m_batchStatus == "Committed");
+    const QString roTooltip = isReadOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : "Committed batches are locked for fiscal audit integrity. Reopen batch to modify.";
+
     QMenu menu(this);
+    QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Contribution Details");
+    menu.addSeparator();
     QAction* actEdit = menu.addAction(IconManager::instance().getIcon("edit-3", QColor(), 14), "Edit Amount...");
     QAction* actMoveFund = menu.addAction(IconManager::instance().getIcon("tag", QColor(), 14), "Move to Another Fund...");
     menu.addSeparator();
     QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Giving Record");
 
+    if (isReadOnly || isCommitted) {
+        actEdit->setEnabled(false);
+        actEdit->setToolTip(roTooltip);
+        actMoveFund->setEnabled(false);
+        actMoveFund->setToolTip(roTooltip);
+        actDelete->setEnabled(false);
+        actDelete->setToolTip(roTooltip);
+    }
+
     QAction* selected = menu.exec(m_historyTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
+
+    if (selected == actCopy) {
+        QString summary = QString("Donor: %1 | Date: %2 | Fund: %3 | Amount: %4").arg(name, dateStr, fundName, amountStr);
+        QGuiApplication::clipboard()->setText(summary);
+        return;
+    }
 
     QSqlDatabase db = DatabaseManager::instance().database();
 

@@ -17,9 +17,11 @@
 #include "pastoralanalyticswidget.h"
 #include "planningwidget.h"
 #include "usermanualdialog.h"
+#include "../integrations/planningcenterdialog.h"
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
+#include <QClipboard>
 #include <QSettings>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -252,9 +254,47 @@ void MainWindow::setupMenuBar() {
 
     fileMenu->addSeparator();
 
-    QAction* actSettings = fileMenu->addAction("Application Settings");
-    actSettings->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
-    connect(actSettings, &QAction::triggered, this, &MainWindow::onSettingsClicked);
+    // Preferences & Settings Submenu
+    QMenu* prefsMenu = fileMenu->addMenu("Preferences & Settings");
+    prefsMenu->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
+
+    QAction* actPrefGeneral = prefsMenu->addAction("Church Branding & Profile");
+    actPrefGeneral->setIcon(IconManager::instance().getIcon("landmark", tok.textPrimary, 14));
+    connect(actPrefGeneral, &QAction::triggered, this, [this]() { openSettingsCategory(0); });
+
+    QAction* actPrefTheme = prefsMenu->addAction("Appearance & Theme Customizer");
+    actPrefTheme->setIcon(IconManager::instance().getIcon("sparkles", tok.textPrimary, 14));
+    connect(actPrefTheme, &QAction::triggered, this, [this]() { openSettingsCategory(1); });
+
+    QAction* actPrefModules = prefsMenu->addAction("Module Visibility & Features");
+    actPrefModules->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
+    connect(actPrefModules, &QAction::triggered, this, [this]() { openSettingsCategory(2); });
+
+    QAction* actPrefLiturgy = prefsMenu->addAction("Service & Liturgy Defaults");
+    actPrefLiturgy->setIcon(IconManager::instance().getIcon("list-music", tok.textPrimary, 14));
+    connect(actPrefLiturgy, &QAction::triggered, this, [this]() { openSettingsCategory(3); });
+
+    QAction* actPrefLocale = prefsMenu->addAction("Localization & Currency Format");
+    actPrefLocale->setIcon(IconManager::instance().getIcon("calendar", tok.textPrimary, 14));
+    connect(actPrefLocale, &QAction::triggered, this, [this]() { openSettingsCategory(4); });
+
+    QAction* actPrefPastoral = prefsMenu->addAction("Pastoral & Graph Thresholds");
+    actPrefPastoral->setIcon(IconManager::instance().getIcon("network", tok.textPrimary, 14));
+    connect(actPrefPastoral, &QAction::triggered, this, [this]() { openSettingsCategory(5); });
+
+    QAction* actPrefKiosk = prefsMenu->addAction("Kiosk & Nursery Security");
+    actPrefKiosk->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
+    connect(actPrefKiosk, &QAction::triggered, this, [this]() { openSettingsCategory(6); });
+
+    QAction* actPrefBackup = prefsMenu->addAction("Database Backups & Integrations");
+    actPrefBackup->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
+    connect(actPrefBackup, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
+
+    prefsMenu->addSeparator();
+
+    QAction* actAllSettings = prefsMenu->addAction("All Application Settings...");
+    actAllSettings->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
+    connect(actAllSettings, &QAction::triggered, this, &MainWindow::onSettingsClicked);
 
     fileMenu->addSeparator();
 
@@ -265,7 +305,7 @@ void MainWindow::setupMenuBar() {
     fileMenu->addSeparator();
 
     QAction* actExit = fileMenu->addAction("Exit OpenEkklesia");
-    actExit->setIcon(IconManager::instance().getIcon("trash-2", tok.accentDanger, 14));
+    actExit->setIcon(IconManager::instance().getIcon("log-out", tok.accentDanger, 14));
     actExit->setShortcut(QKeySequence("Ctrl+Q"));
     connect(actExit, &QAction::triggered, this, &QWidget::close);
 
@@ -334,14 +374,77 @@ void MainWindow::setupMenuBar() {
     m_actVault->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
     connect(m_actVault, &QAction::triggered, this, &MainWindow::onVaultClicked);
 
-    // 5. View / Theme Menu
+    // 5. Tools & Database Menu
+    QMenu* toolsMenu = mb->addMenu("&Tools");
+
+    QAction* actDbHub = toolsMenu->addAction("Database & Backup Center");
+    actDbHub->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
+    connect(actDbHub, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
+
+    QAction* actPco = toolsMenu->addAction("Planning Center Online Sync...");
+    actPco->setIcon(IconManager::instance().getIcon("cloud", tok.textPrimary, 14));
+    connect(actPco, &QAction::triggered, this, [this]() {
+        PlanningCenterDialog dlg(this);
+        dlg.exec();
+    });
+
+    QAction* actShare = toolsMenu->addAction("Selective Data Sharing...");
+    actShare->setIcon(IconManager::instance().getIcon("share-2", tok.textPrimary, 14));
+    connect(actShare, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
+
+    toolsMenu->addSeparator();
+
+    QAction* actPastoralRules = toolsMenu->addAction("Pastoral Health & Threshold Rules");
+    actPastoralRules->setIcon(IconManager::instance().getIcon("network", tok.textPrimary, 14));
+    connect(actPastoralRules, &QAction::triggered, this, [this]() { openSettingsCategory(5); });
+
+    QAction* actLiturgyDefaults = toolsMenu->addAction("Service Liturgy Defaults");
+    actLiturgyDefaults->setIcon(IconManager::instance().getIcon("list-music", tok.textPrimary, 14));
+    connect(actLiturgyDefaults, &QAction::triggered, this, [this]() { openSettingsCategory(3); });
+
+    QAction* actKioskSec = toolsMenu->addAction("Kiosk & Nursery Check-In Security");
+    actKioskSec->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
+    connect(actKioskSec, &QAction::triggered, this, [this]() { openSettingsCategory(6); });
+
+    toolsMenu->addSeparator();
+
+    QAction* actDangerZone = toolsMenu->addAction("Data Maintenance & Reset (Danger Zone)...");
+    actDangerZone->setIcon(IconManager::instance().getDangerIcon("alert-triangle", 14));
+    connect(actDangerZone, &QAction::triggered, this, [this]() { openSettingsCategory(8); });
+
+    // 6. View Menu
     QMenu* viewMenu = mb->addMenu("&View");
 
     QAction* actTheme = viewMenu->addAction("Toggle Dark / Light Theme");
     actTheme->setIcon(IconManager::instance().getIcon("sparkles", tok.textPrimary, 14));
+    actTheme->setShortcut(QKeySequence("Ctrl+T"));
     connect(actTheme, &QAction::triggered, this, &MainWindow::toggleTheme);
 
-    // 6. Help Menu
+    QAction* actThemeGallery = viewMenu->addAction("Theme Gallery & Color Palette...");
+    actThemeGallery->setIcon(IconManager::instance().getIcon("palette", tok.textPrimary, 14));
+    connect(actThemeGallery, &QAction::triggered, this, [this]() { openSettingsCategory(1); });
+
+    viewMenu->addSeparator();
+
+    QAction* actCompactSidebar = viewMenu->addAction("Compact Sidebar Mode");
+    actCompactSidebar->setCheckable(true);
+    actCompactSidebar->setChecked(m_isCompactSidebar);
+    connect(actCompactSidebar, &QAction::toggled, this, &MainWindow::setSidebarCompact);
+
+    QAction* actShowHints = viewMenu->addAction("Show Help Hints Panel");
+    actShowHints->setCheckable(true);
+    actShowHints->setChecked(m_hintsEnabled);
+    connect(actShowHints, &QAction::toggled, this, [this](bool checked) {
+        if (m_chkShowHints) m_chkShowHints->setChecked(checked);
+    });
+
+    viewMenu->addSeparator();
+
+    QAction* actWorkspaceModules = viewMenu->addAction("Workspace Module Manager...");
+    actWorkspaceModules->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
+    connect(actWorkspaceModules, &QAction::triggered, this, [this]() { openSettingsCategory(2); });
+
+    // 7. Help Menu
     QMenu* helpMenu = mb->addMenu("&Help");
 
     m_actUserManual = helpMenu->addAction("User Manual");
@@ -361,7 +464,7 @@ void MainWindow::setupMenuBar() {
         QVBoxLayout* lay = new QVBoxLayout(&dlg);
         lay->setSpacing(14);
 
-        QLabel* lblTitle = new QLabel("<h3>🏛️ OpenEkklesia ChMS</h3>", &dlg);
+        QLabel* lblTitle = new QLabel("<h3>OpenEkklesia ChMS</h3>", &dlg);
         QLabel* lblDesc = new QLabel(
             "<b>Version 1.5.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
             "Features double-entry fund accounting, relational connection graph visualization, "
@@ -391,14 +494,60 @@ void MainWindow::setupMenuBar() {
 
         dlg.exec();
     });
+
+    // 8. Top Right Quick-Access Strip (Corner Widget)
+    QWidget* cornerWidget = new QWidget(mb);
+    QHBoxLayout* cornerLayout = new QHBoxLayout(cornerWidget);
+    cornerLayout->setContentsMargins(0, 2, 10, 2);
+    cornerLayout->setSpacing(6);
+
+    m_btnTopSearch = new QPushButton(" Search (Ctrl+K)", cornerWidget);
+    m_btnTopSearch->setIcon(IconManager::instance().getIcon("search", QColor(), 13));
+    m_btnTopSearch->setCursor(Qt::PointingHandCursor);
+    m_btnTopSearch->setToolTip("Open Quick Command Palette (Ctrl+K)");
+    m_btnTopSearch->setStyleSheet(
+        "QPushButton { background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 3px 10px; font-size: 11px; color: var(--text-secondary); }"
+        "QPushButton:hover { border-color: var(--accent-primary); color: var(--text-primary); background-color: var(--surface-hover); }"
+    );
+    connect(m_btnTopSearch, &QPushButton::clicked, this, [this]() {
+        CommandPaletteDialog palette(this);
+        palette.exec();
+    });
+    cornerLayout->addWidget(m_btnTopSearch);
+
+    m_btnTopTheme = new QPushButton(cornerWidget);
+    m_btnTopTheme->setIcon(IconManager::instance().getIcon(tok.isDark ? "sun" : "moon", QColor(), 14));
+    m_btnTopTheme->setCursor(Qt::PointingHandCursor);
+    m_btnTopTheme->setToolTip("Toggle Dark / Light Theme (Ctrl+T)");
+    m_btnTopTheme->setStyleSheet(
+        "QPushButton { background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 3px 8px; font-size: 11px; color: var(--text-primary); }"
+        "QPushButton:hover { border-color: var(--accent-primary); background-color: var(--surface-hover); }"
+    );
+    connect(m_btnTopTheme, &QPushButton::clicked, this, &MainWindow::toggleTheme);
+    cornerLayout->addWidget(m_btnTopTheme);
+
+    m_btnTopRole = new QPushButton(cornerWidget);
+    m_btnTopRole->setCursor(Qt::PointingHandCursor);
+    m_btnTopRole->setToolTip("Current User Role — Click to Switch User / Sign In with PIN");
+    m_btnTopRole->setStyleSheet(
+        "QPushButton { background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: bold; color: var(--accent-primary); }"
+        "QPushButton:hover { background-color: var(--surface-hover); border-color: var(--accent-primary); }"
+    );
+    connect(m_btnTopRole, &QPushButton::clicked, this, &MainWindow::promptLogin);
+    cornerLayout->addWidget(m_btnTopRole);
+
+    updateTopBarRoleBadge();
+
+    mb->setCornerWidget(cornerWidget, Qt::TopRightCorner);
 }
 
 void MainWindow::setupUI() {
     resize(1100, 700);
     setWindowTitle("OpenEkklesia - Church Management System");
 
-    // Global Help Shortcut (F1)
+    // Global Help Shortcut (F1) & Theme Toggle (Ctrl+T)
     new QShortcut(QKeySequence("F1"), this, [this]() { onShowUserManual(); });
+    new QShortcut(QKeySequence("Ctrl+T"), this, [this]() { toggleTheme(); });
 
     // Central widget
     QWidget* centralWidget = new QWidget(this);
@@ -873,9 +1022,16 @@ void MainWindow::populatePages() {
         QString groupName = item->text(0);
         if (groupId <= 0) return;
 
+        bool isRoot = item->data(0, Qt::UserRole + 3).toBool();
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+        const QString rootTooltip = "Top-level Ministry Blueprints are system-locked and cannot be modified.";
+
         QMenu menu(this);
         QAction* actEdit = menu.addAction(QString("Edit '%1' Details...").arg(groupName));
         actEdit->setIcon(IconManager::instance().getIcon("pencil", tok.textPrimary, 14));
+        QAction* actCopy = menu.addAction("Copy Group Name");
+        actCopy->setIcon(IconManager::instance().getIcon("copy", tok.textPrimary, 14));
         QAction* actAddSub = menu.addAction("Add Sub-Group / Sub-Ministry...");
         actAddSub->setIcon(IconManager::instance().getIcon("plus", tok.textPrimary, 14));
         QAction* actAddMember = menu.addAction("Add Member to Group...");
@@ -890,25 +1046,39 @@ void MainWindow::populatePages() {
         QAction* actDelete = menu.addAction("Delete Group...");
         actDelete->setIcon(IconManager::instance().getIcon("trash-2", tok.accentDanger, 14));
 
+        if (isReadOnly) {
+            actEdit->setEnabled(false); actEdit->setToolTip(roTooltip);
+            actAddSub->setEnabled(false); actAddSub->setToolTip(roTooltip);
+            actAddMember->setEnabled(false); actAddMember->setToolTip(roTooltip);
+            actArchive->setEnabled(false); actArchive->setToolTip(roTooltip);
+            actToggleHidden->setEnabled(false); actToggleHidden->setToolTip(roTooltip);
+            actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
+        } else if (isRoot) {
+            actArchive->setEnabled(false); actArchive->setToolTip(rootTooltip);
+            actDelete->setEnabled(false); actDelete->setToolTip(rootTooltip);
+        }
+
         QAction* sel = menu.exec(m_groupsTreeWidget->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        m_selectedGroupId = groupId; // the right-clicked row is the target
+        m_selectedGroupId = groupId;
 
-        if (sel == actEdit) {
+        if (sel == actCopy) {
+            QGuiApplication::clipboard()->setText(groupName);
+        } else if (sel == actEdit && !isReadOnly) {
             onEditGroup();
-        } else if (sel == actAddSub) {
-            onAddGroup(groupId); // right-clicked group becomes the default parent
-        } else if (sel == actAddMember) {
+        } else if (sel == actAddSub && !isReadOnly) {
+            onAddGroup(groupId);
+        } else if (sel == actAddMember && !isReadOnly) {
             m_selectedGroupId = groupId;
             refreshGroupDetailPanel(groupId);
         } else if (sel == actGraph) {
             onGraphClicked();
-        } else if (sel == actArchive) {
+        } else if (sel == actArchive && !isReadOnly && !isRoot) {
             onArchiveGroup();
-        } else if (sel == actToggleHidden) {
+        } else if (sel == actToggleHidden && !isReadOnly) {
             onToggleHiddenGroup();
-        } else if (sel == actDelete) {
+        } else if (sel == actDelete && !isReadOnly && !isRoot) {
             onDeleteGroup();
         }
     });
@@ -990,9 +1160,24 @@ void MainWindow::populatePages() {
         form->setSpacing(12);
 
         QComboBox* personCombo = new QComboBox(&dlg);
-        QSqlQuery qPeople("SELECT id, first_name || ' ' || last_name || ' (' || membership_status || ')' FROM people ORDER BY first_name");
-        while (qPeople.next()) {
-            personCombo->addItem(qPeople.value(1).toString(), qPeople.value(0).toInt());
+        QSqlQuery qPeople;
+        qPeople.prepare(
+            "SELECT id, first_name || ' ' || last_name || ' (' || COALESCE(membership_status, 'Member') || ')' "
+            "FROM people "
+            "WHERE id NOT IN ("
+            "    SELECT source_id FROM entity_relationships "
+            "    WHERE target_type = 'Group' AND target_id = ? AND source_type = 'Person'"
+            ") "
+            "ORDER BY first_name, last_name");
+        qPeople.addBindValue(m_selectedGroupId);
+        if (qPeople.exec()) {
+            while (qPeople.next()) {
+                personCombo->addItem(qPeople.value(1).toString(), qPeople.value(0).toInt());
+            }
+        }
+        if (personCombo->count() == 0) {
+            personCombo->addItem("— All active members are already in this group —", 0);
+            personCombo->setEnabled(false);
         }
 
         QComboBox* roleCombo = new QComboBox(&dlg);
@@ -1082,9 +1267,15 @@ void MainWindow::populatePages() {
         int relId = m_groupRosterTable->item(r, 0)->data(Qt::UserRole + 1).toInt();
         QString memName = m_groupRosterTable->item(r, 0)->text();
 
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
         QAction* actProfile = menu.addAction(QString("View %1's Profile").arg(memName));
         actProfile->setIcon(IconManager::instance().getIcon("users", tok.textPrimary, 14));
+        QAction* actCopy = menu.addAction(QString("Copy %1's Details").arg(memName));
+        actCopy->setIcon(IconManager::instance().getIcon("copy", tok.textPrimary, 14));
+        menu.addSeparator();
         QAction* actCareNote = menu.addAction("Log Pastoral Care Note...");
         actCareNote->setIcon(IconManager::instance().getIcon("pencil", tok.textPrimary, 14));
         QMenu* mRole = menu.addMenu("Change Assigned Role");
@@ -1097,21 +1288,30 @@ void MainWindow::populatePages() {
         QAction* actRemove = menu.addAction(QString("Remove %1 from Group").arg(memName));
         actRemove->setIcon(IconManager::instance().getIcon("trash-2", tok.accentDanger, 14));
 
+        if (isReadOnly) {
+            actCareNote->setEnabled(false); actCareNote->setToolTip(roTooltip);
+            mRole->setEnabled(false); mRole->setToolTip(roTooltip);
+            actRemove->setEnabled(false); actRemove->setToolTip(roTooltip);
+        }
+
         QAction* chosen = menu.exec(m_groupRosterTable->viewport()->mapToGlobal(pos));
         if (chosen == actProfile) {
             selectPerson(personId);
-        } else if (chosen == actCareNote) {
+        } else if (chosen == actCopy) {
+            QString role = m_groupRosterTable->item(r, 1) ? m_groupRosterTable->item(r, 1)->text() : "";
+            QGuiApplication::clipboard()->setText(QString("%1 (%2)").arg(memName, role));
+        } else if (chosen == actCareNote && !isReadOnly) {
             onLogQuickPastoralNote(personId);
-        } else if (chosen == aLeader) {
+        } else if (chosen == aLeader && !isReadOnly) {
             QSqlQuery up; up.prepare("UPDATE entity_relationships SET relationship_type = 'Leader' WHERE id = ?"); up.addBindValue(relId); up.exec();
             refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree();
-        } else if (chosen == aCoLeader) {
+        } else if (chosen == aCoLeader && !isReadOnly) {
             QSqlQuery up; up.prepare("UPDATE entity_relationships SET relationship_type = 'Co-Leader' WHERE id = ?"); up.addBindValue(relId); up.exec();
             refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree();
-        } else if (chosen == aMember) {
+        } else if (chosen == aMember && !isReadOnly) {
             QSqlQuery up; up.prepare("UPDATE entity_relationships SET relationship_type = 'Member' WHERE id = ?"); up.addBindValue(relId); up.exec();
             refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree();
-        } else if (chosen == actRemove) {
+        } else if (chosen == actRemove && !isReadOnly) {
             QSqlQuery del; del.prepare("DELETE FROM entity_relationships WHERE id = ?"); del.addBindValue(relId);
             if (del.exec()) { refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree(); }
         }
@@ -1151,8 +1351,8 @@ void MainWindow::populatePages() {
     m_tabMinistryBlueprints = new QWidget(m_groupsTabWidget);
     setupMinistryBlueprintsTab(m_tabMinistryBlueprints);
 
-    m_groupsTabWidget->addTab(tabActiveGroups, "📋 Active Groups & Serving Rosters");
-    m_groupsTabWidget->addTab(m_tabMinistryBlueprints, "🏛️ Ministry Blueprints & Archetype Catalog");
+    m_groupsTabWidget->addTab(tabActiveGroups, IconManager::instance().getIcon("layers", 14), "Active Groups & Serving Rosters");
+    m_groupsTabWidget->addTab(m_tabMinistryBlueprints, IconManager::instance().getIcon("building-2", 14), "Ministry Blueprints & Archetype Catalog");
 
     groupsLayout->addWidget(m_groupsTabWidget);
 
@@ -1352,6 +1552,22 @@ QWidget* MainWindow::createDashboardPage() {
     upcomingServicesTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: palette(highlight);");
     m_lstUpcomingServices = new QListWidget(alertsCard);
     m_lstUpcomingServices->setMaximumHeight(100);
+    m_lstUpcomingServices->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_lstUpcomingServices, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QListWidgetItem* item = m_lstUpcomingServices->itemAt(pos);
+        if (!item) return;
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+
+        QMenu menu(this);
+        QAction* actOpen = menu.addAction(IconManager::instance().getIcon("music", tok.accentPrimary, 14), "Open in Service Builder");
+        QAction* actCopy = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Service Summary");
+
+        QAction* sel = menu.exec(m_lstUpcomingServices->mapToGlobal(pos));
+        if (!sel) return;
+
+        if (sel == actOpen) onServiceClicked();
+        else if (sel == actCopy) QGuiApplication::clipboard()->setText(item->text());
+    });
     connect(m_lstUpcomingServices, &QListWidget::itemDoubleClicked, this, [this]() {
         onServiceClicked();
     });
@@ -1927,10 +2143,18 @@ void MainWindow::onSettingsClicked() {
     setActiveNav(m_btnSettings);
 }
 
+void MainWindow::openSettingsCategory(int categoryIndex) {
+    onSettingsClicked();
+    if (m_settingsWidget) {
+        m_settingsWidget->selectCategory(categoryIndex);
+    }
+}
+
 void MainWindow::onFacilitiesClicked() {
     if (!isModuleEnabled("facilities")) return;
     if (!m_facilitiesWidget) {
         m_facilitiesWidget = new FacilitiesWidget(this);
+        m_facilitiesWidget->applyRole(m_userRole);
         ensurePageLoaded(9, [this]() { return m_facilitiesWidget; });
     }
     switchPage(9);
@@ -1969,6 +2193,7 @@ void MainWindow::onShepherdClicked() {
     if (!isModuleEnabled("shepherd")) return;
     if (!m_shepherdWidget) {
         m_shepherdWidget = new ShepherdWidget(this);
+        m_shepherdWidget->applyRole(m_userRole);
         connect(m_shepherdWidget, &ShepherdWidget::navigateToMember, this, &MainWindow::selectPerson);
         ensurePageLoaded(12, [this]() { return m_shepherdWidget; });
     }
@@ -2052,6 +2277,23 @@ void MainWindow::toggleTheme() {
     m_isDarkMode = !m_isDarkMode;
     QString targetTheme = m_isDarkMode ? "catppuccin_mocha" : "catppuccin_latte";
     ThemeManager::instance().loadTheme(targetTheme);
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+    if (m_btnTopTheme) {
+        m_btnTopTheme->setIcon(IconManager::instance().getIcon(tok.isDark ? "sun" : "moon", QColor(), 14));
+    }
+    updateTopBarRoleBadge();
+}
+
+void MainWindow::updateTopBarRoleBadge() {
+    if (!m_btnTopRole) return;
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+    const bool isAdmin = (m_userRole == "admin");
+    const bool isGuest = (m_userRole == "readonly");
+    QString label = isAdmin ? " Admin" : (isGuest ? " Guest (Read-Only)" : QString(" %1").arg(m_userRole));
+    QString iconName = isAdmin ? "shield-check" : (isGuest ? "user" : "shield");
+    QColor col = isAdmin ? tok.accentPrimary : (isGuest ? tok.textMuted : tok.accentSuccess);
+    m_btnTopRole->setText(label);
+    m_btnTopRole->setIcon(IconManager::instance().getIcon(iconName, col, 13));
 }
 
 void MainWindow::launchKiosk() {
@@ -2116,10 +2358,13 @@ void MainWindow::applyRolePermissions() {
     if (m_vaultWidget) m_vaultWidget->applyRole(m_userRole);
     if (m_serviceWidget) m_serviceWidget->applyRole(m_userRole);
     if (m_planningWidget) m_planningWidget->applyRole(m_userRole);
+    if (m_facilitiesWidget) m_facilitiesWidget->applyRole(m_userRole);
+    if (m_shepherdWidget) m_shepherdWidget->applyRole(m_userRole);
 
     if (statusBar()) {
         statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
     }
+    updateTopBarRoleBadge();
 }
 
 void MainWindow::applyModuleVisibility() {
@@ -2929,9 +3174,62 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
 
     QComboBox* contactCombo = new QComboBox(&dlg);
     contactCombo->addItem("-- None Assigned --", 0);
+
+    QSet<int> enrolledIds;
+    if (groupId > 0) {
+        QSqlQuery qEnrolled(db);
+        qEnrolled.prepare(
+            "SELECT p.id, p.first_name || ' ' || p.last_name, er.relationship_type "
+            "FROM entity_relationships er "
+            "JOIN people p ON er.source_id = p.id "
+            "WHERE er.target_type = 'Group' AND er.target_id = ? "
+            "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
+        qEnrolled.addBindValue(groupId);
+        if (qEnrolled.exec()) {
+            bool hasEnrolled = false;
+            while (qEnrolled.next()) {
+                int pid = qEnrolled.value(0).toInt();
+                QString name = qEnrolled.value(1).toString();
+                QString role = qEnrolled.value(2).toString();
+                contactCombo->addItem(QString("%1 (Group %2)").arg(name, role.isEmpty() ? "Member" : role), pid);
+                enrolledIds.insert(pid);
+                hasEnrolled = true;
+            }
+            if (hasEnrolled) {
+                contactCombo->insertSeparator(contactCombo->count());
+            }
+        }
+    } else if (defaultParentId > 0) {
+        QSqlQuery qParent(db);
+        qParent.prepare(
+            "SELECT p.id, p.first_name || ' ' || p.last_name, er.relationship_type "
+            "FROM entity_relationships er "
+            "JOIN people p ON er.source_id = p.id "
+            "WHERE er.target_type = 'Group' AND er.target_id = ? "
+            "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
+        qParent.addBindValue(defaultParentId);
+        if (qParent.exec()) {
+            bool hasParent = false;
+            while (qParent.next()) {
+                int pid = qParent.value(0).toInt();
+                QString name = qParent.value(1).toString();
+                QString role = qParent.value(2).toString();
+                contactCombo->addItem(QString("%1 (Parent Ministry %2)").arg(name, role.isEmpty() ? "Member" : role), pid);
+                enrolledIds.insert(pid);
+                hasParent = true;
+            }
+            if (hasParent) {
+                contactCombo->insertSeparator(contactCombo->count());
+            }
+        }
+    }
+
     QSqlQuery qPeople("SELECT id, first_name || ' ' || last_name FROM people ORDER BY first_name", db);
     while (qPeople.next()) {
-        contactCombo->addItem(qPeople.value(1).toString(), qPeople.value(0).toInt());
+        int pid = qPeople.value(0).toInt();
+        if (!enrolledIds.contains(pid)) {
+            contactCombo->addItem(qPeople.value(1).toString(), pid);
+        }
     }
     int cIdx = contactCombo->findData(currentContactId);
     if (cIdx >= 0) contactCombo->setCurrentIndex(cIdx);
@@ -3271,7 +3569,7 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
     rootLay->setContentsMargins(12, 12, 12, 12);
     rootLay->setSpacing(12);
 
-    QLabel* lblHeader = new QLabel("🏛️ Ministry Blueprints & Archetype Catalog", container);
+    QLabel* lblHeader = new QLabel("Ministry Blueprints & Archetype Catalog", container);
     lblHeader->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(tok.accentPrimary.name()));
     rootLay->addWidget(lblHeader);
 

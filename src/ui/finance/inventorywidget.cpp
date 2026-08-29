@@ -1,6 +1,7 @@
 #include "inventorywidget.h"
 #include "../database/databasemanager.h"
 #include "../core/iconmanager.h"
+#include "../core/thememanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -62,33 +63,62 @@ void InventoryWidget::setupUI() {
         bool isLoc = idx.data(Qt::UserRole + 1).toBool();
         int assetId = idx.data(Qt::UserRole).toInt();
 
+        const ThemeTokens tok = ThemeManager::instance().currentTokens();
+        const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
         QMenu menu(this);
         if (isLoc) {
-            QAction* actAdd = menu.addAction("➕ Add New Asset to this Location...");
+            QAction* actAdd = menu.addAction(IconManager::instance().getIcon("plus", tok.accentPrimary, 14), "Add Asset to Location...");
+            if (isReadOnly) {
+                actAdd->setEnabled(false);
+                actAdd->setToolTip(roTooltip);
+            }
             QAction* sel = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
-            if (sel == actAdd) onAddAsset();
+            if (sel == actAdd && !isReadOnly) onAddAsset();
             return;
         }
 
         if (assetId <= 0) return;
 
-        QAction* actAction = menu.addAction(m_selectedAssetIsCheckedOut ? "📥 Return / Check In Gear" : "🔄 Check Out Gear...");
+        QAction* actAction = nullptr;
+        if (m_selectedAssetIsCheckedOut) {
+            actAction = menu.addAction(IconManager::instance().getIcon("log-in", tok.accentSuccess, 14), "Return / Check In Gear");
+        } else {
+            actAction = menu.addAction(IconManager::instance().getIcon("log-out", tok.accentPrimary, 14), "Check Out Gear...");
+        }
+        if (isReadOnly) {
+            actAction->setEnabled(false);
+            actAction->setToolTip(roTooltip);
+        }
+
         QAction* actCopyBarcode = nullptr;
         if (!m_selectedAssetBarcode.isEmpty()) {
-            actCopyBarcode = menu.addAction(QString("🏷️ Copy Barcode (%1)").arg(m_selectedAssetBarcode));
+            actCopyBarcode = menu.addAction(IconManager::instance().getIcon("tag", QColor(), 14),
+                                            QString("Copy Barcode (%1)").arg(m_selectedAssetBarcode));
         }
+        QAction* actCopyName = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14), "Copy Item Details");
+
         menu.addSeparator();
-        QAction* actDelete = menu.addAction("🗑️ Decommission / Delete Asset...");
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Decommission / Delete Asset...");
+        if (isReadOnly) {
+            actDelete->setEnabled(false);
+            actDelete->setToolTip(roTooltip);
+        }
 
         QAction* sel = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
         if (!sel) return;
 
-        if (sel == actAction) {
+        if (sel == actAction && !isReadOnly) {
             if (m_selectedAssetIsCheckedOut) onCheckinClicked();
             else onCheckoutClicked();
         } else if (sel == actCopyBarcode && !m_selectedAssetBarcode.isEmpty()) {
             QGuiApplication::clipboard()->setText(m_selectedAssetBarcode);
-        } else if (sel == actDelete) {
+        } else if (sel == actCopyName) {
+            QString details = QString("Asset: %1 | Location: %2 | Serial: %3 | Barcode: %4")
+                                  .arg(m_lblName->text(), m_lblLocation->text(), m_lblSerial->text(), m_selectedAssetBarcode);
+            QGuiApplication::clipboard()->setText(details);
+        } else if (sel == actDelete && !isReadOnly) {
             if (QMessageBox::question(this, "Confirm Decommission", "Are you sure you want to delete this asset from inventory?") == QMessageBox::Yes) {
                 QSqlQuery dq;
                 dq.prepare("DELETE FROM assets WHERE id = ?");
@@ -172,6 +202,8 @@ void InventoryWidget::setupUI() {
     m_historyView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_historyView->setAlternatingRowColors(true);
     m_historyView->setMaximumHeight(180);
+    m_historyView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_historyView, &QTableView::customContextMenuRequested, this, &InventoryWidget::onHistoryContextMenu);
     rightLayout->addWidget(m_historyView);
 
     mainLayout->addWidget(m_detailsCard, 3);
@@ -421,9 +453,56 @@ void InventoryWidget::selectAssetByBarcode(const QString& barcode) {
 }
 
 void InventoryWidget::applyRole(const QString& role) {
-    if (role == "readonly") {
+    m_userRole = role;
+    if (role == "readonly" || role == "guest") {
         m_btnCheckout->setEnabled(false);
         m_btnCheckin->setEnabled(false);
+        m_btnCheckout->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
+        m_btnCheckin->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
+    }
+}
+
+void InventoryWidget::onHistoryContextMenu(const QPoint& pos) {
+    if (!m_historyView || !m_historyModel) return;
+    QModelIndex idx = m_historyView->indexAt(pos);
+    if (!idx.isValid()) return;
+
+    int row = idx.row();
+    QString borrower = m_historyModel->index(row, 0).data().toString();
+    QString checkoutDate = m_historyModel->index(row, 1).data().toString();
+    QString returnDate = m_historyModel->index(row, 2).data().toString();
+    QString notes = m_historyModel->index(row, 3).data().toString();
+
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+
+    QMenu menu(this);
+    QAction* actBorrower = menu.addAction(IconManager::instance().getIcon("user", QColor(), 14),
+                                          QString("Copy Borrower (%1)").arg(borrower));
+    QAction* actCopyEntry = menu.addAction(IconManager::instance().getIcon("copy", QColor(), 14),
+                                           "Copy Checkout Entry Summary");
+
+    QAction* actCheckin = nullptr;
+    if (returnDate == "Active") {
+        menu.addSeparator();
+        actCheckin = menu.addAction(IconManager::instance().getIcon("log-in", tok.accentSuccess, 14), "Return / Check In Gear");
+        if (isReadOnly) {
+            actCheckin->setEnabled(false);
+            actCheckin->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
+        }
+    }
+
+    QAction* sel = menu.exec(m_historyView->viewport()->mapToGlobal(pos));
+    if (!sel) return;
+
+    if (sel == actBorrower) {
+        QGuiApplication::clipboard()->setText(borrower);
+    } else if (sel == actCopyEntry) {
+        QString summary = QString("Borrower: %1 | Out: %2 | Returned: %3 | Notes: %4")
+                              .arg(borrower, checkoutDate, returnDate, notes.isEmpty() ? "None" : notes);
+        QGuiApplication::clipboard()->setText(summary);
+    } else if (sel == actCheckin && !isReadOnly) {
+        onCheckinClicked();
     }
 }
 

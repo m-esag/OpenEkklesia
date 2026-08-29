@@ -1094,6 +1094,13 @@ void SettingsWidget::onCategorySelected(int row) {
     }
 }
 
+void SettingsWidget::selectCategory(int index) {
+    if (m_navList && index >= 0 && index < m_navList->count()) {
+        m_navList->setCurrentRow(index);
+        onCategorySelected(index);
+    }
+}
+
 void SettingsWidget::onSearchTextChanged(const QString& text) {
     QString q = text.trimmed().toLower();
     for (int i = 0; i < m_navList->count(); ++i) {
