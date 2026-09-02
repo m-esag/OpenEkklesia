@@ -10,3 +10,4 @@ linuxdeploy-*.AppImage
 linuxdeploy-plugin-qt
 linuxdeploy-plugin-appimage
 openekklesia.png
+build-asan/

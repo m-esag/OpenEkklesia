@@ -40,16 +40,22 @@
 #include <QClipboard>
 #include <QTextStream>
 
-// Helper to clean up layout items recursively
+// Helper to clean up layout items recursively. Widgets are disposed with
+// deleteLater() instead of delete: this runs while the layout is still
+// installed on a live widget (the Smart Bridge panel is rebuilt on every
+// node selection), and immediately deleting styled widgets mid-churn
+// corrupted the heap (detected later in QStyleSheetStyle per-object cache
+// frees — dozens of SIGABRTs on teardown and a corrupted scene BSP tree
+// that rendered the graph blank).
 static void clearLayoutRecursively(QLayout* layout) {
     if (!layout) return;
     while (QLayoutItem* item = layout->takeAt(0)) {
-        if (item->layout()) {
-            clearLayoutRecursively(item->layout());
-            delete item->layout();
+        if (QLayout* sub = item->layout()) {
+            clearLayoutRecursively(sub);
+            delete sub; // sub-layout is empty now; safe to delete immediately
         }
-        if (item->widget()) {
-            delete item->widget();
+        if (QWidget* w = item->widget()) {
+            w->deleteLater(); // defer destruction to the event loop
         }
         delete item;
     }
@@ -1855,7 +1861,11 @@ void GraphWidget::onBatchAssignGroup() {
         }
         db.commit();
         dlg.accept();
-        loadGraph();
+        // Defer the reload: this lambda runs inside dlg.exec(), which can be
+        // nested in a node's context-menu handler. loadGraph() clears the
+        // scene — doing that now would delete the NodeItem whose handler is
+        // still on the call stack (use-after-free).
+        QTimer::singleShot(0, this, [this]() { loadGraph(); });
         QMessageBox::information(this, "Assigned", QString("Successfully assigned %1 members to %2.").arg(personIds.size()).arg(grpCombo->currentText()));
     });
 
@@ -2843,7 +2853,26 @@ void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
 void GraphWidget::onSeverSelectedEdge() {
     if (!m_selectedEdgeForDetails) return;
 
+    // Guard across the confirmation dialog's nested event loop: anything
+    // (physics timer, smart-bridge rebuild, a dialog-triggered reload) could
+    // clear the scene while the message box is open. Items are not QObjects,
+    // so record the edge's slot in m_edges and re-validate after the dialog.
     EdgeItem* edge = m_selectedEdgeForDetails;
+    const int edgeSlot = m_edges.indexOf(edge);
+    // Capture everything the post-dialog code needs BEFORE the nested event
+    // loop — the edge's endpoint nodes can also be deleted while the dialog
+    // is open, so no item dereferences are allowed after it.
+    const QString relType = edge->relationshipType();
+    const int relId = edge->relationshipId();
+    auto typeStr = [](NodeItem* n) {
+        if (n->isPersonNode()) return QStringLiteral("Person");
+        if (n->nodeType() == NodeItem::Group) return QStringLiteral("Group");
+        return QStringLiteral("Household");
+    };
+    const QString srcType = typeStr(edge->sourceNode());
+    const QString tgtType = typeStr(edge->targetNode());
+    const int srcId = edge->sourceNode()->id();
+    const int tgtId = edge->targetNode()->id();
     QString srcName = edge->sourceNode()->name();
     QString tgtName = edge->targetNode()->name();
 
@@ -2851,36 +2880,33 @@ void GraphWidget::onSeverSelectedEdge() {
                                        QString("Are you sure you want to remove the connection between %1 and %2?").arg(srcName, tgtName),
                                        QMessageBox::Yes | QMessageBox::No);
     if (reply != QMessageBox::Yes) return;
+    // Edge destroyed while the dialog was open (slot gone or reused).
+    if (edgeSlot < 0 || m_edges.at(edgeSlot) != edge) return;
 
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
     bool removed = false;
 
-    if (edge->relationshipType() == "Parent of") {
+    if (relType == "Parent of") {
         // Hierarchy links live in groups.parent_id, not entity_relationships.
         q.prepare("UPDATE groups SET parent_id = NULL WHERE id = ?");
-        q.addBindValue(edge->targetNode()->id()); // target = child
+        q.addBindValue(tgtId); // target = child
         removed = q.exec();
-    } else if (edge->relationshipId() > 0) {
+    } else if (relId > 0) {
         q.prepare("DELETE FROM entity_relationships WHERE id = ?");
-        q.addBindValue(edge->relationshipId());
+        q.addBindValue(relId);
         removed = q.exec();
     } else {
         // Type-scoped fallback so numeric id collisions can never delete an
         // unrelated relationship (e.g. person 3 <-> group 5 vs group 3 <-> ...).
-        auto typeStr = [](NodeItem* n) {
-            if (n->isPersonNode()) return QStringLiteral("Person");
-            if (n->nodeType() == NodeItem::Group) return QStringLiteral("Group");
-            return QStringLiteral("Household");
-        };
         q.prepare("DELETE FROM entity_relationships "
                   "WHERE source_type = ? AND source_id = ? "
                   "AND target_type = ? AND target_id = ? AND relationship_type = ?");
-        q.addBindValue(typeStr(edge->sourceNode()));
-        q.addBindValue(edge->sourceNode()->id());
-        q.addBindValue(typeStr(edge->targetNode()));
-        q.addBindValue(edge->targetNode()->id());
-        q.addBindValue(edge->relationshipType());
+        q.addBindValue(srcType);
+        q.addBindValue(srcId);
+        q.addBindValue(tgtType);
+        q.addBindValue(tgtId);
+        q.addBindValue(relType);
         removed = q.exec();
     }
 
@@ -2891,14 +2917,12 @@ void GraphWidget::onSeverSelectedEdge() {
 
     // Remember this sever so the admin can undo it this session.
     m_hasUndoSever = true;
-    m_undoRelId = edge->relationshipId();
-    m_undoRelType = edge->relationshipType();
-    m_undoSrcType = edge->sourceNode()->isPersonNode() ? "Person"
-                     : (edge->sourceNode()->nodeType() == NodeItem::Group ? "Group" : "Household");
-    m_undoTgtType = edge->targetNode()->isPersonNode() ? "Person"
-                     : (edge->targetNode()->nodeType() == NodeItem::Group ? "Group" : "Household");
-    m_undoSrcId = edge->sourceNode()->id();
-    m_undoTgtId = edge->targetNode()->id();
+    m_undoRelId = relId;
+    m_undoRelType = relType;
+    m_undoSrcType = srcType;
+    m_undoTgtType = tgtType;
+    m_undoSrcId = srcId;
+    m_undoTgtId = tgtId;
     if (m_btnUndoSever) m_btnUndoSever->setEnabled(true);
 
     m_scene->removeItem(edge);
@@ -3067,7 +3091,10 @@ void GraphWidget::onQuickAssignGroup(NodeItem* node) {
         insertQ.addBindValue(role);
         insertQ.exec();
         dlg.accept();
-        loadGraph();
+        // Deferred for the same reason as the batch-assign reload above: the
+        // dialog may be nested inside a node's context-menu handler, and
+        // loadGraph()'s scene->clear() would free that node mid-handler.
+        QTimer::singleShot(0, this, [this]() { loadGraph(); });
     });
 
     dlg.exec();
@@ -3076,6 +3103,12 @@ void GraphWidget::onQuickAssignGroup(NodeItem* node) {
 void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
     if (!node) return;
     QMenu m(this);
+
+    // The menu runs a nested event loop; the node can be deleted underneath
+    // us (e.g. a dialog-triggered loadGraph() clears the scene). Items are
+    // not QObjects so QPointer can't guard them — record the node's slot in
+    // m_nodes and re-validate after exec().
+    const int nodeSlot = m_nodes.indexOf(node);
 
     const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
     const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
@@ -3102,6 +3135,8 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         }
 
         QAction* sel = m.exec(globalPos);
+        // Re-validate: bail if the scene was rebuilt while the menu was open.
+        if (nodeSlot < 0 || m_nodes.at(nodeSlot) != node) return;
         if (sel == aProfile) {
             emit navigateToProfile("Person", node->id());
         } else if (sel == aPhone) {
@@ -3137,6 +3172,8 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         }
 
         QAction* sel = m.exec(globalPos);
+        // Re-validate: bail if the scene was rebuilt while the menu was open.
+        if (nodeSlot < 0 || m_nodes.at(nodeSlot) != node) return;
         if (sel == aHighlight) {
             highlightConnections(node);
         } else if (sel == aPin) {
