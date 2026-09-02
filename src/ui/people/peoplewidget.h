@@ -165,105 +165,106 @@ private:
     void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 
     // Left Panel (Master)
-    QLineEdit* m_searchEdit;
-    QComboBox* m_cmbSortBy;
-    QTableView* m_peopleTable;
-    QPushButton* m_btnAddPerson;
-    QPushButton* m_btnAddHousehold;
-    QPushButton* m_btnManageHouseholds;
-    QPushButton* m_btnDeleteSelected;
-    QPushButton* m_btnBatchStatus;
-    QPushButton* m_btnImportCSV;
+    QLineEdit* m_searchEdit = nullptr;
+    QComboBox* m_cmbSortBy = nullptr;
+    QTableView* m_peopleTable = nullptr;
+    QPushButton* m_btnAddPerson = nullptr;
+    QPushButton* m_btnAddHousehold = nullptr;
+    QPushButton* m_btnManageHouseholds = nullptr;
+    QPushButton* m_btnDeleteSelected = nullptr;
+    QPushButton* m_btnBatchStatus = nullptr;
+    QPushButton* m_btnImportCSV = nullptr;
 
     // Status filter row
-    QButtonGroup* m_statusFilterGroup;
+    QButtonGroup* m_statusFilterGroup = nullptr;
 
     // Right Panel (Detail - 360° Dossier)
-    QWidget* m_emptyStateWidget;
-    QWidget* m_dossierContainer;
+    QWidget* m_emptyStateWidget = nullptr;
+    QWidget* m_dossierContainer = nullptr;
 
     // Pinned Header
-    QWidget* m_headerWidget;
-    ClickableAvatarLabel* m_avatarLabel;
-    QLabel* m_lblHeaderName;
-    QLabel* m_lblHeaderSub;
-    QLabel* m_lblHeaderStatusBadge;
-    QLabel* m_lblHeaderCareBadge;
+    QWidget* m_headerWidget = nullptr;
+    ClickableAvatarLabel* m_avatarLabel = nullptr;
+    QLabel* m_lblHeaderName = nullptr;
+    QLabel* m_lblHeaderSub = nullptr;
+    QLabel* m_lblHeaderStatusBadge = nullptr;
+    QLabel* m_lblHeaderCareBadge = nullptr;
 
     // Navigation Rail & Stack
-    QWidget* m_navRail;
-    QPushButton* m_btnNavIdentity;
-    QPushButton* m_btnNavPastoral;
-    QPushButton* m_btnNavGroups;
-    QPushButton* m_btnNavGiving;
-    QPushButton* m_btnNavMinistry;
-    QStackedWidget* m_detailStack;
+    QWidget* m_navRail = nullptr;
+    QPushButton* m_btnNavIdentity = nullptr;
+    QPushButton* m_btnNavPastoral = nullptr;
+    QPushButton* m_btnNavGroups = nullptr;
+    QPushButton* m_btnNavGiving = nullptr;
+    QPushButton* m_btnNavMinistry = nullptr;
+    QStackedWidget* m_detailStack = nullptr;
 
     // Tab 0: Identity & Family
-    QLineEdit* m_firstNameEdit;
-    QLineEdit* m_lastNameEdit;
-    QComboBox* m_householdCombo;
-    QListWidget* m_lstHouseholdMembers;
-    QComboBox* m_genderCombo;
-    QLineEdit* m_phoneEdit;
-    QLineEdit* m_emailEdit;
-    QDateEdit* m_birthDateEdit;
-    QComboBox* m_statusCombo;
-    QDateEdit* m_firstVisitEdit;
-    QDateEdit* m_joinDateEdit;
+    QLineEdit* m_firstNameEdit = nullptr;
+    QLineEdit* m_lastNameEdit = nullptr;
+    QComboBox* m_householdCombo = nullptr;
+    QListWidget* m_lstHouseholdMembers = nullptr;
+    QComboBox* m_genderCombo = nullptr;
+    QLineEdit* m_phoneEdit = nullptr;
+    QLineEdit* m_emailEdit = nullptr;
+    QDateEdit* m_birthDateEdit = nullptr;
+    QComboBox* m_statusCombo = nullptr;
+    QDateEdit* m_firstVisitEdit = nullptr;
+    QDateEdit* m_joinDateEdit = nullptr;
 
     // Tab 1: Pastoral Care & History
-    QComboBox* m_careFlagCombo;
-    QTextEdit* m_adminNotesText;
-    QPushButton* m_btnLogCare;
-    QListWidget* m_historyList;
+    QComboBox* m_careFlagCombo = nullptr;
+    QTextEdit* m_adminNotesText = nullptr;
+    QPushButton* m_btnLogCare = nullptr;
+    QListWidget* m_historyList = nullptr;
 
     // Tab 2: Groups & Connections
-    QListWidget* m_connectionsList;
+    QListWidget* m_connectionsList = nullptr;
 
     // Tab 3: Giving & Stewardship
-    QLabel* m_lblGivingYTD;
-    QLabel* m_lblGivingHousehold; // this person + spouse combined
-    QLabel* m_lblGivingCount;
-    QLabel* m_lblGivingLastDate;
-    QListWidget* m_lstRecentGiving;
-    QPushButton* m_btnGenerateStatement;
+    QLabel* m_lblGivingYTD = nullptr;
+    QLabel* m_lblGivingHousehold = nullptr;
+    QLabel* m_lblGivingCount = nullptr;
+    QLabel* m_lblGivingLastDate = nullptr;
+    QListWidget* m_lstRecentGiving = nullptr;
+    QPushButton* m_btnGenerateStatement = nullptr;
 
     // Tab 0: Linked Documents (vault records tied to this person)
-    QListWidget* m_lstPersonDocs;
+    QListWidget* m_lstPersonDocs = nullptr;
 
     // Tab 4: Ministry Fit Archetypes, Gifts & Tags
-    QLineEdit* m_primaryArchetypeEdit;
+    QLineEdit* m_primaryArchetypeEdit = nullptr;
     QList<QPushButton*> m_archetypeChips;
-    QComboBox* m_cmbSecondaryArchetype;
-    QLineEdit* m_giftsEdit;
+    QComboBox* m_cmbSecondaryArchetype = nullptr;
+    QLineEdit* m_giftsEdit = nullptr;
     QList<QPushButton*> m_giftChips;
-    QLineEdit* m_styleEdit;
+    QLineEdit* m_styleEdit = nullptr;
     QList<QPushButton*> m_styleChips;
-    QLineEdit* m_tagsEdit;
-    QWidget* m_tagsChipsContainer;
-    QLineEdit* m_tagInputField;
-    QCompleter* m_tagCompleter;
+    QLineEdit* m_tagsEdit = nullptr;
+    QWidget* m_tagsChipsContainer = nullptr;
+    QList<QPushButton*> m_popularTagChips;
+    QLineEdit* m_tagInputField = nullptr;
+    QCompleter* m_tagCompleter = nullptr;
 
     void updateArchetypesFromText(const QString& primary, const QString& secondary);
     void updateArchetypeFromChips();
 
     // Sticky Action Footer
-    QWidget* m_footerFrame;
-    QLabel* m_lblDirtyIndicator;
-    QPushButton* m_btnSave;
-    QPushButton* m_btnDeletePerson;
-    QLineEdit* m_avatarPathEdit;
+    QWidget* m_footerFrame = nullptr;
+    QLabel* m_lblDirtyIndicator = nullptr;
+    QPushButton* m_btnSave = nullptr;
+    QPushButton* m_btnDeletePerson = nullptr;
+    QLineEdit* m_avatarPathEdit = nullptr;
 
     int m_currentPersonId = 0;
     bool m_isDirty = false;
     bool m_isReadOnly = false;
 
     // Models & Mapping
-    QSqlRelationalTableModel* m_peopleModel;
-    QSqlTableModel* m_householdModel;
-    PeopleProxyModel* m_proxyModel;
-    QDataWidgetMapper* m_mapper;
+    QSqlRelationalTableModel* m_peopleModel = nullptr;
+    QSqlTableModel* m_householdModel = nullptr;
+    PeopleProxyModel* m_proxyModel = nullptr;
+    QDataWidgetMapper* m_mapper = nullptr;
 
     QString m_selectedAvatarPath;
     QCache<QString, QPixmap> m_avatarCache;

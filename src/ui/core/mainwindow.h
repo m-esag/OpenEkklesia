@@ -200,17 +200,17 @@ private:
     void onConfigureKpiCards();
     void onLogQuickPastoralNote(int prefillPersonId = -1);
 
-    QChartView* m_chartView;
+    QChartView* m_chartView = nullptr;
     QListWidget* m_lstPastoralAlerts = nullptr;
     QListWidget* m_lstVisitorFollowup = nullptr;
     QListWidget* m_lstUpcomingServices = nullptr;
 
-    bool m_hintsEnabled;
-    QWidget* m_hintPanel;
-    QLabel* m_lblHintText;
-    QCheckBox* m_chkShowHints;
+    bool m_hintsEnabled = false;
+    QWidget* m_hintPanel = nullptr;
+    QLabel* m_lblHintText = nullptr;
+    QCheckBox* m_chkShowHints = nullptr;
 
-    QPushButton* m_activeNavButton;
+    QPushButton* m_activeNavButton = nullptr;
     void setActiveNav(QPushButton* btn);
 
     QPushButton* m_btnTopSearch = nullptr;
