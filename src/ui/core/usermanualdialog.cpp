@@ -477,27 +477,104 @@ QString UserManualDialog::getFullManualHtml() {
 
 <a name="people"></a>
 <h2><img class="header-icon" src="%9"> 3. People & 360° Pastoral Dossier</h2>
-<p>The <b>People Module</b> is the central repository for member records, growth tracking, spiritual gifts assessment, and relational connection mapping.</p>
+<p>The <b>People Module</b> is the central repository for member records, growth tracking, spiritual gifts assessment, behavioral ministry profiling, and relational connection mapping.</p>
 
-<h3>Key Features:</h3>
+<h3>Key Dossier Views:</h3>
 <ul>
-    <li><b>360° Member Dossier:</b> View complete member lifecycle: contact info, household relationships, membership stage (Member, Regular Attender, Visitor, Inactive), care timeline, and giving history.</li>
-    <li><b>Spiritual Gifts & Ministry Fit Profile (Tab 4):</b>
-        <ul>
-            <li><b>Primary Behavioral Archetype:</b> Choose between 5 human-facing ministry archetypes:
-                <span class="badge badge-catalyst">🔥 Catalyst</span>
-                <span class="badge badge-shepherd">🌿 Shepherd</span>
-                <span class="badge badge-architect">📐 Architect</span>
-                <span class="badge badge-spark">⚡ Spark</span>
-                <span class="badge badge-anchor">⚓ Anchor</span>
-            </li>
-            <li><b>Secondary Archetype:</b> Optional secondary behavioral complement.</li>
-            <li><b>Spiritual Gifts Selection:</b> Multi-select gift chips strictly capped at a maximum of 4 gifts with real-time counters.</li>
-            <li><b>Relational Style Vector:</b> Direct assignment of primary behavioral styles (Organizer, Listener, Doer, Energizer, Strategist, Connector).</li>
-        </ul>
-    </li>
-    <li><b>Care Flags:</b> Tag individuals as <code>Normal</code>, <code>Needs Contact</code>, <code>Follow-up</code>, <code>At-Risk</code>, <code>Grief Support</code>, or <code>Leader</code>. Flags synchronize with the Shepherd's Workbench queue and dashboard alerts.</li>
-    <li><b>vCard Export:</b> One-click contact export for mobile devices and email clients.</li>
+    <li><b>Identity (Tab 0):</b> Core personal information, profile photo/avatar, contact channels (phone, validated email, physical address), birthdate, household mapping, family role (Head, Spouse, Child, Other), and membership lifecycle stage (Member, Regular Attender, Visitor, Inactive).</li>
+    <li><b>Pastoral (Tab 1):</b> Comprehensive pastoral care history, timestamped care notes, next scheduled follow-up dates, care flags (<code>Normal</code>, <code>Needs Contact</code>, <code>Follow-up</code>, <code>At-Risk</code>, <code>Grief Support</code>, <code>Leader</code>), and spiritual milestone logging.</li>
+    <li><b>Groups (Tab 2):</b> Active ministry assignments, small group enrollments, leadership roles, meeting schedules, and serving history.</li>
+    <li><b>Giving (Tab 3):</b> YTD giving summary, contribution frequency, multi-fund distribution breakdown, and recent batch transaction history.</li>
+    <li><b>Gifts & Tags (Tab 4):</b> Complete spiritual gifts assessment, ministry archetype behavioral DNA, relational style, and custom interest tags that power the Smart Bridge v2.0 volunteer placement engine.</li>
+</ul>
+
+<h3>Deep Dive: Gifts & Tags (Ministry Fit & Behavioral DNA)</h3>
+<p>Tab 4 models each individual's unique God-given design to facilitate thoughtful volunteer placement, team synergy calculation, and fruitful discipleship pathways.</p>
+
+<h4>1. Ministry Calling & Behavioral Archetypes</h4>
+<p>OpenEkklesia categorizes spiritual and leadership behavioral postures into 5 core archetypes:</p>
+<table>
+    <tr>
+        <th style="width: 18%;">Archetype</th>
+        <th style="width: 28%;">Core Behavioral Traits</th>
+        <th style="width: 28%;">Optimal Ministry Placement</th>
+        <th style="width: 26%;">Synergy Role in Teams</th>
+    </tr>
+    <tr>
+        <td><span class="badge badge-catalyst">🔥 Catalyst</span></td>
+        <td>Visionary, pioneer, initiator, high-drive risk taker. Thrives on launching new efforts and challenging the status quo.</td>
+        <td>Church Planting, Community Outreach, Evangelism, Creative Launch Teams</td>
+        <td>Ignites initial momentum; pairs exceptionally well with an <b>Architect</b> or <b>Anchor</b> to ground ideas in reality.</td>
+    </tr>
+    <tr>
+        <td><span class="badge badge-shepherd">🌿 Shepherd</span></td>
+        <td>Relational caregiver, empathetic listener, community builder. Prioritizes individual pastoral care and emotional safety.</td>
+        <td>Small Group Facilitation, Pastoral Care, Hospitality, Bereavement, Welcome</td>
+        <td>Nurtures member retention and creates safe circles; fills relational voids on task-heavy teams.</td>
+    </tr>
+    <tr>
+        <td><span class="badge badge-architect">📐 Architect</span></td>
+        <td>Strategic thinker, systems designer, logistical coordinator. Craves clear workflows, orderly processes, and structured blueprints.</td>
+        <td>Administration, Operations, Service Liturgy Flow, Finance, Scheduling</td>
+        <td>Translates vision into sustainable operational systems; prevents burnout by organizing logistics.</td>
+    </tr>
+    <tr>
+        <td><span class="badge badge-spark">⚡ Spark</span></td>
+        <td>High-energy motivator, enthusiastic communicator, dynamic activator. Rallies crowds and injects joy and positive morale.</td>
+        <td>Youth Ministry, Children's Ministry, Worship Arts, Event MC / Hosting</td>
+        <td>Brings infectious enthusiasm and lifts team morale; balances well with steady <b>Anchor</b> co-leaders.</td>
+    </tr>
+    <tr>
+        <td><span class="badge badge-anchor">⚓ Anchor</span></td>
+        <td>Faithful finisher, steady executor, dependable guardian. Exceptional follow-through, high integrity, and calm resilience under pressure.</td>
+        <td>Media & AV Tech, Facilities & Setup, Nursery Safety / Security, Audit Ledger</td>
+        <td>Provides structural stability and week-in, week-out execution; ensures nothing falls through the cracks.</td>
+    </tr>
+</table>
+
+<div class="alert-tip">
+    <img src="%21" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Primary vs. Secondary Archetype:</b>
+    The <i>Primary Archetype</i> defines a person's dominant natural posture. The <i>Secondary Archetype</i> represents an optional complementary strength (e.g. a <i>Catalyst</i> with an <i>Anchor</i> secondary produces a visionary who also possesses execution discipline).
+</div>
+
+<h4>2. Spiritual Gifts Assessment (Max 4 Primary Gifts)</h4>
+<p>Members can select up to <b>4 primary spiritual gifts</b> from the 10 canonical biblical gifts:</p>
+<ul>
+    <li><b>Administration:</b> Ability to coordinate, organize, and direct resources, people, and details effectively for kingdom ministry.</li>
+    <li><b>Evangelism:</b> Special passion and clarity to proclaim the Gospel and lead non-believers to personal faith in Jesus Christ.</li>
+    <li><b>Helps:</b> Willingness to serve quietly behind the scenes, performing practical tasks that support leaders and church life.</li>
+    <li><b>Hospitality:</b> Gift of creating a warm, welcoming environment where visitors, newcomers, and members feel genuinely valued.</li>
+    <li><b>Leadership:</b> Capacity to cast biblical vision, motivate volunteers, and guide ministries toward shared spiritual objectives.</li>
+    <li><b>Mercy:</b> Deep empathy and compassionate practical action toward those suffering physical, emotional, or financial hardship.</li>
+    <li><b>Pastoral Care:</b> Long-term commitment to counsel, nurture, guide, and protect the spiritual growth of fellow believers.</li>
+    <li><b>Prophecy:</b> Boldness to speak biblical truth into specific cultural and personal situations to bring conviction and encouragement.</li>
+    <li><b>Teaching:</b> Ability to study, explain, and communicate biblical scripture with doctrinal clarity, depth, and practical relevance.</li>
+    <li><b>Worship / Music:</b> Musical and artistic skill dedicated to leading congregations into heartfelt corporate prayer and praise.</li>
+</ul>
+
+<div class="alert-warning">
+    <img src="%20" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Why the 4-Gift Limit?</b>
+    Allowing unrestricted gift selection leads to data dilution where members check every box. Capping primary gifts at 4 ensures high data quality and allows the <b>Smart Bridge v2.0</b> engine to accurately identify genuine core strengths.
+</div>
+
+<h4>3. Relational Style Vector</h4>
+<p>Each person is assigned a single primary <b>Relational Style</b> to model interpersonal dynamics in group settings:</p>
+<ul>
+    <li><b>Organizer:</b> Systematic, process-driven, tracks action items and timelines.</li>
+    <li><b>Listener:</b> Patient, reflective, holds space for deep sharing and active listening.</li>
+    <li><b>Doer:</b> Action-oriented, rolls up sleeves to execute hands-on tasks immediately.</li>
+    <li><b>Energizer:</b> Upbeat, communicative, brings laughter, energy, and excitement.</li>
+    <li><b>Strategist:</b> Big-picture analyst who evaluates long-term goals and systemic impacts.</li>
+    <li><b>Connector:</b> Relational hub who connects disparate people and builds social bridges.</li>
+</ul>
+
+<h4>4. Interest Tags & Search Scoping</h4>
+<p>Interest tags (e.g. <code>Young Families</code>, <code>AV / Tech</code>, <code>College Ministry</code>, <code>Men's Fellowship</code>, <code>Outreach</code>) allow flexible, free-form categorization. When matching candidates in the Smart Bridge engine, matching declared interest tags awards up to <b>+15 synergy points</b>.</p>
+
+<h4>5. Care Flags & Export Tools</h4>
+<ul>
+    <li><b>Pastoral Care Flags:</b> Tag individuals as <code>Normal</code>, <code>Needs Contact</code>, <code>Follow-up</code>, <code>At-Risk</code>, <code>Grief Support</code>, or <code>Leader</code>. Flags synchronize directly with the Shepherd's Workbench queue and dashboard alerts.</li>
+    <li><b>vCard Export:</b> One-click contact card generation compatible with mobile address books and email clients.</li>
 </ul>
 
 <hr>

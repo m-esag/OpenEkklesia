@@ -581,9 +581,9 @@ void PeopleWidget::setupUI() {
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
-            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(text); padding: 5px 10px; font-size: 11px; font-weight: bold; }"
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; color: palette(placeholderText); padding: 5px 12px; font-size: 11px; font-weight: bold; }"
             "QPushButton:hover:!checked { background-color: palette(mid); color: palette(text); border-color: palette(highlight); }"
-            "QPushButton:checked { background-color: palette(highlight); color: palette(highlightedText); border: 1px solid palette(highlight); }"
+            "QPushButton:checked { background-color: palette(mid); color: palette(highlight); border: 1.5px solid palette(highlight); font-weight: bold; }"
         );
         connect(btn, &QPushButton::clicked, this, [this, pageIdx]() {
             m_detailStack->setCurrentIndex(pageIdx);
@@ -1056,7 +1056,7 @@ void PeopleWidget::setupUI() {
         chip->setStyleSheet(
             "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover:!checked { background-color: palette(mid); border: 1px solid palette(highlight); color: palette(highlight); }"
-            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlightedText); }"
+            "QPushButton:checked { background-color: palette(mid); border: 1.5px solid palette(highlight); color: palette(highlight); }"
         );
         connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
             // Constrain to max 4 selected gifts
@@ -1089,8 +1089,8 @@ void PeopleWidget::setupUI() {
     giftsChipBox->addLayout(giftsRow2);
     layCardMin->addLayout(giftsChipBox);
 
-    // 3. Relational Styles (Single-Select)
-    QLabel* lblStyleHeader = new QLabel("RELATIONAL STYLE (Single-Select):", cardMin);
+    // 3. Relational Styles (Max 3 Primary)
+    QLabel* lblStyleHeader = new QLabel("RELATIONAL STYLE (Max 3 Primary):", cardMin);
     lblStyleHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblStyleHeader);
 
@@ -1110,19 +1110,24 @@ void PeopleWidget::setupUI() {
         chip->setStyleSheet(
             "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
             "QPushButton:hover:!checked { background-color: palette(mid); border: 1px solid palette(highlight); color: palette(highlight); }"
-            "QPushButton:checked { background-color: palette(highlight); border: 1px solid palette(highlight); color: palette(highlightedText); }"
+            "QPushButton:checked { background-color: palette(mid); border: 1.5px solid palette(highlight); color: palette(highlight); }"
         );
-        connect(chip, &QPushButton::clicked, this, [this, chip]() {
-            for (QPushButton* c : m_styleChips) {
-                if (c != chip) {
-                    c->blockSignals(true);
-                    c->setChecked(false);
-                    c->setText(c->property("rawName").toString());
-                    c->blockSignals(false);
+        connect(chip, &QPushButton::toggled, this, [this, chip](bool checked) {
+            if (checked) {
+                int count = 0;
+                for (QPushButton* c : m_styleChips) {
+                    if (c->isChecked()) count++;
+                }
+                if (count > 3) {
+                    chip->blockSignals(true);
+                    chip->setChecked(false);
+                    chip->blockSignals(false);
+                    QMessageBox::information(this, "Styles Limit", "To ensure high data quality, please select up to 3 primary relational styles.");
+                    return;
                 }
             }
-            chip->setChecked(true);
-            chip->setText(QString("✓ %1").arg(chip->property("rawName").toString()));
+            QString raw = chip->property("rawName").toString();
+            chip->setText(checked ? QString("✓ %1").arg(raw) : raw);
             updateStylesFromChips();
             setDirty(true);
         });
@@ -1132,13 +1137,69 @@ void PeopleWidget::setupUI() {
     styleRow->addStretch();
     layCardMin->addLayout(styleRow);
 
-    // 4. Interest Tags
-    QLabel* lblTagsHeader = new QLabel("INTEREST TAGS:", cardMin);
+    // 4. Interest Tags (Quick-Pick Curated Catalog & Custom Tags)
+    QLabel* lblTagsHeader = new QLabel("INTEREST TAGS (Quick-Select or Add Custom):", cardMin);
     lblTagsHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(text); margin-top: 4px;");
     layCardMin->addWidget(lblTagsHeader);
 
     m_tagsEdit = new QLineEdit(cardMin);
     m_tagsEdit->setVisible(false);
+
+    // 16 Popular Curated Church Tags
+    static const QStringList kPopularInterestTags = {
+        "Young Families", "Youth & Students", "College & Young Adults", "Men's Ministry",
+        "Women's Ministry", "Seniors (55+)", "AV & Media Tech", "Worship & Music",
+        "Hospitality & Greeters", "Prayer & Intercession", "Local Outreach & Mercy", "Global Missions",
+        "Children's Ministry", "Marriage & Family", "Discipleship & Bible Study", "Facilities & Logistics"
+    };
+
+    QVBoxLayout* popTagsBox = new QVBoxLayout();
+    popTagsBox->setSpacing(4);
+    QHBoxLayout* popRow1 = new QHBoxLayout(); popRow1->setSpacing(4);
+    QHBoxLayout* popRow2 = new QHBoxLayout(); popRow2->setSpacing(4);
+    QHBoxLayout* popRow3 = new QHBoxLayout(); popRow3->setSpacing(4);
+    QHBoxLayout* popRow4 = new QHBoxLayout(); popRow4->setSpacing(4);
+
+    for (int i = 0; i < kPopularInterestTags.size(); ++i) {
+        QString tag = kPopularInterestTags.at(i);
+        QPushButton* chip = new QPushButton(tag, cardMin);
+        chip->setCheckable(true);
+        chip->setProperty("rawName", tag);
+        chip->setStyleSheet(
+            "QPushButton { background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; color: palette(text); padding: 3px 8px; font-size: 10px; font-weight: bold; }"
+            "QPushButton:hover:!checked { background-color: palette(mid); border: 1px solid palette(highlight); color: palette(highlight); }"
+            "QPushButton:checked { background-color: palette(mid); border: 1.5px solid palette(highlight); color: palette(highlight); }"
+        );
+        connect(chip, &QPushButton::clicked, this, [this, chip, tag]() {
+            bool willBeChecked = chip->isChecked();
+            if (willBeChecked) {
+                addInterestTag(tag);
+            } else {
+                removeInterestTag(tag);
+            }
+            setDirty(true);
+        });
+        m_popularTagChips.append(chip);
+
+        if (i < 4) popRow1->addWidget(chip);
+        else if (i < 8) popRow2->addWidget(chip);
+        else if (i < 12) popRow3->addWidget(chip);
+        else popRow4->addWidget(chip);
+    }
+    popRow1->addStretch();
+    popRow2->addStretch();
+    popRow3->addStretch();
+    popRow4->addStretch();
+    popTagsBox->addLayout(popRow1);
+    popTagsBox->addLayout(popRow2);
+    popTagsBox->addLayout(popRow3);
+    popTagsBox->addLayout(popRow4);
+    layCardMin->addLayout(popTagsBox);
+
+    // Active Profile Tags Container
+    QLabel* lblActiveTags = new QLabel("Active Profile Tags:", cardMin);
+    lblActiveTags->setStyleSheet("font-size: 10px; font-weight: bold; color: palette(placeholderText); margin-top: 6px;");
+    layCardMin->addWidget(lblActiveTags);
 
     m_tagsChipsContainer = new QWidget(cardMin);
     layCardMin->addWidget(m_tagsChipsContainer);
@@ -1146,7 +1207,7 @@ void PeopleWidget::setupUI() {
     QHBoxLayout* tagInputRow = new QHBoxLayout();
     tagInputRow->setSpacing(6);
     m_tagInputField = new QLineEdit(cardMin);
-    m_tagInputField->setPlaceholderText("Type a tag (e.g. Young Families, AV/Tech) & press Enter...");
+    m_tagInputField->setPlaceholderText("Type a custom tag (e.g. Young Families, AV/Tech) & press Enter...");
     QPushButton* btnAddTag = new QPushButton("+ Add Tag", cardMin);
     btnAddTag->setObjectName("secondaryBtn");
 
@@ -1418,19 +1479,37 @@ void PeopleWidget::renderTagChips() {
     }
 
     QStringList tags = m_tagsEdit->text().split(",", Qt::SkipEmptyParts);
-    for (const QString& tagRaw : tags) {
-        QString tag = tagRaw.trimmed();
-        if (tag.isEmpty()) continue;
+    for (int i = 0; i < tags.size(); ++i) tags[i] = tags[i].trimmed();
 
-        QPushButton* chip = new QPushButton(QString("%1  ✕").arg(tag), m_tagsChipsContainer);
-        chip->setStyleSheet(
-            "QPushButton { background-color: palette(base); color: palette(highlight); border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: palette(highlight); color: palette(highlightedText); }"
-        );
-        connect(chip, &QPushButton::clicked, this, [this, tag]() {
-            removeInterestTag(tag);
-        });
-        lay->addWidget(chip);
+    // Synchronize popular tag chips
+    for (QPushButton* pChip : m_popularTagChips) {
+        QString raw = pChip->property("rawName").toString();
+        bool isSelected = tags.contains(raw, Qt::CaseInsensitive);
+        pChip->blockSignals(true);
+        pChip->setChecked(isSelected);
+        pChip->setText(isSelected ? QString("✓ %1").arg(raw) : raw);
+        pChip->blockSignals(false);
+    }
+
+    if (tags.isEmpty()) {
+        QLabel* lblNone = new QLabel("<i>No tags assigned yet. Click any tag above or add a custom tag.</i>", m_tagsChipsContainer);
+        lblNone->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
+        lay->addWidget(lblNone);
+    } else {
+        for (const QString& tag : tags) {
+            if (tag.isEmpty()) continue;
+
+            QPushButton* chip = new QPushButton(QString("%1  ✕").arg(tag), m_tagsChipsContainer);
+            chip->setStyleSheet(
+                "QPushButton { background-color: palette(base); color: palette(highlight); border: 1px solid palette(mid); border-radius: 12px; padding: 3px 8px; font-size: 11px; font-weight: bold; }"
+                "QPushButton:hover { background-color: palette(highlight); color: palette(highlightedText); }"
+            );
+            connect(chip, &QPushButton::clicked, this, [this, tag]() {
+                removeInterestTag(tag);
+                setDirty(true);
+            });
+            lay->addWidget(chip);
+        }
     }
     lay->addItem(new QSpacerItem(1, 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
 }
@@ -2916,124 +2995,372 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
     QModelIndex proxyIdx = m_peopleTable->indexAt(pos);
     if (!proxyIdx.isValid()) return;
 
-    QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
-    int row = srcIdx.row();
-    QSqlRecord rec = m_peopleModel->record(row);
-    int personId = rec.value("id").toInt();
-    if (personId <= 0) personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
-    QString firstName = rec.value("first_name").toString();
-    QString lastName = rec.value("last_name").toString();
-    QString phone = rec.value("phone_number").toString();
-    QString email = rec.value("email").toString();
-    QString careFlag = rec.value("care_flag").toString();
-    QString status = rec.value("membership_status").toString();
-    QString bday = rec.value("date_of_birth").toString();
-    QString notes = rec.value("admin_notes").toString();
-    QString fullName = QString("%1 %2").arg(firstName, lastName).trimmed();
-    if (fullName.isEmpty()) fullName = "Member";
+    // 1. Gather all selected rows from the table selection model
+    QModelIndexList selectedProxyRows = m_peopleTable->selectionModel()->selectedRows();
+    QList<int> selectedPersonIds;
+    QStringList selectedNames;
+    QStringList selectedEmails;
+    QStringList selectedPhones;
 
-    QMenu menu(this);
-    QAction* actProfile = menu.addAction(IconManager::instance().getIcon("user", QColor(), 14), QString("View %1's Dossier").arg(fullName));
-    QAction* actCareNote = menu.addAction(IconManager::instance().getIcon("heart", QColor(), 14), "Log Pastoral Care Note...");
-    QAction* actAssignGroup = menu.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Small Group...");
-    
-    QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Pastoral Flag");
-    QAction* actFlagNormal = menuCare->addAction("Normal / None");
-    QAction* actFlagLeader = menuCare->addAction("Leader");
-    QAction* actFlagRisk = menuCare->addAction("At-Risk");
-    QAction* actFlagContact = menuCare->addAction("Needs Contact");
-    QAction* actFlagGrief = menuCare->addAction("Grief Support");
-
-    QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), "Set Membership Status");
-    QAction* actStatMember = menuStatus->addAction("Member");
-    QAction* actStatAttender = menuStatus->addAction("Regular Attender");
-    QAction* actStatVisitor = menuStatus->addAction("Visitor");
-    QAction* actStatInactive = menuStatus->addAction("Inactive");
-
-    menu.addSeparator();
-    QAction* actCopyPhone = nullptr;
-    if (!phone.isEmpty()) actCopyPhone = menu.addAction(IconManager::instance().getIcon("phone", QColor(), 14), QString("Copy Phone (%1)").arg(phone));
-    QAction* actCopyEmail = nullptr;
-    if (!email.isEmpty()) actCopyEmail = menu.addAction(IconManager::instance().getIcon("mail", QColor(), 14), QString("Copy Email (%1)").arg(email));
-    QAction* actExportVCard = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14), "Export Contact as vCard (.vcf)...");
-
-    menu.addSeparator();
-    QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Profile...");
-
-    if (m_isReadOnly) {
-        const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
-        actCareNote->setEnabled(false); actCareNote->setToolTip(roTooltip);
-        actAssignGroup->setEnabled(false); actAssignGroup->setToolTip(roTooltip);
-        menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
-        menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
-        actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
+    for (const QModelIndex& pIdx : selectedProxyRows) {
+        QModelIndex sIdx = m_proxyModel->mapToSource(pIdx);
+        int r = sIdx.row();
+        int pid = m_peopleModel->data(m_peopleModel->index(r, 0)).toInt();
+        if (pid > 0 && !selectedPersonIds.contains(pid)) {
+            selectedPersonIds.append(pid);
+            QSqlRecord rec = m_peopleModel->record(r);
+            QString fn = rec.value("first_name").toString();
+            QString ln = rec.value("last_name").toString();
+            QString full = QString("%1 %2").arg(fn, ln).trimmed();
+            if (full.isEmpty()) full = QString("Person #%1").arg(pid);
+            selectedNames.append(full);
+            QString em = rec.value("email").toString().trimmed();
+            if (!em.isEmpty()) selectedEmails.append(em);
+            QString ph = rec.value("phone_number").toString().trimmed();
+            if (!ph.isEmpty()) selectedPhones.append(ph);
+        }
     }
 
-    QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
-    if (!selected) return;
+    // Ensure the clicked row is included if selection was empty or clicked outside current selection
+    QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
+    int clickedRow = srcIdx.row();
+    int clickedPersonId = m_peopleModel->data(m_peopleModel->index(clickedRow, 0)).toInt();
+    if (clickedPersonId > 0 && !selectedPersonIds.contains(clickedPersonId)) {
+        selectedPersonIds.clear();
+        selectedNames.clear();
+        selectedEmails.clear();
+        selectedPhones.clear();
+        selectedPersonIds.append(clickedPersonId);
+        QSqlRecord rec = m_peopleModel->record(clickedRow);
+        QString fn = rec.value("first_name").toString();
+        QString ln = rec.value("last_name").toString();
+        QString full = QString("%1 %2").arg(fn, ln).trimmed();
+        if (full.isEmpty()) full = QString("Person #%1").arg(clickedPersonId);
+        selectedNames.append(full);
+        QString em = rec.value("email").toString().trimmed();
+        if (!em.isEmpty()) selectedEmails.append(em);
+        QString ph = rec.value("phone_number").toString().trimmed();
+        if (!ph.isEmpty()) selectedPhones.append(ph);
+    }
 
-    if (selected == actProfile) {
-        selectPerson(personId);
-    } else if (selected == actCareNote) {
-        selectPerson(personId);
-        onLogCareEntry();
-    } else if (selected == actAssignGroup) {
-        QDialog dlg(this);
-        dlg.setWindowTitle(QString("Assign %1 to Group").arg(fullName));
-        dlg.resize(320, 140);
-        QFormLayout* form = new QFormLayout(&dlg);
-        QComboBox* groupCombo = new QComboBox(&dlg);
-        QSqlQuery gq("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name");
-        while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
-        QLineEdit* roleEdit = new QLineEdit("Member", &dlg);
-        form->addRow("Group:", groupCombo);
-        form->addRow("Role:", roleEdit);
-        QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-        form->addRow(bb);
-        if (dlg.exec() == QDialog::Accepted && groupCombo->count() > 0) {
-            int gid = groupCombo->currentData().toInt();
-            QSqlQuery ins;
-            ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
-                        "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
-            ins.addBindValue(personId);
-            ins.addBindValue(gid);
-            ins.addBindValue(roleEdit->text().trimmed());
-            ins.exec();
-            QMessageBox::information(this, "Success", QString("%1 assigned to %2").arg(fullName, groupCombo->currentText()));
+    const int totalSelected = selectedPersonIds.size();
+    if (totalSelected == 0) return;
+
+    QMenu menu(this);
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+
+    if (totalSelected > 1) {
+        // --- MULTI-PROFILE BATCH CONTEXT MENU ---
+        QAction* actBatchHeader = menu.addAction(IconManager::instance().getIcon("users", QColor(), 14), QString("Batch Operations (%1 Profiles Selected)").arg(totalSelected));
+        actBatchHeader->setEnabled(false);
+        menu.addSeparator();
+
+        QAction* actBatchAssignGroup = menu.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), QString("Assign All %1 to Small Group...").arg(totalSelected));
+        QAction* actBatchCareNote = menu.addAction(IconManager::instance().getIcon("heart", QColor(), 14), QString("Log Care Entry for %1 Profiles...").arg(totalSelected));
+
+        QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), QString("Set Pastoral Flag (%1 Profiles)").arg(totalSelected));
+        QAction* actFlagNormal = menuCare->addAction("Normal / None");
+        QAction* actFlagLeader = menuCare->addAction("Leader");
+        QAction* actFlagRisk = menuCare->addAction("At-Risk");
+        QAction* actFlagContact = menuCare->addAction("Needs Contact");
+        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+
+        QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), QString("Set Membership Status (%1 Profiles)").arg(totalSelected));
+        QAction* actStatMember = menuStatus->addAction("Member");
+        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
+        QAction* actStatVisitor = menuStatus->addAction("Visitor");
+        QAction* actStatInactive = menuStatus->addAction("Inactive");
+
+        menu.addSeparator();
+        QAction* actCopyEmails = nullptr;
+        if (!selectedEmails.isEmpty()) {
+            actCopyEmails = menu.addAction(IconManager::instance().getIcon("mail", QColor(), 14), QString("Copy %1 Email Addresses (Comma-Separated)").arg(selectedEmails.size()));
         }
-    } else if (menuCare->actions().contains(selected)) {
-        QString flag = selected->text();
-        if (selected == actFlagNormal) flag = "Normal";
-        QSqlQuery uq;
-        uq.prepare("UPDATE people SET care_flag = ? WHERE id = ?");
-        uq.addBindValue(flag);
-        uq.addBindValue(personId);
-        uq.exec();
-        m_peopleModel->select();
-        reapplyFilter();
-        if (m_currentPersonId == personId) selectPerson(personId);
-    } else if (menuStatus->actions().contains(selected)) {
-        QString st = selected->text();
-        QSqlQuery uq;
-        uq.prepare("UPDATE people SET membership_status = ? WHERE id = ?");
-        uq.addBindValue(st);
-        uq.addBindValue(personId);
-        uq.exec();
-        m_peopleModel->select();
-        reapplyFilter();
-        if (m_currentPersonId == personId) selectPerson(personId);
-    } else if (selected == actCopyPhone && !phone.isEmpty()) {
-        QGuiApplication::clipboard()->setText(phone);
-    } else if (selected == actCopyEmail && !email.isEmpty()) {
-        QGuiApplication::clipboard()->setText(email);
-    } else if (selected == actExportVCard) {
-        selectPerson(personId);
-        onExportVCard();
-    } else if (selected == actDelete) {
-        selectPerson(personId);
-        onDeletePerson();
+        QAction* actCopyPhones = nullptr;
+        if (!selectedPhones.isEmpty()) {
+            actCopyPhones = menu.addAction(IconManager::instance().getIcon("phone", QColor(), 14), QString("Copy %1 Phone Numbers").arg(selectedPhones.size()));
+        }
+
+        QAction* actExportVCards = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14), QString("Export %1 Contacts as vCards (.vcf)...").arg(totalSelected));
+
+        menu.addSeparator();
+        QAction* actBatchDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), QString("Delete All %1 Selected Profiles...").arg(totalSelected));
+
+        if (m_isReadOnly) {
+            actBatchAssignGroup->setEnabled(false); actBatchAssignGroup->setToolTip(roTooltip);
+            actBatchCareNote->setEnabled(false); actBatchCareNote->setToolTip(roTooltip);
+            menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
+            menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
+            actBatchDelete->setEnabled(false); actBatchDelete->setToolTip(roTooltip);
+        }
+
+        QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
+        if (!selected) return;
+
+        if (selected == actBatchAssignGroup) {
+            QDialog dlg(this);
+            dlg.setWindowTitle(QString("Assign %1 People to Group").arg(totalSelected));
+            dlg.resize(340, 150);
+            QFormLayout* form = new QFormLayout(&dlg);
+            QComboBox* groupCombo = new QComboBox(&dlg);
+            QSqlQuery gq("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name");
+            while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
+            QLineEdit* roleEdit = new QLineEdit("Member", &dlg);
+            form->addRow("Group:", groupCombo);
+            form->addRow("Role for All:", roleEdit);
+            QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+            connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+            connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+            form->addRow(bb);
+            if (dlg.exec() == QDialog::Accepted && groupCombo->count() > 0) {
+                int gid = groupCombo->currentData().toInt();
+                QString roleStr = roleEdit->text().trimmed();
+                QSqlDatabase db = QSqlDatabase::database();
+                db.transaction();
+                int assignedCount = 0;
+                for (int pid : selectedPersonIds) {
+                    QSqlQuery ins(db);
+                    ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
+                                "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
+                    ins.addBindValue(pid);
+                    ins.addBindValue(gid);
+                    ins.addBindValue(roleStr);
+                    if (ins.exec()) assignedCount++;
+                }
+                db.commit();
+                QMessageBox::information(this, "Batch Assignment", QString("Successfully assigned %1 people to %2.").arg(assignedCount).arg(groupCombo->currentText()));
+            }
+        } else if (selected == actBatchCareNote) {
+            QDialog dlg(this);
+            dlg.setWindowTitle(QString("Log Care Entry for %1 Profiles").arg(totalSelected));
+            dlg.resize(400, 240);
+            QVBoxLayout* lay = new QVBoxLayout(&dlg);
+            QFormLayout* form = new QFormLayout();
+            QComboBox* cmbType = new QComboBox(&dlg);
+            cmbType->addItems({"Pastoral Note", "Visitation", "Prayer Request", "Counseling Session", "Crisis Care", "Hospital Visit", "Phone Call", "Follow-up Check-in"});
+            QTextEdit* txtNotes = new QTextEdit(&dlg);
+            txtNotes->setPlaceholderText("Enter notes to log to all selected member care timelines...");
+            form->addRow("Care Type:", cmbType);
+            form->addRow("Notes:", txtNotes);
+            lay->addLayout(form);
+            QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+            connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+            connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+            lay->addWidget(bb);
+            if (dlg.exec() == QDialog::Accepted) {
+                QString cType = cmbType->currentText();
+                QString cNotes = txtNotes->toPlainText().trimmed();
+                QString nowStr = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+                QSqlDatabase db = QSqlDatabase::database();
+                db.transaction();
+                int loggedCount = 0;
+                for (int pid : selectedPersonIds) {
+                    QSqlQuery ins(db);
+                    ins.prepare("INSERT INTO care_logs (person_id, care_type, notes, timestamp) VALUES (?, ?, ?, ?)");
+                    ins.addBindValue(pid);
+                    ins.addBindValue(cType);
+                    ins.addBindValue(cNotes);
+                    ins.addBindValue(nowStr);
+                    if (ins.exec()) loggedCount++;
+                }
+                db.commit();
+                QMessageBox::information(this, "Batch Care Log", QString("Successfully logged pastoral care entries for %1 profiles.").arg(loggedCount));
+            }
+        } else if (menuCare->actions().contains(selected)) {
+            QString flag = selected->text();
+            if (selected == actFlagNormal) flag = "Normal";
+            QSqlDatabase db = QSqlDatabase::database();
+            db.transaction();
+            for (int pid : selectedPersonIds) {
+                QSqlQuery uq(db);
+                uq.prepare("UPDATE people SET care_flag = ? WHERE id = ?");
+                uq.addBindValue(flag);
+                uq.addBindValue(pid);
+                uq.exec();
+            }
+            db.commit();
+            m_peopleModel->select();
+            reapplyFilter();
+            if (selectedPersonIds.contains(m_currentPersonId)) selectPerson(m_currentPersonId);
+            QMessageBox::information(this, "Batch Flag Update", QString("Updated care flag to '%1' for %2 profiles.").arg(flag).arg(totalSelected));
+        } else if (menuStatus->actions().contains(selected)) {
+            QString st = selected->text();
+            QSqlDatabase db = QSqlDatabase::database();
+            db.transaction();
+            for (int pid : selectedPersonIds) {
+                QSqlQuery uq(db);
+                uq.prepare("UPDATE people SET membership_status = ? WHERE id = ?");
+                uq.addBindValue(st);
+                uq.addBindValue(pid);
+                uq.exec();
+            }
+            db.commit();
+            m_peopleModel->select();
+            reapplyFilter();
+            if (selectedPersonIds.contains(m_currentPersonId)) selectPerson(m_currentPersonId);
+            QMessageBox::information(this, "Batch Status Update", QString("Updated membership status to '%1' for %2 profiles.").arg(st).arg(totalSelected));
+        } else if (selected == actCopyEmails && !selectedEmails.isEmpty()) {
+            QGuiApplication::clipboard()->setText(selectedEmails.join(", "));
+            QMessageBox::information(this, "Emails Copied", QString("%1 email addresses copied to clipboard.").arg(selectedEmails.size()));
+        } else if (selected == actCopyPhones && !selectedPhones.isEmpty()) {
+            QGuiApplication::clipboard()->setText(selectedPhones.join("\n"));
+            QMessageBox::information(this, "Phones Copied", QString("%1 phone numbers copied to clipboard.").arg(selectedPhones.size()));
+        } else if (selected == actExportVCards) {
+            QString fileName = QFileDialog::getSaveFileName(this, "Export Contacts as vCard", "contacts_export.vcf", "vCard Files (*.vcf)");
+            if (!fileName.isEmpty()) {
+                QFile file(fileName);
+                if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    QTextStream out(&file);
+                    int exported = 0;
+                    for (int pid : selectedPersonIds) {
+                        QSqlQuery q;
+                        q.prepare("SELECT first_name, last_name, email, phone_number, address, date_of_birth FROM people WHERE id = ?");
+                        q.addBindValue(pid);
+                        if (q.exec() && q.next()) {
+                            out << "BEGIN:VCARD\nVERSION:3.0\n";
+                            out << QString("N:%1;%2;;;\n").arg(q.value(1).toString(), q.value(0).toString());
+                            out << QString("FN:%1 %2\n").arg(q.value(0).toString(), q.value(1).toString());
+                            if (!q.value(2).toString().isEmpty()) out << QString("EMAIL:%1\n").arg(q.value(2).toString());
+                            if (!q.value(3).toString().isEmpty()) out << QString("TEL:%1\n").arg(q.value(3).toString());
+                            if (!q.value(4).toString().isEmpty()) out << QString("ADR:;;%1;;;;\n").arg(q.value(4).toString());
+                            if (!q.value(5).toString().isEmpty()) out << QString("BDAY:%1\n").arg(q.value(5).toString());
+                            out << "END:VCARD\n\n";
+                            exported++;
+                        }
+                    }
+                    file.close();
+                    QMessageBox::information(this, "Export Complete", QString("Successfully exported %1 contacts to %2").arg(exported).arg(QFileInfo(fileName).fileName()));
+                }
+            }
+        } else if (selected == actBatchDelete) {
+            auto res = QMessageBox::question(this, "Confirm Batch Deletion",
+                                             QString("Are you sure you want to permanently delete ALL %1 selected profiles and their care history?").arg(totalSelected),
+                                             QMessageBox::Yes | QMessageBox::No);
+            if (res == QMessageBox::Yes) {
+                QSqlDatabase db = QSqlDatabase::database();
+                db.transaction();
+                QSqlQuery q(db);
+                int deletedCount = 0;
+                for (int pid : selectedPersonIds) {
+                    if (deletePersonCascade(q, pid)) deletedCount++;
+                }
+                db.commit();
+                m_peopleModel->select();
+                reapplyFilter();
+                m_dossierContainer->setVisible(false);
+                m_currentPersonId = -1;
+                QMessageBox::information(this, "Batch Deletion Complete", QString("Successfully deleted %1 member profiles.").arg(deletedCount));
+            }
+        }
+    } else {
+        // --- SINGLE-PROFILE CONTEXT MENU ---
+        int personId = selectedPersonIds.first();
+        QString fullName = selectedNames.first();
+        QSqlRecord rec = m_peopleModel->record(clickedRow);
+        QString phone = rec.value("phone_number").toString();
+        QString email = rec.value("email").toString();
+
+        QAction* actProfile = menu.addAction(IconManager::instance().getIcon("user", QColor(), 14), QString("View %1's Dossier").arg(fullName));
+        QAction* actCareNote = menu.addAction(IconManager::instance().getIcon("heart", QColor(), 14), "Log Pastoral Care Note...");
+        QAction* actAssignGroup = menu.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Small Group...");
+        
+        QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Pastoral Flag");
+        QAction* actFlagNormal = menuCare->addAction("Normal / None");
+        QAction* actFlagLeader = menuCare->addAction("Leader");
+        QAction* actFlagRisk = menuCare->addAction("At-Risk");
+        QAction* actFlagContact = menuCare->addAction("Needs Contact");
+        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+
+        QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), "Set Membership Status");
+        QAction* actStatMember = menuStatus->addAction("Member");
+        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
+        QAction* actStatVisitor = menuStatus->addAction("Visitor");
+        QAction* actStatInactive = menuStatus->addAction("Inactive");
+
+        menu.addSeparator();
+        QAction* actCopyPhone = nullptr;
+        if (!phone.isEmpty()) actCopyPhone = menu.addAction(IconManager::instance().getIcon("phone", QColor(), 14), QString("Copy Phone (%1)").arg(phone));
+        QAction* actCopyEmail = nullptr;
+        if (!email.isEmpty()) actCopyEmail = menu.addAction(IconManager::instance().getIcon("mail", QColor(), 14), QString("Copy Email (%1)").arg(email));
+        QAction* actExportVCard = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14), "Export Contact as vCard (.vcf)...");
+
+        menu.addSeparator();
+        QAction* actDelete = menu.addAction(IconManager::instance().getDangerIcon("trash-2", 14), "Delete Profile...");
+
+        if (m_isReadOnly) {
+            actCareNote->setEnabled(false); actCareNote->setToolTip(roTooltip);
+            actAssignGroup->setEnabled(false); actAssignGroup->setToolTip(roTooltip);
+            menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
+            menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
+            actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
+        }
+
+        QAction* selected = menu.exec(m_peopleTable->viewport()->mapToGlobal(pos));
+        if (!selected) return;
+
+        if (selected == actProfile) {
+            selectPerson(personId);
+        } else if (selected == actCareNote) {
+            selectPerson(personId);
+            onLogCareEntry();
+        } else if (selected == actAssignGroup) {
+            QDialog dlg(this);
+            dlg.setWindowTitle(QString("Assign %1 to Group").arg(fullName));
+            dlg.resize(320, 140);
+            QFormLayout* form = new QFormLayout(&dlg);
+            QComboBox* groupCombo = new QComboBox(&dlg);
+            QSqlQuery gq("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name");
+            while (gq.next()) groupCombo->addItem(gq.value(1).toString(), gq.value(0).toInt());
+            QLineEdit* roleEdit = new QLineEdit("Member", &dlg);
+            form->addRow("Group:", groupCombo);
+            form->addRow("Role:", roleEdit);
+            QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+            connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+            connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+            form->addRow(bb);
+            if (dlg.exec() == QDialog::Accepted && groupCombo->count() > 0) {
+                int gid = groupCombo->currentData().toInt();
+                QSqlQuery ins;
+                ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
+                            "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
+                ins.addBindValue(personId);
+                ins.addBindValue(gid);
+                ins.addBindValue(roleEdit->text().trimmed());
+                ins.exec();
+                QMessageBox::information(this, "Success", QString("%1 assigned to %2").arg(fullName, groupCombo->currentText()));
+            }
+        } else if (menuCare->actions().contains(selected)) {
+            QString flag = selected->text();
+            if (selected == actFlagNormal) flag = "Normal";
+            QSqlQuery uq;
+            uq.prepare("UPDATE people SET care_flag = ? WHERE id = ?");
+            uq.addBindValue(flag);
+            uq.addBindValue(personId);
+            uq.exec();
+            m_peopleModel->select();
+            reapplyFilter();
+            if (m_currentPersonId == personId) selectPerson(personId);
+        } else if (menuStatus->actions().contains(selected)) {
+            QString st = selected->text();
+            QSqlQuery uq;
+            uq.prepare("UPDATE people SET membership_status = ? WHERE id = ?");
+            uq.addBindValue(st);
+            uq.addBindValue(personId);
+            uq.exec();
+            m_peopleModel->select();
+            reapplyFilter();
+            if (m_currentPersonId == personId) selectPerson(personId);
+        } else if (selected == actCopyPhone && !phone.isEmpty()) {
+            QGuiApplication::clipboard()->setText(phone);
+        } else if (selected == actCopyEmail && !email.isEmpty()) {
+            QGuiApplication::clipboard()->setText(email);
+        } else if (selected == actExportVCard) {
+            selectPerson(personId);
+            onExportVCard();
+        } else if (selected == actDelete) {
+            selectPerson(personId);
+            onDeletePerson();
+        }
     }
 }
 

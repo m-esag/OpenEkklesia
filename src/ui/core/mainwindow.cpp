@@ -718,45 +718,26 @@ void MainWindow::setupUI() {
 
     refreshSidebarIcons();
 
-    sidebarLayout->addSpacing(15);
-
-    bool showHintsPref = settings.value("showHelpHints", true).toBool();
-    m_hintsEnabled = showHintsPref;
-
-    m_chkShowHints = new QCheckBox("Show Help Hints", this);
-    m_chkShowHints->setChecked(showHintsPref);
-    connect(m_chkShowHints, &QCheckBox::toggled, this, [this](bool checked) {
-        m_hintsEnabled = checked;
-        m_hintPanel->setVisible(checked);
-        QSettings s("OpenEkklesia", "CHMS");
-        s.setValue("showHelpHints", checked);
-    });
-    sidebarLayout->addWidget(m_chkShowHints);
-
-    m_hintPanel = new QWidget(this);
-    m_hintPanel->setObjectName("hintPanel");
-    m_hintPanel->setVisible(showHintsPref);
-    QVBoxLayout* hintPanelLayout = new QVBoxLayout(m_hintPanel);
-    hintPanelLayout->setContentsMargins(10, 10, 10, 10);
-    m_lblHintText = new QLabel("Hover over items to see tips.", m_hintPanel);
-    m_lblHintText->setWordWrap(true);
-    m_lblHintText->setStyleSheet("border: none; background: transparent;");
-    hintPanelLayout->addWidget(m_lblHintText);
-    sidebarLayout->addWidget(m_hintPanel);
-
     sidebarLayout->addStretch();
 
-    // Bottom Dock (Kiosk Portal)
-    QHBoxLayout* bottomDock = new QHBoxLayout();
-    bottomDock->setSpacing(8);
+    // Bottom Dock (Kiosk Portal & Help Center)
+    QVBoxLayout* bottomDock = new QVBoxLayout();
+    bottomDock->setSpacing(6);
 
     m_btnKiosk = new QPushButton(" Kiosk Portal", this);
-    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor(), 16));
+    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor(), 14));
     m_btnKiosk->setObjectName("navButton");
     m_btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 
+    QPushButton* btnManual = new QPushButton(" Help & Manual (F1)", this);
+    btnManual->setIcon(IconManager::instance().getIcon("book-open", QColor(), 14));
+    btnManual->setObjectName("navButton");
+    btnManual->setToolTip("User Manual: Open interactive documentation and system guide (F1).");
+    connect(btnManual, &QPushButton::clicked, this, [this]() { onShowUserManual(); });
+
     bottomDock->addWidget(m_btnKiosk);
+    bottomDock->addWidget(btnManual);
     sidebarLayout->addLayout(bottomDock);
 
     QLabel* footerLabel = new QLabel("v1.5.0 (ChMS Suite)", this);
@@ -2455,7 +2436,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         QWidget* w = qobject_cast<QWidget*>(watched);
         if (w) {
             QString tip = w->toolTip();
-            if (!tip.isEmpty()) {
+            if (!tip.isEmpty() && m_lblHintText) {
                 m_lblHintText->setText(tip);
             }
         }
