@@ -1292,7 +1292,7 @@ void ContributionsWidget::onManageFunds() {
             QListWidgetItem* item = new QListWidgetItem(
                 active ? name : QString("%1 (inactive)").arg(name), list);
             item->setData(Qt::UserRole, id);
-            if (!active) item->setForeground(QColor("#a6adc8"));
+            if (!active) item->setForeground(ThemeManager::instance().currentTokens().textSecondary);
         }
     };
     refreshList();
