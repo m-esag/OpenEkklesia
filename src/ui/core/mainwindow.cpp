@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "../../common/tableutil.h"
 #include "thememanager.h"
 #include "touchhelper.h"
 #include "iconmanager.h"
@@ -1309,6 +1310,7 @@ void MainWindow::populatePages() {
     m_groupRosterTable->horizontalHeader()->setMinimumSectionSize(70);
     m_groupRosterTable->horizontalHeader()->setDefaultSectionSize(100);
     m_groupRosterTable->horizontalHeader()->setStretchLastSection(false);
+    TableUtil::applyStandardTableSetup(m_groupRosterTable, false);
     m_groupRosterTable->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_groupRosterTable, &QTableWidget::customContextMenuRequested, this, [this, tok](const QPoint& pos) {
         int r = m_groupRosterTable->rowAt(pos.y());

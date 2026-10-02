@@ -35,7 +35,9 @@ set(SOURCES
     src/common/appdateformatter.h
     src/common/appdateformatter.cpp
     src/common/churchprofile.h
+    src/common/tableutil.h
     src/common/churchprofile.cpp
+    src/common/tableutil.h
 
     # Database Module
     src/database/databasemanager.h
@@ -144,7 +146,9 @@ add_executable(openekklesia_tests
     src/common/appdateformatter.cpp
     src/common/appdateformatter.h
     src/common/churchprofile.cpp
+    src/common/tableutil.h
     src/common/churchprofile.h
+    src/common/tableutil.h
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp

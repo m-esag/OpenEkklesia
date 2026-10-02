@@ -1071,6 +1071,12 @@ QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {
 QHeaderView::section {
   background-color: var(--bg-surface); color: var(--text-primary); font-weight: bold; border: none; border-bottom: 2px solid var(--accent-primary); padding: 6px; font-size: var(--font-size);
 }
+/* Table consistency: unify font sizing across modules regardless of
+   per-widget font-size overrides embedded in code; keep header slightly
+   smaller than body for hierarchy without a different family/weight. */
+QTableView, QTableWidget { font-size: var(--font-size); }
+QTableView QHeaderView::section, QTableWidget QHeaderView::section { font-size: calc(var(--font-size) - 1px); }
+QTableView::item, QTableWidget::item { padding: 4px 6px; }
 QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
 QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
 QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }
