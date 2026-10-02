@@ -147,7 +147,7 @@ void ThemeManager::registerDefaultThemes() {
     latte.bgInput = QColor("#ffffff");
     latte.textPrimary = QColor("#4c4f69");
     latte.textSecondary = QColor("#5c5f77");
-    latte.textMuted = QColor("#73778b"); // was #8c8fa1 (2.6:1, failed AA) -> 3.6:1
+    latte.textMuted = QColor("#5d627b"); // was #8c8fa1 (2.6:1) -> #73778b (3.9:1) -> 4.9:1
     latte.accentPrimary = QColor("#1e66f5");
     latte.accentSuccess = QColor("#40a02b");
     latte.accentWarning = QColor("#df8e1d");
@@ -197,7 +197,7 @@ void ThemeManager::registerDefaultThemes() {
     warmCaramel.bgInput = QColor("#ffffff");
     warmCaramel.textPrimary = QColor("#3d2612");
     warmCaramel.textSecondary = QColor("#58402c");
-    warmCaramel.textMuted = QColor("#8d7561");
+    warmCaramel.textMuted = QColor("#6e5947"); // was #8d7561 (~3.8:1, below AA) -> ~5.4:1
     warmCaramel.accentPrimary = QColor("#8c4a16");
     warmCaramel.accentSuccess = QColor("#2e6f40");
     warmCaramel.accentWarning = QColor("#b46d0e");
