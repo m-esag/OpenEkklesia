@@ -192,6 +192,12 @@ MainWindow::MainWindow(QWidget *parent)
         refreshSidebarIcons();
         updatePieChart();
         refreshGroupDetailPanel(m_selectedGroupId);
+        // Views that capture tokens once at build time must be rebuilt here,
+        // otherwise they keep the previous theme's styling after a mid-session
+        // switch (seen as dark blueprint cards with pale gray text on the
+        // light palette).
+        refreshMinistryBlueprintsTab();
+        updateDashboardStats();
     });
     
     // Apply role permissions & module visibility
