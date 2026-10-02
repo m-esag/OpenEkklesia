@@ -27,6 +27,7 @@
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QPinchGesture>
 #include "thememanager.h"
 
 class NodeItem;
@@ -215,6 +216,7 @@ public:
     void setSelectMode(bool selectMode);
 
 protected:
+    bool event(QEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
@@ -224,8 +226,10 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private:
+    bool handlePinchGesture(QPinchGesture* pinch);
     GraphWidget* m_graphWidget = nullptr;
     bool m_selectMode = false;
+    double m_pinchStartZoom = 1.0;
 };
 
 class GraphWidget : public QWidget {

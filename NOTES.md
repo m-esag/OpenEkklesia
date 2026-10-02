@@ -1,5 +1,10 @@
 # Development Notes & Future Roadmap
 
+> **Version:** `v0.8.0` (pre-release beta — re-versioned from `v1.5` language on
+> 2026-09-10; `1.x` implied production readiness we do not claim yet).
+> App version (`CMake PROJECT VERSION 0.8.0`) is independent of DB schema
+> version (`kLatestSchemaVersion = 22`).
+
 Status notes for future development sessions. Items here are intentionally
 **not** part of the current sprint; they are reminders and decision points.
 

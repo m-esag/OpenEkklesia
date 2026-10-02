@@ -131,8 +131,8 @@ The QSS engine styles by object name. Use these names — never invent a new
 - **Prepared statements with bound values** (`prepare` + `addBindValue`) — never
   concatenate user input into SQL. (Known legacy violations exist in a few
   delete paths; do not add new ones.)
-- Schema changes go through **numbered migrations** 1–20 in `migrateSchema()`;
-  bump `kLatestSchemaVersion` (currently 20 — always re-grep before adding) and
+- Schema changes go through **numbered migrations** 1–22 in `migrateSchema()`;
+  bump `kLatestSchemaVersion` (currently 22 — always re-grep before adding) and
   add the next number. Fresh DBs run every migration from 0. `ADD COLUMN` must
   use constant defaults (no non-constant `DEFAULT`).
 - `entity_relationships` is the polymorphic connective tissue

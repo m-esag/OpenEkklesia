@@ -14,6 +14,19 @@ PlanningCenterClient::PlanningCenterClient(QObject *parent)
 {
 }
 
+namespace {
+bool parsePcoDataArray(const QByteArray& body, QJsonArray& out, QString& errText) {
+    QJsonParseError perr;
+    QJsonDocument doc = QJsonDocument::fromJson(body, &perr);
+    if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
+        errText = QString("Invalid server response: %1").arg(perr.errorString());
+        return false;
+    }
+    out = doc.object().value("data").toArray();
+    return true;
+}
+} // namespace
+
 void PlanningCenterClient::executeGet(const QString& endpoint, const QString& appId, const QString& secret,
                                       std::function<void(int, const QByteArray&, const QString&)> callback)
 {
@@ -90,7 +103,13 @@ void PlanningCenterClient::fetchPeople(const QString& appId, const QString& secr
                 return;
             }
 
-            QJsonDocument doc = QJsonDocument::fromJson(body);
+            QJsonParseError perr;
+            QJsonDocument doc = QJsonDocument::fromJson(body, &perr);
+            if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
+                callback(false, QJsonArray(), QString("Invalid server response: %1").arg(perr.errorString()));
+                fetchPage.reset();
+                return;
+            }
             QJsonObject obj = doc.object();
             QJsonArray data = obj.value("data").toArray();
 
@@ -120,9 +139,12 @@ void PlanningCenterClient::fetchGroups(const QString& appId, const QString& secr
             callback(false, QJsonArray(), err.isEmpty() ? QString("HTTP %1").arg(httpCode) : err);
             return;
         }
-        QJsonDocument doc = QJsonDocument::fromJson(body);
-        QJsonObject obj = doc.object();
-        QJsonArray data = obj.value("data").toArray();
+        QJsonArray data;
+        QString perr;
+        if (!parsePcoDataArray(body, data, perr)) {
+            callback(false, QJsonArray(), perr);
+            return;
+        }
         callback(true, data, QString());
     });
 }
@@ -135,9 +157,12 @@ void PlanningCenterClient::fetchServicePlans(const QString& appId, const QString
             callback(false, QJsonArray(), err.isEmpty() ? QString("HTTP %1").arg(httpCode) : err);
             return;
         }
-        QJsonDocument doc = QJsonDocument::fromJson(body);
-        QJsonObject obj = doc.object();
-        QJsonArray data = obj.value("data").toArray();
+        QJsonArray data;
+        QString perr;
+        if (!parsePcoDataArray(body, data, perr)) {
+            callback(false, QJsonArray(), perr);
+            return;
+        }
         callback(true, data, QString());
     });
 }
@@ -262,9 +287,12 @@ void PlanningCenterClient::fetchGivingFunds(const QString& appId, const QString&
             callback(false, QJsonArray(), err.isEmpty() ? QString("HTTP %1").arg(httpCode) : err);
             return;
         }
-        QJsonDocument doc = QJsonDocument::fromJson(body);
-        QJsonObject obj = doc.object();
-        QJsonArray data = obj.value("data").toArray();
+        QJsonArray data;
+        QString perr;
+        if (!parsePcoDataArray(body, data, perr)) {
+            callback(false, QJsonArray(), perr);
+            return;
+        }
         callback(true, data, QString());
     });
 }
@@ -288,7 +316,12 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
                 return;
             }
 
-            QJsonDocument doc = QJsonDocument::fromJson(body);
+            QJsonParseError dperr;
+            QJsonDocument doc = QJsonDocument::fromJson(body, &dperr);
+            if (dperr.error != QJsonParseError::NoError || !doc.isObject()) {
+                callback(false, QJsonArray(), QString("Invalid server response: %1").arg(dperr.errorString()));
+                return;
+            }
             QJsonObject obj = doc.object();
             QJsonArray data = obj.value("data").toArray();
 
@@ -319,8 +352,23 @@ PcoImportSummary PlanningCenterClient::importServicesData(const QJsonArray& plan
         QString name = attrs.value("name").toString().trimmed();
         if (name.isEmpty()) continue;
 
+        // Preserve existing run_sheet/volunteers: INSERT new date, else update
+        // title/leader only (REPLACE would delete the row and orphan tasks).
+        QSqlQuery chk(db);
+        chk.prepare("SELECT id FROM services WHERE date = ?");
+        chk.addBindValue(QDate::currentDate().toString("yyyy-MM-dd"));
+        if (chk.exec() && chk.next()) {
+            QSqlQuery upd(db);
+            upd.prepare("UPDATE services SET title = ?, leader = ? WHERE date = ?");
+            upd.bindValue(0, name);
+            upd.bindValue(1, "Planning Center Sync");
+            upd.bindValue(2, QDate::currentDate().toString("yyyy-MM-dd"));
+            if (upd.exec()) summary.servicesCount++;
+            else summary.errors.append(QString("Service error (%1): %2").arg(name, upd.lastError().text()));
+            continue;
+        }
         QSqlQuery ins(db);
-        ins.prepare("INSERT OR REPLACE INTO services (date, title, leader) VALUES (:date, :title, :leader)");
+        ins.prepare("INSERT INTO services (date, title, leader) VALUES (:date, :title, :leader)");
         ins.bindValue(":date", QDate::currentDate().toString("yyyy-MM-dd"));
         ins.bindValue(":title", name);
         ins.bindValue(":leader", "Planning Center Sync");
@@ -442,7 +490,7 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         int amountCents = attrs.value("amount_cents").toInt(0);
         if (amountCents <= 0) {
             double amountDollars = attrs.value("amount").toDouble(0.0);
-            amountCents = static_cast<int>(amountDollars * 100.0);
+            amountCents = qRound(amountDollars * 100.0);
         }
         if (amountCents <= 0) {
             summary.donationsSkipped++;

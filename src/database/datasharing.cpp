@@ -17,6 +17,8 @@ namespace {
 // All user tables in FK-safe (parent-first) import order.
 // NOTE: "users" is intentionally excluded — logins and PINs are per-machine
 // and must never cross machines in a shared JSON archive.
+// NOTE: "audit_log" is intentionally excluded — it is non-repudiation evidence
+// local to each machine; syncing it would overwrite forensic history.
 QStringList allTables() {
     return {
         "households", "groups", "people", "accounts", "funds", "giving_batches",
@@ -24,8 +26,17 @@ QStringList allTables() {
         "member_skills", "attendance", "member_history", "care_logs",
         "pastoral_activities", "service_volunteers", "account_budgets", "assets",
         "checkout_logs", "vault_documents", "board_motions", "ministry_tasks",
-        "facility_reservations", "graph_layout", "audit_log"
+        "facility_reservations", "graph_layout"
     };
+}
+
+bool isValidIdentifier(const QString& s) {
+    if (s.isEmpty() || s.size() > 64) return false;
+    for (const QChar& c : s) {
+        if (!(c.isLetterOrNumber() || c == '_')) return false;
+    }
+    // Must not start with a digit (SQLite identifier rule of thumb).
+    return !s.at(0).isDigit();
 }
 
 } // namespace
@@ -73,9 +84,16 @@ QJsonObject exportTables(const QSqlDatabase& db, const QStringList& tables) {
     doc["version"] = 1;
     doc["exportedAt"] = QDateTime::currentDateTime().toString(Qt::ISODate);
 
+    const QStringList knownTables = allTables();
+    const QSet<QString> allowed(knownTables.begin(), knownTables.end());
     QJsonObject tablesObj;
     for (const QString& table : tables) {
+        if (!isValidIdentifier(table) || !allowed.contains(table)) {
+            qWarning() << "[DataSharing] export skipped unknown table" << table;
+            continue;
+        }
         QSqlQuery q(db);
+        // Table name is allow-listed above, so interpolation is safe.
         if (!q.exec(QString("SELECT * FROM %1").arg(table))) {
             qWarning() << "[DataSharing] export failed for" << table << q.lastError().text();
             continue;
@@ -131,18 +149,42 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
     }
 
     bool success = true;
-    for (const QString& table : tablesObj.keys()) {
+    // Import in canonical parent-first order (not JSON key order) so the
+    // intent is stable even with FKs deferred. Skip unknown/blocked tables.
+    const QStringList canonical = allTables();
+    const QSet<QString> allowed(canonical.begin(), canonical.end());
+    for (const QString& table : canonical) {
+        if (!tablesObj.contains(table)) continue;
         const QJsonArray rows = tablesObj.value(table).toArray();
         if (rows.isEmpty()) continue;
 
         // Derive the column set from the first row (preserves NULL-vs-missing).
         const QJsonObject first = rows.first().toObject();
-        const QStringList columns = first.keys();
+        QStringList columns = first.keys();
+        // Validate identifiers and intersect with the live schema so crafted
+        // archives cannot inject SQL or unknown columns.
+        {
+            QSqlQuery pragma(db);
+            pragma.exec(QString("PRAGMA table_info(%1)").arg(table));
+            QSet<QString> liveCols;
+            while (pragma.next()) liveCols.insert(pragma.value(1).toString());
+            QStringList kept;
+            for (const QString& c : columns) {
+                if (isValidIdentifier(c) && liveCols.contains(c)) kept << c;
+                else qWarning() << "[DataSharing] import skipped column" << c << "in" << table;
+            }
+            columns = kept;
+        }
+        if (columns.isEmpty()) {
+            qWarning() << "[DataSharing] import skipped" << table << ": no valid columns";
+            continue;
+        }
 
         QStringList placeholders;
         for (int i = 0; i < columns.size(); ++i) placeholders << "?";
 
         QSqlQuery ins(db);
+        // Table/columns are allow-listed + schema-checked above.
         ins.prepare(QString("INSERT OR REPLACE INTO %1 (%2) VALUES (%3)")
                         .arg(table, columns.join(", "), placeholders.join(", ")));
 
@@ -153,7 +195,15 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
                 if (val.isNull()) {
                     ins.addBindValue(QVariant(QMetaType(QMetaType::QString))); // SQL NULL
                 } else if (val.isDouble()) {
-                    ins.addBindValue(val.toDouble());
+                    // Preserve INTEGER columns (ids, cents) without float drift:
+                    // integral doubles bind as 64-bit ints. Church-scale values
+                    // are far below 2^53 so the JSON double round-trip is exact.
+                    const double d = val.toDouble();
+                    const qint64 asInt = static_cast<qint64>(d);
+                    if (static_cast<double>(asInt) == d)
+                        ins.addBindValue(asInt);
+                    else
+                        ins.addBindValue(d);
                 } else if (val.isBool()) {
                     ins.addBindValue(val.toBool());
                 } else if (val.isString()) {
@@ -169,6 +219,21 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
             }
         }
         if (!success) break;
+    }
+    // Warn about ignored tables (e.g. legacy audit_log/users in old files).
+    for (const QString& table : tablesObj.keys()) {
+        if (!allowed.contains(table))
+            qWarning() << "[DataSharing] import ignored table" << table;
+    }
+
+    if (success) {
+        // SQLite does not retro-check FKs when re-enabled; verify explicitly.
+        QSqlQuery fkCheck(db);
+        if (fkCheck.exec("PRAGMA foreign_key_check;") && fkCheck.next()) {
+            qWarning() << "[DataSharing] import has FK violations; rolling back:"
+                       << fkCheck.value(0).toString() << fkCheck.value(1).toString();
+            success = false;
+        }
     }
 
     if (success) {
