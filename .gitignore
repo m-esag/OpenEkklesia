@@ -18,7 +18,6 @@ compile_commands.json
 linuxdeploy-*.AppImage
 linuxdeploy-plugin-qt
 linuxdeploy-plugin-appimage
-openekklesia.png
 squashfs-root/
 *.kate-swp
 backups/auto_*.db
