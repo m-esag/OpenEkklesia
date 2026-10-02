@@ -1,4 +1,5 @@
 #include "planningwidget.h"
+#include "../../common/tableutil.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -366,6 +367,7 @@ void PlanningWidget::setupEventsTab(QTabWidget* tabs) {
     m_eventsTable->setHorizontalHeaderLabels({"Date & Time", "Event Title", "Type", "Host Ministry", "Coordinator", "Facility / Room", "Attendance", "Budget", "Status"});
     m_eventsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_eventsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    TableUtil::applyStandardTableSetup(m_eventsTable, false); // respects the auto-size preference; overrides Interactive/Stretch above
     m_eventsTable->setAlternatingRowColors(true);
     m_eventsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_eventsTable->setSelectionMode(QAbstractItemView::SingleSelection);

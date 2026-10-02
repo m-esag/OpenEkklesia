@@ -818,15 +818,33 @@ GraphWidget::~GraphWidget() {
 
 void GraphWidget::styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor) {
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
-    const QString textOnActive = (activeColor.lightness() > 140) ? "#11111b" : "#ffffff";
     if (active) {
+        const QString textOnActive = ThemeManager::textOn(activeColor).name();
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(activeColor.name(), textOnActive));
+        // The icon was painted in the accent color at creation; on an accent
+        // fill it would vanish. Repaint it in the on-accent color.
+        const QIcon cur = btn->icon();
+        if (cur.isNull()) return;
+        // Re-render from the icon's last known name is not possible, so the
+        // caller-supplied accent below is stored per-button via a property
+        // set at creation; fall back to textOn for safety.
+        const QVariant iconName = btn->property("iconName");
+        if (iconName.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         ThemeManager::textOn(activeColor), 14));
+        }
     } else {
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(tok.bgSurface.name(), tok.textSecondary.name(), tok.borderColor.name()));
+        const QVariant iconName = btn->property("iconName");
+        const QVariant iconColor = btn->property("iconColor");
+        if (iconName.isValid() && iconColor.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         QColor(iconColor.toString()), 14));
+        }
     }
 }
 
@@ -892,18 +910,28 @@ void GraphWidget::setupUI() {
 
     m_btnTogglePeople = createToggleBtn("People", true);
     m_btnTogglePeople->setIcon(IconManager::instance().getIcon("user", tok.accentPrimary, 14));
+    m_btnTogglePeople->setProperty("iconName", "user");
+    m_btnTogglePeople->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnTogglePeople, true, tok.accentPrimary);
     m_btnToggleHouseholds = createToggleBtn("Households", true);
     m_btnToggleHouseholds->setIcon(IconManager::instance().getIcon("users", tok.accentPrimary, 14));
+    m_btnToggleHouseholds->setProperty("iconName", "users");
+    m_btnToggleHouseholds->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnToggleHouseholds, true, tok.accentPrimary);
     m_btnToggleGroups = createToggleBtn("Groups", true);
     m_btnToggleGroups->setIcon(IconManager::instance().getIcon("layers", tok.accentPrimary, 14));
+    m_btnToggleGroups->setProperty("iconName", "layers");
+    m_btnToggleGroups->setProperty("iconColor", tok.accentSuccess.name());
     styleFilterButton(m_btnToggleGroups, true, tok.accentPrimary);
     m_btnToggleBurnout = createToggleBtn("Burnout", false);
     m_btnToggleBurnout->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentWarning, 14));
+    m_btnToggleBurnout->setProperty("iconName", "alert-triangle");
+    m_btnToggleBurnout->setProperty("iconColor", tok.accentWarning.name());
     styleFilterButton(m_btnToggleBurnout, false, tok.accentWarning);
     m_btnToggleIsolation = createToggleBtn("Isolated", false);
     m_btnToggleIsolation->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentDanger, 14));
+    m_btnToggleIsolation->setProperty("iconName", "alert-triangle");
+    m_btnToggleIsolation->setProperty("iconColor", tok.accentDanger.name());
     styleFilterButton(m_btnToggleIsolation, false, tok.accentDanger);
     m_btnToggleHygiene = createToggleBtn("Hygiene", false);
     m_btnToggleHygiene->setIcon(IconManager::instance().getIcon("sparkles", tok.accentSuccess, 14));
@@ -2695,11 +2723,12 @@ void GraphWidget::updateIsolationQuery() {
         m_btnIsolatedBanner->setText(QString(" %1 Unconnected Members").arg(count));
         const ThemeTokens t = ThemeManager::instance().currentTokens();
         m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", t.accentDanger, 14));
-        QColor dangerBg = t.accentDanger;
-        dangerBg.setAlpha(40);
+        const QColor onDanger = ThemeManager::textOn(t.accentDanger);
         m_btnIsolatedBanner->setStyleSheet(
-            QString("QPushButton { background-color: %1; color: %2; border: 1px solid %2; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
-                .arg(dangerBg.name(), t.accentDanger.name()));
+            QString("QPushButton { background-color: rgba(%1, %2, %3, 0.4); color: %4; border: 1px solid %5; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
+                .arg(t.accentDanger.red()).arg(t.accentDanger.green()).arg(t.accentDanger.blue())
+                .arg(onDanger.name(), t.accentDanger.name()));
+        m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", onDanger, 14));
     }
 }
 
