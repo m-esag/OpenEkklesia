@@ -32,6 +32,13 @@ public:
     static void logAudit(const QString& tableName, int recordId, const QString& fieldName, const QString& oldValue, const QString& newValue, const QString& changedBy = "system");
     static void logMemberHistory(int personId, const QString& activityType, const QString& details);
 
+    // Monotonic counter bumped whenever data that can affect the Connection
+    // Graph changes (people, groups, households, relationships). The graph
+    // compares it against the value recorded at its last full load to skip
+    // redundant rebuilds. Cheap: one integer increment.
+    static quint64 dataGeneration();
+    static void bumpDataGeneration();
+
     // Ensure all critical columns and indices exist across people, groups, and entity_relationships
     static void ensureSchemaIntegrity(QSqlDatabase db = QSqlDatabase::database());
 
@@ -57,7 +64,7 @@ public:
 
     // Highest schema version known to this build. migrateSchema() will run any
     // migrations between the DB's recorded version and this number, in order.
-    static constexpr int kLatestSchemaVersion = 23;
+    static constexpr int kLatestSchemaVersion = 24;
 
 private:
     DatabaseManager() = default;

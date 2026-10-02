@@ -2774,12 +2774,12 @@ bool test_contextualGroupDelegationSuite() {
 bool test_discipleshipPathwaySuite() {
     QSqlDatabase d = db();
 
-    // 1. Migration 23 verification
+    // 1. Migration verification: the DB must be at the build's latest schema
+    // version (read from the constant so adding migrations never goes stale).
     QSqlQuery qVer(d);
     CHECK(qVer.exec("SELECT MAX(version) FROM schema_version"));
     CHECK(qVer.next());
-    CHECK_EQ(qVer.value(0).toInt(), 23);
-    CHECK_EQ(DatabaseManager::kLatestSchemaVersion, 23);
+    CHECK_EQ(qVer.value(0).toInt(), DatabaseManager::kLatestSchemaVersion);
 
     // Verify columns on people
     QSqlQuery pCols(d);

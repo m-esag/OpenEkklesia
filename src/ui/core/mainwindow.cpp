@@ -809,6 +809,20 @@ void MainWindow::switchPage(int index) {
     if (!m_stackedWidget || index < 0 || index >= m_stackedWidget->count()) return;
     if (m_stackedWidget->currentIndex() == index) return;
 
+    // Pause the graph's force-layout simulation when leaving its page: the
+    // O(n^2) pass keeps running at 30 FPS on an invisible canvas otherwise
+    // (every drag/filter change also resumes it from other pages). Restore
+    // on re-entry unless the user manually froze the layout.
+    const int leavingIndex = m_stackedWidget->currentIndex();
+    if (leavingIndex == 5 && m_graphWidget && m_graphWidget->physicsRunning()) {
+        m_graphWidget->pausePhysics();
+        m_graphPausedByPageLeave = true;
+    }
+    if (index == 5 && m_graphWidget && m_graphPausedByPageLeave) {
+        m_graphWidget->resumePhysics();
+        m_graphPausedByPageLeave = false;
+    }
+
     // Switch pages instantly. A QGraphicsOpacityEffect fade used to be applied
     // here, but it renders each page to an offscreen buffer and, on switching
     // (especially between heavy modules like the Connection Graph and the
@@ -992,6 +1006,7 @@ void MainWindow::populatePages() {
         u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant(QMetaType(QMetaType::Int)));
         u.addBindValue(groupId);
         if (u.exec()) {
+            DatabaseManager::bumpDataGeneration();
             refreshGroupsTree();
             refreshGroupDetailPanel(m_selectedGroupId);
             if (m_graphWidget) m_graphWidget->loadGraph();
@@ -1342,7 +1357,7 @@ void MainWindow::populatePages() {
             refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree();
         } else if (chosen == actRemove && !isReadOnly) {
             QSqlQuery del; del.prepare("DELETE FROM entity_relationships WHERE id = ?"); del.addBindValue(relId);
-            if (del.exec()) { refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree(); }
+            if (del.exec()) { DatabaseManager::bumpDataGeneration(); refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree(); }
         }
     });
     m_groupRosterTable->setWordWrap(false);
@@ -2127,7 +2142,7 @@ void MainWindow::onGraphClicked() {
         });
         ensurePageLoaded(5, [this]() { return m_graphWidget; });
     }
-    m_graphWidget->loadGraph();
+    m_graphWidget->loadGraphIfDirty();
     switchPage(5);
     setActiveNav(m_btnGraph);
 }
@@ -2720,6 +2735,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             insRel.addBindValue(contactPersonId);
             insRel.addBindValue(groupId);
             insRel.exec();
+            DatabaseManager::bumpDataGeneration();
         }
     }
 
@@ -2934,6 +2950,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
                     del.prepare("DELETE FROM entity_relationships WHERE id = ?");
                     del.addBindValue(relId);
                     if (del.exec()) {
+                        DatabaseManager::bumpDataGeneration();
                         refreshGroupDetailPanel(m_selectedGroupId);
                         refreshGroupsTree();
                         if (m_graphWidget) m_graphWidget->loadGraph();
@@ -3679,6 +3696,7 @@ void MainWindow::onArchiveGroup() {
     q.addBindValue(target);
     q.addBindValue(m_selectedGroupId);
     if (q.exec()) {
+        DatabaseManager::bumpDataGeneration();
         refreshGroupsTree();
         refreshGroupDetailPanel(m_selectedGroupId);
         if (m_graphWidget) m_graphWidget->loadGraph();
