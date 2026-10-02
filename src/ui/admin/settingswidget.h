@@ -143,6 +143,7 @@ private:
     QComboBox* m_cmbAutoBackupSchedule;
     QSpinBox* m_spnBackupRetention;
     QLabel* m_lblPcoStatusBadge;
+    QLabel* m_lblLastBackup;
     QPushButton* m_btnBackupDb;
     QPushButton* m_btnRestoreDb;
     QPushButton* m_btnCompactDb;
@@ -153,6 +154,15 @@ private:
     // --- Page 9: Danger Zone ---
     QPushButton* m_btnPurgeDemoData;
     QPushButton* m_btnResetAppDefaults;
+
+    // --- Page 9: Access PIN manager (shipped PINs are public knowledge) ---
+    QComboBox* m_cmbPinUser;
+    QLineEdit* m_edtPinCurrent;
+    QLineEdit* m_edtPinNew;
+    QLineEdit* m_edtPinConfirm;
+    QPushButton* m_btnPinUpdate;
+    void refreshPinUsers();
+    void refreshLastBackupLabel();
 };
 
 #endif // SETTINGSWIDGET_H

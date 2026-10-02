@@ -470,7 +470,7 @@ void MainWindow::setupMenuBar() {
 
         QLabel* lblTitle = new QLabel("<h3>OpenEkklesia ChMS</h3>", &dlg);
         QLabel* lblDesc = new QLabel(
-            "<b>Version 1.5.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
+            "<b>Version 0.8.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
             "Features double-entry fund accounting, relational connection graph visualization, "
             "Smart Bridge v2.0 group dynamics synergy engine, service liturgy flow builder, "
             "facilities management, document vault, and nursery kiosk check-in portal.", &dlg);
@@ -744,7 +744,7 @@ void MainWindow::setupUI() {
     bottomDock->addWidget(btnManual);
     sidebarLayout->addLayout(bottomDock);
 
-    QLabel* footerLabel = new QLabel("v1.5.0 (ChMS Suite)", this);
+    QLabel* footerLabel = new QLabel("v0.8.0", this);
     footerLabel->setObjectName("footerLabel");
     sidebarLayout->addWidget(footerLabel);
 
