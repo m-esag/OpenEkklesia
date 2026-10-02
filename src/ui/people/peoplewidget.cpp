@@ -89,22 +89,24 @@ void StatusItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
         painter->fillRect(option.rect, option.palette.highlight());
     }
 
+    // Colors come from the active theme tokens so the pills stay readable on
+    // both the dark and light palettes (hardcoded Catppuccin accents washed
+    // out on light backgrounds).
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+
     QColor badgeBg;
     QColor badgeText;
 
     if (status == "Member") {
-        badgeBg = QColor(46, 240, 152, 45); // Emerald Green
-        badgeText = QColor("#2ef098");
+        badgeText = tok.accentSuccess;
     } else if (status == "Regular Attender") {
-        badgeBg = QColor(180, 190, 254, 45); // Violet/Lavender
-        badgeText = QColor("#b4befe");
+        badgeText = tok.accentPrimary;
     } else if (status == "Visitor") {
-        badgeBg = QColor(249, 226, 175, 45); // Warm Gold
-        badgeText = QColor("#f9e2af");
+        badgeText = tok.accentWarning;
     } else { // Inactive or Unspecified
-        badgeBg = QColor(108, 112, 134, 45); // Muted Slate
-        badgeText = QColor("#a6adc8");
+        badgeText = tok.textSecondary;
     }
+    badgeBg = QColor(badgeText.red(), badgeText.green(), badgeText.blue(), 45);
 
     QRect badgeRect = option.rect.adjusted(6, 4, -6, -4);
     painter->setBrush(QBrush(badgeBg));
@@ -1814,19 +1816,17 @@ void PeopleWidget::updateHeader(const QString& name, const QString& status, cons
 
     if (m_lblHeaderStatusBadge) {
         m_lblHeaderStatusBadge->setText(status.isEmpty() ? "Member" : status);
-        QString statusColor = "#a6adc8";
-        QString statusBg = "rgba(166, 173, 200, 0.2)";
+        const ThemeTokens tokStatus = ThemeManager::instance().currentTokens();
+        QColor statusC = tokStatus.textSecondary; // Inactive / unspecified default
         if (status == "Member") {
-            statusColor = "#2ef098";
-            statusBg = "rgba(46, 240, 152, 0.2)";
+            statusC = tokStatus.accentSuccess;
         } else if (status == "Regular Attender") {
-            statusColor = "#b4befe";
-            statusBg = "rgba(180, 190, 254, 0.2)";
+            statusC = tokStatus.accentPrimary;
         } else if (status == "Visitor") {
-            statusColor = "#f9e2af";
-            statusBg = "rgba(249, 226, 175, 0.2)";
+            statusC = tokStatus.accentWarning;
         }
-        m_lblHeaderStatusBadge->setStyleSheet(QString("color: %1; background-color: %2; border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;").arg(statusColor, statusBg));
+        m_lblHeaderStatusBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+            .arg(statusC.name()).arg(statusC.red()).arg(statusC.green()).arg(statusC.blue()));
     }
 
     if (m_lblHeaderCareBadge) {
