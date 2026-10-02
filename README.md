@@ -1,6 +1,10 @@
 # ⛪ OpenEkklesia — Modern Church Management System (ChMS)
 
-OpenEkklesia is a modern, high-performance C++26 / Qt6 desktop software application designed for church administration, congregation management, financial accounting, worship service planning, and pastoral care tracking.
+> **Version `0.8.0` — pre-release beta.** Offline-first desktop for 1–2 admins.
+> No encryption, tax/IRS compliance, or WCAG AAA claims — see in-app manual
+> (current-product only) and `NOTES.md` for the roadmap.
+
+OpenEkklesia is a modern, high-performance C++20 / Qt6 desktop software application designed for church administration, congregation management, financial accounting, worship service planning, and pastoral care tracking.
 
 ---
 

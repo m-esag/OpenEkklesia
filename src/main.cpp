@@ -3,12 +3,18 @@
 #include "databasemanager.h"
 #include "mainwindow.h"
 #include "thememanager.h"
+#include "touchhelper.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
+    // Touchscreen + active pen (e.g. Latitude 7320 Detachable / PN7320A):
+    // untracked touch becomes mouse clicks; pen already acts as a mouse.
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents, true);
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
+    TouchHelper::installAppWide();
     app.setApplicationName("OpenEkklesia");
     app.setOrganizationName("OpenEkklesia");
 

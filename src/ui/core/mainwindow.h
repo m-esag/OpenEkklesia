@@ -164,11 +164,18 @@ private:
     QLabel* m_lblGroupDetailMeta;
     QTableWidget* m_groupRosterTable;
     QLabel* m_lblGroupChemistryReport;
+    QLabel* m_lblRosterTitle;
+    QPushButton* m_btnAddRosterMember;
+    QPushButton* m_btnCreateSubTeam;
     int m_selectedGroupId;
 
     QTabWidget* m_groupsTabWidget;
     QWidget* m_tabMinistryBlueprints;
+    QWidget* m_blueprintsGridContainer = nullptr;
+    QCheckBox* m_chkShowArchivedBlueprints = nullptr;
     void setupMinistryBlueprintsTab(QWidget* container);
+    void refreshMinistryBlueprintsTab();
+    void showBlueprintDialog(int blueprintId = 0);
 
     void refreshGroupsTree();
     void refreshGroupDetailPanel(int groupId);

@@ -475,8 +475,8 @@ PastoralAnalyticsWidget::AnalyticsSnapshot PastoralAnalyticsWidget::computeSnaps
     qLapsed.prepare(QString(
         "SELECT COUNT(*) FROM people "
         "WHERE membership_status IN ('Member', 'Regular Attender') "
-        "  AND id IN (SELECT DISTINCT person_id FROM contributions) "
-        "  AND id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-%1 days'))")
+        "  AND EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
+        "  AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', '-%1 days'))")
         .arg(inactivityDays));
     if (qLapsed.exec() && qLapsed.next()) s.lapsedGivers = qLapsed.value(0).toInt();
 

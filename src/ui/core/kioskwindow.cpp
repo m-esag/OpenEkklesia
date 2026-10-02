@@ -1,6 +1,7 @@
 #include "kioskwindow.h"
 #include "../database/databasemanager.h"
 #include "thememanager.h"
+#include "touchhelper.h"
 #include "iconmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,7 +20,14 @@ KioskWindow::KioskWindow(QWidget* parent)
     : QDialog(parent), m_isAdminUnlocked(false)
 {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    // Detachable touchscreen + active pen: accept touch so taps never depend
+    // on synthesis timing; buttons already meet finger-target sizes.
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
     setupUI();
+    if (TouchHelper::touchModeEnabled() && m_entryEdit) {
+        // Finger-sized entry on a 13" detachable held at arm's length.
+        m_entryEdit->setMinimumHeight(64);
+    }
 
     // Idle lockout from Settings (default 45 s): return to the check-in state
     // after inactivity, so a public kiosk never lingers on someone's screen.
@@ -143,30 +151,74 @@ void KioskWindow::onNumberClicked() {
     if (btn) {
         m_entryEdit->insert(btn->text());
     }
+    restartIdleTimer();
 }
 
 void KioskWindow::onBackspaceClicked() {
     m_entryEdit->backspace();
+    restartIdleTimer();
 }
 
 void KioskWindow::onClearClicked() {
     m_entryEdit->clear();
+    restartIdleTimer();
 }
 
 void KioskWindow::onCheckinClicked() {
+    restartIdleTimer();
     QString val = m_entryEdit->text().trimmed();
     if (val.isEmpty()) return;
 
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery query(db);
-    query.prepare("SELECT id, first_name || ' ' || last_name FROM people WHERE barcode = ? OR phone_number = ?");
+    // Prefer exact barcode match; fall back to phone. Collect all matches so
+    // shared family phones show a choice instead of checking in the wrong person.
+    query.prepare("SELECT id, first_name || ' ' || last_name FROM people WHERE barcode = ?");
     query.addBindValue(val);
-    query.addBindValue(val);
+    QList<QPair<int, QString>> matches;
+    if (query.exec()) {
+        while (query.next()) matches << qMakePair(query.value(0).toInt(), query.value(1).toString());
+    }
+    if (matches.isEmpty()) {
+        QSqlQuery pq(db);
+        pq.prepare("SELECT id, first_name || ' ' || last_name FROM people WHERE phone_number = ?");
+        pq.addBindValue(val);
+        if (pq.exec()) {
+            while (pq.next()) matches << qMakePair(pq.value(0).toInt(), pq.value(1).toString());
+        }
+    }
 
-    if (query.exec() && query.next()) {
-        int personId = query.value(0).toInt();
-        QString name = query.value(1).toString();
+    if (matches.isEmpty()) {
+        flashStatus("Check-in Failed: ID or Phone number not recognized.", false);
+        return;
+    }
+    if (matches.size() > 1) {
+        QStringList names;
+        for (const auto& m : matches) names << QString("%1 (#%2)").arg(m.second).arg(m.first);
+        bool ok = false;
+        QString picked = QInputDialog::getItem(this, "Multiple Matches",
+            "Several people share this number. Who is checking in?", names, 0, false, &ok);
+        if (!ok) return;
+        const int idx = names.indexOf(picked);
+        if (idx >= 0) {
+            QPair<int, QString> keep = matches.at(idx);
+            matches.clear();
+            matches << keep;
+        }
+    }
+    {
+        int personId = matches.first().first;
+        QString name = matches.first().second;
 
+        // Dedupe: ignore a repeat tap for the same person on the same day.
+        QSqlQuery dup(db);
+        dup.prepare("SELECT id FROM attendance WHERE person_id = ? AND date(timestamp,'localtime') = date('now','localtime') LIMIT 1");
+        dup.addBindValue(personId);
+        if (dup.exec() && dup.next()) {
+            flashStatus(QString("%1 is already checked in today.").arg(name), true);
+            m_entryEdit->clear();
+            return;
+        }
         // Record the self-service check-in in the attendance ledger.
         QSqlQuery ins(db);
         ins.prepare("INSERT INTO attendance (service_id, person_id, attended) VALUES (NULL, ?, 1)");
@@ -177,8 +229,6 @@ void KioskWindow::onCheckinClicked() {
 
         flashStatus(QString("Check-in Successful! Welcome, %1!").arg(name), true);
         m_entryEdit->clear();
-    } else {
-        flashStatus("Check-in Failed: ID or Phone number not recognized.", false);
     }
 }
 

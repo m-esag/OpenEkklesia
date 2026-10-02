@@ -184,8 +184,15 @@ void VaultWidget::setupUI() {
                     QFileInfo fi(fullPath);
                     QString savePath = QFileDialog::getSaveFileName(this, "Export Document", fi.fileName(), "All Files (*.*)");
                     if (!savePath.isEmpty()) {
-                        QFile::copy(fullPath, savePath);
-                        QMessageBox::information(this, "Success", "Document copy saved!");
+                        // QFile::copy fails if the destination exists — remove first
+                        // and report the real result instead of false success.
+                        if (QFile::exists(savePath)) QFile::remove(savePath);
+                        if (QFile::copy(fullPath, savePath)) {
+                            QMessageBox::information(this, "Success", "Document copy saved!");
+                        } else {
+                            QMessageBox::warning(this, "Export Failed",
+                                "Could not save a copy (check disk space and permissions).");
+                        }
                     }
                 }
             }
@@ -760,5 +767,11 @@ void VaultWidget::onExportMinutesPDF() {
     printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout::Millimeter);
 
     doc.print(&printer);
+    QFileInfo doneInfo(savePath);
+    if (!doneInfo.exists() || doneInfo.size() == 0) {
+        QMessageBox::warning(this, "Export Failed",
+            "Could not write minutes PDF (check disk space and permissions).");
+        return;
+    }
     QMessageBox::information(this, "PDF Export Complete", QString("Board Minutes PDF successfully exported to:\n%1").arg(savePath));
 }
