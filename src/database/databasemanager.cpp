@@ -18,6 +18,18 @@ DatabaseManager& DatabaseManager::instance() {
     return inst;
 }
 
+namespace {
+quint64 s_dataGeneration = 0;
+}
+
+quint64 DatabaseManager::dataGeneration() {
+    return s_dataGeneration;
+}
+
+void DatabaseManager::bumpDataGeneration() {
+    ++s_dataGeneration;
+}
+
 DatabaseManager::~DatabaseManager() {
     close();
 }
@@ -638,6 +650,11 @@ bool DatabaseManager::createTables() {
         qCritical() << "Failed to create member_history table:" << query.lastError().text();
         return false;
     }
+    // Future-proofing: member_history is queried per person on every profile
+    // selection and grows with every gift/care/contribution entry.
+    query.exec("CREATE INDEX IF NOT EXISTS idx_member_history_person ON member_history(person_id);");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_attendance_person ON attendance(person_id);");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_changed ON audit_log(changed_at);");
 
     // Create care_logs table (pastoral care entries & follow-up flags)
     QString createCareLogs =
@@ -2305,6 +2322,37 @@ bool DatabaseManager::migrateSchema() {
         qInfo() << "Schema migration 23 applied successfully.";
     }
 
+    // --- Schema Migration 24: future-proofing indexes ---
+    // Irrelevant at a few hundred rows; meaningful at multi-year scale:
+    //   member_history(person_id) — queried on every profile selection and
+    //     grows with every gift/care/contribution entry.
+    //   attendance(person_id) — per-person engagement lookups.
+    //   audit_log(changed_at) — audit trail browsed newest-first.
+    if (current < 24) {
+        qInfo() << "Applying schema migration 24: reporting indexes on history/attendance/audit";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 24: failed to start transaction";
+            return false;
+        }
+        QSqlQuery migQ(m_db);
+        if (!migQ.exec("CREATE INDEX IF NOT EXISTS idx_member_history_person ON member_history(person_id);") ||
+            !migQ.exec("CREATE INDEX IF NOT EXISTS idx_attendance_person ON attendance(person_id);") ||
+            !migQ.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_changed ON audit_log(changed_at);")) {
+            qCritical() << "Migration 24: index creation failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 24: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(24)) {
+            return false;
+        }
+        qInfo() << "Schema migration 24 applied successfully.";
+    }
+
     return true;
 }
 
@@ -2536,6 +2584,9 @@ void DatabaseManager::logAudit(const QString& tableName, int recordId, const QSt
     if (!query.exec()) {
         qWarning() << "Failed to write to audit_log:" << query.lastError().text();
     }
+    // Most write paths audit; any that don't are bumped explicitly by the
+    // caller. The graph uses this to detect stale data without reloading.
+    bumpDataGeneration();
 }
 
 void DatabaseManager::logMemberHistory(int personId, const QString& activityType, const QString& details) {
@@ -2548,6 +2599,7 @@ void DatabaseManager::logMemberHistory(int personId, const QString& activityType
     if (!query.exec()) {
         qWarning() << "Failed to write to member_history:" << query.lastError().text();
     }
+    bumpDataGeneration();
 }
 
 bool DatabaseManager::purgeDemoData() {

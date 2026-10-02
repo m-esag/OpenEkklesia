@@ -148,6 +148,7 @@ private:
     QString m_barcodeBuffer;
     QDateTime m_lastKeyPressTime;
     bool m_isDarkMode;
+    bool m_graphPausedByPageLeave = false; // physics auto-paused when leaving the graph page
     QString m_userRole;
     QString m_username;
 

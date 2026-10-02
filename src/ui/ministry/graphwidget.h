@@ -6,6 +6,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QPointF>
 #include <QVector>
 #include <QPushButton>
@@ -246,8 +247,14 @@ public:
     ~GraphWidget();
 
     void loadGraph();
+    // Reloads only when underlying data changed since the last full load
+    // (DatabaseManager::dataGeneration) or the last load is older than the
+    // staleness fallback. Makes graph-page re-entry instant; the fallback
+    // bounds staleness for writes that never bump the generation.
+    void loadGraphIfDirty();
     void pausePhysics();
     void resumePhysics();
+    bool physicsRunning() const;
     void setRepulsionStrength(double val);
     void applyTreeHierarchyLayout();
 
@@ -542,6 +549,8 @@ private:
     double m_damping;
     double m_gravity;
     bool m_physicsRunning;
+    quint64 m_loadedGeneration = 0;      // DatabaseManager::dataGeneration() at last full load
+    QElapsedTimer m_sinceLoad;           // staleness fallback for unlogged writes
 
     int m_burnoutThreshold = 3;
     int m_familyDominancePercent = 40;

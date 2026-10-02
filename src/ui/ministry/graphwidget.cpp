@@ -581,7 +581,11 @@ GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
 {
     setRenderHint(QPainter::Antialiasing);
     setDragMode(QGraphicsView::ScrollHandDrag);
-    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    // Minimal: only dirty regions repaint. FullViewportUpdate repainted the
+    // entire 170+-node canvas on every 33 ms physics tick — the single
+    // largest graphics cost while the graph is open. Item-level updateRects
+    // from the force layout give Qt exactly what moved.
+    setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     // Keep zoom centered under the cursor and stable on resize.
@@ -2658,7 +2662,23 @@ void GraphWidget::loadGraph() {
     onFilterToggled();
     refreshHierarchyTree();
     updateDetailsPanelForEmpty();
+    m_loadedGeneration = DatabaseManager::dataGeneration();
+    m_sinceLoad.restart();
     resumePhysics(); // fresh graph starts moving until it settles (auto-freeze)
+}
+
+void GraphWidget::loadGraphIfDirty() {
+    const quint64 gen = DatabaseManager::dataGeneration();
+    const bool clean = !m_nodes.isEmpty()
+                       && m_loadedGeneration == gen
+                       && m_sinceLoad.isValid()
+                       && m_sinceLoad.elapsed() < 5 * 60 * 1000; // staleness fallback
+    if (clean) return;
+    loadGraph();
+}
+
+bool GraphWidget::physicsRunning() const {
+    return m_physicsRunning && m_timer && m_timer->isActive();
 }
 
 void GraphWidget::updateIsolationQuery() {
