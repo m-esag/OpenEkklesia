@@ -41,7 +41,7 @@ linuxdeploy.AppImage --appdir dist/OpenEkklesia.AppDir \
   --executable build/OpenEkklesia --plugin qt
 
 # Desktop entry + icon (required by AppImage packaging)
-cp openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
+cp assets/openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
 cat > dist/OpenEkklesia.AppDir/OpenEkklesia.desktop <<'DESKTOP'
 [Desktop Entry]
 Type=Application
@@ -75,5 +75,7 @@ if [ ! -f dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqoffscreen.so ]; the
 fi
 
 # 4. Package into a single-file AppImage
-appimagetool.AppImage dist/OpenEkklesia.AppDir dist/OpenEkklesia-${ARCH}.AppImage
+APPDIR_ABS="$PWD/dist/OpenEkklesia.AppDir"
+OUT_ABS="$PWD/dist/OpenEkklesia-${ARCH}.AppImage"
+appimagetool.AppImage "$APPDIR_ABS" "$OUT_ABS"
 echo "✅ Built: dist/OpenEkklesia-${ARCH}.AppImage"

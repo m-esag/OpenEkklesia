@@ -2392,183 +2392,44 @@ void DatabaseManager::seedServiceLibrary() {
 }
 
 void DatabaseManager::seedInitialData() {
+    // Structure-only scaffold for shipped/first-run installs.
+    //
+    // A church opening the app for the first time gets a working skeleton —
+    // login users, the default giving funds, and a starter chart of accounts
+    // — but NO demo content (no fake people, households, relationships,
+    // giving records, assets, or vault documents). Everything else is theirs
+    // to populate. The 11 canonical ministry blueprints are ensured
+    // separately by ensureBlueprintHeadings() on every start.
+    //
+    // Demo data was removed deliberately: shipping congregations a database
+    // pre-filled with a fake family risks real records being mixed with
+    // demo rows. Historical demo content remains available in git history
+    // and via restore of an old backup.
     QSqlQuery query;
 
-    // Insert sample households
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (1, 'The Doe Family', '123 Grace Lane', 'Metropolis', '12345')");
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (2, 'The Smith Family', '456 Faith Way', 'Metropolis', '12345')");
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (3, 'The Johnson Family', '789 Hope Blvd', 'Metropolis', '12345')");
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (4, 'Arthur Single Household', '101 Alone Road', 'Metropolis', '12345')");
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (5, 'The Miller Family', '321 Grace Lane', 'Metropolis', '12345')");
-    query.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (6, 'The Davis Family', '555 Peace Road', 'Metropolis', '12345')");
+    // Seed login users (PIN entry is the app's auth gate)
+    query.exec("INSERT INTO users (username, role, pin) VALUES ('Admin', 'admin', '1234')");
+    query.exec("INSERT INTO users (username, role, pin) VALUES ('Pastor', 'pastor', '5555')");
+    query.exec("INSERT INTO users (username, role, pin) VALUES ('Finance', 'finance', '7777')");
+    query.exec("INSERT INTO users (username, role, pin) VALUES ('Guest', 'readonly', '0000')");
 
-    // Insert sample people linked to households.
-    // membership_status lifecycle: Visitor -> Regular Attender -> Member -> Inactive.
-    // care_flag is reserved for pastoral concerns (At-Risk, Leader, etc.).
-    // Tuple order: id, household_id, first, last, phone, email, dob, avatar,
-    //              barcode, care_flag, admin_notes, membership_status,
-    //              first_visit_date, join_date, gender, is_baptized, baptism_date,
-    //              next_steps_completed, next_steps_date, membership_app_path
-    query.prepare("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, avatar_path, barcode, care_flag, admin_notes, membership_status, first_visit_date, join_date, gender, is_baptized, baptism_date, next_steps_completed, next_steps_date, membership_app_path) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    QList<QList<QVariant>> people = {
-        {1,  1, "John",      "Doe",       "555-0199", "john.doe@example.com",     "1985-05-15", "", "MEMBER-101", "Leader",  "",                                        "Member",          "",           "2010-09-12", "Female", 1, "2005-04-12", 1, "2010-08",     ""},
-        {2,  2, "Jane",      "Smith",     "555-0144", "jane.smith@example.com",   "1990-08-22", "", "MEMBER-102", "",        "Serves in nursery check-in.",             "Member",          "",           "2014-03-30", "Female", 1, "2012",       1, "2014-02-15", ""},
-        {3,  3, "Robert",    "Johnson",   "555-0188", "robert.j@example.com",     "1978-11-03", "", "MEMBER-103", "",        "Water baptized; needs Next Steps.",       "Regular Attender", "2025-06-15", "",           "Female", 1, "June 1998",  0, "",           ""},
-        {4,  1, "Mary",      "Doe",       "555-0198", "mary.doe@example.com",     "1987-06-20", "", "MEMBER-104", "",        "Bible study coordinator.",                "Member",          "",           "2011-01-15", "Female", 1, "2010-06-20", 1, "2010-11-14", ""},
-        {5,  1, "Timmy",     "Doe",       "555-0197", "timmy.doe@example.com",    "2015-10-10", "", "MEMBER-105", "",        "New visitor from community outreach.",    "Visitor",          "2026-08-10", "",           "Female", 0, "",           0, "",           ""},
-        {6,  2, "Alice",     "Smith",     "555-0145", "alice.smith@example.com",  "1992-04-12", "", "MEMBER-106", "",        "Worship singer.",                         "Member",          "",           "2018-11-04", "Female", 1, "2018-05-20", 1, "2018-09-15", ""},
-        {7,  4, "Arthur",    "Pendelton", "555-9999", "arthur.p@example.com",     "1950-01-01", "", "MEMBER-107", "At-Risk", "Needs home visitation support.",          "Inactive",        "",           "1995-05-20", "Female", 1, "1970",       0, "",           ""},
-        {8,  5, "David",     "Miller",    "555-1111", "david.m@example.com",      "1980-03-03", "", "MEMBER-108", "Leader",  "Youth leader volunteer.",                 "Member",          "",           "2012-09-09", "Female", 1, "2011",       1, "2012-08-10", ""},
-        {9,  5, "Sarah",     "Miller",    "555-1112", "sarah.m@example.com",      "1982-04-04", "", "MEMBER-109", "",        "Worship keyboardist.",                    "Member",          "",           "2013-04-14", "Female", 1, "May 2012",   1, "2013-02-20", ""},
-        {10, 5, "Bobby",     "Miller",    "555-1113", "bobby.m@example.com",      "2018-05-05", "", "MEMBER-110", "",        "Finished Next Steps, ready for member!",  "Regular Attender", "2024-03-10", "",           "Female", 1, "2023-08-20", 1, "2024-01-14", ""},
-        {11, 6, "James",     "Davis",     "555-2222", "pastor@example.com",       "1975-02-14", "", "MEMBER-111", "Leader",  "Senior pastor of Ekklesia.",              "Member",          "",           "2000-10-01", "Female", 1, "1995-07-16", 1, "2000-08-20", ""},
-        {12, 6, "Elizabeth", "Davis",     "555-2223", "elizabeth@example.com",    "1977-09-09", "", "MEMBER-112", "",        "Coordinates women fellowship.",           "Member",          "",           "2001-10-01", "Female", 1, "1996",       1, "2001-08-20", ""}
-    };
+    // Seed default giving funds (rename/deactivate via Manage Funds)
+    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (1, 'General Tithe', 1)");
+    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (2, 'Building Fund', 1)");
+    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (3, 'Missions', 1)");
 
-    for (const auto& p : people) {
-        for (int i = 0; i < p.size(); ++i) {
-            query.addBindValue(p[i]);
-        }
-        query.exec();
-    }
-
-    // Insert sample groups
-    query.prepare("INSERT INTO groups (name, description, category) VALUES (?, ?, ?)");
-    QList<QList<QVariant>> groups = {
-        {"Sunday Morning Study", "A weekly Bible study group meeting before services.", "Adults"},
-        {"Youth Group", "Friday night fellowship and worship for teens.", "Youth"},
-        {"Worship Team", "Musicians and singers leading congregation worship.", "Service"}
-    };
-
-    for (const auto& g : groups) {
-        query.addBindValue(g[0]);
-        query.addBindValue(g[1]);
-        query.addBindValue(g[2]);
-        query.exec();
-    }
-
-    // Insert sample accounts
-    // Root level accounts
+    // Seed starter chart of accounts (relevant when the double-entry ledger
+    // module is enabled; GnuCash-first churches can ignore or edit it)
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (1, 'Assets', 'ASSET', NULL)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (2, 'Income', 'INCOME', NULL)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (3, 'Expenses', 'EXPENSE', NULL)");
-
-    // Sub-accounts
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (4, 'Checking Account', 'ASSET', 1)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (5, 'General Fund', 'INCOME', 2)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (6, 'Building Fund', 'INCOME', 2)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (7, 'Missions', 'INCOME', 2)");
     query.exec("INSERT INTO accounts (id, name, type, parent_id) VALUES (8, 'Administration', 'EXPENSE', 3)");
 
-    // Insert transactions and splits
-    // Transaction 1: John Doe donates 150.00 to General Fund
-    query.exec("INSERT INTO transactions (id, date, description) VALUES (1, '2026-07-05', 'Offering - John Doe')");
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 4, 150.00, 1)");  // Debit Assets
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 5, -150.00, 1)"); // Credit Income
-
-    // Transaction 2: Jane Smith donates 200.00 to Building Fund
-    query.exec("INSERT INTO transactions (id, date, description) VALUES (2, '2026-07-06', 'Offering - Jane Smith')");
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 4, 200.00, 2)");  // Debit Assets
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 6, -200.00, 2)"); // Credit Income
-
-    // Transaction 3: John Doe donates 50.00 to Missions
-    query.exec("INSERT INTO transactions (id, date, description) VALUES (3, '2026-07-10', 'Offering - John Doe')");
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 4, 50.00, 1)");   // Debit Assets
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 7, -50.00, 1)");  // Credit Income
-
-    // Transaction 4: Pay electricity bill 120.00
-    query.exec("INSERT INTO transactions (id, date, description) VALUES (4, '2026-07-11', 'Electricity Bill')");
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 8, 120.00, NULL)"); // Debit Expense
-    query.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 4, -120.00, NULL)"); // Credit Assets
-
-    // Seed Funds
-    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (1, 'General Tithe', 1)");
-    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (2, 'Building Fund', 1)");
-    query.exec("INSERT INTO funds (id, fund_name, is_active) VALUES (3, 'Missions', 1)");
-
-    // Seed Contributions (amount in cents: e.g. 15000 = $150.00)
-    query.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 1, 15000, '2026-07-05', 'Cash', NULL)");
-    query.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (2, 2, 20000, '2026-07-06', 'Check', '1004')");
-    query.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 3, 5000, '2026-07-10', 'Cash', NULL)");
-
-    // Seed Entity Relationships
-    // Spouses
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 4, 'Spouse')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 1, 'Spouse')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 9, 'Spouse')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 8, 'Spouse')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Person', 12, 'Spouse')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Person', 11, 'Spouse')");
-
-    // Parents / Children
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 5, 'Parent')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 5, 'Parent')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 10, 'Parent')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 10, 'Parent')");
-
-    // Household relationships
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Household', 1, 'Head of House')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Household', 1, 'Member')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 5, 'Household', 1, 'Member')");
-    
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Household', 2, 'Head of House')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Household', 2, 'Member')");
-    
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Household', 3, 'Head of House')");
-    
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Household', 5, 'Head of House')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Household', 5, 'Member')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 10, 'Household', 5, 'Member')");
-    
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Household', 6, 'Head of House')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Household', 6, 'Member')");
-
-    // Group connections
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Group', 1, 'Leader')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Group', 3, 'Leader')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Group', 3, 'Member')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Group', 1, 'Member')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Group', 2, 'Leader')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Group', 3, 'Member')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Group', 1, 'Leader')");
-    query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Group', 3, 'Member')");
-
-    // Seed Assets
-    query.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Behringer X32 Sound Board', 'X32-998877', '2023-04-10', 'Sanctuary Booth', 'Good', 'ASSET-101')");
-    query.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Epson Pro Projector', 'EPS-554433', '2024-09-12', 'Sanctuary Ceiling', 'Excellent', 'ASSET-102')");
-    query.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Portable PA System', 'PPA-112233', '2025-06-01', 'Youth Storage Room', 'Fair', 'ASSET-103')");
-    query.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Nursery Check-in iPad', 'IPD-008899', '2024-11-20', 'Nursery Entry', 'Good', 'ASSET-104')");
-
-    // Seed Checkout Logs
-    query.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 1, '2026-07-01', '2026-07-03', 'Checked out for Youth beach trip.')");
-    query.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 2, '2026-07-10', NULL, 'Checked out for outdoor worship service.')");
-
-    // Seed Vault Documents
-    query.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('Elder Board Q2 Minutes', '2026-05-10', 'Board Minutes', 'elder_minutes_2026_q2.pdf')");
-    query.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('2026 Annual Budget Plan', '2026-01-15', 'Financial Bylaws', 'annual_budget_2026.pdf')");
-
-    // Seed Users
-    query.exec("INSERT INTO users (username, role, pin) VALUES ('Admin', 'admin', '1234')");
-    query.exec("INSERT INTO users (username, role, pin) VALUES ('Pastor', 'pastor', '5555')");
-    query.exec("INSERT INTO users (username, role, pin) VALUES ('Finance', 'finance', '7777')");
-    query.exec("INSERT INTO users (username, role, pin) VALUES ('Guest', 'readonly', '0000')");
-
-    // Seed Member Skills
-    query.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (1, 'Acoustic Guitar')");
-    query.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (2, 'Nursery Care')");
-    query.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (6, 'Vocalist')");
-    query.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (8, 'Nursery Care')");
-    query.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (11, 'Preaching')");
-
-    // Seed Service Volunteers
-    query.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 1, 'Acoustic Guitar')");
-    query.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 11, 'Preacher')");
-
-    // Seed Budgets (Account 8: Administration has $500.00 = 50000 cents budget for 2026)
-    query.exec("INSERT INTO account_budgets (account_id, budgeted_amount_cents, fiscal_year) VALUES (8, 50000, 2026)");
-
-    qInfo() << "Seeded database with double-entry, contributions, relationship, asset, vault document, user, skill, volunteer, and budget data.";
+    qInfo() << "Seeded database with structure-only scaffold: users, default funds, and starter chart of accounts.";
 }
 
 void DatabaseManager::logAudit(const QString& tableName, int recordId, const QString& fieldName, const QString& oldValue, const QString& newValue, const QString& changedBy) {

@@ -150,20 +150,117 @@ bool test_expectedIndexesExist() {
 }
 
 bool test_seedDataCounts() {
-    CHECK_EQ(countRows("people"), 12);
-    CHECK_EQ(countRows("households"), 6);
-    CHECK_EQ(countRows("groups"), 14); // 11 Canonical Root Ministries + 3 Sample Groups
+    // Structure-only scaffold: first-run installs ship login users, default
+    // funds, and a starter chart of accounts — no demo people/giving/assets.
+    // The 11 canonical ministry blueprints are ensured by
+    // ensureBlueprintHeadings() on every start.
+    CHECK_EQ(countRows("people"), 0);
+    CHECK_EQ(countRows("households"), 0);
+    CHECK_EQ(countRows("groups"), 11); // 11 Canonical Root Ministries, no sample groups
     CHECK_EQ(countRows("accounts"), 8);
     CHECK_EQ(countRows("funds"), 3);
-    CHECK_EQ(countRows("contributions"), 3);
-    CHECK_EQ(countRows("transactions"), 4);
+    CHECK_EQ(countRows("contributions"), 0);
+    CHECK_EQ(countRows("transactions"), 0);
     CHECK_EQ(countRows("users"), 4);
-    CHECK_EQ(countRows("assets"), 4);
-    CHECK_EQ(countRows("vault_documents"), 2);
+    CHECK_EQ(countRows("assets"), 0);
+    CHECK_EQ(countRows("vault_documents"), 0);
     return true;
 }
 
+
+// Reproduces the legacy demo congregation (removed from production seeding
+// when the app moved to a structure-only first-run scaffold). Tests that
+// assert against demo-shaped data call this explicitly. Idempotent: skips
+// when people already exist, so shared-DB test ordering stays safe.
+void seedDemoFixture() {
+    if (countRows("people") > 0) return;
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (1, 'The Doe Family', '123 Grace Lane', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (2, 'The Smith Family', '456 Faith Way', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (3, 'The Johnson Family', '789 Hope Blvd', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (4, 'Arthur Single Household', '101 Alone Road', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (5, 'The Miller Family', '321 Grace Lane', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (6, 'The Davis Family', '555 Peace Road', 'Metropolis', '12345')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (1, 1, 'John', 'Doe', '555-0199', 'john.doe@example.com', '1985-05-15', 'MEMBER-101', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (2, 2, 'Jane', 'Smith', '555-0144', 'jane.smith@example.com', '1990-08-22', 'MEMBER-102', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (3, 3, 'Robert', 'Johnson', '555-0188', 'robert.j@example.com', '1978-11-03', 'MEMBER-103', '', 'Regular Attender')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (4, 1, 'Mary', 'Doe', '555-0198', 'mary.doe@example.com', '1987-06-20', 'MEMBER-104', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (5, 1, 'Timmy', 'Doe', '555-0197', 'timmy.doe@example.com', '2015-10-10', 'MEMBER-105', '', 'Visitor')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (6, 2, 'Alice', 'Smith', '555-0145', 'alice.smith@example.com', '1992-04-12', 'MEMBER-106', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (7, 4, 'Arthur', 'Pendelton', '555-9999', 'arthur.p@example.com', '1950-01-01', 'MEMBER-107', 'At-Risk', 'Inactive')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (8, 5, 'David', 'Miller', '555-1111', 'david.m@example.com', '1980-03-03', 'MEMBER-108', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (9, 5, 'Sarah', 'Miller', '555-1112', 'sarah.m@example.com', '1982-04-04', 'MEMBER-109', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (10, 5, 'Bobby', 'Miller', '555-1113', 'bobby.m@example.com', '2018-05-05', 'MEMBER-110', '', 'Regular Attender')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (11, 6, 'James', 'Davis', '555-2222', 'pastor@example.com', '1975-02-14', 'MEMBER-111', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (12, 6, 'Elizabeth', 'Davis', '555-2223', 'elizabeth@example.com', '1977-09-09', 'MEMBER-112', '', 'Member')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Sunday Morning Study', 'A weekly Bible study group meeting before services.', 'Adults')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Youth Group', 'Friday night fellowship and worship for teens.', 'Youth')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Worship Team', 'Musicians and singers leading congregation worship.', 'Service')");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (1, '2026-07-05', 'Offering - John Doe')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 4, 150.00, 1)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 5, -150.00, 1)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (2, '2026-07-06', 'Offering - Jane Smith')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 4, 200.00, 2)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 6, -200.00, 2)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (3, '2026-07-10', 'Offering - John Doe')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 4, 50.00, 1)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 7, -50.00, 1)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (4, '2026-07-11', 'Electricity Bill')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 8, 120.00, NULL)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 4, -120.00, NULL)");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 1, 15000, '2026-07-05', 'Cash', NULL)");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (2, 2, 20000, '2026-07-06', 'Check', '1004')");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 3, 5000, '2026-07-10', 'Cash', NULL)");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 4, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 1, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 9, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 8, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Person', 12, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Person', 11, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 5, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 5, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 10, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 10, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Household', 1, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Household', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 5, 'Household', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Household', 2, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Household', 2, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Household', 3, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Household', 5, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Household', 5, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 10, 'Household', 5, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Household', 6, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Household', 6, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Group', 1, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Group', 3, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Group', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Group', 2, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Group', 1, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Behringer X32 Sound Board', 'X32-998877', '2023-04-10', 'Sanctuary Booth', 'Good', 'ASSET-101')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Epson Pro Projector', 'EPS-554433', '2024-09-12', 'Sanctuary Ceiling', 'Excellent', 'ASSET-102')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Portable PA System', 'PPA-112233', '2025-06-01', 'Youth Storage Room', 'Fair', 'ASSET-103')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Nursery Check-in iPad', 'IPD-008899', '2024-11-20', 'Nursery Entry', 'Good', 'ASSET-104')");
+    q.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 1, '2026-07-01', '2026-07-03', 'Checked out for Youth beach trip.')");
+    q.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 2, '2026-07-10', NULL, 'Checked out for outdoor worship service.')");
+    q.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('Elder Board Q2 Minutes', '2026-05-10', 'Board Minutes', 'elder_minutes_2026_q2.pdf')");
+    q.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('2026 Annual Budget Plan', '2026-01-15', 'Financial Bylaws', 'annual_budget_2026.pdf')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (1, 'Acoustic Guitar')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (2, 'Nursery Care')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (6, 'Vocalist')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (8, 'Nursery Care')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (11, 'Preaching')");
+    q.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 1, 'Acoustic Guitar')");
+    q.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 11, 'Preacher')");
+    q.exec("INSERT INTO account_budgets (account_id, budgeted_amount_cents, fiscal_year) VALUES (8, 50000, 2026)");
+}
+
 bool test_careTimelineQuery() {
+    seedDemoFixture();
     QSqlDatabase d = db();
 
     QSqlQuery ins(d);
@@ -200,6 +297,7 @@ bool test_careTimelineQuery() {
 }
 
 bool test_connectionsQuery() {
+    seedDemoFixture();
     QSqlQuery q(db());
     q.prepare(
         "SELECT g.name, er.relationship_type FROM entity_relationships er "
@@ -220,6 +318,7 @@ bool test_connectionsQuery() {
 }
 
 bool test_unconnectedFilter() {
+    seedDemoFixture();
     QSqlQuery q(db());
     CHECK(q.exec(
         "SELECT id FROM people WHERE id NOT IN "
@@ -233,6 +332,7 @@ bool test_unconnectedFilter() {
 }
 
 bool test_attendanceCount() {
+    seedDemoFixture();
     CHECK_EQ(countRows("attendance"), 0);
 
     QSqlQuery ins(db());
@@ -301,6 +401,7 @@ bool test_ytdIncomeAndExpensesFilterByYear() {
 }
 
 bool test_splitSharingRoundTrip() {
+    seedDemoFixture();
     QSqlDatabase d = db();
 
     // Scope → table mapping sanity.
@@ -346,6 +447,7 @@ bool test_splitSharingRoundTrip() {
 }
 
 bool test_pastoralQueue() {
+    seedDemoFixture();
     QSqlDatabase d = db();
     QSqlQuery q(d);
 
@@ -385,6 +487,7 @@ bool test_pastoralQueue() {
 }
 
 bool test_restoreFromBackup() {
+    seedDemoFixture();
     const QString dbPath = DatabaseManager::instance().database().databaseName();
     const QString backupPath = dbPath + ".backup_test";
     QFile::remove(backupPath);
@@ -492,6 +595,7 @@ bool test_allThemesContrastAA() {
 }
 
 bool test_personGenderAndHouseholdSave() {
+    seedDemoFixture();
     QSqlQuery q(db());
     // Create new person
     CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status, gender, household_id) VALUES ('Gender', 'Test', 'Member', 'Male', 1)"));
