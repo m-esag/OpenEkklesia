@@ -66,6 +66,16 @@ exec "${HERE}/usr/bin/OpenEkklesia" "$@"
 RUN
 chmod +x dist/OpenEkklesia.AppDir/AppRun
 
+# Bundle libstdc++/libgcc: they CAN ride along safely (unlike glibc), and
+# doing so removes the host toolchain's GLIBCXX baseline as a runtime
+# constraint on older targets. AppRun's LD_LIBRARY_PATH prefers them.
+for _lib in libstdc++.so.6 libgcc_s.so.1; do
+  _src="$(ldconfig -p | awk -v l="$_lib." '$1 ~ l { print $NF; exit }')"
+  if [ -n "$_src" ] && [ -f "$_src" ]; then
+    cp -L "$_src" dist/OpenEkklesia.AppDir/usr/lib/ || true
+  fi
+done
+
 # Include the offscreen platform plugin so the app also runs headless
 # (real desktops use the bundled xcb plugin). -print -quit avoids the
 # `find | head` SIGPIPE race that trips set -euo pipefail.
