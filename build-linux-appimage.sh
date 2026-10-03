@@ -70,9 +70,14 @@ chmod +x dist/OpenEkklesia.AppDir/AppRun
 # doing so removes the host toolchain's GLIBCXX baseline as a runtime
 # constraint on older targets. AppRun's LD_LIBRARY_PATH prefers them.
 for _lib in libstdc++.so.6 libgcc_s.so.1; do
-  _src="$(ldconfig -p | awk -v l="$_lib." '$1 ~ l { print $NF; exit }')"
-  if [ -n "$_src" ] && [ -f "$_src" ]; then
-    cp -L "$_src" dist/OpenEkklesia.AppDir/usr/lib/ || true
+  _src=""
+  for _cand in "/usr/lib64/$_lib" "/usr/lib/x86_64-linux-gnu/$_lib" "/usr/lib/$_lib"; do
+    if [ -e "$_cand" ]; then _src="$_cand"; break; fi
+  done
+  if [ -n "$_src" ]; then
+    cp -L "$_src" dist/OpenEkklesia.AppDir/usr/lib/
+  else
+    echo "WARNING: could not locate $_lib for bundling" >&2
   fi
 done
 
