@@ -27,6 +27,7 @@
 #include "../src/common/churchprofile.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
+#include "../src/ui/admin/settingswidget.h"
 #include "../src/ui/ministry/ministrymatch.h"
 #include "../src/ui/ministry/ministryarchetypes.h"
 #include "../src/ui/ministry/synergyengine.h"
@@ -167,6 +168,13 @@ bool test_seedDataCounts() {
     return true;
 }
 
+
+// Regression: SettingsWidget must construct (it crashed with a null
+// checkbox when the auto-column-size option was introduced).
+bool test_settingsWidgetConstructs() {
+    SettingsWidget sw;
+    return true;
+}
 
 // Reproduces the legacy demo congregation (removed from production seeding
 // when the app moved to a structure-only first-run scaffold). Tests that
@@ -3318,6 +3326,7 @@ int main(int argc, char** argv) {
         {"attendance_count", test_attendanceCount},
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
+        {"settings_widget_constructs", test_settingsWidgetConstructs},
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},

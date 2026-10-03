@@ -266,6 +266,7 @@ void SettingsWidget::setupUI() {
     m_cmbThemeModeFilter = new QComboBox(pageTheme);
     m_cmbThemeModeFilter->addItems({"All Themes", "Dark Themes", "Light Themes"});
     m_chkSyncSystemTheme = new QCheckBox("Follow OS system theme (auto dark/light)", pageTheme);
+    m_chkAutoCollapseSidebar = new QCheckBox("Auto-collapse sidebar on small screens", pageTheme);
     m_chkAutoColumnSize = new QCheckBox("Auto-fit table columns to window width", pageTheme);
     m_chkAutoColumnSize->setToolTip("When on, tables stretch columns to fill the available width. When off, columns size to their content and can be resized by hand. Applies after reopening a module.");
     m_chkAutoCollapseSidebar->setChecked(true);
