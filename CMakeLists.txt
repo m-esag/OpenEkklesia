@@ -130,6 +130,7 @@ target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
 )
 
 target_link_libraries(OpenEkklesia PRIVATE
@@ -180,6 +181,14 @@ add_executable(openekklesia_tests
     src/ui/ministry/facilitieswidget.h
     src/ui/people/peoplewidget.cpp
     src/ui/people/peoplewidget.h
+    src/ui/admin/settingswidget.cpp
+    src/ui/admin/settingswidget.h
+    src/ui/admin/vaultwidget.cpp
+    src/ui/admin/vaultwidget.h
+    src/integrations/planningcenterclient.cpp
+    src/integrations/planningcenterclient.h
+    src/integrations/planningcenterdialog.cpp
+    src/integrations/planningcenterdialog.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE
@@ -229,3 +238,5 @@ target_link_libraries(openekklesia_benchmarks PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
+
+# Temporary crash-hunt driver (ASan diagnosis) — remove after investigation
