@@ -3852,6 +3852,12 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
     scroll->setFrameShape(QFrame::NoFrame);
 
     m_blueprintsGridContainer = new QWidget(scroll);
+    // Without this, the grid's content minimum (two ~900px blueprint cards)
+    // propagates through the scroll area into the QTabWidget — which sizes
+    // for ALL tabs, including this hidden one — forcing the whole window
+    // wider whenever the Groups & Ministries page activates. Ignored lets
+    // the scroll area do its job instead.
+    m_blueprintsGridContainer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     scroll->setWidget(m_blueprintsGridContainer);
     rootLay->addWidget(scroll, 1);
 
