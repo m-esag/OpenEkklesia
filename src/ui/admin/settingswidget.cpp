@@ -4,6 +4,8 @@
 #include "../integrations/planningcenterdialog.h"
 #include "../database/databasemanager.h"
 #include "../database/datasharing.h"
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>

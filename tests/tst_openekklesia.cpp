@@ -25,6 +25,7 @@
 #include "../src/database/datasharing.h"
 #include "../src/common/appdateformatter.h"
 #include "../src/common/churchprofile.h"
+#include "../src/common/givingstatementgenerator.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/admin/settingswidget.h"
@@ -2270,6 +2271,26 @@ bool test_graphViewOptionsAndDockToggle() {
     // 4. Test Inspector Dock Collapse & Expand Toggle
     gw.toggleInspectorDock();
     gw.toggleInspectorDock();
+
+    // 5. Test Canvas Viewport Update Mode (FullViewportUpdate prevents trail/ghosting artifacts)
+    auto* canvasView = gw.findChild<GraphCanvasView*>();
+    CHECK(canvasView);
+    if (canvasView) {
+        CHECK_EQ(canvasView->viewportUpdateMode(), QGraphicsView::FullViewportUpdate);
+    }
+
+    // 6. Test EdgeItem geometry adjust
+    NodeItem sNode(8881, "EdgeTestSrc", NodeItem::Person);
+    NodeItem tNode(8882, "EdgeTestTgt", NodeItem::Person);
+    sNode.setPos(0, 0);
+    tNode.setPos(100, 100);
+    EdgeItem testEdge(&sNode, &tNode, "Friend");
+    QRectF b1 = testEdge.boundingRect();
+    CHECK(b1.contains(QPointF(50, 50)));
+    sNode.setPos(200, 200);
+    testEdge.adjust();
+    QRectF b2 = testEdge.boundingRect();
+    CHECK(b2.contains(QPointF(150, 150)));
     
     return true;
 }
@@ -2493,9 +2514,10 @@ bool test_graphCollisionResolution() {
     CHECK(n1 && n2);
     if (!n1 || !n2) return true;
 
-    // Stack both at the same spot, then resolve.
-    n1->setPos(0, 0);
-    n2->setPos(0, 0);
+    gw.pausePhysics();
+    // Stack both at an isolated spot away from other scene nodes, then resolve.
+    n1->setPos(1200, 1200);
+    n2->setPos(1200, 1200);
     gw.resolveNodeOverlaps();
     const QPointF delta = n2->pos() - n1->pos();
     const double dist = std::hypot(delta.x(), delta.y());
@@ -3292,6 +3314,57 @@ bool test_groupMemberAndLeaderRosterSyncSuite() {
     return true;
 }
 
+bool test_givingStatementGenerator() {
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+
+    // 1. Seed household, Bobby and Sally Smith, and spouse relationship
+    CHECK(q.exec("INSERT OR IGNORE INTO households (id, family_name, address_line1, city, zip_code) "
+                 "VALUES (9601, 'The Smith Family', '777 Blessing Way', 'Faithville', '54321')"));
+    CHECK(q.exec("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, membership_status) "
+                 "VALUES (9601, 9601, 'Bobby', 'Smith', 'Member')"));
+    CHECK(q.exec("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, membership_status) "
+                 "VALUES (9602, 9601, 'Sally', 'Smith', 'Member')"));
+
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9601, 'Person', 9602, 'Spouse')"));
+
+    // 2. Seed contributions for Bobby ($150 to General) and Sally ($50 to Missions) in 2026
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9601, 1, 15000, '2026-03-15', 'Check', 'Sunday Tithe')"));
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9602, 2, 5000, '2026-04-20', 'Online', 'Easter Offering')"));
+    // Contribution in a different year (2025)
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9601, 1, 20000, '2025-12-31', 'Check', 'Year End')"));
+
+    // 3. Test Single Donor Statement for Bobby (2026)
+    QString singleHtml = GivingStatementGenerator::generateHtmlStatement(9601, 2026, /*includeSpouseJoint=*/false);
+    CHECK(!singleHtml.isEmpty());
+    CHECK(singleHtml.contains("Bobby Smith"));
+    CHECK(!singleHtml.contains("Sally"));
+    CHECK(singleHtml.contains("Tax Year 2026"));
+    CHECK(singleHtml.contains("Sunday Tithe"));
+    CHECK(!singleHtml.contains("Easter Offering")); // Belongs to Sally
+    CHECK(singleHtml.contains("150.00"));
+    CHECK(!singleHtml.contains("501(c)(3) Compliant")); // Honest product guidelines
+    CHECK(singleHtml.contains("Donor Contribution Statement"));
+
+    // 4. Test Joint Statement for Bobby + Sally (2026)
+    QString jointHtml = GivingStatementGenerator::generateHtmlStatement(9601, 2026, /*includeSpouseJoint=*/true);
+    CHECK(!jointHtml.isEmpty());
+    CHECK(jointHtml.contains("Bobby & Sally Smith"));
+    CHECK(jointHtml.contains("Joint Household"));
+    CHECK(jointHtml.contains("Tax Year 2026"));
+    CHECK(jointHtml.contains("Sunday Tithe"));
+    CHECK(jointHtml.contains("Easter Offering"));
+    CHECK(jointHtml.contains("200.00")); // Combined $150 + $50
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3376,6 +3449,7 @@ int main(int argc, char** argv) {
         {"blueprint_group_hierarchy_suite", test_blueprintGroupHierarchySuite},
         {"dynamic_blueprint_headings_suite", test_dynamicBlueprintHeadingsSuite},
         {"group_member_and_leader_roster_sync_suite", test_groupMemberAndLeaderRosterSyncSuite},
+        {"giving_statement_generator", test_givingStatementGenerator},
     };
 
     for (const Test& t : tests) {

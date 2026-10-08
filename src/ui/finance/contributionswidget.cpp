@@ -1,6 +1,7 @@
 #include "contributionswidget.h"
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
+#include "../common/givingstatementgenerator.h"
 #include "thememanager.h"
 #include "../core/iconmanager.h"
 #include <QHBoxLayout>
@@ -1189,8 +1190,31 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
         actDelete->setToolTip(roTooltip);
     }
 
+    QSqlDatabase db = DatabaseManager::instance().database();
+    int personId = 0;
+    {
+        QSqlQuery pq(db);
+        pq.prepare("SELECT person_id FROM contributions WHERE id = ?");
+        pq.addBindValue(contributionId);
+        if (pq.exec() && pq.next()) {
+            personId = pq.value(0).toInt();
+        }
+    }
+
+    QAction* actStatement = nullptr;
+    if (personId > 0) {
+        menu.addSeparator();
+        actStatement = menu.addAction(IconManager::instance().getIcon("file-text", QColor(), 14),
+                                      QString("Generate Donor Statement for %1...").arg(name));
+    }
+
     QAction* selected = menu.exec(m_historyTable->viewport()->mapToGlobal(pos));
     if (!selected) return;
+
+    if (actStatement && selected == actStatement) {
+        GivingStatementGenerator::exportPdfWithDialog(this, personId, name);
+        return;
+    }
 
     if (selected == actCopy) {
         QString summary = QString("Donor: %1 | Date: %2 | Fund: %3 | Amount: %4").arg(name, dateStr, fundName, amountStr);
@@ -1198,7 +1222,6 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
         return;
     }
 
-    QSqlDatabase db = DatabaseManager::instance().database();
 
     if (selected == actMoveFund) {
         QDialog dlg(this);
