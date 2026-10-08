@@ -344,14 +344,22 @@ void NodeItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void NodeItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     QGraphicsItem::mouseMoveEvent(event);
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
 }
 
 void NodeItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     isBeingDragged = false;
     QGraphicsItem::mouseReleaseEvent(event);
 
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
+
     if ((event->screenPos() - m_dragStartPos).manhattanLength() < 5) {
-        GraphWidget* gw = findParentGraphWidget(this);
         if (gw) gw->handleNodeClick(this);
     }
 }
@@ -403,6 +411,11 @@ QRectF EdgeItem::boundingRect() const {
     QPointF p1 = m_source->pos();
     QPointF p2 = m_target->pos();
     return QRectF(p1, p2).normalized().adjusted(-15, -15, 15, 15);
+}
+
+void EdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 QPainterPath EdgeItem::shape() const {
@@ -504,8 +517,21 @@ GhostEdgeItem::GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& 
 }
 
 QRectF GhostEdgeItem::boundingRect() const {
-    if (!m_source || !m_target) return QRectF();
-    return QRectF(m_source->pos(), m_target->pos()).normalized().adjusted(-30, -30, 30, 30);
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return QRectF();
+    QPointF p1 = m_source->pos();
+    QPointF p2 = m_target->pos();
+    QPointF mid = (p1 + p2) / 2.0;
+    QPointF diff = p2 - p1;
+    QPointF normal(-diff.y() * 0.12, diff.x() * 0.12);
+    QPointF ctrl = mid + normal;
+    QRectF r = QRectF(p1, p2).normalized();
+    r = r.united(QRectF(ctrl, ctrl));
+    return r.adjusted(-20, -20, 20, 20);
+}
+
+void GhostEdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
@@ -581,11 +607,11 @@ GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
 {
     setRenderHint(QPainter::Antialiasing);
     setDragMode(QGraphicsView::ScrollHandDrag);
-    // Minimal: only dirty regions repaint. FullViewportUpdate repainted the
-    // entire 170+-node canvas on every 33 ms physics tick — the single
-    // largest graphics cost while the graph is open. Item-level updateRects
-    // from the force layout give Qt exactly what moved.
-    setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+    // FullViewportUpdate repaints the visible canvas cleanly on each frame,
+    // eliminating dirty-rect striations / ghost edge trails during physics
+    // simulation, dragging, and panning. The physics layout auto-freezes once
+    // settled, so this incurs zero idle CPU overhead.
+    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     // Keep zoom centered under the cursor and stable on resize.
@@ -3028,6 +3054,20 @@ void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
     }
 }
 
+void GraphWidget::updateEdgesForNode(NodeItem* node) {
+    if (!node) return;
+    for (EdgeItem* e : m_edges) {
+        if (e && (e->sourceNode() == node || e->targetNode() == node)) {
+            e->adjust();
+        }
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge && (ge->sourceNode() == node || ge->targetNode() == node)) {
+            ge->adjust();
+        }
+    }
+}
+
 void GraphWidget::onSeverSelectedEdge() {
     if (!m_selectedEdgeForDetails) return;
 
@@ -3979,6 +4019,13 @@ void GraphWidget::applyForceDirectedLayout() {
     }
 
     resolveNodeOverlaps();
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 // Hard collision resolution: directly separate any two visible nodes whose
@@ -4059,6 +4106,13 @@ void GraphWidget::applyClusteredLayout() {
         resolveNodeOverlaps();
         if (m_lastMaxDisplacement < 0.05 || qFuzzyCompare(m_lastMaxDisplacement, before)) break;
     }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 void GraphWidget::updatePhysics() {
@@ -4116,7 +4170,13 @@ void GraphWidget::applyRole(const QString& role) {
 }
 
 void GraphWidget::applyTheme(const ThemeTokens& tok) {
-    if (m_scene) m_scene->update();
+    if (m_scene) {
+        m_scene->setBackgroundBrush(tok.bgBase);
+        m_scene->update();
+    }
+    if (m_canvasView) {
+        m_canvasView->setBackgroundBrush(tok.bgBase);
+    }
     styleChromeWidgets(tok);
     restyleChrome(tok);
 }
@@ -4317,6 +4377,13 @@ void GraphWidget::loadNodePositions() {
                 }
             }
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 }
 
@@ -4529,6 +4596,13 @@ void GraphWidget::applyTreeHierarchyLayout() {
             placedPersonIds.insert(p->id());
             ++memIdx;
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 
     // Pause physics so the tree stays locked in place

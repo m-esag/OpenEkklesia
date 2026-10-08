@@ -170,6 +170,8 @@ public:
     QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
+    void adjust();
+
     void setSelectedState(bool sel) { m_isSelected = sel; update(); }
     bool isSelectedState() const { return m_isSelected; }
 
@@ -200,6 +202,8 @@ public:
 
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+    void adjust();
 
 private:
     NodeItem* m_source;
@@ -264,6 +268,7 @@ public:
     void handleNodeClick(NodeItem* node);
     void selectNodeForDetails(NodeItem* node);
     void selectEdgeForDetails(EdgeItem* edge);
+    void updateEdgesForNode(NodeItem* node);
     void showNodeContextMenu(NodeItem* node, const QPoint& globalPos);
     void applyRole(const QString& role);
     void applyTheme(const ThemeTokens& tokens);

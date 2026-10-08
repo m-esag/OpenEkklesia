@@ -21,3 +21,5 @@ linuxdeploy-plugin-appimage
 squashfs-root/
 *.kate-swp
 backups/auto_*.db
+build-windows/
+backups/

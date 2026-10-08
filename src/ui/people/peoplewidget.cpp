@@ -49,6 +49,7 @@
 #include "../common/appcurrency.h"
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
+#include "../common/givingstatementgenerator.h"
 
 // ============================================================================
 // ClickableAvatarLabel Implementation
@@ -1103,40 +1104,11 @@ void PeopleWidget::setupUI() {
     m_btnGenerateStatement->setObjectName("secondaryBtn");
     connect(m_btnGenerateStatement, &QPushButton::clicked, this, [this]() {
         if (m_currentPersonId <= 0) return;
-        QString fileName = QFileDialog::getSaveFileName(this, "Save Giving Tax Statement", 
-            QString("Giving_Statement_%1_%2.pdf").arg(m_firstNameEdit->text(), m_lastNameEdit->text()), "PDF Files (*.pdf)");
-        if (!fileName.isEmpty()) {
-            QPdfWriter writer(fileName);
-            writer.setPageSize(QPageSize(QPageSize::Letter));
-            QPainter painter(&writer);
-            if (!painter.isActive()) {
-                QMessageBox::warning(this, "Export Failed",
-                    "Could not write PDF (check disk space and permissions).");
-                return;
-            }
-            painter.setPen(Qt::black);
-
-            // Official church letterhead (logo, name, address, Tax ID).
-            ChurchProfile::renderPainterHeader(painter, writer.width(), "Official Giving Tax Statement", /*includeTaxId=*/true);
-
-            QFont fHeader("Helvetica", 16, QFont::Bold);
-            painter.setFont(fHeader);
-            painter.drawText(500, 500, "Official Giving Tax Statement");
-            QFont fSub("Helvetica", 10);
-            painter.setFont(fSub);
-            painter.drawText(500, 750, QString("Donor: %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
-            painter.drawText(500, 950, QString("Total Giving Recorded: %1").arg(m_lblGivingYTD->text()));
-            painter.drawText(500, 1150, "OpenEkklesia Church Management System — 501(c)(3) Compliant");
-            painter.end();
-            QFileInfo done(fileName);
-            if (!done.exists() || done.size() == 0) {
-                QMessageBox::warning(this, "Export Failed",
-                    "Could not write PDF (check disk space and permissions).");
-                return;
-            }
-            QMessageBox::information(this, "Statement Generated", QString("Giving tax statement exported successfully to:\n%1").arg(fileName));
-        }
+        QString donorName = QString("%1 %2").arg(m_firstNameEdit ? m_firstNameEdit->text().trimmed() : "",
+                                                 m_lastNameEdit ? m_lastNameEdit->text().trimmed() : "").trimmed();
+        GivingStatementGenerator::exportPdfWithDialog(this, m_currentPersonId, donorName);
     });
+
     layCardGiving->addWidget(m_btnGenerateStatement);
     layPageGiving->addWidget(cardGiving);
     layPageGiving->addStretch();

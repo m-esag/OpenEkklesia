@@ -35,9 +35,10 @@ set(SOURCES
     src/common/appdateformatter.h
     src/common/appdateformatter.cpp
     src/common/churchprofile.h
-    src/common/tableutil.h
     src/common/churchprofile.cpp
     src/common/tableutil.h
+    src/common/givingstatementgenerator.h
+    src/common/givingstatementgenerator.cpp
 
     # Database Module
     src/database/databasemanager.h
@@ -130,7 +131,6 @@ target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
 )
 
 target_link_libraries(OpenEkklesia PRIVATE
@@ -147,9 +147,10 @@ add_executable(openekklesia_tests
     src/common/appdateformatter.cpp
     src/common/appdateformatter.h
     src/common/churchprofile.cpp
-    src/common/tableutil.h
     src/common/churchprofile.h
     src/common/tableutil.h
+    src/common/givingstatementgenerator.cpp
+    src/common/givingstatementgenerator.h
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp
