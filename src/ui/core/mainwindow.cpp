@@ -172,6 +172,21 @@ private:
     QString m_username;
 };
 
+namespace {
+// QStackedLayout takes the MAXIMUM of its pages' minimums; combined with the
+// dense per-module toolbars built lazily on first visit, the main window's
+// declared minimum grew past small/HiDPI logical desktops (1770px wide on a
+// 1536px-logical 125%-scaled screen) — the window then opened oversized and
+// GNOME could neither tile nor resize it. Overriding minimumSize() decouples
+// the window size from page content: oversized pages clip at their right
+// edge instead of inflating the window.
+class IgnoreMinStackedLayout : public QStackedLayout {
+public:
+    using QStackedLayout::QStackedLayout;
+    QSize minimumSize() const override { return QSize(0, 0); }
+};
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), m_btnSettings(nullptr), m_sidebar(nullptr), m_logoLabel(nullptr), m_isCompactSidebar(false), m_isDarkMode(true), m_hintsEnabled(true), m_activeNavButton(nullptr)
 {
@@ -556,6 +571,10 @@ void MainWindow::setupMenuBar() {
 
 void MainWindow::setupUI() {
     resize(1100, 700);
+    // Hard floor independent of page content (see the stacked-widget policy
+    // in the layout setup): fits a 1280px-logical HiDPI desktop with room
+    // for window decorations.
+    setMinimumSize(1000, 620);
     setWindowTitle("OpenEkklesia - Church Management System");
 
     // Global Help Shortcut (F1) & Theme Toggle (Ctrl+T)
@@ -763,10 +782,12 @@ void MainWindow::setupUI() {
 
     mainLayout->addWidget(sidebar);
 
-    // Stacked widget for pages
-    m_stackedWidget = new QStackedWidget(this);
-    m_stackedWidget->setObjectName("mainContent");
-    mainLayout->addWidget(m_stackedWidget);
+    // Stacked widget for pages (plain container + layout subclass so page
+    // minimums cannot resize the window; see IgnoreMinStackedLayout above).
+    QWidget* mainContent = new QWidget(this);
+    mainContent->setObjectName("mainContent");
+    m_stackedWidget = new IgnoreMinStackedLayout(mainContent);
+    mainLayout->addWidget(mainContent);
 
     populatePages();
 

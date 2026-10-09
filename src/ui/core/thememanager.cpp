@@ -990,7 +990,7 @@ QString ThemeManager::generateGlobalQSS() const {
 
     QString qss = R"(
 QMainWindow, QDialog { background-color: var(--bg-base); color: var(--text-primary); font-family: 'Segoe UI', system-ui, sans-serif; font-size: var(--font-size); }
-QStackedWidget#mainContent { background-color: var(--bg-base); }
+QWidget#mainContent { background-color: var(--bg-base); }
 QWidget { color: var(--text-primary); font-size: var(--font-size); }
 QLabel { color: var(--text-primary); font-size: var(--font-size); }
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {
