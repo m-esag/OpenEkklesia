@@ -20,6 +20,8 @@
 #include "planningwidget.h"
 #include "usermanualdialog.h"
 #include "../integrations/planningcenterdialog.h"
+#include <QApplication>
+#include <QGuiApplication>
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
@@ -898,21 +900,21 @@ void MainWindow::populatePages() {
 
     m_chkShowArchivedGroups = new QCheckBox("Show Archived Groups", this);
     m_chkShowArchivedGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowArchivedGroups, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    connect(m_chkShowArchivedGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
 
     m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
     m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowHiddenGroups, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    connect(m_chkShowHiddenGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowHiddenGroups);
 
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowMembersInTree, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    connect(m_chkShowMembersInTree, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowMembersInTree);
