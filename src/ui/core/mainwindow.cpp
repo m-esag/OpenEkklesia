@@ -891,33 +891,45 @@ void MainWindow::populatePages() {
     tabActiveLayout->setContentsMargins(10, 12, 10, 10);
     tabActiveLayout->setSpacing(12);
 
-    // Header Row
+    // Header Row. The five action buttons live here; the three view filter
+    // checkboxes are on their own row below — a single row containing both
+    // measured ~1356px minimum width, which (plus the sidebar) exceeded the
+    // 1280px logical desktop of a 150%-scaled 1920px panel. A window whose
+    // declared minimum exceeds the screen opens oversized and GNOME cannot
+    // tile or shrink it (Super+Up etc. do nothing).
     QHBoxLayout* grpHeaderLayout = new QHBoxLayout();
     QLabel* grpHeader = new QLabel("Active Groups & Ministries", this);
     grpHeader->setObjectName("pageHeader");
     grpHeaderLayout->addWidget(grpHeader);
     grpHeaderLayout->addStretch();
 
+    // Second header row: the view filter checkboxes (populated below, added
+    // to the page after the action row).
+    QHBoxLayout* grpFilterLayout = new QHBoxLayout();
+    QLabel* lblFilters = new QLabel("View:", this);
+    lblFilters->setStyleSheet("font-size: 12px; font-weight: bold; color: palette(mid);");
+    grpFilterLayout->addWidget(lblFilters);
+
     m_chkShowArchivedGroups = new QCheckBox("Show Archived Groups", this);
     m_chkShowArchivedGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowArchivedGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
+    grpFilterLayout->addWidget(m_chkShowArchivedGroups);
 
     m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
     m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowHiddenGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowHiddenGroups);
+    grpFilterLayout->addWidget(m_chkShowHiddenGroups);
 
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowMembersInTree, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowMembersInTree);
+    grpFilterLayout->addWidget(m_chkShowMembersInTree);
 
     QPushButton* btnAddGroup = new QPushButton(" Add Group", this);
     btnAddGroup->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
@@ -985,6 +997,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_btnDeleteGroup);
 
     tabActiveLayout->addLayout(grpHeaderLayout);
+    tabActiveLayout->addLayout(grpFilterLayout);
 
     // Master-Detail Splitter View
     QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
