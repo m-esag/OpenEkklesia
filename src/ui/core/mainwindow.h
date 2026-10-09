@@ -2,7 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QStackedWidget>
+#include <QStackedLayout>
 #include <QSqlTableModel>
 #include <QTableView>
 #include <QLabel>
@@ -90,7 +90,7 @@ private:
     QWidget* createDashboardPage();
     QWidget* createTablePage(const QString& title, QTableView* view);
 
-    QStackedWidget* m_stackedWidget;
+    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout — see mainwindow.cpp
     
     QPushButton* m_btnDashboard;
     QPushButton* m_btnMembers;
