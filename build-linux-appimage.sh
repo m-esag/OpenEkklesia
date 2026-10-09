@@ -61,6 +61,10 @@ HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin/:${HERE}/usr/sbin/:${HERE}/bin/:${HERE}/sbin/:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/:${HERE}/usr/lib/x86_64-linux-gnu/:${HERE}/usr/lib64/:${LD_LIBRARY_PATH}"
 export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins/platforms"
+# Fedora/GNOME default to Wayland; the bundle ships only the xcb plugin,
+# so pick it explicitly (via XWayland) unless the user overrides. Prevents
+# the "could not locate wayland platform plugin" warning on Wayland sessions.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 exec "${HERE}/usr/bin/OpenEkklesia" "$@"
 RUN
