@@ -159,8 +159,22 @@ add_executable(openekklesia_tests
     src/ui/core/thememanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/iconmanager.h
+    src/ui/core/mainwindow.cpp
+    src/ui/core/mainwindow.h
+    src/ui/core/commandpalette.cpp
+    src/ui/core/commandpalette.h
+    src/ui/core/kioskwindow.cpp
+    src/ui/core/kioskwindow.h
+    src/ui/core/touchhelper.cpp
+    src/ui/core/touchhelper.h
     src/ui/core/usermanualdialog.cpp
     src/ui/core/usermanualdialog.h
+    src/ui/finance/contributionswidget.cpp
+    src/ui/finance/contributionswidget.h
+    src/ui/finance/inventorywidget.cpp
+    src/ui/finance/inventorywidget.h
+    src/ui/finance/transactiondialog.cpp
+    src/ui/finance/transactiondialog.h
     src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/ministrymatch.h
     src/ui/ministry/shepherdwidget.cpp
@@ -198,6 +212,8 @@ target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
 )
 

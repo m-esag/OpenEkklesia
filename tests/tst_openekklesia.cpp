@@ -38,6 +38,9 @@
 #include "../src/ui/ministry/facilitieswidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
+#include "../src/ui/core/mainwindow.h"
+
+#include <QStackedLayout>
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -174,6 +177,46 @@ bool test_seedDataCounts() {
 // checkbox when the auto-column-size option was introduced).
 bool test_settingsWidgetConstructs() {
     SettingsWidget sw;
+    return true;
+}
+
+// Regression (73e96c6, ed45c10): QStackedLayout takes the MAX of its pages'
+// minimums, so lazily-built per-module toolbars inflated the main window's
+// declared minimum to 1770px wide — oversized on a 1536px-logical desktop
+// and untileable there. The window must keep its hard floor and ignore
+// page-content minimums entirely.
+bool test_mainWindowMinimumDecoupledFromContent() {
+    MainWindow mw;
+
+    // 1. The hard floor is content-independent.
+    const QSize floorMin = mw.minimumSize();
+    CHECK_EQ(floorMin.width(), 1000);
+    CHECK_EQ(floorMin.height(), 620);
+
+    // 2. The page stack's layout (IgnoreMinStackedLayout) pins its minimum
+    //    to (0,0) so no page can push the window around.
+    QWidget* mainContent = mw.findChild<QWidget*>("mainContent");
+    CHECK(mainContent != nullptr);
+    auto* stack = mainContent ? qobject_cast<QStackedLayout*>(mainContent->layout()) : nullptr;
+    CHECK(stack != nullptr);
+    if (stack) {
+        const QSize stackMin = stack->minimumSize();
+        CHECK_EQ(stackMin.width(), 0);
+        CHECK_EQ(stackMin.height(), 0);
+    }
+
+    // 3. After lazily building the densest module pages, the window's
+    //    implied minimum stays bounded (the pre-fix cascade reached 1770px
+    //    wide; the floor itself is 1000px).
+    mw.onGroupsClicked();
+    mw.onSettingsClicked();
+    if (stack) {
+        const QSize stackMinAfter = stack->minimumSize();
+        CHECK_EQ(stackMinAfter.width(), 0);
+        CHECK_EQ(stackMinAfter.height(), 0);
+    }
+    CHECK(mw.minimumSizeHint().width() <= 1100);
+
     return true;
 }
 
@@ -3400,6 +3443,7 @@ int main(int argc, char** argv) {
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"settings_widget_constructs", test_settingsWidgetConstructs},
+        {"main_window_minimum_decoupled_from_content", test_mainWindowMinimumDecoupledFromContent},
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
