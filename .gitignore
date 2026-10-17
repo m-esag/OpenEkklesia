@@ -24,3 +24,4 @@ backups/auto_*.db
 build-windows/
 backups/
 dist-windows/
+dist-linux/
