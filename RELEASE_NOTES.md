@@ -12,6 +12,10 @@
 - A mutation-verified regression test (`test_mainWindowMinimumDecoupledFromContent`)
   locking in the floor, the stacked-layout pin, and the bounded
   `minimumSizeHint()` (≤ 1100px). Dead min-size probe rig removed.
+- Maintenance carried by the shipped Windows artifact (`d8ce4be`, `dab6570`):
+  outcome-accurate restore-migration logging (regression-tested) and a
+  tree-wide unused-variable cleanup. No schema or behavior change beyond the
+  log messages.
 
 ## Shipped artifacts
 
@@ -20,18 +24,21 @@ Naming convention from this release on: `OpenEkklesia-VERSION-SHORTCOMMIT-PLATFO
 | Artifact | Status | SHA256 |
 |---|---|---|
 | `OpenEkklesia-0.8.0-beta.1-0f175a9-x86_64.AppImage` (dist-linux/) | **Shipped** — rebuilt from the tagged commit | `7d9a8c4c8d66a2cd624d48364223c67a1b95fb01d030b9b89cb027506623a9c7` |
-| `OpenEkklesia-0.8.0-beta.1-0f175a9-win64.exe` (dist-windows/) | Shipped, **not rebuilt** — code-identical to the tagged commit (delta vs `ed45c10` is tests/gitignore only) | `6d721ce8b5524c5aab402bcce880ae2ff1d1c9ae705898851459c1127eb8bcbf` |
+| `OpenEkklesia-0.8.0-beta.1-dab6570-win64/` (dist-windows/) | **Shipped** — exe rebuilt from `dab6570` (tag + `d8ce4be` notes/gitignore + `dab6570` maintenance), `windeployqt`-deployed (Qt 6.8.0 msvc2022_64) plus `vc_redist.x64.exe` 14.51.36247.0. Self-contained: launches with no Qt on `PATH` (see Verification). Distribute the folder or its `.zip`; never a bare `.exe`. | exe `571959fad9f046de33702572e38e105974740101babbecc37f84856605083380` |
+| `OpenEkklesia-0.8.0-beta.1-dab6570-win64.zip` (dist-windows/) | **Shipped** — distributable zip of the deploy folder above (44,482,285 bytes) | `a78c57dcd1bbbfa07bf2c3b0e1dce823ba9765e19e46c4cee0ee9acb7a16841b` |
+| `OpenEkklesia-0f175a9-win64/` (dist-windows/) | Preserved reference (commit-named, never versioned): the tagged commit's exe with its own `windeployqt` payload. Superseded by the `dab6570` folder; known-good Windows fallback. Not a release artifact. | exe `6d721ce8b5524c5aab402bcce880ae2ff1d1c9ae705898851459c1127eb8bcbf` |
 | `OpenEkklesia-ed45c10-x86_64.AppImage` (dist-linux/) | Preserved reference build (pre-tagging, never versioned — commit-named only). Not a release artifact. | `95f7f64b96bc42f85e12f2257fa5e2edfd2bcbd92843a732f0e64c6a96517e9c` |
 
 Removed from the tree: the stale Oct 3 `dist/OpenEkklesia-x86_64.AppImage`
 (SHA256 `5f0ae19ffc0e50f919843c813d436ff06fe9585115803b911ab8163a5bb9f0e5`) —
 superseded by the rebuilt Linux artifact and not shipped.
 
-Windows notes: the shipped `.exe` is not fully self-contained — it was smoke-run
-with Qt 6.8.0 runtime DLLs reachable; bundle `windeployqt` output before
-distributing beyond the dev machine. The `dist-windows/OpenEkklesia/` deploy
-folder (Oct 8) **predates the minimum-size fix and is not part of this
-release**; do not ship it.
+Windows notes: the shipped Windows artifact is the `windeployqt`-deployed
+`OpenEkklesia-0.8.0-beta.1-dab6570-win64/` folder (or its `.zip`) —
+self-contained, no Qt installation or `PATH` entry required. A bare `.exe`
+without its sibling Qt DLLs will not start on a clean machine; never distribute
+it alone. The `dist-windows/OpenEkklesia/` deploy folder (Oct 8) **predates the
+minimum-size fix and is not part of this release**; do not ship it.
 
 ## Known caveats (read before relying on this build)
 
@@ -59,14 +66,19 @@ release**; do not ship it.
 ## Verification summary
 
 - **Windows:** `ctest -C Release` in `build-windows/` (Qt 6.8.0 msvc2022_64):
-  **1078 checks, 0 failed** at `0f175a9`.
+  **1078 checks, 0 failed** at `0f175a9`; **1104 checks, 0 failed** at
+  `dab6570` (the shipped Windows build), matching Linux exactly.
 - **Linux:** fresh build in Ubuntu 22.04 WSL (Qt 6.2.4, GCC 11.4 — same
   baseline as `Dockerfile.build`): **1078 checks, 0 failed**, exact parity.
 - **Visual acceptance** at 1000×620 on Groups and Settings: pass, no clipped
   controls; sidebar stays at 220px by default (auto-collapse gates at <940px).
-- **Smoke:** Windows shipped exe launched offscreen (DB opened, reached login
-  loop); Linux AppImage run in a sandboxed fresh profile — fresh DB created,
-  migrations 0→24 applied end-to-end, backup scheduler fired.
+- **Smoke:** Linux AppImage run in a sandboxed fresh profile — fresh DB
+  created, migrations 0→24 applied end-to-end, backup scheduler fired.
+  Windows: the shipped `dab6570` deploy folder launched with `C:\Qt` stripped
+  from `PATH` (`where Qt6Core.dll` → not found): process up, main window
+  rendered, **9 Qt6 modules loaded — all 9 resolved from the deploy folder,
+  0 from `C:\Qt`**; test instance force-closed afterwards. The launch created
+  no new backup (newest `backups/` entries predate the run).
 
 ## Rollback
 
@@ -76,11 +88,14 @@ release**; do not ship it.
   forward-migrates to v24. Downgrade is soft-compatible (see caveat 4).
 - **Process:** `git checkout v0.8.0-beta.1` (or `ed45c10` for the pre-test
   tree) and rebuild; the preserved `OpenEkklesia-ed45c10-x86_64.AppImage` is a
-  known-good pre-release fallback binary.
+  known-good pre-release fallback binary, and the preserved
+  `OpenEkklesia-0f175a9-win64/` folder is the Windows equivalent.
 
 ## Not yet verified (beta disclosure)
 
 Live Linux desktop rendering (Wayland/X11, HiDPI scaling), interactive login,
 Planning Center sync against the live service, a real restore of the aged v6
-backup into the v24 binary, and the older-distro glibc compatibility claim
-(by construction, not by test).
+backup into the v24 binary, the older-distro glibc compatibility claim
+(by construction, not by test), and bare-machine VC++ runtime behavior (the
+`vc_redist.x64.exe` shipped in the Windows folder was not install-tested; the
+dev machine already has the runtime).
