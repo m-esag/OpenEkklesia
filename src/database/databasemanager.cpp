@@ -313,8 +313,17 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
         return false;
     }
     applyPragmas();
+    // Migrate the restored file forward if it is older than this build.
+    // Log strictly by outcome: the "migrated forward" line is informational
+    // and may only appear when migration actually succeeded (it previously
+    // fired on the FAILURE path, inverting the two messages).
+    const int restoredSchema = readSchemaVersion();
     if (!migrateSchema()) {
-        qWarning() << "Restore: migrated older backup forward to current schema.";
+        qWarning() << "Restore: schema migration of the restored backup FAILED;"
+                   << "database remains at schema" << restoredSchema
+                   << "and may be missing newer features.";
+    } else if (restoredSchema > 0 && restoredSchema < kLatestSchemaVersion) {
+        qInfo() << "Restore: migrated older backup forward to current schema.";
     }
     return true;
 }

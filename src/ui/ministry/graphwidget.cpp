@@ -3344,10 +3344,12 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aAssign = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Group...");
         QMenu* mCare = m.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
-        QAction* cActive = mCare->addAction("Active Member");
-        QAction* cLeader = mCare->addAction("Leader");
-        QAction* cRisk = mCare->addAction("At-Risk");
-        QAction* cContact = mCare->addAction("Needs Contact");
+        // The other care-flag entries are matched by text (sel->text()), not
+        // by pointer, so they need no stored handles.
+        mCare->addAction("Active Member");
+        mCare->addAction("Leader");
+        mCare->addAction("At-Risk");
+        mCare->addAction("Needs Contact");
 
         if (isReadOnly) {
             aAssign->setEnabled(false); aAssign->setToolTip(roTooltip);

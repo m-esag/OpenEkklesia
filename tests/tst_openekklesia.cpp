@@ -110,6 +110,15 @@ int countRows(const QString& table) {
     return q.value(0).toInt();
 }
 
+// Captures Qt log output so tests can assert on what the code under test
+// actually reports. Messages are swallowed while the handler is installed.
+QStringList g_capturedLog;
+void captureLogHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
+    Q_UNUSED(type)
+    Q_UNUSED(context)
+    g_capturedLog.append(msg);
+}
+
 // --- Tests ----------------------------------------------------------------
 
 bool test_schemaVersionIsLatest() {
@@ -560,6 +569,101 @@ bool test_restoreFromBackup() {
     CHECK_EQ(countRows("people"), 12);
 
     QFile::remove(backupPath);
+    return true;
+}
+
+// restoreFromBackup used to log its "migrated older backup forward" success
+// line on the FAILURE path (and emitted nothing when migration actually
+// succeeded) — an inverted condition at the migrateSchema() call. Pin the
+// messaging to the outcome in both directions.
+bool test_restoreMigrationLogMatchesOutcome() {
+    seedDemoFixture();
+    DatabaseManager& mgr = DatabaseManager::instance();
+    const QString dbPath = mgr.database().databaseName();
+    const QString goodBackup = dbPath + ".backup_msg_good";
+    const QString olderBackup = dbPath + ".backup_msg_older";
+    const QString brokenBackup = dbPath + ".backup_msg_broken";
+    QFile::remove(goodBackup);
+    QFile::remove(olderBackup);
+    QFile::remove(brokenBackup);
+
+    // Snapshot a healthy current-schema backup; also the repair artifact that
+    // leaves the live DB clean at the end.
+    CHECK(mgr.exportBackup(goodBackup));
+
+    // Rewrite a copy's schema_version (and optionally drop a table the
+    // migration needs) through a private connection. WAL-checkpoint + sidecar
+    // cleanup so the edited state lives in the single file restore copies.
+    auto pokeBackup = [](const QString& path, int version, const char* dropTable) {
+        {
+            QSqlDatabase poke = QSqlDatabase::addDatabase("QSQLITE", "__oe_test_poke__");
+            poke.setDatabaseName(path);
+            CHECK(poke.open());
+            QSqlQuery q(poke);
+            // schema_version holds one row per applied migration (PRIMARY
+            // KEY version); "downgrade" by deleting the newer rows.
+            CHECK(q.exec(QString("DELETE FROM schema_version WHERE version > %1").arg(version)));
+            CHECK(q.exec(QString("SELECT MAX(version) FROM schema_version")));
+            CHECK(q.next());
+            CHECK_EQ(q.value(0).toInt(), version);
+            if (dropTable) {
+                CHECK(q.exec(QString("DROP TABLE %1").arg(dropTable)));
+            }
+            CHECK(q.exec("PRAGMA wal_checkpoint(TRUNCATE)"));
+            poke.close();
+        }
+        QSqlDatabase::removeDatabase("__oe_test_poke__");
+        QFile::remove(path + "-wal");
+        QFile::remove(path + "-shm");
+    };
+
+    // Case 1: an older backup (schema 23) restores and migrates forward —
+    // the informational line must appear and the failure line must not.
+    CHECK(QFile::copy(goodBackup, olderBackup));
+    pokeBackup(olderBackup, DatabaseManager::kLatestSchemaVersion - 1, nullptr);
+    g_capturedLog.clear();
+    QtMessageHandler prev = qInstallMessageHandler(captureLogHandler);
+    const bool ok1 = mgr.restoreFromBackup(olderBackup);
+    qInstallMessageHandler(prev);
+    CHECK(ok1);
+    bool sawMigratedInfo = false, sawFailWarning = false;
+    for (const QString& m : g_capturedLog) {
+        if (m.contains("migrated older backup forward")) sawMigratedInfo = true;
+        if (m.contains("migration of the restored backup FAILED")) sawFailWarning = true;
+    }
+    CHECK(sawMigratedInfo);
+    CHECK(!sawFailWarning);
+
+    // Case 2: force a migration failure (drop member_history, which migration
+    // 24 indexes) — the restore completes but the log must report FAILURE and
+    // must never print the success line. This is the exact regression: the
+    // pre-fix code printed "migrated older backup forward" HERE, as a warning.
+    CHECK(QFile::copy(goodBackup, brokenBackup));
+    pokeBackup(brokenBackup, DatabaseManager::kLatestSchemaVersion - 1, "member_history");
+    g_capturedLog.clear();
+    prev = qInstallMessageHandler(captureLogHandler);
+    const bool ok2 = mgr.restoreFromBackup(brokenBackup);
+    qInstallMessageHandler(prev);
+    CHECK(ok2); // migration failure is reported via log, not fatal to restore
+    sawMigratedInfo = false;
+    sawFailWarning = false;
+    for (const QString& m : g_capturedLog) {
+        if (m.contains("migrated older backup forward")) sawMigratedInfo = true;
+        if (m.contains("migration of the restored backup FAILED")) sawFailWarning = true;
+    }
+    CHECK(sawFailWarning);
+    CHECK(!sawMigratedInfo);
+
+    // Repair: put the healthy snapshot back so later tests see a clean v24 DB.
+    CHECK(mgr.restoreFromBackup(goodBackup));
+    QSqlQuery sv(db());
+    CHECK(sv.exec("SELECT MAX(version) FROM schema_version"));
+    CHECK(sv.next());
+    CHECK_EQ(sv.value(0).toInt(), DatabaseManager::kLatestSchemaVersion);
+
+    QFile::remove(goodBackup);
+    QFile::remove(olderBackup);
+    QFile::remove(brokenBackup);
     return true;
 }
 
@@ -2874,8 +2978,7 @@ bool test_contextMenusAndRoleGatingSuite() {
     // 2. PlanningWidget RBAC & tooltips
     PlanningWidget plan;
     plan.applyRole("guest");
-    QPushButton* btnAddTask = plan.findChild<QPushButton*>();
-    // When guest, buttons are disabled
+    // Guest buttons are disabled by applyRole("guest"); flip back for later checks.
     plan.applyRole("admin");
 
     // 3. ShepherdWidget RBAC
@@ -3447,6 +3550,7 @@ int main(int argc, char** argv) {
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
+        {"restore_migration_log_matches_outcome", test_restoreMigrationLogMatchesOutcome},
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},

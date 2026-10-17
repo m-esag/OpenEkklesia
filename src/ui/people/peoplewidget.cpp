@@ -3328,16 +3328,17 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
 
         QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), QString("Set Pastoral Flag (%1 Profiles)").arg(totalSelected));
         QAction* actFlagNormal = menuCare->addAction("Normal / None");
-        QAction* actFlagLeader = menuCare->addAction("Leader");
-        QAction* actFlagRisk = menuCare->addAction("At-Risk");
-        QAction* actFlagContact = menuCare->addAction("Needs Contact");
-        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+        // Remaining entries are matched by text (selected->text()), not pointer.
+        menuCare->addAction("Leader");
+        menuCare->addAction("At-Risk");
+        menuCare->addAction("Needs Contact");
+        menuCare->addAction("Grief Support");
 
         QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), QString("Set Membership Status (%1 Profiles)").arg(totalSelected));
-        QAction* actStatMember = menuStatus->addAction("Member");
-        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
-        QAction* actStatVisitor = menuStatus->addAction("Visitor");
-        QAction* actStatInactive = menuStatus->addAction("Inactive");
+        menuStatus->addAction("Member");
+        menuStatus->addAction("Regular Attender");
+        menuStatus->addAction("Visitor");
+        menuStatus->addAction("Inactive");
 
         QMenu* menuPathway = menu.addMenu(IconManager::instance().getIcon("check-circle", QColor(), 14), QString("Discipleship Pathway (%1 Profiles)").arg(totalSelected));
         QAction* actBatchBaptism = menuPathway->addAction("Mark Water Baptized...");
@@ -3608,16 +3609,17 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
         
         QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Pastoral Flag");
         QAction* actFlagNormal = menuCare->addAction("Normal / None");
-        QAction* actFlagLeader = menuCare->addAction("Leader");
-        QAction* actFlagRisk = menuCare->addAction("At-Risk");
-        QAction* actFlagContact = menuCare->addAction("Needs Contact");
-        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+        // Remaining entries are matched by text (selected->text()), not pointer.
+        menuCare->addAction("Leader");
+        menuCare->addAction("At-Risk");
+        menuCare->addAction("Needs Contact");
+        menuCare->addAction("Grief Support");
 
         QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), "Set Membership Status");
-        QAction* actStatMember = menuStatus->addAction("Member");
-        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
-        QAction* actStatVisitor = menuStatus->addAction("Visitor");
-        QAction* actStatInactive = menuStatus->addAction("Inactive");
+        menuStatus->addAction("Member");
+        menuStatus->addAction("Regular Attender");
+        menuStatus->addAction("Visitor");
+        menuStatus->addAction("Inactive");
 
         QMenu* menuPathwaySingle = menu.addMenu(IconManager::instance().getIcon("check-circle", QColor(), 14), "Discipleship Pathway");
         QAction* actSingleBaptism = menuPathwaySingle->addAction("Mark Water Baptized...");

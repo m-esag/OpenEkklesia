@@ -32,7 +32,6 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
 
     // 1. Fetch primary person & household data
     QString pFirst, pLast, familyName, hAddress1, hCity, hZip;
-    int householdId = 0;
     {
         QSqlQuery q(db);
         q.prepare("SELECT p.first_name, p.last_name, p.household_id, "
@@ -44,7 +43,6 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
         if (q.exec() && q.next()) {
             pFirst = q.value(0).toString().trimmed();
             pLast = q.value(1).toString().trimmed();
-            householdId = q.value(2).toInt();
             familyName = q.value(3).toString().trimmed();
             hAddress1 = q.value(4).toString().trimmed();
             hCity = q.value(5).toString().trimmed();
