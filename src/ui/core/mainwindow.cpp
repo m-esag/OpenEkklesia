@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "thememanager.h"
+#include "touchhelper.h"
 #include "iconmanager.h"
 #include "ministryarchetypes.h"
 #include "synergyengine.h"
@@ -178,6 +179,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupUI();
     setupMenuBar();
     qApp->installEventFilter(this);
+    // Detachable touchscreen (finger + active pen): kinetic scrolling on all
+    // lists/tables/scroll areas. Graph canvas keeps its own gestures.
+    TouchHelper::enableKineticScrolling(this);
     setActiveNav(m_btnDashboard);
     updateDashboardStats();
 
@@ -466,7 +470,7 @@ void MainWindow::setupMenuBar() {
 
         QLabel* lblTitle = new QLabel("<h3>OpenEkklesia ChMS</h3>", &dlg);
         QLabel* lblDesc = new QLabel(
-            "<b>Version 1.5.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
+            "<b>Version 0.8.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
             "Features double-entry fund accounting, relational connection graph visualization, "
             "Smart Bridge v2.0 group dynamics synergy engine, service liturgy flow builder, "
             "facilities management, document vault, and nursery kiosk check-in portal.", &dlg);
@@ -740,7 +744,7 @@ void MainWindow::setupUI() {
     bottomDock->addWidget(btnManual);
     sidebarLayout->addLayout(bottomDock);
 
-    QLabel* footerLabel = new QLabel("v1.5.0 (ChMS Suite)", this);
+    QLabel* footerLabel = new QLabel("v0.8.0 (ChMS Suite)", this);
     footerLabel->setObjectName("footerLabel");
     sidebarLayout->addWidget(footerLabel);
 
@@ -985,7 +989,7 @@ void MainWindow::populatePages() {
         }
         QSqlQuery u;
         u.prepare("UPDATE groups SET parent_id = ? WHERE id = ?");
-        u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant(QMetaType(QMetaType::Int)));
+        u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant());
         u.addBindValue(groupId);
         if (u.exec()) {
             refreshGroupsTree();
@@ -1893,7 +1897,8 @@ void MainWindow::updateDashboardStats() {
     QString fiscalYearStr = QString::number(fiscalYear);
     if (m_kpiRegistry.contains("giving_ytd") && m_kpiRegistry["giving_ytd"].valLabel) {
         QSqlQuery y;
-        y.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE substr(contribution_date, 1, 4) = ?");
+        y.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions "
+                  "WHERE substr(contribution_date, 1, 4) = ? AND contribution_date <= date('now','localtime')");
         y.addBindValue(fiscalYearStr);
         if (y.exec() && y.next()) {
             double ytd = y.value(0).toDouble() / 100.0;
@@ -1925,8 +1930,8 @@ void MainWindow::updateDashboardStats() {
         "FROM people "
         "WHERE membership_status IN ('Member', 'Regular Attender') "
         "  AND ( "
-        "        ( id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= " + inactivityExpr + ") "
-        "          AND id NOT IN (SELECT DISTINCT person_id FROM attendance WHERE timestamp >= " + inactivityExpr + ") ) "
+        "        ( NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= " + inactivityExpr + ") "
+        "          AND NOT EXISTS (SELECT 1 FROM attendance WHERE person_id = people.id AND timestamp >= " + inactivityExpr + ") ) "
         "        OR care_flag = 'At-Risk' "
         "      ) "
         "ORDER BY (care_flag = 'At-Risk') DESC, last_name "
@@ -3318,15 +3323,15 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                            "ideal_primary_archetype = ?, ideal_secondary_archetype = ? WHERE id = ?");
             update.addBindValue(name);
             update.addBindValue(cat);
-            update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
+            update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant());
             update.addBindValue(day);
             update.addBindValue(time);
             update.addBindValue(loc);
-            update.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant(QMetaType(QMetaType::Int)));
+            update.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant());
             update.addBindValue(cap);
             update.addBindValue(desc);
             update.addBindValue(notes);
-            update.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
+            update.addBindValue(skills.isEmpty() ? QVariant() : QVariant(skills));
             update.addBindValue(minAge);
             update.addBindValue(maxAge);
             update.addBindValue(recruitStatus);
@@ -3349,15 +3354,15 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
             ins.addBindValue(name);
             ins.addBindValue(cat);
-            ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
+            ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant());
             ins.addBindValue(day);
             ins.addBindValue(time);
             ins.addBindValue(loc);
-            ins.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant(QMetaType(QMetaType::Int)));
+            ins.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant());
             ins.addBindValue(cap);
             ins.addBindValue(desc);
             ins.addBindValue(notes);
-            ins.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
+            ins.addBindValue(skills.isEmpty() ? QVariant() : QVariant(skills));
             ins.addBindValue(minAge);
             ins.addBindValue(maxAge);
             ins.addBindValue(recruitStatus);
@@ -3482,7 +3487,7 @@ void MainWindow::onDeleteGroup() {
     if (qParent.exec() && qParent.next()) grandparent = qParent.value(0).toInt();
 
     q.prepare("UPDATE groups SET parent_id = ? WHERE parent_id = ?");
-    q.addBindValue(grandparent > 0 ? QVariant(grandparent) : QVariant(QMetaType(QMetaType::Int)));
+    q.addBindValue(grandparent > 0 ? QVariant(grandparent) : QVariant());
     q.addBindValue(m_selectedGroupId);
     q.exec();
 

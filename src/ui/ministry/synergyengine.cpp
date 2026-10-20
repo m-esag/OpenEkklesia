@@ -12,12 +12,14 @@ bool SynergyEngine::isEligible(const CandidateProfile& candidate, const GroupPro
     // recommendations (elected governance bodies, closed/seasonal cohorts).
     // Everything personal is an advisory warning (collectWarnings), never a
     // silent exclusion — a pastor always retains the final call.
+    // NOTE: name matching is word-boundary anchored so "Board game club" or
+    // "Elder Creek youth" are not mistaken for governance bodies.
     QString status = group.recruitmentStatus.trimmed();
+    static const QRegularExpression govRx(
+        QString("\\b(board|deacon|elder|elders|director|directors|governance)\\b"),
+        QRegularExpression::CaseInsensitiveOption);
     if (status == "Elected" || status == "Closed" || status == "Seasonal" ||
-        group.name.contains("Board", Qt::CaseInsensitive) ||
-        group.name.contains("Director", Qt::CaseInsensitive) ||
-        group.name.contains("Deacon", Qt::CaseInsensitive) ||
-        group.name.contains("Elder", Qt::CaseInsensitive) ||
+        group.name.contains(govRx) ||
         group.category.contains("Governance", Qt::CaseInsensitive)) {
         if (hardBlockReason) *hardBlockReason = "Elected governance body or closed cohort";
         return false;
@@ -25,27 +27,59 @@ bool SynergyEngine::isEligible(const CandidateProfile& candidate, const GroupPro
     return true;
 }
 
+namespace {
+QString normDay(const QString& s) {
+    QString d = s.trimmed().toLower();
+    if (d.startsWith("sun")) return "sunday";
+    if (d.startsWith("mon")) return "monday";
+    if (d.startsWith("tue")) return "tuesday";
+    if (d.startsWith("wed")) return "wednesday";
+    if (d.startsWith("thu") || d.startsWith("thur")) return "thursday";
+    if (d.startsWith("fri")) return "friday";
+    if (d.startsWith("sat")) return "saturday";
+    return d;
+}
+QString normTime(const QString& s) {
+    // Accept "10:00", "10:00 AM", "10:00:00" -> "10:00".
+    QString t = s.trimmed().toLower();
+    t.remove("am");
+    t.remove("pm");
+    t = t.trimmed();
+    const QStringList parts = t.split(':');
+    if (parts.size() >= 2) {
+        bool hOk = false, mOk = false;
+        const int h = parts.at(0).toInt(&hOk);
+        const int m = parts.at(1).left(2).toInt(&mOk);
+        if (hOk && mOk) return QString("%1:%2").arg(h, 2, 10, QChar('0')).arg(m, 2, 10, QChar('0'));
+    }
+    return t;
+}
+} // namespace
+
 QStringList SynergyEngine::collectWarnings(const CandidateProfile& candidate, const GroupProfile& group, int maxGroupsServing) {
     QStringList warnings;
+    const int threshold = qMax(1, maxGroupsServing);
 
     // 1. Serving workload advisory (was a hard block; now pastor-reviewed).
-    if (candidate.activeGroupCount >= maxGroupsServing) {
+    if (candidate.activeGroupCount >= threshold) {
         warnings << QString("⚠️ Workload Advisory: already serving in %1 groups — review schedule before assigning")
                         .arg(candidate.activeGroupCount);
     }
 
-    // 2. Schedule Conflict advisory.
+    // 2. Schedule Conflict advisory (normalized day/time compare).
     if (!group.meetingDay.isEmpty() && !group.meetingTime.isEmpty()) {
+        const QString gDay = normDay(group.meetingDay);
+        const QString gTime = normTime(group.meetingTime);
         for (const auto& sched : candidate.currentGroupSchedules) {
-            if (sched.first.compare(group.meetingDay, Qt::CaseInsensitive) == 0 &&
-                sched.second.compare(group.meetingTime, Qt::CaseInsensitive) == 0) {
+            if (normDay(sched.first) == gDay && normTime(sched.second) == gTime) {
                 warnings << QString("⚠️ Schedule conflict on %1 at %2").arg(group.meetingDay, group.meetingTime);
                 break;
             }
         }
     }
 
-    // 3. Stale / Inactive Group (>180 days no activity).
+    // 3. Stale / Inactive Group (>180 days no activity). A group with no logged
+    // activity date at all (daysSinceLastActivity <= 0) is new/untracked, not stale.
     if (group.daysSinceLastActivity > 180) {
         warnings << "⚠️ Inactive/stagnant group (no logged activity in 180+ days)";
     }

@@ -1,32 +1,36 @@
 #include "churchprofile.h"
 #include <QSettings>
+
+namespace {
+QSettings appSettings() { return QSettings("OpenEkklesia", "CHMS"); }
+}
 #include <QImage>
 #include <QBuffer>
 #include <QPixmap>
 
 QString ChurchProfile::name() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchName", "OpenEkklesia Church").toString();
+    return appSettings().value("churchName", "OpenEkklesia Church").toString();
 }
 QString ChurchProfile::subtitle() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
+    return appSettings().value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
 }
 QString ChurchProfile::address() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchAddress").toString().trimmed();
+    return appSettings().value("churchAddress").toString().trimmed();
 }
 QString ChurchProfile::phone() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchPhone").toString().trimmed();
+    return appSettings().value("churchPhone").toString().trimmed();
 }
 QString ChurchProfile::email() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchEmail").toString().trimmed();
+    return appSettings().value("churchEmail").toString().trimmed();
 }
 QString ChurchProfile::website() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchWebsite").toString().trimmed();
+    return appSettings().value("churchWebsite").toString().trimmed();
 }
 QString ChurchProfile::taxId() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchTaxId").toString().trimmed();
+    return appSettings().value("churchTaxId").toString().trimmed();
 }
 QString ChurchProfile::logoPath() {
-    return QSettings("OpenEkklesia", "CHMS").value("churchLogo").toString().trimmed();
+    return appSettings().value("churchLogo").toString().trimmed();
 }
 
 QString ChurchProfile::renderHtmlHeader(const QString& reportTitle,

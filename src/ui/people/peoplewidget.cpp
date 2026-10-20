@@ -924,6 +924,11 @@ void PeopleWidget::setupUI() {
             QPdfWriter writer(fileName);
             writer.setPageSize(QPageSize(QPageSize::Letter));
             QPainter painter(&writer);
+            if (!painter.isActive()) {
+                QMessageBox::warning(this, "Export Failed",
+                    "Could not write PDF (check disk space and permissions).");
+                return;
+            }
             painter.setPen(Qt::black);
 
             // Official church letterhead (logo, name, address, Tax ID).
@@ -936,8 +941,14 @@ void PeopleWidget::setupUI() {
             painter.setFont(fSub);
             painter.drawText(500, 750, QString("Donor: %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
             painter.drawText(500, 950, QString("Total Giving Recorded: %1").arg(m_lblGivingYTD->text()));
-            painter.drawText(500, 1150, "OpenEkklesia Church Management System — 501(c)(3) Compliant");
+            painter.drawText(500, 1150, "OpenEkklesia Church Management System — Contribution Record");
             painter.end();
+            QFileInfo done(fileName);
+            if (!done.exists() || done.size() == 0) {
+                QMessageBox::warning(this, "Export Failed",
+                    "Could not write PDF (check disk space and permissions).");
+                return;
+            }
             QMessageBox::information(this, "Statement Generated", QString("Giving tax statement exported successfully to:\n%1").arg(fileName));
         }
     });
@@ -2336,7 +2347,7 @@ void PeopleWidget::onSaveProfile() {
     q.bindValue(":status", status);
     q.bindValue(":fv", firstVisit);
     q.bindValue(":jd", joinDate);
-    q.bindValue(":hid", selectedHouseholdId > 0 ? QVariant(selectedHouseholdId) : QVariant(QMetaType(QMetaType::Int)));
+    q.bindValue(":hid", selectedHouseholdId > 0 ? QVariant(selectedHouseholdId) : QVariant());
     q.bindValue(":gender", gender);
     q.bindValue(":gifts", giftsText);
     q.bindValue(":style", styleText);
@@ -2791,6 +2802,12 @@ void PeopleWidget::onPrintDirectory() {
     html += "</table></body></html>";
     doc.setHtml(html);
     doc.print(&writer);
+    QFileInfo doneInfo(fileName);
+    if (!doneInfo.exists() || doneInfo.size() == 0) {
+        QMessageBox::warning(this, "Export Failed",
+            "Could not write directory PDF (check disk space and permissions).");
+        return;
+    }
 
     QMessageBox::information(this, "Directory Printed", QString("Member directory PDF successfully exported to:\n%1").arg(fileName));
 }
@@ -2882,6 +2899,11 @@ void PeopleWidget::onExportVCard() {
     QString savePath = QFileDialog::getSaveFileName(this, "Export Contact as vCard", defaultFileName, "vCard Files (*.vcf)");
     if (savePath.isEmpty()) return;
 
+    auto warn = QMessageBox::warning(this, "Data Security Notice",
+        "This export contains personal contact details.\nEnsure it is stored safely.",
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (warn != QMessageBox::Ok) return;
+
     QFile file(savePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::critical(this, "Export Error", "Could not open file for writing: " + file.errorString());
@@ -2891,6 +2913,7 @@ void PeopleWidget::onExportVCard() {
     QString vcardText = generateVCard(fn, ln, phone, email, bday, status, careFlag, notes);
     file.write(vcardText.toUtf8());
     file.close();
+    DatabaseManager::logAudit("exports", personId, "vcard", QString("%1 %2").arg(fn, ln), savePath, "people");
 
     QMessageBox::information(this, "vCard Exported", QString("vCard contact for '%1 %2' successfully exported to:\n%3").arg(fn, ln, savePath));
 }
@@ -3450,8 +3473,8 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
         m_peopleModel->setFilter(QString(
-            "id IN (SELECT DISTINCT person_id FROM contributions) "
-            "AND id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-%1 days'))")
+            "EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
+            "AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', '-%1 days'))")
             .arg(inactivityDays));
         m_peopleModel->select();
         while (m_peopleModel->canFetchMore()) {

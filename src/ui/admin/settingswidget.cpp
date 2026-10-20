@@ -4,6 +4,8 @@
 #include "../integrations/planningcenterdialog.h"
 #include "../database/databasemanager.h"
 #include "../database/datasharing.h"
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -856,7 +858,7 @@ void SettingsWidget::setupUI() {
 
         QComboBox* cmbScope = new QComboBox(&dlg);
         cmbScope->addItem("Full Database (All Tables)", "full");
-        cmbScope->addItem("Membership Only (People, Households, Groups)", "membership");
+        cmbScope->addItem("Membership + Care Trail (People, Groups, Care Notes)", "membership");
         cmbScope->addItem("Finance Only (Accounts, Funds, Contributions)", "finance");
         cmbScope->addItem("Ministry Schedules (Services, Facilities, Plans)", "schedules");
         cmbScope->addItem("Pastoral Care & History", "care_notes");
@@ -875,22 +877,31 @@ void SettingsWidget::setupUI() {
         btnRow->addWidget(btnImport);
         v->addLayout(btnRow);
 
-        connect(btnExport, &QPushButton::clicked, &dlg, [this, cmbScope, &dlg]() {
+        connect(btnExport, &QPushButton::clicked, &dlg, [cmbScope, &dlg]() {
             QString scope = cmbScope->currentData().toString();
             QString path = QFileDialog::getSaveFileName(&dlg, "Export Data Scope", QString("%1_export.json").arg(scope), "JSON Files (*.json)");
             if (!path.isEmpty()) {
+                auto warn = QMessageBox::warning(&dlg, "Data Security Notice",
+                    "This export contains personal contact details and directory data.\n"
+                    "Ensure it is stored on an encrypted drive or kept offline.",
+                    QMessageBox::Ok | QMessageBox::Cancel);
+                if (warn != QMessageBox::Ok) return;
                 QSqlDatabase d = DatabaseManager::instance().database();
                 QJsonObject doc = DataSharing::exportTables(d, DataSharing::tablesForScope(scope));
                 QFile f(path);
                 if (f.open(QIODevice::WriteOnly)) {
                     f.write(QJsonDocument(doc).toJson());
                     f.close();
+                    DatabaseManager::logAudit("datasharing", 0, "export", scope, path, "admin");
                     QMessageBox::information(&dlg, "Export Complete", QString("Data scope '%1' exported successfully!").arg(scope));
+                } else {
+                    QMessageBox::warning(&dlg, "Export Failed",
+                        "Could not write file: " + f.errorString());
                 }
             }
         });
 
-        connect(btnImport, &QPushButton::clicked, &dlg, [this, &dlg]() {
+        connect(btnImport, &QPushButton::clicked, &dlg, [&dlg]() {
             QString path = QFileDialog::getOpenFileName(&dlg, "Import Data Scope", "", "JSON Files (*.json)");
             if (!path.isEmpty()) {
                 QFile f(path);

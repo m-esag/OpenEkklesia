@@ -4,6 +4,9 @@
 #include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
 #include "matchdialog.h"
+#include <QApplication>
+#include <QGestureEvent>
+#include <QPinchGesture>
 #include <QPainter>
 #include <QPainterPathStroker>
 #include <QGraphicsSceneMouseEvent>
@@ -496,7 +499,8 @@ GhostEdgeItem::GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& 
     : m_source(source), m_target(target), m_matchReason(matchReason), m_matchPct(matchPct), m_isSolid(isSolid)
 {
     setZValue(-1);
-    setToolTip(QString("💡 Smart Bridge Recommendation: %1\n%2% Match — %3").arg(target->name()).arg(matchPct).arg(matchReason));
+    const QString targetName = target ? target->name() : QString("?");
+    setToolTip(QString("💡 Smart Bridge Recommendation: %1\n%2% Match — %3").arg(targetName).arg(matchPct).arg(matchReason));
 }
 
 QRectF GhostEdgeItem::boundingRect() const {
@@ -541,6 +545,37 @@ void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QW
 
 // --- GraphCanvasView Implementation ---
 
+namespace {
+// Zoom-out crash guard: unbounded scale() drives the view transform toward 0
+// (then mapToScene divides by ~0 -> inf/nan -> paint crash) or toward huge
+// values on repeated zoom-in (painter overflow). Clamp uniform scale.
+constexpr double kMinZoom = 0.15;
+constexpr double kMaxZoom = 4.0;
+constexpr double kSceneBound = 1900.0;
+constexpr int kMaxGridPoints = 20000;
+
+double currentZoom(const QGraphicsView* v) {
+    if (!v) return 1.0;
+    const double m11 = v->transform().m11();
+    // transform() is scale-only in this widget (scale/reset/fitInView), so
+    // m11 is the uniform zoom. Guard against degenerate transforms.
+    if (!std::isfinite(m11) || m11 <= 0.0) return 1.0;
+    return m11;
+}
+
+bool clampedScale(QGraphicsView* v, double factor) {
+    if (!v || !std::isfinite(factor) || factor <= 0.0) return false;
+    const double cur = currentZoom(v);
+    double want = cur * factor;
+    if (want < kMinZoom) factor = kMinZoom / cur;
+    else if (want > kMaxZoom) factor = kMaxZoom / cur;
+    // Already at the bound and pushing further out: swallow, don't scale.
+    if (!std::isfinite(factor) || qFuzzyCompare(factor, 1.0)) return false;
+    v->scale(factor, factor);
+    return true;
+}
+} // namespace
+
 GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
     : QGraphicsView(scene, parent), m_selectMode(false)
 {
@@ -549,6 +584,51 @@ GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Keep zoom centered under the cursor and stable on resize.
+    setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    // Touchscreen (detachable 2-in-1) + active pen: taps synthesize mouse by
+    // default; grab pinch so two-finger zoom works on the canvas.
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
+    viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    grabGesture(Qt::PinchGesture);
+}
+
+bool GraphCanvasView::event(QEvent* event) {
+    if (event && event->type() == QEvent::Gesture) {
+        auto* ge = static_cast<QGestureEvent*>(event);
+        if (QGesture* g = ge->gesture(Qt::PinchGesture)) {
+            if (auto* pinch = static_cast<QPinchGesture*>(g)) {
+                if (handlePinchGesture(pinch)) {
+                    event->accept();
+                    return true;
+                }
+            }
+        }
+    }
+    return QGraphicsView::event(event);
+}
+
+bool GraphCanvasView::handlePinchGesture(QPinchGesture* pinch) {
+    if (!pinch) return false;
+    const double total = pinch->totalScaleFactor();
+    if (!std::isfinite(total) || total <= 0.0) return false;
+    if (pinch->state() == Qt::GestureStarted) {
+        m_pinchStartZoom = currentZoom(this);
+        return true;
+    }
+    if (pinch->state() == Qt::GestureUpdated) {
+        if (!std::isfinite(m_pinchStartZoom) || m_pinchStartZoom <= 0.0)
+            m_pinchStartZoom = currentZoom(this);
+        double want = m_pinchStartZoom * total;
+        if (!std::isfinite(want) || want <= 0.0) return true;
+        want = qBound(kMinZoom, want, kMaxZoom);
+        const double cur = currentZoom(this);
+        if (cur <= 0.0 || qFuzzyCompare(cur, want)) return true;
+        clampedScale(this, want / cur);
+        return true;
+    }
+    return false;
 }
 
 void GraphCanvasView::setSelectMode(bool selectMode) {
@@ -561,8 +641,12 @@ void GraphCanvasView::setSelectMode(bool selectMode) {
 }
 
 void GraphCanvasView::wheelEvent(QWheelEvent* event) {
+    if (event->angleDelta().y() == 0) {
+        QGraphicsView::wheelEvent(event);
+        return;
+    }
     double factor = (event->angleDelta().y() > 0) ? 1.15 : 0.85;
-    scale(factor, factor);
+    clampedScale(this, factor);
     event->accept();
 }
 
@@ -601,7 +685,16 @@ void GraphCanvasView::contextMenuEvent(QContextMenuEvent* event) {
     } else if (sel == actExportPng) {
         m_graphWidget->onExportPNG();
     } else if (sel == actFit) {
-        if (scene()) fitInView(scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+        if (scene()) {
+            const QRectF bounds = scene()->itemsBoundingRect();
+            if (bounds.isValid() && !bounds.isNull() && bounds.width() > 0.0 && bounds.height() > 0.0
+                && std::isfinite(bounds.width()) && std::isfinite(bounds.height())) {
+                fitInView(bounds, Qt::KeepAspectRatio);
+                const double z = currentZoom(this);
+                if (z < kMinZoom) clampedScale(this, kMinZoom / z);
+                else if (z > kMaxZoom) clampedScale(this, kMaxZoom / z);
+            }
+        }
     }
 }
 
@@ -636,18 +729,38 @@ void GraphCanvasView::drawBackground(QPainter* painter, const QRectF& rect) {
     ThemeTokens tok = ThemeManager::instance().currentTokens();
     painter->fillRect(rect, tok.bgBase);
 
+    // Far zoom-out makes `rect` enormous (viewport mapped to scene). Drawing
+    // a 50px dot grid for the whole rect would allocate millions of points
+    // and hang/crash. Adapt the step so the point count stays bounded, and
+    // skip dots entirely past a sane limit.
+    if (!rect.isValid() || !std::isfinite(rect.width()) || !std::isfinite(rect.height())
+        || rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return;
+    }
+    double gridSize = 50.0;
+    const double area = rect.width() * rect.height();
+    if (area / (gridSize * gridSize) > kMaxGridPoints) {
+        gridSize = std::ceil(std::sqrt(area / kMaxGridPoints));
+        if (!std::isfinite(gridSize) || gridSize <= 0.0) return;
+    }
+    // Past ~400px steps the grid is sub-pixel noise — skip it.
+    if (gridSize > 400.0) return;
+
     painter->setPen(QPen(tok.bgSurface, 1, Qt::DotLine));
-    int gridSize = 50;
     qreal left = std::floor(rect.left() / gridSize) * gridSize;
     qreal top = std::floor(rect.top() / gridSize) * gridSize;
 
     QVector<QPointF> points;
+    points.reserve(kMaxGridPoints);
     for (qreal x = left; x < rect.right(); x += gridSize) {
         for (qreal y = top; y < rect.bottom(); y += gridSize) {
             points.append(QPointF(x, y));
+            if (points.size() >= kMaxGridPoints) break;
         }
+        if (points.size() >= kMaxGridPoints) break;
     }
-    painter->drawPoints(points.data(), points.size());
+    if (!points.isEmpty())
+        painter->drawPoints(points.data(), points.size());
 }
 
 void GraphCanvasView::drawForeground(QPainter* painter, const QRectF&) {
@@ -684,6 +797,9 @@ GraphWidget::GraphWidget(QWidget* parent)
     {
         QSettings s("OpenEkklesia", "CHMS");
         m_physicsRunning = s.value("graphPhysicsEnabled", true).toBool();
+        // Advisory thresholds from Settings → Pastoral & Graph (live, not hardcoded).
+        m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
+        m_familyDominancePercent = qBound(10, s.value("familyDominancePercent", 40).toInt(), 90);
     }
     m_timer->start(33);
 
@@ -1774,6 +1890,11 @@ void GraphWidget::onBatchCopyPhones() {
 }
 
 void GraphWidget::onBatchExportCSV() {
+    auto warn = QMessageBox::warning(this, "Data Security Notice",
+        "This export contains personal contact details and directory data.\n"
+        "Ensure it is stored on an encrypted drive.",
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (warn != QMessageBox::Ok) return;
     QString fileName = QFileDialog::getSaveFileName(this, "Export Batch CSV", "selected_network.csv", "CSV Files (*.csv)");
     if (fileName.isEmpty()) return;
 
@@ -1802,6 +1923,7 @@ void GraphWidget::onBatchExportCSV() {
         }
     }
     file.close();
+    DatabaseManager::logAudit("exports", 0, "batch_csv", QString::number(m_lstBatchMembers->count()), fileName, "graph");
     QMessageBox::information(this, "Export Complete", QString("Exported %1 records to CSV.").arg(m_lstBatchMembers->count()));
 }
 
@@ -2296,6 +2418,13 @@ void GraphWidget::loadGraph() {
     m_pathEndNode = nullptr;
     m_pathHighlightedNodes.clear();
     m_pathHighlightedEdges.clear();
+
+    // Re-read advisory thresholds so Settings changes apply without restart.
+    {
+        QSettings s("OpenEkklesia", "CHMS");
+        m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
+        m_familyDominancePercent = qBound(10, s.value("familyDominancePercent", 40).toInt(), 90);
+    }
 
     m_scene->clear();
     m_nodes.clear();
@@ -2936,6 +3065,7 @@ void GraphWidget::onSeverSelectedEdge() {
 
 void GraphWidget::onGroupSuggest() {
     if (!m_selectedNodeForDetails || m_selectedNodeForDetails->nodeType() != NodeItem::Group) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int gid = m_selectedNodeForDetails->id();
 
     MatchDialog dlg(gid, this);
@@ -2950,6 +3080,7 @@ void GraphWidget::onGroupSuggest() {
 
 void GraphWidget::onLogContact() {
     if (!m_selectedNodeForDetails || !m_selectedNodeForDetails->isPersonNode()) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int pid = m_selectedNodeForDetails->id();
 
     QSqlDatabase db = DatabaseManager::instance().database();
@@ -3445,6 +3576,7 @@ void GraphWidget::runBFSPathfind() {
 
 void GraphWidget::onSaveNotes() {
     if (!m_selectedNodeForDetails) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     QString notes = m_txtAdminNotes->toPlainText().trimmed();
     m_selectedNodeForDetails->setAdminNotes(notes);
 
@@ -3703,18 +3835,32 @@ void GraphWidget::clearSceneSelection() {
 }
 
 void GraphWidget::onZoomIn() {
-    m_canvasView->scale(1.2, 1.2);
+    if (!m_canvasView) return;
+    clampedScale(m_canvasView, 1.2);
 }
 
 void GraphWidget::onZoomOut() {
-    m_canvasView->scale(0.8, 0.8);
+    if (!m_canvasView) return;
+    clampedScale(m_canvasView, 0.8);
 }
 
 void GraphWidget::onZoomReset() {
+    if (!m_canvasView || !m_scene) return;
     m_canvasView->resetTransform();
-    if (!m_nodes.isEmpty()) {
-        m_canvasView->fitInView(m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50), Qt::KeepAspectRatio);
+    if (m_nodes.isEmpty()) return;
+    const QRectF bounds = m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50);
+    // fitInView with a null/degenerate rect produces a degenerate transform
+    // (the next wheel/scale then divides by ~0). Guard it.
+    if (!bounds.isValid() || bounds.isNull() || bounds.width() <= 0.0 || bounds.height() <= 0.0
+        || !std::isfinite(bounds.width()) || !std::isfinite(bounds.height())) {
+        return;
     }
+    m_canvasView->fitInView(bounds, Qt::KeepAspectRatio);
+    // fitInView can still land outside the safe band for very large/small
+    // graphs (huge sceneRect vs tiny cluster) — clamp back inside.
+    const double z = currentZoom(m_canvasView);
+    if (z < kMinZoom) clampedScale(m_canvasView, kMinZoom / z);
+    else if (z > kMaxZoom) clampedScale(m_canvasView, kMaxZoom / z);
 }
 
 void GraphWidget::applyForceDirectedLayout() {
@@ -3772,7 +3918,13 @@ void GraphWidget::applyForceDirectedLayout() {
         }
 
         if (speed > 0.04) {
-            n1->setPos(n1->pos() + n1->velocity);
+            QPointF next = n1->pos() + n1->velocity;
+            // Keep nodes inside the scene so itemsBoundingRect can never grow
+            // unbounded (which would make fitInView zoom to ~0 and explode
+            // the background grid / paint math on the next zoom-out).
+            next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+            next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+            n1->setPos(next);
         }
         m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, speed);
     }
@@ -3804,8 +3956,18 @@ void GraphWidget::resolveNodeOverlaps() {
             // along an arbitrary axis instead of skipping them.
             const QPointF dir = (dist < 0.001) ? QPointF(1.0, 0.0) : delta / dist;
             const double push = (minDist - dist) * 0.5;
-            if (!a->isBeingDragged && !a->isPinned()) a->setPos(a->pos() - dir * push);
-            if (!b->isBeingDragged && !b->isPinned()) b->setPos(b->pos() + dir * push);
+            if (!a->isBeingDragged && !a->isPinned()) {
+                QPointF next = a->pos() - dir * push;
+                next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+                next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+                a->setPos(next);
+            }
+            if (!b->isBeingDragged && !b->isPinned()) {
+                QPointF next = b->pos() + dir * push;
+                next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+                next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+                b->setPos(next);
+            }
             m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, push);
         }
     }
@@ -3852,6 +4014,9 @@ void GraphWidget::applyClusteredLayout() {
 
 void GraphWidget::updatePhysics() {
     if (!m_physicsRunning || m_layoutMode != ForceDirected) return;
+    // Never mutate the scene while a modal dialog (sever confirm, MatchDialog)
+    // holds the event loop — that path clears/deletes nodes mid-iteration.
+    if (QApplication::activeModalWidget()) return;
     if (m_nodes.isEmpty()) {
         m_timer->stop(); // nothing to simulate — don't idle at 30 FPS
         return;

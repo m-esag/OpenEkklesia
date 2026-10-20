@@ -10,8 +10,10 @@
 #include <QStandardPaths>
 #include <QSettings>
 #include <QSet>
+#include <functional>
 #include <QIODevice>
 #include <QDate>
+#include <QRandomGenerator>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -77,9 +79,9 @@ bool DatabaseManager::initialize(const QString& dbPath) {
 
     // --- Automated Database Backup Snapshot (schedule + retention from Settings) ---
     QSettings bSet("OpenEkklesia", "CHMS");
-    const QString schedule = bSet.value("autoBackupSchedule", "Weekly").toString();
-    const int intervalDays = (schedule == "Daily") ? 1 : (schedule == "Monthly") ? 30 : 7;
-    const int retention = qMax(1, bSet.value("backupRetentionCount", 8).toInt());
+    const QString scheduleRaw = bSet.value("autoBackupSchedule", "weekly").toString();
+    const QString schedule = scheduleRaw.toLower();
+    const int retention = qMax(1, bSet.value("backupRetentionCount", 10).toInt());
 
     QString backupDir = QFileInfo(resolvedPath).absolutePath() + "/backups";
     QDir().mkpath(backupDir);
@@ -92,7 +94,14 @@ bool DatabaseManager::initialize(const QString& dbPath) {
             f.close();
         }
     }
-    if (!lastBackupDate.isValid() || lastBackupDate.daysTo(QDate::currentDate()) >= intervalDays) {
+    const bool backupsDisabled = (schedule == "disabled" || schedule == "never" || schedule == "off");
+    const int intervalDays = (schedule == "daily") ? 1 : (schedule == "monthly") ? 30 : 7;
+    if (!backupsDisabled && (!lastBackupDate.isValid() || lastBackupDate.daysTo(QDate::currentDate()) >= intervalDays)) {
+        // Checkpoint WAL so the file copy is complete (manual export already does this).
+        {
+            QSqlQuery ckpt(m_db);
+            ckpt.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        }
         QString autoBackupPath = QString("%1/auto_backup_%2.db").arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
         if (QFile::copy(resolvedPath, autoBackupPath)) {
             qInfo() << "Automated backup created at:" << autoBackupPath;
@@ -105,13 +114,25 @@ bool DatabaseManager::initialize(const QString& dbPath) {
                 const QString vaultBackupDir = QString("%1/auto_backup_%2_vault")
                                                    .arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
                 QDir().mkpath(vaultBackupDir);
-                const auto files = QDir(vaultDir).entryInfoList(QDir::Files);
-                bool allCopied = true;
-                for (const QFileInfo& fi : files) {
-                    const QString dest = vaultBackupDir + "/" + fi.fileName();
-                    QFile::remove(dest);
-                    if (!QFile::copy(fi.absoluteFilePath(), dest)) allCopied = false;
-                }
+                // Recursive copy so subfolders are not silently skipped.
+                std::function<bool(const QString&, const QString&)> copyRecursive;
+                copyRecursive = [&](const QString& src, const QString& dst) -> bool {
+                    QDir srcDir(src);
+                    QDir().mkpath(dst);
+                    bool okAll = true;
+                    const auto entries = srcDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+                    for (const QFileInfo& fi : entries) {
+                        const QString dstPath = dst + "/" + fi.fileName();
+                        if (fi.isDir()) {
+                            if (!copyRecursive(fi.absoluteFilePath(), dstPath)) okAll = false;
+                        } else {
+                            QFile::remove(dstPath);
+                            if (!QFile::copy(fi.absoluteFilePath(), dstPath)) okAll = false;
+                        }
+                    }
+                    return okAll;
+                };
+                const bool allCopied = copyRecursive(vaultDir, vaultBackupDir);
                 if (!allCopied) {
                     qWarning() << "Vault backup incomplete for" << vaultBackupDir;
                 }
@@ -141,14 +162,7 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     }
 
     // Enforce foreign keys, WAL mode, memory caching, and memory-mapped IO for ultra-fast queries & low CPU usage.
-    QSqlQuery pragma(m_db);
-    pragma.exec("PRAGMA foreign_keys = ON;");
-    pragma.exec("PRAGMA journal_mode = WAL;");
-    pragma.exec("PRAGMA synchronous = NORMAL;");
-    pragma.exec("PRAGMA cache_size = -8000;"); // 8 MB memory cache
-    pragma.exec("PRAGMA temp_store = MEMORY;");
-    pragma.exec("PRAGMA mmap_size = 33554432;"); // 32 MB memory-mapped zero-copy IO
-    pragma.exec("PRAGMA auto_vacuum = INCREMENTAL;");
+    applyPragmas();
 
     qInfo() << "Database opened successfully at:" << resolvedPath;
 
@@ -167,6 +181,21 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     }
 
     return true;
+}
+
+void DatabaseManager::applyPragmas() {
+    // Enforce foreign keys, WAL mode, memory caching, and memory-mapped IO
+    // for ultra-fast queries & low CPU usage. Must be re-applied after any
+    // connection reopen (e.g. restoreFromBackup), because these settings
+    // are per-connection, not persisted in the database file.
+    QSqlQuery pragma(m_db);
+    pragma.exec("PRAGMA foreign_keys = ON;");
+    pragma.exec("PRAGMA journal_mode = WAL;");
+    pragma.exec("PRAGMA synchronous = NORMAL;");
+    pragma.exec("PRAGMA cache_size = -8000;"); // 8 MB memory cache
+    pragma.exec("PRAGMA temp_store = MEMORY;");
+    pragma.exec("PRAGMA mmap_size = 33554432;"); // 32 MB memory-mapped zero-copy IO
+    pragma.exec("PRAGMA auto_vacuum = INCREMENTAL;");
 }
 
 void DatabaseManager::close() {
@@ -190,6 +219,13 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
         return false;
     }
 
+    // Validate the candidate backup BEFORE touching the live database, so a
+    // corrupt or unrelated file can never destroy the working copy.
+    if (!validateBackupFile(backupPath)) {
+        qWarning() << "Restore failed: backup file failed validation:" << backupPath;
+        return false;
+    }
+
     // Close the live connection WITHOUT removing it from the registry: the app
     // (and tests) may still hold QSqlDatabase/QSqlQuery handles, so
     // QSqlDatabase::removeDatabase() would warn "connection is still in use"
@@ -197,15 +233,67 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
     // reopening the same connection avoids that entirely.
     m_db.close();
 
+    // Safety copy: if the restore below goes wrong the user can still get
+    // their data back from this file.
+    const QString safetyCopy = dbPath + ".pre-restore-" + QDate::currentDate().toString("yyyyMMdd") + ".bak";
+    if (QFile::exists(dbPath) && !QFile::copy(dbPath, safetyCopy)) {
+        qWarning() << "Restore: could not write safety copy to" << safetyCopy;
+    }
+
     QFile::remove(dbPath);
     QFile::remove(dbPath + "-wal");
     QFile::remove(dbPath + "-shm");
     if (!QFile::copy(backupPath, dbPath)) {
         qWarning() << "Restore failed: could not copy backup over" << dbPath;
         m_db.open(); // try to bring the original connection back
+        applyPragmas();
         return false;
     }
-    return m_db.open();
+    if (!m_db.open()) {
+        qWarning() << "Restore failed: could not reopen database after restore";
+        return false;
+    }
+    // Pragmas are per-connection, so they must be re-applied to the new file.
+    applyPragmas();
+    // Bring an older backup forward to the current schema version.
+    migrateSchema();
+    return true;
+}
+
+bool DatabaseManager::validateBackupFile(const QString& backupPath) {
+    QFileInfo info(backupPath);
+    if (!info.exists() || !info.isFile()) return false;
+    if (info.size() < 100) return false; // too small to be a real SQLite file
+
+    // SQLite files start with a fixed 16-byte magic header.
+    QFile f(backupPath);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    const QByteArray header = f.read(16);
+    f.close();
+    if (header != QByteArray("SQLite format 3", 16)) return false;
+
+    // Run an integrity check on a throwaway connection so the live database
+    // is never opened against an unverified file.
+    const QString connName = "oe_backup_validate_" + QString::number(QRandomGenerator::global()->generate());
+    bool ok = false;
+    {
+        QSqlDatabase probe = QSqlDatabase::addDatabase("QSQLITE", connName);
+        probe.setDatabaseName(backupPath);
+        if (!probe.open()) {
+            QSqlDatabase::removeDatabase(connName);
+            return false;
+        }
+        QSqlQuery q(probe);
+        ok = q.exec("PRAGMA integrity_check") && q.next() &&
+             q.value(0).toString().compare("ok", Qt::CaseInsensitive) == 0;
+        probe.close();
+    }
+    QSqlDatabase::removeDatabase(connName);
+    if (!ok) {
+        qWarning() << "Backup failed SQLite integrity_check:" << backupPath;
+        return false;
+    }
+    return true;
 }
 
 bool DatabaseManager::exportBackup(const QString& destPath) {

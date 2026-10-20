@@ -47,6 +47,8 @@ private:
     bool migrateSchema();
     int  readSchemaVersion();
     bool recordSchemaVersion(int version);
+    void applyPragmas();
+    bool validateBackupFile(const QString& backupPath);
     void seedInitialData();
     void seedServiceLibrary();
 

@@ -67,6 +67,33 @@ int g_failures = 0;
 QString g_dbPath;
 QSqlDatabase db() { return DatabaseManager::instance().database(); }
 
+void ensurePersonOne() {
+    QSqlDatabase d = db();
+    QSqlQuery hh(d);
+    hh.exec("INSERT OR IGNORE INTO households (id, family_name) VALUES (1, 'Test Household')");
+    QSqlQuery p(d);
+    p.prepare("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, membership_status) "
+              "VALUES (1, 1, 'Test', 'Member', 'Member')");
+    p.exec();
+    QSqlQuery f(d);
+    f.exec("INSERT OR IGNORE INTO funds (id, fund_name, is_active) VALUES (1, 'General', 1)");
+    f.exec("INSERT OR IGNORE INTO funds (id, fund_name, is_active) VALUES (2, 'Missions', 1)");
+}
+
+void ensureMinistryEvents(int minimum = 5) {
+    QSqlDatabase d = db();
+    QSqlQuery c(d);
+    if (!c.exec("SELECT COUNT(*) FROM ministry_events") || !c.next()) return;
+    int have = c.value(0).toInt();
+    for (int i = have; i < minimum; ++i) {
+        QSqlQuery ins(d);
+        ins.prepare("INSERT INTO ministry_events (title, event_type, start_datetime, end_datetime, status) "
+                    "VALUES (?, 'Fellowship', '2026-04-05 09:00', '2026-04-05 10:00', 'Confirmed')");
+        ins.addBindValue(QString("Seeded Event %1").arg(i + 1));
+        if (!ins.exec()) break;
+    }
+}
+
 int countRows(const QString& table) {
     QSqlQuery q(db());
     if (!q.exec(QString("SELECT COUNT(*) FROM %1").arg(table))) {
@@ -381,6 +408,55 @@ bool test_restoreFromBackup() {
     return true;
 }
 
+bool test_restoreRejectsInvalidBackup() {
+    const QString dbPath = DatabaseManager::instance().database().databaseName();
+    const int peopleBefore = countRows("people");
+
+    // A file that is not a SQLite database at all must be rejected outright.
+    const QString garbagePath = dbPath + ".not_a_db";
+    {
+        QFile f(garbagePath);
+        CHECK(f.open(QIODevice::WriteOnly));
+        f.write("This is definitely not a SQLite database file, not even close.");
+        f.close();
+    }
+    CHECK(!DatabaseManager::instance().restoreFromBackup(garbagePath));
+    // The live database must be untouched by the rejected restore.
+    CHECK_EQ(countRows("people"), peopleBefore);
+
+    // A missing file must be rejected too.
+    CHECK(!DatabaseManager::instance().restoreFromBackup(dbPath + ".does_not_exist"));
+    CHECK_EQ(countRows("people"), peopleBefore);
+
+    // A file that is too small to be a database must be rejected.
+    const QString tinyPath = dbPath + ".tiny";
+    {
+        QFile f(tinyPath);
+        CHECK(f.open(QIODevice::WriteOnly));
+        f.write("SQLite format 3");
+        f.close();
+    }
+    CHECK(!DatabaseManager::instance().restoreFromBackup(tinyPath));
+    CHECK_EQ(countRows("people"), peopleBefore);
+
+    QFile::remove(garbagePath);
+    QFile::remove(tinyPath);
+
+    // The live database must still be usable and correctly configured after
+    // the rejected restores (pragmas are re-applied on the open connection).
+    CHECK_EQ(countRows("people"), peopleBefore);
+    {
+        QSqlQuery q(DatabaseManager::instance().database());
+        CHECK(q.exec("PRAGMA foreign_keys"));
+        CHECK(q.next());
+        CHECK_EQ(q.value(0).toInt(), 1);
+        CHECK(q.exec("PRAGMA journal_mode"));
+        CHECK(q.next());
+        CHECK_EQ(q.value(0).toString().toLower().toStdString(), std::string("wal"));
+    }
+    return true;
+}
+
 bool test_purgeDemoData() {
     CHECK(DatabaseManager::instance().purgeDemoData());
 
@@ -632,6 +708,7 @@ bool test_ministryMatchAddMembersDedup() {
 }
 
 bool test_peopleWidget360DossierAndGiving() {
+    ensurePersonOne();
     PeopleWidget pw;
     pw.refreshModel();
 
@@ -723,6 +800,7 @@ bool test_ministryMatchDeclaredProfileWins() {
 }
 
 bool test_shepherdQuickActionsAndPastoralSync() {
+    ensurePersonOne();
     ShepherdWidget sw;
     sw.refreshAll();
 
@@ -1012,6 +1090,7 @@ bool test_ministryMatchRankByRole() {
 }
 
 bool test_dashboardKpiConfigAndQuickNotes() {
+    ensurePersonOne();
     // 1. Verify QSettings persistence for KPI cards
     QSettings s("OpenEkklesia", "CHMS");
     QStringList customKpis = {"members", "shepherd_due", "at_risk", "unconnected", "giving_ytd"};
@@ -1750,6 +1829,7 @@ bool test_comprehensiveSettingsRoundTrip() {
 }
 
 bool test_givingBatchesAndMultiFundSplits() {
+    ensurePersonOne();
     QSqlDatabase d = db();
     d.transaction();
 
@@ -2148,9 +2228,11 @@ bool test_smartBridgeEngineAndSourceLogging() {
                  "VALUES ('Person', 9102, 'Group', 9101, 'Member', 'Active', 'manual')"));
 
     // Bulk loaders: one query pass fills the whole population.
+    // NOTE: shared suite DB may contain helper rows (e.g. id 1 from dossier
+    // tests), so assert containment, not exact size, per guidelines.
     QMap<int, CandidateProfile> people;
     SynergyEngine::loadAllCandidates(d, people);
-    CHECK_EQ(people.size(), 2);
+    CHECK(people.size() >= 2);
     CHECK(people.contains(9101) && people.contains(9102));
     if (people.contains(9101)) {
         CHECK(people[9101].primaryArchetype == ChurchArchetype::Catalyst);
@@ -2587,6 +2669,9 @@ bool test_planningFrameworksAndEventsSuite() {
     CHECK(cols.contains("notes"));
 
     // Verify ministry_events table exists with seeded rows
+    // (purge clears demo events, so re-seed if needed — tests must not rely
+    // on leftover demo rows per DEVELOPMENT_GUIDELINES).
+    ensureMinistryEvents(5);
     QSqlQuery qEv(d);
     CHECK(qEv.exec("SELECT COUNT(*) FROM ministry_events"));
     CHECK(qEv.next());
@@ -2772,6 +2857,7 @@ int main(int argc, char** argv) {
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
+        {"restore_rejects_invalid_backup", test_restoreRejectsInvalidBackup},
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
@@ -2817,6 +2903,7 @@ int main(int argc, char** argv) {
     };
 
     for (const Test& t : tests) {
+        const int failuresBefore = g_failures;
         bool ok = false;
         try {
             ok = t.fn();
@@ -2824,6 +2911,9 @@ int main(int argc, char** argv) {
             ok = false;
             std::cerr << "EXCEPTION in test " << t.name << std::endl;
         }
+        // A test passes only if it returned true AND added no new failures.
+        // (Previously `return true` masked CHECK failures as [PASS].)
+        ok = ok && (g_failures == failuresBefore);
         std::cout << (ok ? "[PASS] " : "[FAIL] ") << t.name << std::endl;
     }
 

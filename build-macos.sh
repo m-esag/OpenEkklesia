@@ -43,8 +43,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>OpenEkklesia</string>
   <key>CFBundleDisplayName</key><string>OpenEkklesia</string>
   <key>CFBundleIdentifier</key><string>org.openekklesia.app</string>
-  <key>CFBundleVersion</key><string>1.5.0</string>
-  <key>CFBundleShortVersionString</key><string>1.5.0</string>
+  <key>CFBundleVersion</key><string>0.8.0</string>
+  <key>CFBundleShortVersionString</key><string>0.8.0</string>
   <key>CFBundleExecutable</key><string>OpenEkklesia</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
