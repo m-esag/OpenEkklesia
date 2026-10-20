@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     // a stable, user-writable location (QStandardPaths::AppDataLocation) so
     // data survives regardless of where the binary is launched from.
     if (!DatabaseManager::instance().initialize(QString())) {
-        QMessageBox::critical(nullptr, "Database Error", 
+        QMessageBox::critical(nullptr, "Database Error",
                               "Failed to open or initialize the application database. OpenEkklesia will now exit.");
         return 1;
     }
