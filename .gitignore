@@ -1,13 +1,48 @@
+# --- Build output trees ---
 build/
 build_release/
+build_warn/
+build_probe/
+build-asan/
+build-windows/
+out/
 AppDir/
+dist/
 deb_package/
+.vs/
+.cache/
+.zcode/
+
+# --- Downloaded packaging tools (never commit; see DEVELOPMENT_GUIDELINES.md §8) ---
+tools/
+
+# --- Database & runtime state ---
 *.db
 *.db-wal
 *.db-shm
-*.deb
+*.sqlite
+backups/auto_*.db
+backups/*.bak
+backups/last_backup.txt
+
+# --- Logs & test output ---
+*.log
+probe-*.log
+appimage-build*.log
+.testlogs/
+
+# --- Generated ---
+compile_commands.json
 linuxdeploy-*.AppImage
 linuxdeploy-plugin-qt
 linuxdeploy-plugin-appimage
-openekklesia.png
-build-asan/
+squashfs-root/
+*.kate-swp
+*.bak
+*.tmp
+*.orig
+*.rej
+
+# NOTE: openekklesia.png is intentionally NOT ignored. The AppImage build
+# copies it into the AppDir as the application icon
+# (see build-linux-appimage.sh), so a fresh clone must contain it.

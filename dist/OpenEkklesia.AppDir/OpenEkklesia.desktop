@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=OpenEkklesia
-Comment=Church Management System (ChMS)
-Exec=OpenEkklesia
-Icon=OpenEkklesia
-Categories=Office;Finance;Database;
-Terminal=false
