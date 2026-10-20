@@ -342,7 +342,7 @@ bool DatabaseManager::createTables() {
     QSqlQuery query;
 
     // Create households table
-    QString createHouseholds = 
+    QString createHouseholds =
         "CREATE TABLE IF NOT EXISTS households ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  family_name TEXT NOT NULL,"
@@ -356,7 +356,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create people table
-    QString createPeople = 
+    QString createPeople =
         "CREATE TABLE IF NOT EXISTS people ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  household_id INTEGER,"
@@ -381,7 +381,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create groups table
-    QString createGroups = 
+    QString createGroups =
         "CREATE TABLE IF NOT EXISTS groups ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  name TEXT NOT NULL,"
@@ -406,7 +406,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create accounts table
-    QString createAccounts = 
+    QString createAccounts =
         "CREATE TABLE IF NOT EXISTS accounts ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  name TEXT NOT NULL,"
@@ -420,7 +420,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create transactions table
-    QString createTransactions = 
+    QString createTransactions =
         "CREATE TABLE IF NOT EXISTS transactions ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  date TEXT NOT NULL,"
@@ -432,7 +432,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create splits table
-    QString createSplits = 
+    QString createSplits =
         "CREATE TABLE IF NOT EXISTS splits ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  transaction_id INTEGER NOT NULL,"
@@ -449,7 +449,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create funds table
-    QString createFunds = 
+    QString createFunds =
         "CREATE TABLE IF NOT EXISTS funds ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  fund_name TEXT UNIQUE NOT NULL,"
@@ -480,7 +480,7 @@ bool DatabaseManager::createTables() {
     query.exec("CREATE INDEX IF NOT EXISTS idx_batches_date ON giving_batches(batch_date);");
 
     // Create contributions table
-    QString createContributions = 
+    QString createContributions =
         "CREATE TABLE IF NOT EXISTS contributions ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  batch_id INTEGER,"
@@ -507,7 +507,7 @@ bool DatabaseManager::createTables() {
     query.exec("CREATE INDEX IF NOT EXISTS idx_contributions_batch ON contributions(batch_id);");
 
     // Create entity_relationships table
-    QString createRelationships = 
+    QString createRelationships =
         "CREATE TABLE IF NOT EXISTS entity_relationships ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  source_type TEXT NOT NULL,"
@@ -523,7 +523,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create assets table
-    QString createAssets = 
+    QString createAssets =
         "CREATE TABLE IF NOT EXISTS assets ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  name TEXT NOT NULL,"
@@ -539,7 +539,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create checkout_logs table
-    QString createCheckoutLogs = 
+    QString createCheckoutLogs =
         "CREATE TABLE IF NOT EXISTS checkout_logs ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  asset_id INTEGER NOT NULL,"
@@ -556,7 +556,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create vault_documents table
-    QString createVault = 
+    QString createVault =
         "CREATE TABLE IF NOT EXISTS vault_documents ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  title TEXT NOT NULL,"
@@ -575,7 +575,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create audit_log table
-    QString createAuditLog = 
+    QString createAuditLog =
         "CREATE TABLE IF NOT EXISTS audit_log ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  table_name TEXT,"
@@ -592,7 +592,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create member_history table
-    QString createMemberHistory = 
+    QString createMemberHistory =
         "CREATE TABLE IF NOT EXISTS member_history ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  person_id INTEGER,"
@@ -644,7 +644,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create attendance table
-    QString createAttendance = 
+    QString createAttendance =
         "CREATE TABLE IF NOT EXISTS attendance ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  service_id INTEGER,"
@@ -659,7 +659,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create graph_layout table (Connection Graph node-position cache)
-    QString createGraphLayout = 
+    QString createGraphLayout =
         "CREATE TABLE IF NOT EXISTS graph_layout ("
         "  entity_type TEXT NOT NULL,"
         "  entity_id INTEGER NOT NULL,"
@@ -673,7 +673,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create users table
-    QString createUsers = 
+    QString createUsers =
         "CREATE TABLE IF NOT EXISTS users ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  username TEXT UNIQUE NOT NULL,"
@@ -695,7 +695,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create member_skills table
-    QString createSkills = 
+    QString createSkills =
         "CREATE TABLE IF NOT EXISTS member_skills ("
         "  person_id INTEGER NOT NULL,"
         "  skill_or_role TEXT NOT NULL,"
@@ -708,7 +708,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create service_volunteers table
-    QString createVolunteers = 
+    QString createVolunteers =
         "CREATE TABLE IF NOT EXISTS service_volunteers ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  service_date TEXT NOT NULL,"
@@ -809,7 +809,7 @@ bool DatabaseManager::createTables() {
     }
 
     // Create account_budgets table
-    QString createBudgets = 
+    QString createBudgets =
         "CREATE TABLE IF NOT EXISTS account_budgets ("
         "  account_id INTEGER PRIMARY KEY,"
         "  budgeted_amount_cents INTEGER NOT NULL,"
@@ -2367,16 +2367,16 @@ void DatabaseManager::seedInitialData() {
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Household', 1, 'Head of House')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Household', 1, 'Member')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 5, 'Household', 1, 'Member')");
-    
+
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Household', 2, 'Head of House')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Household', 2, 'Member')");
-    
+
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Household', 3, 'Head of House')");
-    
+
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Household', 5, 'Head of House')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Household', 5, 'Member')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 10, 'Household', 5, 'Member')");
-    
+
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Household', 6, 'Head of House')");
     query.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Household', 6, 'Member')");
 
@@ -2511,4 +2511,3 @@ bool DatabaseManager::purgeDemoData() {
     }
     return success;
 }
-
