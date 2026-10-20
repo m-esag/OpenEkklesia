@@ -334,6 +334,17 @@ void ContributionsWidget::setupUI() {
         if (sel == actToggleCommit && !isReadOnly) {
             onToggleBatchCommit();
         } else if (sel == actRename && !isReadOnly) {
+            // Renames respect the commit lock like the header editor does.
+            QSqlQuery st;
+            st.prepare("SELECT status FROM giving_batches WHERE id = ?");
+            st.addBindValue(bId);
+            QString stVal;
+            if (st.exec() && st.next()) stVal = st.value(0).toString();
+            if (stVal == "Committed") {
+                QMessageBox::information(this, "Batch Locked",
+                    "This batch is Committed. Reopen it to In Progress before renaming.");
+                return;
+            }
             bool ok = false;
             QString curName = m_txtBatchName ? m_txtBatchName->text() : "Batch";
             QString newName = QInputDialog::getText(this, "Rename Batch", "Batch Name:", QLineEdit::Normal, curName, &ok);
@@ -937,13 +948,13 @@ void ContributionsWidget::onSaveContribution() {
         q.prepare("INSERT INTO contributions (batch_id, person_id, fund_id, amount, contribution_date, payment_method, check_number, note) "
                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         q.addBindValue(m_currentBatchId);
-        q.addBindValue(anonymous ? QVariant(QMetaType(QMetaType::Int)) : QVariant(personId));
+        q.addBindValue(anonymous ? QVariant() : QVariant(personId));
         q.addBindValue(fundId);
         q.addBindValue(amountCents);
         q.addBindValue(dateStr);
         q.addBindValue(method);
-        q.addBindValue(checkNum.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(checkNum));
-        q.addBindValue(baseNote.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(baseNote));
+        q.addBindValue(checkNum.isEmpty() ? QVariant() : QVariant(checkNum));
+        q.addBindValue(baseNote.isEmpty() ? QVariant() : QVariant(baseNote));
 
         if (!q.exec()) {
             allOk = false;
@@ -1014,20 +1025,40 @@ void ContributionsWidget::onNewBatchClicked() {
 void ContributionsWidget::onDeleteBatchClicked() {
     if (m_currentBatchId <= 0) return;
     auto res = QMessageBox::question(this, "Delete Batch",
-                                     QString("Are you sure you want to delete Batch #%1 ('%2')?\n\nDonations in this batch will be removed.")
+                                     QString("Are you sure you want to delete Batch #%1 ('%2')?\n\nAll donations in this batch will be permanently deleted (not orphaned).")
                                          .arg(QString::number(m_currentBatchId), m_txtBatchName ? m_txtBatchName->text() : ""),
                                      QMessageBox::Yes | QMessageBox::No);
     if (res != QMessageBox::Yes) return;
 
-    QSqlQuery q;
+    QSqlDatabase db = DatabaseManager::instance().database();
+    if (!db.transaction()) {
+        QMessageBox::critical(this, "Error", "Could not start delete: " + db.lastError().text());
+        return;
+    }
+    QSqlQuery delGifts(db);
+    delGifts.prepare("DELETE FROM contributions WHERE batch_id = ?");
+    delGifts.addBindValue(m_currentBatchId);
+    if (!delGifts.exec()) {
+        db.rollback();
+        QMessageBox::critical(this, "Error", "Failed to delete batch gifts: " + delGifts.lastError().text());
+        return;
+    }
+    QSqlQuery q(db);
     q.prepare("DELETE FROM giving_batches WHERE id = ?");
     q.addBindValue(m_currentBatchId);
-    if (q.exec()) {
-        m_currentBatchId = -1;
-        refreshBatchesList();
-    } else {
+    if (!q.exec()) {
+        db.rollback();
         QMessageBox::critical(this, "Error", "Failed to delete batch: " + q.lastError().text());
+        return;
     }
+    if (!db.commit()) {
+        db.rollback();
+        QMessageBox::critical(this, "Error", "Failed to delete batch.");
+        return;
+    }
+    DatabaseManager::logAudit("giving_batches", m_currentBatchId, "status", "deleted", "DELETED", "finance");
+    m_currentBatchId = -1;
+    refreshBatchesList();
 }
 
 void ContributionsWidget::onToggleBatchCommit() {
@@ -1114,6 +1145,7 @@ void ContributionsWidget::onBatchFilterChanged() {
     QString filter = m_txtBatchSearch->text().trimmed().toLower();
     for (int i = 0; i < m_batchesList->count(); ++i) {
         QListWidgetItem* item = m_batchesList->item(i);
+        if (!item) continue;
         item->setHidden(!filter.isEmpty() && !item->text().toLower().contains(filter));
     }
 }
@@ -1181,14 +1213,21 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
         form->addRow(bb);
         if (dlg.exec() == QDialog::Accepted && fCombo->count() > 0) {
             int newFundId = fCombo->currentData().toInt();
+            QSqlQuery fundQ;
+            fundQ.prepare("SELECT fund_name FROM funds WHERE id = ?");
+            fundQ.addBindValue(newFundId);
+            QString newFundName;
+            if (fundQ.exec() && fundQ.next()) newFundName = fundQ.value(0).toString();
             QSqlQuery uq;
             uq.prepare("UPDATE contributions SET fund_id = ? WHERE id = ?");
             uq.addBindValue(newFundId);
             uq.addBindValue(contributionId);
-            uq.exec();
-            refreshHistoryModel();
-            refreshFundPills();
-            refreshBatchesList();
+            if (uq.exec()) {
+                DatabaseManager::logAudit("contributions", contributionId, "fund", fundName, newFundName, "finance");
+                refreshHistoryModel();
+                refreshFundPills();
+                refreshBatchesList();
+            }
         }
     } else if (selected == actEdit) {
         bool ok;
@@ -1344,6 +1383,13 @@ void ContributionsWidget::onExportGnuCashCsv() {
                        QDir::homePath() + "/" + suggested, "CSV Files (*.csv)");
     if (fileName.isEmpty()) return;
 
+    if (!chkSummary->isChecked()) {
+        auto warn = QMessageBox::warning(this, "Data Security Notice",
+            "Per-gift export lists donor names with amounts.\nUse summary mode to de-identify, and store safely.",
+            QMessageBox::Ok | QMessageBox::Cancel);
+        if (warn != QMessageBox::Ok) return;
+    }
+
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::warning(this, "Error", "Could not open file for writing: " + file.errorString());
@@ -1359,7 +1405,7 @@ void ContributionsWidget::onExportGnuCashCsv() {
 
     QTextStream out(&file);
     int rowCount = 0;
-    double totalCents = 0.0;
+    qint64 totalCents = 0;
 
     if (chkSummary->isChecked()) {
         out << "Date,Description,Deposit\n";
@@ -1373,7 +1419,7 @@ void ContributionsWidget::onExportGnuCashCsv() {
         if (q.exec()) {
             while (q.next()) {
                 QString fund = q.value(0).toString();
-                double cents = q.value(1).toDouble();
+                const qint64 cents = q.value(1).toLongLong();
                 out << to->date().toString("yyyy-MM-dd") << ','
                     << csv(QString("Giving — %1 (%2 to %3)")
                                .arg(fund, from->date().toString("yyyy-MM-dd"), to->date().toString("yyyy-MM-dd")))
@@ -1400,7 +1446,7 @@ void ContributionsWidget::onExportGnuCashCsv() {
                 QString fund = q.value(1).toString();
                 QString donor = q.value(2).toString();
                 QString method = q.value(3).toString();
-                double cents = q.value(4).toDouble();
+                const qint64 cents = q.value(4).toLongLong();
                 QString donorLabel = donor.isEmpty() ? "Anonymous" : donor;
                 if (method.isEmpty()) method = "—";
                 out << date << ','
@@ -1413,6 +1459,7 @@ void ContributionsWidget::onExportGnuCashCsv() {
     }
     file.close();
 
+    DatabaseManager::logAudit("exports", 0, "gnucash_csv", QString::number(rowCount), fileName, "finance");
     QMessageBox::information(this, "Export Complete",
         QString("Exported %1 rows totaling %2%3.\n\nReady to import into GnuCash.")
             .arg(QString::number(rowCount), appCurrencySymbol(), QString::number(totalCents / 100.0, 'f', 2)));

@@ -435,11 +435,14 @@ void InventoryWidget::selectAssetByBarcode(const QString& barcode) {
     if (query.exec() && query.next()) {
         int assetId = query.value(0).toInt();
         
-        // Find in tree and select
+        // Find in tree and select (null-safe: model may be empty/filtered).
+        if (!m_treeModel || !m_treeView) return;
         for (int r = 0; r < m_treeModel->rowCount(); ++r) {
             QStandardItem* locItem = m_treeModel->item(r);
+            if (!locItem) continue;
             for (int c = 0; c < locItem->rowCount(); ++c) {
                 QStandardItem* child = locItem->child(c);
+                if (!child) continue;
                 if (child->data(Qt::UserRole).toInt() == assetId) {
                     QModelIndex index = child->index();
                     m_treeView->setCurrentIndex(index);
@@ -552,8 +555,8 @@ void InventoryWidget::onAddAsset() {
                       "VALUES (?, ?, ?, ?, ?)");
         query.addBindValue(name);
         query.addBindValue(location);
-        query.addBindValue(serial.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : serial);
-        query.addBindValue(barcode.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : barcode);
+        query.addBindValue(serial.isEmpty() ? QVariant() : serial);
+        query.addBindValue(barcode.isEmpty() ? QVariant() : barcode);
         query.addBindValue(condition);
 
         if (query.exec()) {

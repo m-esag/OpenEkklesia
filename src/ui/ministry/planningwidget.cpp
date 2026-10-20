@@ -1739,11 +1739,11 @@ void PlanningWidget::openTaskDialog(int editId, const QString& defaultStatus) {
         q.addBindValue(dDays);
         q.addBindValue(sMonth);
         q.addBindValue(dMonths);
-        q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant(QMetaType(QMetaType::Int)));
-        q.addBindValue(ownerId > 0 ? QVariant(ownerId) : QVariant(QMetaType(QMetaType::Int)));
+        q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant());
+        q.addBindValue(ownerId > 0 ? QVariant(ownerId) : QVariant());
         q.addBindValue(sDate.toString(Qt::ISODate));
         q.addBindValue(eDate.toString(Qt::ISODate));
-        q.addBindValue(anchorId > 0 ? QVariant(anchorId) : QVariant(QMetaType(QMetaType::Int)));
+        q.addBindValue(anchorId > 0 ? QVariant(anchorId) : QVariant());
         q.addBindValue(prio);
         q.addBindValue(cat);
         q.addBindValue(pct);
@@ -1950,8 +1950,8 @@ void PlanningWidget::openEventDialog(int editId) {
         }
         q.addBindValue(title);
         q.addBindValue(type);
-        q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant(QMetaType(QMetaType::Int)));
-        q.addBindValue(coordId > 0 ? QVariant(coordId) : QVariant(QMetaType(QMetaType::Int)));
+        q.addBindValue(teamId > 0 ? QVariant(teamId) : QVariant());
+        q.addBindValue(coordId > 0 ? QVariant(coordId) : QVariant());
         q.addBindValue(facility);
         q.addBindValue(sTime);
         q.addBindValue(eTime);

@@ -801,11 +801,20 @@ void ServiceBuilderWidget::loadRunSheetFromDb(const QDate& date) {
     q.prepare("SELECT run_sheet FROM services WHERE date = ?");
     q.addBindValue(date.toString("yyyy-MM-dd"));
     if (q.exec() && q.next()) {
-        const QJsonDocument doc = QJsonDocument::fromJson(q.value(0).toString().toUtf8());
-        if (doc.isArray()) {
+        const QString raw = q.value(0).toString();
+        if (raw.isEmpty()) {
+            m_playlist->clear(); // no saved arrangement for this date
+            return;
+        }
+        QJsonParseError err;
+        const QJsonDocument doc = QJsonDocument::fromJson(raw.toUtf8(), &err);
+        if (err.error == QJsonParseError::NoError && doc.isArray()) {
             loadPlaylistFromJson(doc.array());
             return;
         }
+        qWarning() << "Corrupt run_sheet for" << date.toString("yyyy-MM-dd") << ":" << err.errorString();
+        // Keep the current playlist instead of silently wiping it.
+        return;
     }
     m_playlist->clear(); // no saved arrangement for this date
 }
@@ -1701,5 +1710,11 @@ void ServiceBuilderWidget::onExportRunSheet() {
     doc.setHtml(html);
     doc.print(&pdfWriter);
 
+    QFileInfo doneInfo(savePath);
+    if (!doneInfo.exists() || doneInfo.size() == 0) {
+        QMessageBox::warning(this, "Export Failed",
+            "Could not write run-sheet PDF (check disk space and permissions).");
+        return;
+    }
     QMessageBox::information(this, "Export Success", "Service Run Sheet PDF exported successfully!");
 }
