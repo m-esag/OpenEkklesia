@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QGuiApplication>
 #include <QMessageBox>
 #include "databasemanager.h"
 #include "mainwindow.h"

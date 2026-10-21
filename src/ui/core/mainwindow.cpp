@@ -23,6 +23,8 @@
 #include <QMenu>
 #include <QAction>
 #include <QClipboard>
+#include <QGuiApplication>
+#include <QApplication>
 #include <QSettings>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -877,21 +879,24 @@ void MainWindow::populatePages() {
 
     m_chkShowArchivedGroups = new QCheckBox("Show Archived Groups", this);
     m_chkShowArchivedGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowArchivedGroups, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    // QCheckBox::checkStateChanged only exists since Qt 6.7. stateChanged(int)
+    // works on every Qt 6 and is only deprecated from 6.9 onward, so use it
+    // to keep the project buildable against the Qt 6.4 in current Ubuntu LTS.
+    connect(m_chkShowArchivedGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
 
     m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
     m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowHiddenGroups, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    connect(m_chkShowHiddenGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowHiddenGroups);
 
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowMembersInTree, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState) {
+    connect(m_chkShowMembersInTree, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
     grpHeaderLayout->addWidget(m_chkShowMembersInTree);
