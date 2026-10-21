@@ -46,7 +46,10 @@ jobs:
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Build
-        run: cmake --build build --parallel
+        # --keep-going makes ninja report every failing translation unit
+        # instead of stopping at the first, so one CI run surfaces all
+        # portability problems instead of one per run.
+        run: cmake --build build --parallel -- -k 0
 
       - name: Test
         env:
