@@ -104,8 +104,41 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 - A few hard-coded colors remain in the graph side panels (legend, details,
   roster) — migrate to tokens when convenient.
 - `-Wconversion` warnings under strict audit flags (cosmetic).
-- No CI or git history hygiene review; consider adding GitHub Actions build +
-  test once the repo is pushed.
+- ~~No CI or git history hygiene review~~ — DONE: GitHub Actions is live
+  (`.github/workflows/ci.yml`, Linux + Windows) and the repo history was
+  cleaned up in 2026-10.
+
+### 6.1 Branch flow (Unstable -> Testing -> master)
+
+Three long-lived branches, promoted in that order:
+
+| Branch | Purpose | Who works here |
+|---|---|---|
+| `Unstable` | alpha development and verification | Beam |
+| `Testing` | integration branch, CI-verified | after a review |
+| `master` | released code | after a final review |
+
+Promotion is done with a **pull request**, not a direct push, so the
+`Promotion` workflow (`.github/workflows/promotion.yml`) builds the
+*merge commit* and runs the test suite before the PR can be merged.
+
+> Note: GitHub branch protection and rulesets are **not** available on
+> private repos for free plans ("Upgrade to GitHub Pro or make this
+> repository public to enable this feature"). The `Promotion` workflow
+> check is therefore the only automated gate — do not merge a promotion
+> PR without reading its result.
+
+A second worktree exists for `Unstable` so two people can work at the
+same time without sharing a checkout:
+
+```
+C:/Users/Manuel/Downloads/OpenEkklesia          [Testing]
+C:/Users/Manuel/Downloads/OpenEkklesia-unstable [Unstable]
+```
+
+`git worktree list` shows them. Each builds independently
+(`cmake -S . -B build-windows -DCMAKE_PREFIX_PATH=<qt>`, then
+`cmake --build build-windows --config Release`).
 
 ## 7. Smart features roadmap (agreed 2025 direction)
 
