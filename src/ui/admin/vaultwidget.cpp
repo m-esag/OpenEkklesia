@@ -22,6 +22,7 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QDateEdit>
 #include <QComboBox>
