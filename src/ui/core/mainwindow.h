@@ -32,6 +32,8 @@
 #include <functional>
 
 class GroupsTreeWidget; // file-scope in mainwindow.cpp
+class TrayManager;
+
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -90,6 +92,7 @@ private:
     QWidget* createDashboardPage();
     QWidget* createTablePage(const QString& title, QTableView* view);
 
+    TrayManager* m_trayManager = nullptr;
     QStackedWidget* m_stackedWidget;
     
     QPushButton* m_btnDashboard;
