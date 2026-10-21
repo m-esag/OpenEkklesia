@@ -579,7 +579,12 @@ QString UserManualDialog::getFullManualHtml() {
 
 <hr>
 
-<a name="groups"></a>
+)rawhtml")
+    // The manual is split across two literals because a single string literal
+    // may not exceed 16384 characters (C++ implementation limit), and this
+    // document is longer than that. MSVC 14.44 (VS 2022) rejects it with
+    // "string too big, trailing characters truncated".
+    + QString(R"rawhtml(<a name="groups"></a>
 <h2><img class="header-icon" src="%10"> 4. Fixed Ministries & Serving Groups</h2>
 <p>OpenEkklesia implements a <b>"Ministry = Blueprint, Group = Roster + Override"</b> dual-layer hierarchy.</p>
 
