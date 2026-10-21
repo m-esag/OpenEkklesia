@@ -1,0 +1,74 @@
+name: Promotion
+
+# Promotion gate for the Unstable -> Testing -> master flow.
+#
+# GitHub branch protection is unavailable on private repos for free plans
+# ("Upgrade to GitHub Pro or make this repository public"), so the gate
+# lives here instead: a pull request from Unstable into Testing (or
+# Testing into master) cannot be merged while this check fails.
+#
+# The job re-runs the same Linux build the CI workflow does, but against
+# the *merge* result of the pull request rather than a single branch tip.
+# That is the thing that actually matters: it proves Unstable and Testing
+# can coexist, which a per-branch CI run cannot show.
+#
+# The Linux job only. The full matrix (Windows too) runs in ci.yml on
+# every push; this workflow exists to gate the promotion itself.
+
+on:
+  pull_request:
+    branches: [ "Testing", "master" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  merge-check:
+    name: Merge result builds and passes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out the merge commit GitHub built for this pull request.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Install Qt 6 and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-charts-dev \
+            libqt6sql6-sqlite \
+            libgl1-mesa-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel -- -k 0
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Summarise
+        if: always()
+        run: |
+          echo "### Promotion gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "PR: #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${{ github.event.pull_request.head.ref }}\` -> \`${{ github.event.pull_request.base.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Merge commit tested: \`${{ github.event.pull_request.merge_commit_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
