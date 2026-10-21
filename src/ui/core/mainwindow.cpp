@@ -6,6 +6,8 @@
 #include "synergyengine.h"
 #include "transactiondialog.h"
 #include "peoplewidget.h"
+#include "traymanager.h"
+#include "startuplaunchmanager.h"
 #include "contributionswidget.h"
 #include "servicebuilderwidget.h"
 #include "graphwidget.h"
@@ -184,8 +186,14 @@ MainWindow::MainWindow(QWidget *parent)
     // Detachable touchscreen (finger + active pen): kinetic scrolling on all
     // lists/tables/scroll areas. Graph canvas keeps its own gestures.
     TouchHelper::enableKineticScrolling(this);
-    setActiveNav(m_btnDashboard);
-    updateDashboardStats();
+setActiveNav(m_btnDashboard);
+updateDashboardStats();
+
+    m_trayManager = new TrayManager(this);
+    if (!m_trayManager->initialize()) {
+        delete m_trayManager;
+        m_trayManager = nullptr;
+    }
 
     m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemeTokens& tokens) {
@@ -237,7 +245,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(shortcutSrv, &QShortcut::activated, this, &MainWindow::onServiceClicked);
 }
 
-MainWindow::~MainWindow() {}
+MainWindow::~MainWindow() {
+    delete m_trayManager;
+}
 
 void MainWindow::setupMenuBar() {
     QMenuBar* mb = menuBar();
@@ -302,7 +312,19 @@ void MainWindow::setupMenuBar() {
     actAllSettings->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
     connect(actAllSettings, &QAction::triggered, this, &MainWindow::onSettingsClicked);
 
+    if (StartupLaunchManager::supported()) {
+        QAction* actStartAtLogin = prefsMenu->addAction("Start OpenEkklesia at System Login");
+        actStartAtLogin->setIcon(IconManager::instance().getIcon("calendar", tok.textPrimary, 14));
+        actStartAtLogin->setCheckable(true);
+        actStartAtLogin->setChecked(StartupLaunchManager::isEnabled());
+        connect(actStartAtLogin, &QAction::triggered, this, [actStartAtLogin](bool checked) {
+            StartupLaunchManager::setEnabled(checked);
+            actStartAtLogin->setChecked(StartupLaunchManager::isEnabled());
+        });
+    }
+
     fileMenu->addSeparator();
+
 
     QAction* actSwitchUser = fileMenu->addAction("Switch User / Sign In");
     actSwitchUser->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));

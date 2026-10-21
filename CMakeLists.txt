@@ -58,6 +58,10 @@ set(SOURCES
     src/ui/core/thememanager.cpp
     src/ui/core/touchhelper.h
     src/ui/core/touchhelper.cpp
+    src/ui/core/startuplaunchmanager.h
+    src/ui/core/startuplaunchmanager.cpp
+    src/ui/core/traymanager.h
+    src/ui/core/traymanager.cpp
     src/ui/core/iconmanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/usermanualdialog.h
