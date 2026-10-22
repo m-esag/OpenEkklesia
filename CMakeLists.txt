@@ -23,6 +23,21 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Widgets Sql Charts PrintSuppo
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql Charts PrintSupport)
 
 # Enable CTest so `ctest` runs the test suite defined below.
+option(OE_ENABLE_SANITIZERS "Enable AddressSanitizer + UndefinedBehaviourSanitizer" OFF)
+
+if(OE_ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        # AddressSanitizer + UBSan. Requires the matching libasan / libubsan at
+        # runtime; on Windows use MSVC sanitizers via cl.exe separately.
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
+        add_link_options(-fsanitize=address,undefined)
+    elseif(MSVC)
+        # MSVC ASan requires Visual Studio 16.9+; combined with /RTC.
+        add_compile_options(/fsanitize=address)
+        add_link_options(/fsanitize=address)
+    endif()
+    message(STATUS "OE_ENABLE_SANITIZERS=ON: build with sanitizers enabled")
+endif()
 enable_testing()
 
 message(STATUS "Found Qt Version: ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}")
@@ -34,6 +49,8 @@ set(SOURCES
     # Common utilities (shared, product-neutral)
     src/common/appdateformatter.h
     src/common/appdateformatter.cpp
+    src/common/icalgenerator.h
+    src/common/icalgenerator.cpp
     src/common/churchprofile.h
     src/common/churchprofile.cpp
     src/common/tableutil.h
@@ -155,6 +172,8 @@ add_executable(openekklesia_tests
     src/common/tableutil.h
     src/common/givingstatementgenerator.cpp
     src/common/givingstatementgenerator.h
+    src/common/icalgenerator.h
+    src/common/icalgenerator.cpp
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp
