@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <QDebug>
 #include <QFile>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
@@ -40,6 +41,19 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     // read-only on installed systems (/usr/bin, /app for Flatpak, the AppImage
     // mount point) and would either fail to open or silently fragment data.
     QString resolvedPath = dbPath;
+    // Portable / override-friendly data directory: an environment variable
+    // (OPENEKKLESIA_DATA_DIR) or a `.portable` marker next to the binary
+    // keeps the database next to the launch binary, avoiding the global
+    // XDG location. Used for USB single-arch deployments.
+    const QByteArray portableEnv = qgetenv("OPENEKKLESIA_DATA_DIR");
+    const bool portableMarker = QFile::exists(QCoreApplication::applicationDirPath() + "/.portable");
+    if (resolvedPath.isEmpty() && (!portableEnv.isEmpty() || portableMarker)) {
+        const QString base = portableEnv.isEmpty() ? QCoreApplication::applicationDirPath()
+                                                   : QString::fromLocal8Bit(portableEnv);
+        QDir portableDir(base);
+        QDir().mkpath(portableDir.absolutePath());
+        resolvedPath = portableDir.absoluteFilePath("open_ekklesia.db");
+    }
     if (resolvedPath.isEmpty()) {
         const QString camelCasePath = QDir::homePath() + "/.local/share/OpenEkklesia/open_ekklesia.db";
         const QString lowerCasePath = QDir::homePath() + "/.local/share/openekklesia/open_ekklesia.db";
