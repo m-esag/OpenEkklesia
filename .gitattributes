@@ -1,1 +1,50 @@
+# Normalize line endings in the repository.
+#
+# Git stores text files with LF in the object database; the working tree
+# gets CRLF on Windows and LF everywhere else. Without this, editing a file
+# on Windows rewrites every line and produces a whole-file diff.
+#
+# `text=auto` lets Git detect text vs. binary automatically, so binary
+# assets (icons, AppImages, .db files) are never mangled.
+
+* text=auto
+
+# Shell scripts must keep LF or they fail with "bad interpreter" on Linux.
 *.sh text eol=lf
+
+# C++ / Qt sources: LF in the repo, native on checkout.
+*.cpp   text eol=lf
+*.h     text eol=lf
+*.hpp   text eol=lf
+*.ui    text eol=lf
+*.qrc   text eol=lf
+*.cmake text eol=lf
+
+# Build/config/docs
+.gitattributes  text eol=lf
+.gitignore      text eol=lf
+CMakeLists.txt text eol=lf
+*.cmake     text eol=lf
+*.pro       text eol=lf
+*.md        text eol=lf
+*.txt       text eol=lf
+*.ps1       text eol=crlf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.xml       text eol=lf
+*.desktop   text eol=lf
+
+# Never touch binary content.
+*.png   binary
+*.ico   binary
+*.icns  binary
+*.db    binary
+*.sqlite binary
+*.pdf   binary
+*.AppImage binary
+*.so    binary
+*.dll   binary
+*.exe   binary
+*.o     binary
+*.a     binary
