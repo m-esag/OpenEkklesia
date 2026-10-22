@@ -1,4 +1,5 @@
 #include "planningcenterdialog.h"
+#include "../ui/core/iconmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -10,7 +11,7 @@
 PlanningCenterDialog::PlanningCenterDialog(QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle("🔌 Planning Center Online Integration & Importer");
+    setWindowTitle("Planning Center Online Integration & Importer");
     resize(640, 560);
     setupUI();
     loadCredentials();
@@ -26,7 +27,7 @@ void PlanningCenterDialog::setupUI() {
     title->setStyleSheet("font-size: 16px; font-weight: bold;");
     QLabel* subtitle = new QLabel("Connect your church's Planning Center account using a Personal Access Token to import or synchronize rosters, life groups, and service plans.", this);
     subtitle->setWordWrap(true);
-    subtitle->setStyleSheet("color: #a6adc8; font-size: 12px; margin-bottom: 4px;");
+    subtitle->setStyleSheet("font-size: 12px; margin-bottom: 4px;");
     root->addWidget(title);
     root->addWidget(subtitle);
 
@@ -45,10 +46,13 @@ void PlanningCenterDialog::setupUI() {
     formCreds->addRow("Secret Key:", m_txtSecret);
 
     QHBoxLayout* credBtns = new QHBoxLayout();
-    m_btnTest = new QPushButton("⚡ Test Connection", this);
+    m_btnTest = new QPushButton("Test Connection", this);
+    m_btnTest->setIcon(IconManager::instance().getIcon("network", QColor(), 14));
     m_btnTest->setObjectName("primaryBtn");
-    m_btnSaveCreds = new QPushButton("💾 Save Credentials", this);
-    m_btnClearCreds = new QPushButton("🗑️ Clear", this);
+    m_btnSaveCreds = new QPushButton("Save Credentials", this);
+    m_btnSaveCreds->setIcon(IconManager::instance().getIcon("check", QColor(), 14));
+    m_btnClearCreds = new QPushButton("Clear", this);
+    m_btnClearCreds->setIcon(IconManager::instance().getIcon("x", QColor(), 14));
 
     connect(m_btnTest, &QPushButton::clicked, this, &PlanningCenterDialog::onTestConnection);
     connect(m_btnSaveCreds, &QPushButton::clicked, this, &PlanningCenterDialog::onSaveCredentials);
@@ -61,20 +65,20 @@ void PlanningCenterDialog::setupUI() {
     formCreds->addRow(credBtns);
 
     m_lblStatus = new QLabel("Status: Not verified", this);
-    m_lblStatus->setStyleSheet("font-size: 12px; color: #a6adc8; font-style: italic;");
+    m_lblStatus->setStyleSheet("font-size: 12px; font-style: italic;");
     formCreds->addRow(m_lblStatus);
     root->addWidget(grpCreds);
 
     // Step 2: Import Scopes
     QGroupBox* grpScope = new QGroupBox("2. Select Scopes to Import", this);
     QVBoxLayout* layScope = new QVBoxLayout(grpScope);
-    m_chkImportPeople = new QCheckBox("👥 People & Membership Directory (Names, contact info, statuses)", this);
+    m_chkImportPeople = new QCheckBox("People & Membership Directory (Names, contact info, statuses)", this);
     m_chkImportPeople->setChecked(true);
-    m_chkImportGroups = new QCheckBox("🏠 Small Groups & Serving Teams (Life groups, names, schedules)", this);
+    m_chkImportGroups = new QCheckBox("Small Groups & Serving Teams (Life groups, names, schedules)", this);
     m_chkImportGroups->setChecked(true);
-    m_chkImportServices = new QCheckBox("🗓️ Service Types & Plan Liturgies", this);
+    m_chkImportServices = new QCheckBox("Service Types & Plan Liturgies", this);
     m_chkImportServices->setChecked(true);
-    m_chkImportGiving = new QCheckBox("💳 Giving & Contributions (Funds, online donations, checks)", this);
+    m_chkImportGiving = new QCheckBox("Giving & Contributions (Funds, online donations, checks)", this);
     m_chkImportGiving->setChecked(true);
 
     layScope->addWidget(m_chkImportPeople);
@@ -99,7 +103,8 @@ void PlanningCenterDialog::setupUI() {
     m_txtLog->setMaximumHeight(120);
     layAction->addWidget(m_txtLog);
 
-    m_btnImport = new QPushButton("🚀 Start Planning Center Import", this);
+    m_btnImport = new QPushButton("Start Planning Center Import", this);
+    m_btnImport->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnImport->setObjectName("primaryBtn");
     m_btnImport->setMinimumHeight(38);
     connect(m_btnImport, &QPushButton::clicked, this, &PlanningCenterDialog::onStartImport);

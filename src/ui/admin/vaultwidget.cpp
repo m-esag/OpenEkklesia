@@ -102,7 +102,7 @@ void VaultWidget::setupUI() {
     QHBoxLayout* controls = new QHBoxLayout();
     
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("🔍 Search documents...");
+    m_searchEdit->setPlaceholderText("Search documents...");
     m_searchEdit->setFixedWidth(220);
     m_searchEdit->setObjectName("searchEdit");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &VaultWidget::onSearchChanged);
