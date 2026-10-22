@@ -3600,6 +3600,10 @@ int main(int argc, char** argv) {
     };
 
     for (const Test& t : tests) {
+        // Hard check: once one scenario has added a failing CHECK, halt rather
+        // than letting downstream tests pile up their own follow-on errors.
+        if (g_failures > 0)
+            break;
         const int failuresBefore = g_failures;
         bool ok = false;
         try {
