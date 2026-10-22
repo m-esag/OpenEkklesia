@@ -135,7 +135,7 @@ void PlanningCenterDialog::onClearCredentials() {
     s.remove("pco/secret");
     s.sync();
     m_lblStatus->setText("Status: Credentials cleared.");
-    m_lblStatus->setStyleSheet("color: #a6adc8;");
+    m_lblStatus->setStyleSheet("color: palette(placeholderText);");
 }
 
 void PlanningCenterDialog::onTestConnection() {
