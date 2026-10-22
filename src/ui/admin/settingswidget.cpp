@@ -160,7 +160,7 @@ void SettingsWidget::setupUI() {
     m_logoPreview->setFixedSize(96, 96);
     m_logoPreview->setAlignment(Qt::AlignCenter);
     m_logoPreview->setText("No logo\nselected");
-    m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
+    m_logoPreview->setStyleSheet("border: 1px dashed palette(mid); border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
     m_btnPickLogo = new QPushButton(" Upload Church Logo", pageGeneral);
     m_btnPickLogo->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnPickLogo->setObjectName("primaryBtn");
@@ -269,12 +269,15 @@ void SettingsWidget::setupUI() {
     m_cmbThemeModeFilter->addItems({"All Themes", "Dark Themes", "Light Themes"});
     m_chkSyncSystemTheme = new QCheckBox("Follow OS system theme (auto dark/light)", pageTheme);
     m_chkAutoCollapseSidebar = new QCheckBox("Auto-collapse sidebar on small screens", pageTheme);
+    m_chkAutoColumnSize = new QCheckBox("Auto-fit table columns to window width", pageTheme);
+    m_chkAutoColumnSize->setToolTip("When on, tables stretch columns to fill the available width. When off, columns size to their content and can be resized by hand. Applies after reopening a module.");
     m_chkAutoCollapseSidebar->setChecked(true);
     galleryToolbar->addWidget(new QLabel("Show:", pageTheme));
     galleryToolbar->addWidget(m_cmbThemeModeFilter);
     galleryToolbar->addSpacing(18);
     galleryToolbar->addWidget(m_chkSyncSystemTheme);
     galleryToolbar->addWidget(m_chkAutoCollapseSidebar);
+    galleryToolbar->addWidget(m_chkAutoColumnSize);
     galleryToolbar->addStretch();
     presetForm->addLayout(galleryToolbar);
 
@@ -728,7 +731,7 @@ void SettingsWidget::setupUI() {
 
     m_lblDbPath = new QLabel("Database File Path: ...", pageData);
     m_lblDbPath->setWordWrap(true);
-    m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: rgba(0, 0, 0, 0.2);");
+    m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: palette(base);");
     grpDbLay->addWidget(m_lblDbPath);
 
     QFormLayout* formLifecycle = new QFormLayout();
@@ -751,12 +754,14 @@ void SettingsWidget::setupUI() {
 
     QHBoxLayout* pcoRow = new QHBoxLayout();
     m_lblPcoStatusBadge = new QLabel("Planning Center Online: Configured via API Dialog", pageData);
-    m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255,255,255,0.06);");
+    m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: palette(base);");
     pcoRow->addWidget(m_lblPcoStatusBadge);
     pcoRow->addStretch();
     grpDbLay->addLayout(pcoRow);
 
     QHBoxLayout* dbActions = new QHBoxLayout();
+    m_lblLastBackup = new QLabel(pageData);
+    m_lblLastBackup->setStyleSheet("font-size: 11px; color: palette(mid);");
     m_btnBackupDb = new QPushButton(" Export Database Backup (.db)", pageData);
     m_btnBackupDb->setIcon(IconManager::instance().getPrimaryIcon("download", 14));
     m_btnBackupDb->setObjectName("primaryBtn");
@@ -935,7 +940,10 @@ void SettingsWidget::setupUI() {
     dbActions->addWidget(m_btnViewAuditLogs);
     dbActions->addWidget(m_btnSelectiveShare);
     dbActions->addWidget(m_btnPlanningCenter);
+    dbActions->addStretch();
+    dbActions->addWidget(m_lblLastBackup);
     grpDbLay->addLayout(dbActions);
+    refreshLastBackupLabel();
 
     layData->addWidget(grpDb);
     layData->addStretch();
@@ -952,6 +960,99 @@ void SettingsWidget::setupUI() {
     QVBoxLayout* layDanger = new QVBoxLayout(pageDanger);
     layDanger->setContentsMargins(10, 0, 10, 10);
     layDanger->setSpacing(16);
+
+    // Access PIN manager: shipped installs share the documented default PINs,
+    // so changing them is the first thing a new church should be able to do.
+    QGroupBox* grpPins = new QGroupBox("Access PINs", pageDanger);
+    const ThemeTokens tokPins = ThemeManager::instance().currentTokens();
+    grpPins->setStyleSheet(QString("QGroupBox { border: 2px solid %1; border-radius: 8px; margin-top: 12px; padding-top: 16px; font-weight: bold; color: %1; }")
+                               .arg(tokPins.accentSuccess.name()));
+    QVBoxLayout* layPins = new QVBoxLayout(grpPins);
+    QLabel* lblPinHint = new QLabel(
+        "The default PINs (1234 / 5555 / 7777 / 0000) are printed on the login screen. "
+        "Change them here before entering real member data.", grpPins);
+    lblPinHint->setWordWrap(true);
+    lblPinHint->setStyleSheet("font-weight: normal; font-size: 12px;");
+    layPins->addWidget(lblPinHint);
+
+    QFormLayout* formPins = new QFormLayout();
+    formPins->setSpacing(8);
+    m_cmbPinUser = new QComboBox(grpPins);
+    m_edtPinCurrent = new QLineEdit(grpPins);
+    m_edtPinCurrent->setEchoMode(QLineEdit::Password);
+    m_edtPinCurrent->setMaxLength(4);
+    m_edtPinNew = new QLineEdit(grpPins);
+    m_edtPinNew->setEchoMode(QLineEdit::Password);
+    m_edtPinNew->setMaxLength(4);
+    m_edtPinNew->setPlaceholderText("4 digits");
+    m_edtPinConfirm = new QLineEdit(grpPins);
+    m_edtPinConfirm->setEchoMode(QLineEdit::Password);
+    m_edtPinConfirm->setMaxLength(4);
+    formPins->addRow("User:", m_cmbPinUser);
+    formPins->addRow("Current PIN:", m_edtPinCurrent);
+    formPins->addRow("New PIN:", m_edtPinNew);
+    formPins->addRow("Confirm New PIN:", m_edtPinConfirm);
+    layPins->addLayout(formPins);
+
+    QHBoxLayout* layPinBtn = new QHBoxLayout();
+    m_btnPinUpdate = new QPushButton(" Update PIN", grpPins);
+    m_btnPinUpdate->setObjectName("primaryBtn");
+    m_btnPinUpdate->setIcon(IconManager::instance().getIcon("key-round", QColor(), 14));
+    connect(m_btnPinUpdate, &QPushButton::clicked, this, [this]() {
+        const int userId = m_cmbPinUser->currentData().toInt();
+        if (userId <= 0) {
+            QMessageBox::information(this, "No User", "Select a user first.");
+            return;
+        }
+        const QString current = m_edtPinCurrent->text().trimmed();
+        const QString next = m_edtPinNew->text().trimmed();
+        const QString confirm = m_edtPinConfirm->text().trimmed();
+        if (current.isEmpty() || next.isEmpty()) {
+            QMessageBox::warning(this, "Missing PIN", "Enter the current PIN and the new PIN.");
+            return;
+        }
+        if (next.length() != 4 || !next.toULongLong()) {
+            QMessageBox::warning(this, "Invalid PIN", "The new PIN must be exactly 4 digits.");
+            return;
+        }
+        if (next != confirm) {
+            QMessageBox::warning(this, "Mismatch", "The new PIN and its confirmation do not match.");
+            return;
+        }
+        QSqlDatabase db = DatabaseManager::instance().database();
+        QSqlQuery q(db);
+        q.prepare("SELECT pin, username FROM users WHERE id = ?");
+        q.addBindValue(userId);
+        if (!q.exec() || !q.next()) {
+            QMessageBox::warning(this, "Not Found", "That user no longer exists.");
+            refreshPinUsers();
+            return;
+        }
+        if (q.value(0).toString() != current) {
+            QMessageBox::warning(this, "Wrong PIN", "The current PIN entered does not match this user.");
+            return;
+        }
+        const QString username = q.value(1).toString();
+        QSqlQuery upd(db);
+        upd.prepare("UPDATE users SET pin = ? WHERE id = ?");
+        upd.addBindValue(next);
+        upd.addBindValue(userId);
+        if (upd.exec()) {
+            DatabaseManager::logAudit("users", userId, "pin", "changed", "changed", username);
+            m_edtPinCurrent->clear();
+            m_edtPinNew->clear();
+            m_edtPinConfirm->clear();
+            QMessageBox::information(this, "PIN Updated",
+                QString("The PIN for %1 has been changed. It takes effect at the next login.").arg(username));
+        } else {
+            QMessageBox::critical(this, "Database Error", "Failed to update PIN: " + upd.lastError().text());
+        }
+    });
+    layPinBtn->addWidget(m_btnPinUpdate);
+    layPinBtn->addStretch();
+    layPins->addLayout(layPinBtn);
+    layDanger->addWidget(grpPins);
+    refreshPinUsers();
 
     QGroupBox* grpDanger = new QGroupBox("Irreversible Administrative Actions", pageDanger);
     const ThemeTokens tokDanger = ThemeManager::instance().currentTokens();
@@ -1095,6 +1196,7 @@ void SettingsWidget::setupUI() {
     connect(m_cmbAutoBackupSchedule, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_spnBackupRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_chkAutoCollapseSidebar, &QCheckBox::toggled, this, trackChanges);
+    connect(m_chkAutoColumnSize, &QCheckBox::toggled, this, trackChanges);
 
     m_navList->setCurrentRow(0);
 }
@@ -1269,6 +1371,7 @@ void SettingsWidget::loadSettings() {
     }
 
     m_chkAutoCollapseSidebar->setChecked(s.value("autoCollapseSidebar", true).toBool());
+    m_chkAutoColumnSize->setChecked(s.value("ui/autoColumnSize", true).toBool());
 
     // Load Modules & Features (default all to true)
     m_chkModPeople->setChecked(s.value("modules/people", true).toBool());
@@ -1360,6 +1463,7 @@ void SettingsWidget::saveSettings() {
     s.setValue("churchTaxId", m_txtTaxId->text().trimmed());
 
     s.setValue("autoCollapseSidebar", m_chkAutoCollapseSidebar->isChecked());
+    s.setValue("ui/autoColumnSize", m_chkAutoColumnSize->isChecked());
 
     // Save Module states
     s.setValue("modules/people", m_chkModPeople->isChecked());
@@ -1565,4 +1669,34 @@ void SettingsWidget::onResetDefaultTheme() {
     updateColorButtonStyles();
     updateLivePreview();
     onMarkDirty();
+}
+
+void SettingsWidget::refreshPinUsers() {
+    if (!m_cmbPinUser) return;
+    const QString previous = m_cmbPinUser->currentData().toString();
+    m_cmbPinUser->clear();
+    QSqlQuery q(DatabaseManager::instance().database());
+    q.exec("SELECT id, username || ' (' || role || ')' FROM users ORDER BY id");
+    while (q.next()) {
+        m_cmbPinUser->addItem(q.value(1).toString(), q.value(0).toInt());
+    }
+    if (!previous.isEmpty()) {
+        const int idx = m_cmbPinUser->findData(previous);
+        if (idx >= 0) m_cmbPinUser->setCurrentIndex(idx);
+    }
+}
+
+void SettingsWidget::refreshLastBackupLabel() {
+    if (!m_lblLastBackup) return;
+    const QString dbDir = QFileInfo(DatabaseManager::instance().database().databaseName()).absolutePath();
+    QFile f(dbDir + "/backups/last_backup.txt");
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString date = QString::fromUtf8(f.readAll()).trimmed();
+        f.close();
+        m_lblLastBackup->setText(date.isEmpty()
+            ? QString()
+            : QString("Last automatic backup: %1").arg(date));
+    } else {
+        m_lblLastBackup->setText("No automatic backup yet (runs weekly)");
+    }
 }

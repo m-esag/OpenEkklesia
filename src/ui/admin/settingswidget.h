@@ -73,6 +73,7 @@ private:
     QListWidget* m_themeGallery;   // visual theme card gallery (IconMode)
     QCheckBox* m_chkSyncSystemTheme;
     QCheckBox* m_chkAutoCollapseSidebar;
+    QCheckBox* m_chkAutoColumnSize;
     QPushButton* m_btnBgBaseColor;
     QPushButton* m_btnBgSurfaceColor;
     QPushButton* m_btnAccentPrimaryColor;
@@ -143,6 +144,7 @@ private:
     QComboBox* m_cmbAutoBackupSchedule;
     QSpinBox* m_spnBackupRetention;
     QLabel* m_lblPcoStatusBadge;
+    QLabel* m_lblLastBackup;
     QPushButton* m_btnBackupDb;
     QPushButton* m_btnRestoreDb;
     QPushButton* m_btnCompactDb;
@@ -153,6 +155,15 @@ private:
     // --- Page 9: Danger Zone ---
     QPushButton* m_btnPurgeDemoData;
     QPushButton* m_btnResetAppDefaults;
+
+    // --- Page 9: Access PIN manager (shipped PINs are public knowledge) ---
+    QComboBox* m_cmbPinUser;
+    QLineEdit* m_edtPinCurrent;
+    QLineEdit* m_edtPinNew;
+    QLineEdit* m_edtPinConfirm;
+    QPushButton* m_btnPinUpdate;
+    void refreshPinUsers();
+    void refreshLastBackupLabel();
 };
 
 #endif // SETTINGSWIDGET_H

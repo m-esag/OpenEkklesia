@@ -1,6 +1,10 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QMessageBox>
+#if defined(Q_OS_WIN)
+#include <windows.h>
+#include <shobjidl.h>
+#endif
 #include "databasemanager.h"
 #include "mainwindow.h"
 #include "thememanager.h"
@@ -14,6 +18,12 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
+#if defined(Q_OS_WIN)
+    SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
+#endif
+#if defined(Q_OS_WIN)
+    SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
+#endif
     QApplication app(argc, argv);
     TouchHelper::installAppWide();
     app.setApplicationName("OpenEkklesia");

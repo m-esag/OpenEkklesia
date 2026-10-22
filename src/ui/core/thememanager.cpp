@@ -147,7 +147,7 @@ void ThemeManager::registerDefaultThemes() {
     latte.bgInput = QColor("#ffffff");
     latte.textPrimary = QColor("#4c4f69");
     latte.textSecondary = QColor("#5c5f77");
-    latte.textMuted = QColor("#73778b"); // was #8c8fa1 (2.6:1, failed AA) -> 3.6:1
+    latte.textMuted = QColor("#5d627b"); // was #8c8fa1 (2.6:1) -> #73778b (3.9:1) -> 4.9:1
     latte.accentPrimary = QColor("#1e66f5");
     latte.accentSuccess = QColor("#40a02b");
     latte.accentWarning = QColor("#df8e1d");
@@ -197,7 +197,7 @@ void ThemeManager::registerDefaultThemes() {
     warmCaramel.bgInput = QColor("#ffffff");
     warmCaramel.textPrimary = QColor("#3d2612");
     warmCaramel.textSecondary = QColor("#58402c");
-    warmCaramel.textMuted = QColor("#8d7561");
+    warmCaramel.textMuted = QColor("#6e5947"); // was #8d7561 (~3.8:1, below AA) -> ~5.4:1
     warmCaramel.accentPrimary = QColor("#8c4a16");
     warmCaramel.accentSuccess = QColor("#2e6f40");
     warmCaramel.accentWarning = QColor("#b46d0e");
@@ -990,7 +990,7 @@ QString ThemeManager::generateGlobalQSS() const {
 
     QString qss = R"(
 QMainWindow, QDialog { background-color: var(--bg-base); color: var(--text-primary); font-family: 'Segoe UI', system-ui, sans-serif; font-size: var(--font-size); }
-QStackedWidget#mainContent { background-color: var(--bg-base); }
+QWidget#mainContent { background-color: var(--bg-base); }
 QWidget { color: var(--text-primary); font-size: var(--font-size); }
 QLabel { color: var(--text-primary); font-size: var(--font-size); }
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {
@@ -1071,6 +1071,12 @@ QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {
 QHeaderView::section {
   background-color: var(--bg-surface); color: var(--text-primary); font-weight: bold; border: none; border-bottom: 2px solid var(--accent-primary); padding: 6px; font-size: var(--font-size);
 }
+/* Table consistency: unify font sizing across modules regardless of
+   per-widget font-size overrides embedded in code; keep header slightly
+   smaller than body for hierarchy without a different family/weight. */
+QTableView, QTableWidget { font-size: var(--font-size); }
+QTableView QHeaderView::section, QTableWidget QHeaderView::section { font-size: calc(var(--font-size) - 1px); }
+QTableView::item, QTableWidget::item { padding: 4px 6px; }
 QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
 QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
 QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }
