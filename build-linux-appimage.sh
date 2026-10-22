@@ -41,7 +41,7 @@ linuxdeploy.AppImage --appdir dist/OpenEkklesia.AppDir \
   --executable build/OpenEkklesia --plugin qt
 
 # Desktop entry + icon (required by AppImage packaging)
-cp openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
+cp assets/openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
 cat > dist/OpenEkklesia.AppDir/OpenEkklesia.desktop <<'DESKTOP'
 [Desktop Entry]
 Type=Application
@@ -61,10 +61,29 @@ HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin/:${HERE}/usr/sbin/:${HERE}/bin/:${HERE}/sbin/:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/:${HERE}/usr/lib/x86_64-linux-gnu/:${HERE}/usr/lib64/:${LD_LIBRARY_PATH}"
 export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins/platforms"
+# Fedora/GNOME default to Wayland; the bundle ships only the xcb plugin,
+# so pick it explicitly (via XWayland) unless the user overrides. Prevents
+# the "could not locate wayland platform plugin" warning on Wayland sessions.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 exec "${HERE}/usr/bin/OpenEkklesia" "$@"
 RUN
 chmod +x dist/OpenEkklesia.AppDir/AppRun
+
+# Bundle libstdc++/libgcc: they CAN ride along safely (unlike glibc), and
+# doing so removes the host toolchain's GLIBCXX baseline as a runtime
+# constraint on older targets. AppRun's LD_LIBRARY_PATH prefers them.
+for _lib in libstdc++.so.6 libgcc_s.so.1; do
+  _src=""
+  for _cand in "/usr/lib64/$_lib" "/usr/lib/x86_64-linux-gnu/$_lib" "/usr/lib/$_lib"; do
+    if [ -e "$_cand" ]; then _src="$_cand"; break; fi
+  done
+  if [ -n "$_src" ]; then
+    cp -L "$_src" dist/OpenEkklesia.AppDir/usr/lib/
+  else
+    echo "WARNING: could not locate $_lib for bundling" >&2
+  fi
+done
 
 # Include the offscreen platform plugin so the app also runs headless
 # (real desktops use the bundled xcb plugin). -print -quit avoids the
@@ -75,5 +94,7 @@ if [ ! -f dist/OpenEkklesia.AppDir/usr/plugins/platforms/libqoffscreen.so ]; the
 fi
 
 # 4. Package into a single-file AppImage
-appimagetool.AppImage dist/OpenEkklesia.AppDir dist/OpenEkklesia-${ARCH}.AppImage
+APPDIR_ABS="$PWD/dist/OpenEkklesia.AppDir"
+OUT_ABS="$PWD/dist/OpenEkklesia-${ARCH}.AppImage"
+appimagetool.AppImage "$APPDIR_ABS" "$OUT_ABS"
 echo "✅ Built: dist/OpenEkklesia-${ARCH}.AppImage"

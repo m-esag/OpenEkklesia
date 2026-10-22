@@ -1,4 +1,5 @@
 #include "planningwidget.h"
+#include "../../common/tableutil.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -366,6 +367,7 @@ void PlanningWidget::setupEventsTab(QTabWidget* tabs) {
     m_eventsTable->setHorizontalHeaderLabels({"Date & Time", "Event Title", "Type", "Host Ministry", "Coordinator", "Facility / Room", "Attendance", "Budget", "Status"});
     m_eventsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_eventsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    TableUtil::applyStandardTableSetup(m_eventsTable, false); // respects the auto-size preference; overrides Interactive/Stretch above
     m_eventsTable->setAlternatingRowColors(true);
     m_eventsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_eventsTable->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -456,6 +458,7 @@ void PlanningWidget::setupKanbanTab(QTabWidget* tabs) {
     scroll->setFrameShape(QFrame::NoFrame);
 
     m_kanbanContainer = new QWidget(scroll);
+    m_kanbanContainer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored); // scroll instead of inflating the tab/window minimum
     QHBoxLayout* boardLayout = new QHBoxLayout(m_kanbanContainer);
     boardLayout->setContentsMargins(0, 0, 0, 0);
     boardLayout->setSpacing(12);
@@ -682,6 +685,7 @@ void PlanningWidget::setupGoalsTab(QTabWidget* tabs) {
     scroll->setFrameShape(QFrame::NoFrame);
 
     m_goalsContainer = new QWidget(scroll);
+    m_goalsContainer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored); // scroll instead of inflating the tab/window minimum
     m_goalsLayout = new QVBoxLayout(m_goalsContainer);
     m_goalsLayout->setContentsMargins(0, 0, 0, 0);
     m_goalsLayout->setSpacing(14);

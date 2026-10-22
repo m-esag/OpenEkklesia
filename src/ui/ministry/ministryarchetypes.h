@@ -6,6 +6,9 @@
 #include <QVector>
 #include <QColor>
 #include <QMap>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QVariant>
 #include <cmath>
 
 // 5 Church-Contextual Ministry Archetypes
@@ -60,6 +63,7 @@ struct RelationalStyleVector {
 
 // Canonical Blueprint for a Ministry Category
 struct MinistryBlueprint {
+    int id = 0;
     QString categoryKey;
     QString displayName;
     QString primaryArchetype;
@@ -67,6 +71,15 @@ struct MinistryBlueprint {
     RelationalStyleVector targetVector;
     QStringList requiredGifts;
     QString description;
+    bool isCustom = false;
+    bool isArchived = false;
+
+    MinistryBlueprint() = default;
+    MinistryBlueprint(const QString& cat, const QString& name, const QString& pri, const QString& sec,
+                      const RelationalStyleVector& vec, const QStringList& gifts, const QString& desc,
+                      bool custom = false, bool archived = false, int bpId = 0)
+        : id(bpId), categoryKey(cat), displayName(name), primaryArchetype(pri), secondaryArchetype(sec),
+          targetVector(vec), requiredGifts(gifts), description(desc), isCustom(custom), isArchived(archived) {}
 };
 
 class MinistryArchetypeRegistry {
@@ -247,9 +260,50 @@ public:
         };
     }
 
+    static RelationalStyleVector calculateTargetVector(const QString& priStr, const QString& secStr) {
+        ChurchArchetype pri = stringToArchetype(priStr);
+        ChurchArchetype sec = stringToArchetype(secStr);
+        return personStyleVector(pri, sec);
+    }
+
+    static QList<MinistryBlueprint> allBlueprints(bool includeArchived = false) {
+        QSqlDatabase db = QSqlDatabase::database();
+        if (db.isOpen()) {
+            QSqlQuery q("SELECT id, category_key, display_name, ideal_primary, ideal_secondary, "
+                        "weight_organizer, weight_listener, weight_doer, weight_energizer, weight_strategist, weight_connector, "
+                        "required_gifts, description, is_custom, COALESCE(is_archived, 0) "
+                        "FROM ministry_archetypes ORDER BY is_custom ASC, id ASC", db);
+            if (q.exec() && q.next()) {
+                QList<MinistryBlueprint> list;
+                do {
+                    bool isArch = q.value(14).toInt() == 1;
+                    if (!includeArchived && isArch) continue;
+                    MinistryBlueprint bp;
+                    bp.id = q.value(0).toInt();
+                    bp.categoryKey = q.value(1).toString();
+                    bp.displayName = q.value(2).toString();
+                    bp.primaryArchetype = q.value(3).toString();
+                    bp.secondaryArchetype = q.value(4).toString();
+                    bp.targetVector = RelationalStyleVector(
+                        q.value(5).toDouble(), q.value(6).toDouble(), q.value(7).toDouble(),
+                        q.value(8).toDouble(), q.value(9).toDouble(), q.value(10).toDouble()
+                    );
+                    bp.requiredGifts = q.value(11).toString().split(",", Qt::SkipEmptyParts);
+                    for (QString& g : bp.requiredGifts) g = g.trimmed();
+                    bp.description = q.value(12).toString();
+                    bp.isCustom = q.value(13).toInt() == 1;
+                    bp.isArchived = isArch;
+                    list.append(bp);
+                } while (q.next());
+                if (!list.isEmpty()) return list;
+            }
+        }
+        return canonicalBlueprints();
+    }
+
     static MinistryBlueprint getBlueprint(const QString& categoryKey) {
         QString key = categoryKey.trimmed().toLower();
-        for (const auto& bp : canonicalBlueprints()) {
+        for (const auto& bp : allBlueprints(true)) {
             if (key.contains(bp.categoryKey.toLower()) || bp.displayName.toLower().contains(key)) {
                 return bp;
             }

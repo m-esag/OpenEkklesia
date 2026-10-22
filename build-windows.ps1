@@ -60,6 +60,10 @@ if (-not $qt) {
     exit 1
 }
 Write-Host "Using Qt: $qt"
+$qtBin = Join-Path $qt "bin"
+if ($env:PATH -notlike "*$qtBin*") {
+    $env:PATH = "$qtBin;$env:PATH"
+}
 
 $cmakeArgs = @("-S", ".", "-B", "build-windows",
                "-DCMAKE_PREFIX_PATH=$qt",
