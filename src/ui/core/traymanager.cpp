@@ -1,4 +1,4 @@
-#include "traymanager.h"
+﻿#include "traymanager.h"
 
 #include <QAction>
 #include <QApplication>
@@ -306,8 +306,4 @@ void TrayManager::notifyReminders(const QList<Reminder>& reminders) {
         title = QString("OpenEkklesia - %1 reminders").arg(dueMessages.size());
     m_tray->showMessage(title, dueMessages.join("\n"),
                         QSystemTrayIcon::Information, 5000);
-}
-
-void TrayManager::enqueueReminder(QStringList& messages, const Reminder& reminder) {
-    messages << reminder.title;
 }

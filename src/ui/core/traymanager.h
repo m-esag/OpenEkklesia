@@ -1,4 +1,4 @@
-#ifndef TRAYMANAGER_H
+﻿#ifndef TRAYMANAGER_H
 #define TRAYMANAGER_H
 
 #include <QObject>
@@ -32,6 +32,11 @@ public:
 
     void refreshReminders();
 
+    // Public so the test suite can exercise the reminder queries without a
+    // live system tray and without Toast notifications.
+    static QList<Reminder> collectReminders(const QSqlDatabase& db,
+                                           const QSettings& settings);
+
 private slots:
     void showMainWindow();
     void toggleEnabled();
@@ -54,9 +59,7 @@ private:
 
     bool loadConfig();
     void buildMenu();
-    static QList<Reminder> collectReminders(const QSqlDatabase& db, const QSettings& settings);
     void notifyReminders(const QList<Reminder>& reminders);
-    static void enqueueReminder(QStringList& messages, const Reminder& reminder);
 };
 
 #endif // TRAYMANAGER_H
