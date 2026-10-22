@@ -44,7 +44,8 @@ public:
     // Tier 3 helpers (no dialogs) exposed for headless tests.
     // One VEVENT per (role, name) on the given date at the given start time.
     static QString volunteerIcal(const QDate& date, const QTime& startTime,
-                                 const QList<QPair<QString, QString>>& roleNames);
+                                 const QList<QPair<QString, QString>>& roleNames,
+                                 int durationMinutes = 120);
     // Aggregates element reuse across all saved service run sheets.
     static QList<ElementUsage> elementUsageStats(const QSqlDatabase& db, int limit = 100);
 
