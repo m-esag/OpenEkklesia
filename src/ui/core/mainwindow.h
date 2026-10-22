@@ -1,4 +1,4 @@
-#ifndef MAINWINDOW_H
+﻿#ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
 #include <QMainWindow>
@@ -32,6 +32,7 @@
 #include <functional>
 
 class GroupsTreeWidget; // file-scope in mainwindow.cpp
+class TrayManager;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -90,7 +91,8 @@ private:
     QWidget* createDashboardPage();
     QWidget* createTablePage(const QString& title, QTableView* view);
 
-    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout — see mainwindow.cpp
+    TrayManager* m_trayManager = nullptr;
+    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout â€” see mainwindow.cpp
     
     QPushButton* m_btnDashboard;
     QPushButton* m_btnMembers;

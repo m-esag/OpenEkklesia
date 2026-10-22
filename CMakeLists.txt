@@ -61,6 +61,10 @@ set(SOURCES
     src/ui/core/thememanager.cpp
     src/ui/core/touchhelper.h
     src/ui/core/touchhelper.cpp
+    src/ui/core/traymanager.h
+    src/ui/core/traymanager.cpp
+    src/ui/core/startuplaunchmanager.h
+    src/ui/core/startuplaunchmanager.cpp
     src/ui/core/iconmanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/usermanualdialog.h
@@ -159,16 +163,16 @@ add_executable(openekklesia_tests
     src/ui/core/thememanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/iconmanager.h
-    src/ui/core/mainwindow.cpp
-    src/ui/core/mainwindow.h
-    src/ui/core/commandpalette.cpp
-    src/ui/core/commandpalette.h
     src/ui/core/kioskwindow.cpp
     src/ui/core/kioskwindow.h
     src/ui/core/touchhelper.cpp
     src/ui/core/touchhelper.h
     src/ui/core/usermanualdialog.cpp
     src/ui/core/usermanualdialog.h
+    src/ui/core/traymanager.h
+    src/ui/core/traymanager.cpp
+    src/ui/core/startuplaunchmanager.h
+    src/ui/core/startuplaunchmanager.cpp
     src/ui/finance/contributionswidget.cpp
     src/ui/finance/contributionswidget.h
     src/ui/finance/inventorywidget.cpp
