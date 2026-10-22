@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+﻿cmake_minimum_required(VERSION 3.16)
 project(OpenEkklesia VERSION 0.8.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -58,17 +58,11 @@ set(SOURCES
     src/ui/core/thememanager.cpp
     src/ui/core/touchhelper.h
     src/ui/core/touchhelper.cpp
-    src/ui/core/startuplaunchmanager.h
-    src/ui/core/startuplaunchmanager.cpp
-    src/ui/core/traymanager.h
-    src/ui/core/traymanager.cpp
     src/ui/core/iconmanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/usermanualdialog.h
     src/ui/core/usermanualdialog.cpp
 
-    # UI People & Pastoral Submodule
-    src/ui/people/peoplewidget.h
     src/ui/people/peoplewidget.cpp
     src/ui/people/pastoralanalyticswidget.h
     src/ui/people/pastoralanalyticswidget.cpp
@@ -159,7 +153,7 @@ add_executable(openekklesia_tests
     src/ui/core/iconmanager.h
     src/ui/core/usermanualdialog.cpp
     src/ui/core/usermanualdialog.h
-    src/ui/ministry/ministrymatch.cpp
+        src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/ministrymatch.h
     src/ui/ministry/shepherdwidget.cpp
     src/ui/ministry/shepherdwidget.h
@@ -186,9 +180,13 @@ target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
 )
 
 target_link_libraries(openekklesia_tests PRIVATE

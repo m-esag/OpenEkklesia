@@ -186,8 +186,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Detachable touchscreen (finger + active pen): kinetic scrolling on all
     // lists/tables/scroll areas. Graph canvas keeps its own gestures.
     TouchHelper::enableKineticScrolling(this);
-setActiveNav(m_btnDashboard);
-updateDashboardStats();
+    setActiveNav(m_btnDashboard);
+    updateDashboardStats();
 
     m_trayManager = new TrayManager(this);
     if (!m_trayManager->initialize()) {

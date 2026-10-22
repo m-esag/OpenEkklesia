@@ -1,4 +1,4 @@
-// Data-layer integration tests for OpenEkklesia.
+﻿// Data-layer integration tests for OpenEkklesia.
 //
 // Runs against a fresh, throwaway SQLite database (never a user's real data).
 // Uses a minimal self-contained assertion harness so it does not depend on the
@@ -303,13 +303,13 @@ bool test_ytdIncomeAndExpensesFilterByYear() {
 bool test_splitSharingRoundTrip() {
     QSqlDatabase d = db();
 
-    // Scope → table mapping sanity.
+    // Scope â†’ table mapping sanity.
     CHECK(DataSharing::tablesForScope("care_notes") == QStringList({"care_logs", "member_history", "pastoral_activities"}));
     CHECK(DataSharing::tablesForScope("membership").contains("people"));
     CHECK(DataSharing::tablesForScope("finance").contains("contributions"));
 
     // Credential hygiene: the users table (with login PINs) must never be part
-    // of any share — logins are per-machine, and a JSON archive must not carry
+    // of any share â€” logins are per-machine, and a JSON archive must not carry
     // a pin column or a users payload.
     CHECK(!DataSharing::tablesForScope("full").contains("users"));
     const QJsonObject fullDoc = DataSharing::exportTables(d, DataSharing::tablesForScope("full"));
@@ -323,7 +323,7 @@ bool test_splitSharingRoundTrip() {
     CHECK(payload.size() > 1000);
 
     // Wipe membership tables (FK checks deferred so finance rows that reference
-    // people do not block the delete — this mirrors a fresh receive-only copy).
+    // people do not block the delete â€” this mirrors a fresh receive-only copy).
     QSqlQuery q(d);
     q.exec("PRAGMA foreign_keys = OFF");
     for (const QString& t : QStringList{"checkout_logs", "care_logs", "member_history", "attendance",
@@ -634,7 +634,7 @@ bool test_ministryMatchRecommendAndExclude() {
     c.maxResults = 25;
 
     const QList<MatchResult> results = MinistryRecommender::recommend(d, gid, c);
-    // Advisory model: the burned-out volunteer is no longer excluded — they
+    // Advisory model: the burned-out volunteer is no longer excluded â€” they
     // appear with a workload warning and a reduced score. Member excluded,
     // adult age-out, no-skill excluded.
     CHECK_EQ(results.size(), 2);
@@ -835,7 +835,7 @@ bool test_pastoralAnalyticsUpgrade() {
     // computeSnapshot() must be scope-aware, exclude archived groups, count
     // Teacher roles, and back every action with a real number. Uses DELTA
     // assertions against a baseline (the shared suite DB has unpredictable
-    // state) and cleans up its own rows by id — never wipes shared tables.
+    // state) and cleans up its own rows by id â€” never wipes shared tables.
     QSqlDatabase d = db();
     QSqlQuery q(d);
 
@@ -1233,7 +1233,7 @@ bool test_graphDualPanelAndDataHygiene() {
 bool test_serviceBuilderTier2() {
     QSqlDatabase d = db();
 
-    // Volunteers for the widget's default date (next Sunday) — inserted before
+    // Volunteers for the widget's default date (next Sunday) â€” inserted before
     // the widget is constructed so its constructor loads them.
     QDate nextSun = QDate::currentDate();
     while (nextSun.dayOfWeek() != 7) nextSun = nextSun.addDays(1);
@@ -1423,12 +1423,12 @@ bool test_serviceBuilderTier3() {
     CHECK(ins.exec("DELETE FROM services"));
     ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
     ins.addBindValue(QString("2030-01-05"));
-    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]"));
+    ins.addBindValue(QString("[{\"title\":\"ðŸŽµ Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]"));
     CHECK(ins.exec());
     ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
     ins.addBindValue(QString("2030-01-12"));
-    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4},"
-                             "{\"title\":\"📖 Scripture: Psalm 23 (2m)\",\"type\":\"Scripture\",\"durationMins\":2}]"));
+    ins.addBindValue(QString("[{\"title\":\"ðŸŽµ Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4},"
+                             "{\"title\":\"ðŸ“– Scripture: Psalm 23 (2m)\",\"type\":\"Scripture\",\"durationMins\":2}]"));
     CHECK(ins.exec());
 
     const QList<ElementUsage> stats = ServiceBuilderWidget::elementUsageStats(d, 100);
@@ -1508,7 +1508,7 @@ bool test_planningWidgetRendersAndRoles() {
         CHECK_EQ(roadmap->rowCount(), 1);
         CHECK_EQ(gantt->rowCount(), 1);
         if (roadmap->rowCount() == 1) {
-            // Roadmap: 12 real calendar months — FEB (col 3) and MAR (col 4)
+            // Roadmap: 12 real calendar months â€” FEB (col 3) and MAR (col 4)
             // covered by the span; JAN (col 2) and APR (col 5) empty.
             CHECK_EQ(roadmap->item(0, 1)->text().toStdString(), std::string("Easter Production"));
             CHECK(roadmap->item(0, 2) && roadmap->item(0, 2)->text().isEmpty()); // JAN
@@ -1942,7 +1942,7 @@ bool test_graphHealthFeatures() {
     return true;
 }
 
-// The graph's filter toggles (e.g. "🏡 Households") must persist across
+// The graph's filter toggles (e.g. "ðŸ¡ Households") must persist across
 // restarts: what the admin saved is what a fresh widget restores.
 bool test_graphFilterPersistence() {
     QSettings s("OpenEkklesia", "CHMS");
@@ -2367,7 +2367,7 @@ bool test_graphInspectorUpgrade() {
     CHECK(groupNode && personNode && edgeItem);
     if (!groupNode || !personNode || !edgeItem) return true;
 
-    // Person context strip — the person with the pastoral care record.
+    // Person context strip â€” the person with the pastoral care record.
     NodeItem* caredPerson = nullptr;
     for (QGraphicsItem* item : gw.scene()->items()) {
         auto* n = dynamic_cast<NodeItem*>(item);
@@ -2669,7 +2669,7 @@ bool test_planningFrameworksAndEventsSuite() {
     CHECK(cols.contains("notes"));
 
     // Verify ministry_events table exists with seeded rows
-    // (purge clears demo events, so re-seed if needed — tests must not rely
+    // (purge clears demo events, so re-seed if needed â€” tests must not rely
     // on leftover demo rows per DEVELOPMENT_GUIDELINES).
     ensureMinistryEvents(5);
     QSqlQuery qEv(d);
@@ -2924,4 +2924,3 @@ int main(int argc, char** argv) {
 
     return g_failures == 0 ? 0 : 1;
 }
-
