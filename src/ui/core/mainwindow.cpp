@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "../../common/tableutil.h"
 #include "thememanager.h"
 #include "touchhelper.h"
 #include "iconmanager.h"
@@ -19,12 +20,12 @@
 #include "planningwidget.h"
 #include "usermanualdialog.h"
 #include "../integrations/planningcenterdialog.h"
+#include <QApplication>
+#include <QGuiApplication>
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
 #include <QClipboard>
-#include <QGuiApplication>
-#include <QApplication>
 #include <QSettings>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -171,6 +172,21 @@ private:
     QString m_username;
 };
 
+namespace {
+// QStackedLayout takes the MAXIMUM of its pages' minimums; combined with the
+// dense per-module toolbars built lazily on first visit, the main window's
+// declared minimum grew past small/HiDPI logical desktops (1770px wide on a
+// 1536px-logical 125%-scaled screen) — the window then opened oversized and
+// GNOME could neither tile nor resize it. Overriding minimumSize() decouples
+// the window size from page content: oversized pages clip at their right
+// edge instead of inflating the window.
+class IgnoreMinStackedLayout : public QStackedLayout {
+public:
+    using QStackedLayout::QStackedLayout;
+    QSize minimumSize() const override { return QSize(0, 0); }
+};
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), m_btnSettings(nullptr), m_sidebar(nullptr), m_logoLabel(nullptr), m_isCompactSidebar(false), m_isDarkMode(true), m_hintsEnabled(true), m_activeNavButton(nullptr)
 {
@@ -194,6 +210,12 @@ MainWindow::MainWindow(QWidget *parent)
         refreshSidebarIcons();
         updatePieChart();
         refreshGroupDetailPanel(m_selectedGroupId);
+        // Views that capture tokens once at build time must be rebuilt here,
+        // otherwise they keep the previous theme's styling after a mid-session
+        // switch (seen as dark blueprint cards with pale gray text on the
+        // light palette).
+        refreshMinistryBlueprintsTab();
+        updateDashboardStats();
     });
     
     // Apply role permissions & module visibility
@@ -549,6 +571,10 @@ void MainWindow::setupMenuBar() {
 
 void MainWindow::setupUI() {
     resize(1100, 700);
+    // Hard floor independent of page content (see the stacked-widget policy
+    // in the layout setup): fits a 1280px-logical HiDPI desktop with room
+    // for window decorations.
+    setMinimumSize(1000, 620);
     setWindowTitle("OpenEkklesia - Church Management System");
 
     // Global Help Shortcut (F1) & Theme Toggle (Ctrl+T)
@@ -746,7 +772,7 @@ void MainWindow::setupUI() {
     bottomDock->addWidget(btnManual);
     sidebarLayout->addLayout(bottomDock);
 
-    QLabel* footerLabel = new QLabel("v0.8.0 (ChMS Suite)", this);
+    QLabel* footerLabel = new QLabel("v0.8.0", this);
     footerLabel->setObjectName("footerLabel");
     sidebarLayout->addWidget(footerLabel);
 
@@ -756,10 +782,12 @@ void MainWindow::setupUI() {
 
     mainLayout->addWidget(sidebar);
 
-    // Stacked widget for pages
-    m_stackedWidget = new QStackedWidget(this);
-    m_stackedWidget->setObjectName("mainContent");
-    mainLayout->addWidget(m_stackedWidget);
+    // Stacked widget for pages (plain container + layout subclass so page
+    // minimums cannot resize the window; see IgnoreMinStackedLayout above).
+    QWidget* mainContent = new QWidget(this);
+    mainContent->setObjectName("mainContent");
+    m_stackedWidget = new IgnoreMinStackedLayout(mainContent);
+    mainLayout->addWidget(mainContent);
 
     populatePages();
 
@@ -810,6 +838,20 @@ void MainWindow::ensurePageLoaded(int index, std::function<QWidget*()> creator) 
 void MainWindow::switchPage(int index) {
     if (!m_stackedWidget || index < 0 || index >= m_stackedWidget->count()) return;
     if (m_stackedWidget->currentIndex() == index) return;
+
+    // Pause the graph's force-layout simulation when leaving its page: the
+    // O(n^2) pass keeps running at 30 FPS on an invisible canvas otherwise
+    // (every drag/filter change also resumes it from other pages). Restore
+    // on re-entry unless the user manually froze the layout.
+    const int leavingIndex = m_stackedWidget->currentIndex();
+    if (leavingIndex == 5 && m_graphWidget && m_graphWidget->physicsRunning()) {
+        m_graphWidget->pausePhysics();
+        m_graphPausedByPageLeave = true;
+    }
+    if (index == 5 && m_graphWidget && m_graphPausedByPageLeave) {
+        m_graphWidget->resumePhysics();
+        m_graphPausedByPageLeave = false;
+    }
 
     // Switch pages instantly. A QGraphicsOpacityEffect fade used to be applied
     // here, but it renders each page to an offscreen buffer and, on switching
@@ -870,36 +912,45 @@ void MainWindow::populatePages() {
     tabActiveLayout->setContentsMargins(10, 12, 10, 10);
     tabActiveLayout->setSpacing(12);
 
-    // Header Row
+    // Header Row. The five action buttons live here; the three view filter
+    // checkboxes are on their own row below — a single row containing both
+    // measured ~1356px minimum width, which (plus the sidebar) exceeded the
+    // 1280px logical desktop of a 150%-scaled 1920px panel. A window whose
+    // declared minimum exceeds the screen opens oversized and GNOME cannot
+    // tile or shrink it (Super+Up etc. do nothing).
     QHBoxLayout* grpHeaderLayout = new QHBoxLayout();
     QLabel* grpHeader = new QLabel("Active Groups & Ministries", this);
     grpHeader->setObjectName("pageHeader");
     grpHeaderLayout->addWidget(grpHeader);
     grpHeaderLayout->addStretch();
 
+    // Second header row: the view filter checkboxes (populated below, added
+    // to the page after the action row).
+    QHBoxLayout* grpFilterLayout = new QHBoxLayout();
+    QLabel* lblFilters = new QLabel("View:", this);
+    lblFilters->setStyleSheet("font-size: 12px; font-weight: bold; color: palette(mid);");
+    grpFilterLayout->addWidget(lblFilters);
+
     m_chkShowArchivedGroups = new QCheckBox("Show Archived Groups", this);
     m_chkShowArchivedGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    // QCheckBox::checkStateChanged only exists since Qt 6.7. stateChanged(int)
-    // works on every Qt 6 and is only deprecated from 6.9 onward, so use it
-    // to keep the project buildable against the Qt 6.4 in current Ubuntu LTS.
     connect(m_chkShowArchivedGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowArchivedGroups);
+    grpFilterLayout->addWidget(m_chkShowArchivedGroups);
 
     m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
     m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowHiddenGroups, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowHiddenGroups);
+    grpFilterLayout->addWidget(m_chkShowHiddenGroups);
 
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
     connect(m_chkShowMembersInTree, &QCheckBox::stateChanged, this, [this](int) {
         refreshGroupsTree();
     });
-    grpHeaderLayout->addWidget(m_chkShowMembersInTree);
+    grpFilterLayout->addWidget(m_chkShowMembersInTree);
 
     QPushButton* btnAddGroup = new QPushButton(" Add Group", this);
     btnAddGroup->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
@@ -967,6 +1018,7 @@ void MainWindow::populatePages() {
     grpHeaderLayout->addWidget(m_btnDeleteGroup);
 
     tabActiveLayout->addLayout(grpHeaderLayout);
+    tabActiveLayout->addLayout(grpFilterLayout);
 
     // Master-Detail Splitter View
     QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
@@ -994,9 +1046,10 @@ void MainWindow::populatePages() {
         }
         QSqlQuery u;
         u.prepare("UPDATE groups SET parent_id = ? WHERE id = ?");
-        u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant());
+        u.addBindValue(newParentId > 0 ? QVariant(newParentId) : QVariant(QMetaType(QMetaType::Int)));
         u.addBindValue(groupId);
         if (u.exec()) {
+            DatabaseManager::bumpDataGeneration();
             refreshGroupsTree();
             refreshGroupDetailPanel(m_selectedGroupId);
             if (m_graphWidget) m_graphWidget->loadGraph();
@@ -1046,6 +1099,8 @@ void MainWindow::populatePages() {
         } else if (isRoot) {
             actArchive->setEnabled(false); actArchive->setToolTip(rootTooltip);
             actDelete->setEnabled(false); actDelete->setToolTip(rootTooltip);
+            actAddMember->setEnabled(false);
+            actAddMember->setToolTip("Direct membership is disabled on Ministry Blueprints. Create or select a sub-group/team to add members.");
         }
 
         QAction* sel = menu.exec(m_groupsTreeWidget->viewport()->mapToGlobal(pos));
@@ -1129,18 +1184,38 @@ void MainWindow::populatePages() {
     detailLayout->addWidget(m_lblGroupDetailMeta);
 
     QHBoxLayout* rosterHeaderRow = new QHBoxLayout();
-    QLabel* lblRosterTitle = new QLabel("Active Roster & Roles", m_groupDetailCard);
-    lblRosterTitle->setStyleSheet("font-size: 13px; font-weight: bold;");
-    rosterHeaderRow->addWidget(lblRosterTitle);
+    m_lblRosterTitle = new QLabel("Active Roster & Roles", m_groupDetailCard);
+    m_lblRosterTitle->setStyleSheet("font-size: 13px; font-weight: bold;");
+    rosterHeaderRow->addWidget(m_lblRosterTitle);
     rosterHeaderRow->addStretch();
 
-    QPushButton* btnAddRosterMember = new QPushButton(" Add Member", m_groupDetailCard);
-    btnAddRosterMember->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
-    btnAddRosterMember->setObjectName("primaryBtn");
-    btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
-    connect(btnAddRosterMember, &QPushButton::clicked, this, [this]() {
+    m_btnCreateSubTeam = new QPushButton(" + Create Team / Sub-Group", m_groupDetailCard);
+    m_btnCreateSubTeam->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    m_btnCreateSubTeam->setObjectName("primaryBtn");
+    m_btnCreateSubTeam->setStyleSheet("padding: 4px 10px; font-size: 11px;");
+    m_btnCreateSubTeam->setVisible(false);
+    connect(m_btnCreateSubTeam, &QPushButton::clicked, this, [this]() {
+        if (m_selectedGroupId > 0) {
+            onAddGroup(m_selectedGroupId);
+        }
+    });
+    rosterHeaderRow->addWidget(m_btnCreateSubTeam);
+
+    m_btnAddRosterMember = new QPushButton(" Add Member", m_groupDetailCard);
+    m_btnAddRosterMember->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
+    m_btnAddRosterMember->setObjectName("primaryBtn");
+    m_btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
+    connect(m_btnAddRosterMember, &QPushButton::clicked, this, [this]() {
         if (m_selectedGroupId <= 0) {
             QMessageBox::warning(this, "No Selection", "Please select a group first.");
+            return;
+        }
+        // Guard: Root Ministry Blueprints do not allow direct members
+        QSqlQuery qCheckRoot;
+        qCheckRoot.prepare("SELECT parent_id FROM groups WHERE id = ?");
+        qCheckRoot.addBindValue(m_selectedGroupId);
+        if (qCheckRoot.exec() && qCheckRoot.next() && (qCheckRoot.value(0).isNull() || qCheckRoot.value(0).toInt() <= 0)) {
+            QMessageBox::information(this, "Ministry Blueprint", "Direct membership is disabled on Ministry Blueprints.\n\nPlease create or select a sub-group/team under this blueprint to enroll members.");
             return;
         }
         QDialog dlg(this);
@@ -1195,24 +1270,46 @@ void MainWindow::populatePages() {
             QString role = roleCombo->currentText();
             QString status = statusCombo->currentText();
             if (personId > 0) {
-                QSqlQuery ins;
-                ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
-                            "VALUES ('Person', ?, 'Group', ?, ?, ?, 'manual', CURRENT_DATE)");
-                ins.addBindValue(personId);
-                ins.addBindValue(m_selectedGroupId);
-                ins.addBindValue(role);
-                ins.addBindValue(status);
-                if (ins.exec()) {
-                    refreshGroupDetailPanel(m_selectedGroupId);
-                    refreshGroupsTree();
-                    if (m_graphWidget) m_graphWidget->loadGraph();
+                QSqlDatabase db = QSqlDatabase::database();
+                QSqlQuery check(db);
+                check.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' AND source_id = ? AND target_type = 'Group' AND target_id = ?");
+                check.addBindValue(personId);
+                check.addBindValue(m_selectedGroupId);
+                if (check.exec() && check.next()) {
+                    int relId = check.value(0).toInt();
+                    QSqlQuery up(db);
+                    up.prepare("UPDATE entity_relationships SET relationship_type = ?, status = ? WHERE id = ?");
+                    up.addBindValue(role);
+                    up.addBindValue(status);
+                    up.addBindValue(relId);
+                    if (up.exec()) {
+                        refreshGroupDetailPanel(m_selectedGroupId);
+                        refreshGroupsTree();
+                        if (m_graphWidget) m_graphWidget->loadGraph();
+                    } else {
+                        QMessageBox::critical(this, "Database Error", "Failed to update member in this group:\n" + up.lastError().text());
+                    }
                 } else {
-                    QMessageBox::critical(this, "Error", "Member is already in this group or database error occurred.");
+                    QSqlQuery ins(db);
+                    ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date, role) "
+                                "VALUES ('Person', ?, 'Group', ?, ?, ?, 'manual', date('now','localtime'), ?)");
+                    ins.addBindValue(personId);
+                    ins.addBindValue(m_selectedGroupId);
+                    ins.addBindValue(role);
+                    ins.addBindValue(status);
+                    ins.addBindValue(role);
+                    if (ins.exec()) {
+                        refreshGroupDetailPanel(m_selectedGroupId);
+                        refreshGroupsTree();
+                        if (m_graphWidget) m_graphWidget->loadGraph();
+                    } else {
+                        QMessageBox::critical(this, "Database Error", "Failed to add member to group:\n" + ins.lastError().text());
+                    }
                 }
             }
         }
     });
-    rosterHeaderRow->addWidget(btnAddRosterMember);
+    rosterHeaderRow->addWidget(m_btnAddRosterMember);
 
     QPushButton* btnSuggest = new QPushButton(" Suggest People", m_groupDetailCard);
     btnSuggest->setIcon(IconManager::instance().getIcon("sparkles", tok.accentPrimary, 14));
@@ -1249,6 +1346,7 @@ void MainWindow::populatePages() {
     m_groupRosterTable->horizontalHeader()->setMinimumSectionSize(70);
     m_groupRosterTable->horizontalHeader()->setDefaultSectionSize(100);
     m_groupRosterTable->horizontalHeader()->setStretchLastSection(false);
+    TableUtil::applyStandardTableSetup(m_groupRosterTable, false);
     m_groupRosterTable->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_groupRosterTable, &QTableWidget::customContextMenuRequested, this, [this, tok](const QPoint& pos) {
         int r = m_groupRosterTable->rowAt(pos.y());
@@ -1303,7 +1401,7 @@ void MainWindow::populatePages() {
             refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree();
         } else if (chosen == actRemove && !isReadOnly) {
             QSqlQuery del; del.prepare("DELETE FROM entity_relationships WHERE id = ?"); del.addBindValue(relId);
-            if (del.exec()) { refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree(); }
+            if (del.exec()) { DatabaseManager::bumpDataGeneration(); refreshGroupDetailPanel(m_selectedGroupId); refreshGroupsTree(); }
         }
     });
     m_groupRosterTable->setWordWrap(false);
@@ -2088,7 +2186,7 @@ void MainWindow::onGraphClicked() {
         });
         ensurePageLoaded(5, [this]() { return m_graphWidget; });
     }
-    m_graphWidget->loadGraph();
+    m_graphWidget->loadGraphIfDirty();
     switchPage(5);
     setActiveNav(m_btnGraph);
 }
@@ -2639,7 +2737,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     QSqlQuery qGrp(db);
     qGrp.prepare("SELECT g.name, g.category, g.description, g.meeting_day, g.meeting_time, g.location, "
                  "p.first_name || ' ' || p.last_name AS contact_name, g.max_capacity, g.notes, g.is_archived, "
-                 "g.recruitment_status, g.parent_id "
+                 "g.recruitment_status, g.parent_id, g.contact_person_id "
                  "FROM groups g "
                  "LEFT JOIN people p ON g.contact_person_id = p.id "
                  "WHERE g.id = ?");
@@ -2666,6 +2764,24 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     QString recruitStatus = qGrp.value(10).toString().trimmed();
     if (recruitStatus.isEmpty()) recruitStatus = "Open";
     int parentId = qGrp.value(11).toInt();
+    int contactPersonId = qGrp.value(12).toInt();
+
+    // Ensure the designated primary contact/leader is enrolled in the group roster
+    if (contactPersonId > 0) {
+        QSqlQuery checkRel(db);
+        checkRel.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' AND source_id = ? AND target_type = 'Group' AND target_id = ?");
+        checkRel.addBindValue(contactPersonId);
+        checkRel.addBindValue(groupId);
+        if (checkRel.exec() && !checkRel.next()) {
+            QSqlQuery insRel(db);
+            insRel.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                           "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
+            insRel.addBindValue(contactPersonId);
+            insRel.addBindValue(groupId);
+            insRel.exec();
+            DatabaseManager::bumpDataGeneration();
+        }
+    }
 
     // Check if this group has child sub-teams (making it a top-level Ministry Blueprint / Folder)
     QList<int> childGroupIds;
@@ -2680,7 +2796,17 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             childNames[cid] = qSub.value(1).toString();
         }
     }
-    bool isRootMinistry = (parentId == 0 && childGroupIds.size() > 0);
+    bool isRootMinistry = (parentId == 0);
+
+    if (m_lblRosterTitle) {
+        m_lblRosterTitle->setText(isRootMinistry ? "Sub-Teams & Consolidated Overview" : "Active Roster & Roles");
+    }
+    if (m_btnAddRosterMember) {
+        m_btnAddRosterMember->setVisible(!isRootMinistry);
+    }
+    if (m_btnCreateSubTeam) {
+        m_btnCreateSubTeam->setVisible(isRootMinistry);
+    }
 
     if (isRootMinistry) {
         m_lblGroupDetailTitle->setText(QString("🏛️ %1 <span style='font-size: 11px; font-weight: normal; color: %2;'>(Ministry Blueprint & Macro Overview)</span>").arg(name, tok.accentPrimary.name()));
@@ -2868,6 +2994,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
                     del.prepare("DELETE FROM entity_relationships WHERE id = ?");
                     del.addBindValue(relId);
                     if (del.exec()) {
+                        DatabaseManager::bumpDataGeneration();
                         refreshGroupDetailPanel(m_selectedGroupId);
                         refreshGroupsTree();
                         if (m_graphWidget) m_graphWidget->loadGraph();
@@ -3016,16 +3143,48 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
             currentPriArch = q.value(14).toString();
             currentSecArch = q.value(15).toString();
         }
-    } else if (defaultParentId > 0) {
+    }
+
+    if (groupId == 0) {
+        if (currentParentId <= 0) {
+            QTreeWidgetItem* curItem = m_groupsTreeWidget ? m_groupsTreeWidget->currentItem() : nullptr;
+            if (curItem) {
+                currentParentId = curItem->data(0, Qt::UserRole).toInt();
+            }
+        }
+        if (currentParentId <= 0) {
+            QSqlQuery qFirst("SELECT id FROM groups WHERE parent_id IS NULL OR parent_id = 0 ORDER BY id ASC LIMIT 1", db);
+            if (qFirst.next()) {
+                currentParentId = qFirst.value(0).toInt();
+            }
+        }
+    }
+
+    if (groupId == 0 && currentParentId > 0) {
         // Automatically inherit blueprint from parent ministry
         QSqlQuery qP(db);
-        qP.prepare("SELECT category, ideal_primary_archetype, ideal_secondary_archetype, required_skills FROM groups WHERE id = ?");
-        qP.addBindValue(defaultParentId);
+        qP.prepare("SELECT name, category, ideal_primary_archetype, ideal_secondary_archetype, required_skills FROM groups WHERE id = ?");
+        qP.addBindValue(currentParentId);
         if (qP.exec() && qP.next()) {
-            currentCat = qP.value(0).toString();
-            currentPriArch = qP.value(1).toString();
-            currentSecArch = qP.value(2).toString();
-            currentSkills = qP.value(3).toString();
+            QString pName = qP.value(0).toString();
+            currentCat = qP.value(1).toString();
+            currentPriArch = qP.value(2).toString();
+            currentSecArch = qP.value(3).toString();
+            currentSkills = qP.value(4).toString();
+
+            // Match against canonical blueprint to ensure precise archetype values
+            for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
+                if (bp.displayName == currentCat || bp.categoryKey == currentCat ||
+                    bp.displayName == pName || bp.categoryKey == pName ||
+                    currentCat.contains(bp.categoryKey, Qt::CaseInsensitive) ||
+                    pName.contains(bp.categoryKey, Qt::CaseInsensitive)) {
+                    currentCat = bp.displayName;
+                    currentPriArch = bp.primaryArchetype;
+                    currentSecArch = bp.secondaryArchetype;
+                    if (currentSkills.isEmpty()) currentSkills = bp.requiredGifts.join(", ");
+                    break;
+                }
+            }
         }
     }
 
@@ -3048,7 +3207,10 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
     QLineEdit* nameEdit = new QLineEdit(isDuplicate ? QString("%1 (Copy)").arg(currentName) : currentName, &dlg);
     
     QComboBox* parentCombo = new QComboBox(&dlg);
-    parentCombo->addItem("-- None (Top Level Ministry) --", 0);
+    if (groupId > 0 && currentParentId <= 0) {
+        parentCombo->addItem("🏛️ -- Root Ministry Blueprint --", 0);
+    }
+
     QSqlQuery qParents(db);
     qParents.prepare(
         "WITH RECURSIVE descendants(id) AS ("
@@ -3056,17 +3218,27 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
         "  UNION ALL "
         "  SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id"
         ") "
-        "SELECT id, name FROM groups "
+        "SELECT id, name, parent_id FROM groups "
         "WHERE id != ? AND id NOT IN (SELECT id FROM descendants) "
-        "ORDER BY name");
+        "ORDER BY (parent_id IS NULL OR parent_id = 0) DESC, name ASC");
     qParents.addBindValue(groupId);
     qParents.addBindValue(groupId);
-    qParents.exec();
-    while (qParents.next()) {
-        parentCombo->addItem(qParents.value(1).toString(), qParents.value(0).toInt());
+    if (qParents.exec()) {
+        while (qParents.next()) {
+            int pid = qParents.value(0).toInt();
+            QString pname = qParents.value(1).toString();
+            int parentOfP = qParents.value(2).toInt();
+            QString label = (parentOfP <= 0) ? QString("🏛️ %1 (Top-Level Blueprint)").arg(pname) : QString("   ↳ %1").arg(pname);
+            parentCombo->addItem(label, pid);
+        }
     }
     int pIdx = parentCombo->findData(currentParentId);
-    if (pIdx >= 0) parentCombo->setCurrentIndex(pIdx);
+    if (pIdx >= 0) {
+        parentCombo->setCurrentIndex(pIdx);
+    } else if (parentCombo->count() > 0) {
+        parentCombo->setCurrentIndex(0);
+        currentParentId = parentCombo->currentData().toInt();
+    }
 
     QComboBox* catCombo = new QComboBox(&dlg);
     for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
@@ -3113,13 +3285,27 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
         int pid = parentCombo->currentData().toInt();
         if (pid > 0) {
             QSqlQuery qP(db);
-            qP.prepare("SELECT category, ideal_primary_archetype, ideal_secondary_archetype, required_skills FROM groups WHERE id = ?");
+            qP.prepare("SELECT name, category, ideal_primary_archetype, ideal_secondary_archetype, required_skills FROM groups WHERE id = ?");
             qP.addBindValue(pid);
             if (qP.exec() && qP.next()) {
-                QString pCat = qP.value(0).toString();
-                QString pPri = qP.value(1).toString();
-                QString pSec = qP.value(2).toString();
-                QString pSkills = qP.value(3).toString();
+                QString pName = qP.value(0).toString();
+                QString pCat = qP.value(1).toString();
+                QString pPri = qP.value(2).toString();
+                QString pSec = qP.value(3).toString();
+                QString pSkills = qP.value(4).toString();
+
+                for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
+                    if (bp.displayName == pCat || bp.categoryKey == pCat ||
+                        bp.displayName == pName || bp.categoryKey == pName ||
+                        pCat.contains(bp.categoryKey, Qt::CaseInsensitive) ||
+                        pName.contains(bp.categoryKey, Qt::CaseInsensitive)) {
+                        pCat = bp.displayName;
+                        pPri = bp.primaryArchetype;
+                        pSec = bp.secondaryArchetype;
+                        if (pSkills.isEmpty()) pSkills = bp.requiredGifts.join(", ");
+                        break;
+                    }
+                }
 
                 if (!pCat.isEmpty()) {
                     int cIdx = catCombo->findText(pCat, Qt::MatchContains);
@@ -3163,6 +3349,9 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
     QLineEdit* locationEdit = new QLineEdit(currentLoc, &dlg);
     locationEdit->setPlaceholderText("e.g. Room 204 / Fellowship Hall");
 
+    // Smart Leader / Contact Selector: enrolled roster first + searchable modal lookup
+    QHBoxLayout* contactRow = new QHBoxLayout();
+    contactRow->setSpacing(6);
     QComboBox* contactCombo = new QComboBox(&dlg);
     contactCombo->addItem("-- None Assigned --", 0);
 
@@ -3177,53 +3366,101 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
             "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
         qEnrolled.addBindValue(groupId);
         if (qEnrolled.exec()) {
-            bool hasEnrolled = false;
             while (qEnrolled.next()) {
                 int pid = qEnrolled.value(0).toInt();
                 QString name = qEnrolled.value(1).toString();
                 QString role = qEnrolled.value(2).toString();
                 contactCombo->addItem(QString("%1 (Group %2)").arg(name, role.isEmpty() ? "Member" : role), pid);
                 enrolledIds.insert(pid);
-                hasEnrolled = true;
-            }
-            if (hasEnrolled) {
-                contactCombo->insertSeparator(contactCombo->count());
-            }
-        }
-    } else if (defaultParentId > 0) {
-        QSqlQuery qParent(db);
-        qParent.prepare(
-            "SELECT p.id, p.first_name || ' ' || p.last_name, er.relationship_type "
-            "FROM entity_relationships er "
-            "JOIN people p ON er.source_id = p.id "
-            "WHERE er.target_type = 'Group' AND er.target_id = ? "
-            "ORDER BY (er.relationship_type LIKE '%Leader%') DESC, p.last_name, p.first_name");
-        qParent.addBindValue(defaultParentId);
-        if (qParent.exec()) {
-            bool hasParent = false;
-            while (qParent.next()) {
-                int pid = qParent.value(0).toInt();
-                QString name = qParent.value(1).toString();
-                QString role = qParent.value(2).toString();
-                contactCombo->addItem(QString("%1 (Parent Ministry %2)").arg(name, role.isEmpty() ? "Member" : role), pid);
-                enrolledIds.insert(pid);
-                hasParent = true;
-            }
-            if (hasParent) {
-                contactCombo->insertSeparator(contactCombo->count());
             }
         }
     }
 
-    QSqlQuery qPeople("SELECT id, first_name || ' ' || last_name FROM people ORDER BY first_name", db);
-    while (qPeople.next()) {
-        int pid = qPeople.value(0).toInt();
-        if (!enrolledIds.contains(pid)) {
-            contactCombo->addItem(qPeople.value(1).toString(), pid);
+    if (currentContactId > 0 && !enrolledIds.contains(currentContactId)) {
+        QSqlQuery qC(db);
+        qC.prepare("SELECT first_name || ' ' || last_name FROM people WHERE id = ?");
+        qC.addBindValue(currentContactId);
+        if (qC.exec() && qC.next()) {
+            contactCombo->addItem(QString("%1 (Assigned Contact)").arg(qC.value(0).toString()), currentContactId);
+            enrolledIds.insert(currentContactId);
         }
     }
+
     int cIdx = contactCombo->findData(currentContactId);
     if (cIdx >= 0) contactCombo->setCurrentIndex(cIdx);
+
+    QPushButton* btnSearchContact = new QPushButton(" Search Member...", &dlg);
+    btnSearchContact->setIcon(IconManager::instance().getIcon("search", tok.textPrimary, 12));
+    btnSearchContact->setObjectName("secondaryBtn");
+    btnSearchContact->setToolTip("Search all church members to assign as primary leader/contact");
+    contactRow->addWidget(contactCombo, 1);
+    contactRow->addWidget(btnSearchContact);
+
+    connect(btnSearchContact, &QPushButton::clicked, &dlg, [&dlg, contactCombo, db, tok]() {
+        QDialog searchDlg(&dlg);
+        searchDlg.setWindowTitle("Select Primary Leader / Contact");
+        searchDlg.resize(380, 420);
+        searchDlg.setStyleSheet(QString("QDialog { background-color: %1; color: %2; } QLabel { color: %2; } QLineEdit { background-color: %3; color: %2; border: 1px solid palette(mid); border-radius: 6px; padding: 5px; } QListWidget { background-color: %3; color: %2; border: 1px solid palette(mid); border-radius: 6px; }")
+                                  .arg(tok.bgSurface.name(), tok.textPrimary.name(), tok.bgBase.name()));
+        QVBoxLayout* sLay = new QVBoxLayout(&searchDlg);
+        sLay->setContentsMargins(12, 12, 12, 12);
+        sLay->setSpacing(8);
+
+        QLineEdit* sEdit = new QLineEdit(&searchDlg);
+        sEdit->setPlaceholderText("Type name to search church members...");
+        sEdit->setClearButtonEnabled(true);
+        QListWidget* sList = new QListWidget(&searchDlg);
+        sLay->addWidget(sEdit);
+        sLay->addWidget(sList, 1);
+
+        auto populateSearch = [&](const QString& filter) {
+            sList->clear();
+            QSqlQuery qS(db);
+            if (filter.trimmed().isEmpty()) {
+                qS.exec("SELECT id, first_name || ' ' || last_name, COALESCE(membership_status, 'Member'), care_flag FROM people ORDER BY first_name LIMIT 35");
+            } else {
+                qS.prepare("SELECT id, first_name || ' ' || last_name, COALESCE(membership_status, 'Member'), care_flag FROM people WHERE first_name LIKE ? OR last_name LIKE ? ORDER BY first_name LIMIT 50");
+                qS.addBindValue("%" + filter.trimmed() + "%");
+                qS.addBindValue("%" + filter.trimmed() + "%");
+                qS.exec();
+            }
+            while (qS.next()) {
+                int pid = qS.value(0).toInt();
+                QString pName = qS.value(1).toString();
+                QString pStatus = qS.value(2).toString();
+                QString pFlag = qS.value(3).toString();
+                QString label = pName + " (" + pStatus + (!pFlag.isEmpty() ? " • " + pFlag : "") + ")";
+                QListWidgetItem* it = new QListWidgetItem(IconManager::instance().getIcon("user", tok.textPrimary, 14), label, sList);
+                it->setData(Qt::UserRole, pid);
+                it->setData(Qt::UserRole + 1, pName);
+            }
+        };
+        populateSearch("");
+        QObject::connect(sEdit, &QLineEdit::textChanged, &searchDlg, populateSearch);
+
+        QDialogButtonBox* sBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &searchDlg);
+        QPushButton* sOk = sBox->button(QDialogButtonBox::Ok);
+        if (sOk) sOk->setObjectName("primaryBtn");
+        QPushButton* sCancel = sBox->button(QDialogButtonBox::Cancel);
+        if (sCancel) sCancel->setObjectName("secondaryBtn");
+        sLay->addWidget(sBox);
+
+        QObject::connect(sBox, &QDialogButtonBox::accepted, &searchDlg, &QDialog::accept);
+        QObject::connect(sBox, &QDialogButtonBox::rejected, &searchDlg, &QDialog::reject);
+        QObject::connect(sList, &QListWidget::itemDoubleClicked, &searchDlg, &QDialog::accept);
+
+        if (searchDlg.exec() == QDialog::Accepted && sList->currentItem()) {
+            int selId = sList->currentItem()->data(Qt::UserRole).toInt();
+            QString selName = sList->currentItem()->data(Qt::UserRole + 1).toString();
+            int existingIdx = contactCombo->findData(selId);
+            if (existingIdx >= 0) {
+                contactCombo->setCurrentIndex(existingIdx);
+            } else {
+                contactCombo->addItem(QString("%1 (Assigned Leader)").arg(selName), selId);
+                contactCombo->setCurrentIndex(contactCombo->count() - 1);
+            }
+        }
+    });
 
     QSpinBox* capacitySpin = new QSpinBox(&dlg);
     capacitySpin->setRange(0, 500);
@@ -3277,7 +3514,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
     form->addRow("Meeting Day:", dayCombo);
     form->addRow("Meeting Time:", timeEdit);
     form->addRow("Location / Room:", locationEdit);
-    form->addRow("Primary Leader/Contact:", contactCombo);
+    form->addRow("Primary Leader/Contact:", contactRow);
     form->addRow("Max Capacity:", capacitySpin);
     form->addRow("Preferred Age:", ageBandRow);
     form->addRow("Description:", descEdit);
@@ -3328,15 +3565,15 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                            "ideal_primary_archetype = ?, ideal_secondary_archetype = ? WHERE id = ?");
             update.addBindValue(name);
             update.addBindValue(cat);
-            update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant());
+            update.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
             update.addBindValue(day);
             update.addBindValue(time);
             update.addBindValue(loc);
-            update.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant());
+            update.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant(QMetaType(QMetaType::Int)));
             update.addBindValue(cap);
             update.addBindValue(desc);
             update.addBindValue(notes);
-            update.addBindValue(skills.isEmpty() ? QVariant() : QVariant(skills));
+            update.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
             update.addBindValue(minAge);
             update.addBindValue(maxAge);
             update.addBindValue(recruitStatus);
@@ -3345,6 +3582,29 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
             update.addBindValue(groupId);
 
             if (update.exec()) {
+                if (contactId > 0) {
+                    QSqlQuery checkRel(db);
+                    checkRel.prepare("SELECT id, relationship_type FROM entity_relationships WHERE source_type = 'Person' AND source_id = ? AND target_type = 'Group' AND target_id = ?");
+                    checkRel.addBindValue(contactId);
+                    checkRel.addBindValue(groupId);
+                    if (checkRel.exec() && checkRel.next()) {
+                        int relId = checkRel.value(0).toInt();
+                        QString rType = checkRel.value(1).toString();
+                        if (rType != "Leader") {
+                            QSqlQuery upRel(db);
+                            upRel.prepare("UPDATE entity_relationships SET relationship_type = 'Leader', status = 'Active' WHERE id = ?");
+                            upRel.addBindValue(relId);
+                            upRel.exec();
+                        }
+                    } else {
+                        QSqlQuery insRel(db);
+                        insRel.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                                       "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
+                        insRel.addBindValue(contactId);
+                        insRel.addBindValue(groupId);
+                        insRel.exec();
+                    }
+                }
                 refreshGroupsTree();
                 refreshGroupDetailPanel(groupId);
                 if (m_graphWidget) m_graphWidget->loadGraph();
@@ -3359,15 +3619,15 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
             ins.addBindValue(name);
             ins.addBindValue(cat);
-            ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant());
+            ins.addBindValue(parentId > 0 ? QVariant(parentId) : QVariant(QMetaType(QMetaType::Int)));
             ins.addBindValue(day);
             ins.addBindValue(time);
             ins.addBindValue(loc);
-            ins.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant());
+            ins.addBindValue(contactId > 0 ? QVariant(contactId) : QVariant(QMetaType(QMetaType::Int)));
             ins.addBindValue(cap);
             ins.addBindValue(desc);
             ins.addBindValue(notes);
-            ins.addBindValue(skills.isEmpty() ? QVariant() : QVariant(skills));
+            ins.addBindValue(skills.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : QVariant(skills));
             ins.addBindValue(minAge);
             ins.addBindValue(maxAge);
             ins.addBindValue(recruitStatus);
@@ -3376,6 +3636,14 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
 
             if (ins.exec()) {
                 int newId = ins.lastInsertId().toInt();
+                if (contactId > 0) {
+                    QSqlQuery insRel(db);
+                    insRel.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                                   "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
+                    insRel.addBindValue(contactId);
+                    insRel.addBindValue(newId);
+                    insRel.exec();
+                }
                 if (isDuplicate && chkCopyMembers && chkCopyMembers->isChecked()) {
                     QSqlQuery copyMems(db);
                     copyMems.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
@@ -3386,7 +3654,34 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                     copyMems.exec();
                 }
                 db.commit();
+
+                // Automatically switch to Active Groups & Serving Rosters tab
+                if (m_groupsTabWidget) {
+                    m_groupsTabWidget->setCurrentIndex(0);
+                }
+
                 refreshGroupsTree();
+
+                // Auto-expand parent blueprint and select new team
+                if (m_groupsTreeWidget) {
+                    QTreeWidgetItemIterator it(m_groupsTreeWidget);
+                    QTreeWidgetItem* targetItem = nullptr;
+                    while (*it) {
+                        if ((*it)->data(0, Qt::UserRole).toInt() == parentId) {
+                            (*it)->setExpanded(true);
+                        }
+                        if ((*it)->data(0, Qt::UserRole).toInt() == newId) {
+                            targetItem = *it;
+                        }
+                        ++it;
+                    }
+                    if (targetItem) {
+                        m_groupsTreeWidget->setCurrentItem(targetItem);
+                        m_groupsTreeWidget->scrollToItem(targetItem);
+                    }
+                }
+
+                m_selectedGroupId = newId;
                 refreshGroupDetailPanel(newId);
                 if (m_graphWidget) m_graphWidget->loadGraph();
                 QMessageBox::information(this, "Success", "Group created successfully.");
@@ -3445,6 +3740,7 @@ void MainWindow::onArchiveGroup() {
     q.addBindValue(target);
     q.addBindValue(m_selectedGroupId);
     if (q.exec()) {
+        DatabaseManager::bumpDataGeneration();
         refreshGroupsTree();
         refreshGroupDetailPanel(m_selectedGroupId);
         if (m_graphWidget) m_graphWidget->loadGraph();
@@ -3492,7 +3788,7 @@ void MainWindow::onDeleteGroup() {
     if (qParent.exec() && qParent.next()) grandparent = qParent.value(0).toInt();
 
     q.prepare("UPDATE groups SET parent_id = ? WHERE parent_id = ?");
-    q.addBindValue(grandparent > 0 ? QVariant(grandparent) : QVariant());
+    q.addBindValue(grandparent > 0 ? QVariant(grandparent) : QVariant(QMetaType(QMetaType::Int)));
     q.addBindValue(m_selectedGroupId);
     q.exec();
 
@@ -3560,29 +3856,78 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
     rootLay->setContentsMargins(12, 12, 12, 12);
     rootLay->setSpacing(12);
 
+    QHBoxLayout* headerRow = new QHBoxLayout();
+    QVBoxLayout* titlesLay = new QVBoxLayout();
     QLabel* lblHeader = new QLabel("Ministry Blueprints & Archetype Catalog", container);
     lblHeader->setStyleSheet(QString("font-size: 16px; font-weight: bold; color: %1;").arg(tok.accentPrimary.name()));
-    rootLay->addWidget(lblHeader);
+    titlesLay->addWidget(lblHeader);
 
-    QLabel* lblSub = new QLabel("Canonical behavioral DNA profiles and target relational balance for church ministries. Launching a team initializes these dynamic target ratios.", container);
+    QLabel* lblSub = new QLabel("Behavioral DNA profiles and target relational balance for church ministries. Top-level group headings and dynamic target ratios are automatically synchronized.", container);
     lblSub->setStyleSheet(QString("font-size: 11px; color: %1;").arg(tok.textSecondary.name()));
     lblSub->setWordWrap(true);
-    rootLay->addWidget(lblSub);
+    titlesLay->addWidget(lblSub);
+    headerRow->addLayout(titlesLay, 1);
+
+    m_chkShowArchivedBlueprints = new QCheckBox("Show Archived", container);
+    m_chkShowArchivedBlueprints->setChecked(false);
+    connect(m_chkShowArchivedBlueprints, &QCheckBox::toggled, this, &MainWindow::refreshMinistryBlueprintsTab);
+    headerRow->addWidget(m_chkShowArchivedBlueprints);
+
+    QPushButton* btnDefine = new QPushButton(" Define New Blueprint", container);
+    btnDefine->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    btnDefine->setObjectName("primaryBtn");
+    btnDefine->setStyleSheet("padding: 6px 12px; font-size: 12px; font-weight: bold;");
+    connect(btnDefine, &QPushButton::clicked, this, [this]() {
+        showBlueprintDialog(0);
+    });
+    headerRow->addWidget(btnDefine);
+    rootLay->addLayout(headerRow);
 
     QScrollArea* scroll = new QScrollArea(container);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
 
-    QWidget* gridContainer = new QWidget(scroll);
-    QGridLayout* grid = new QGridLayout(gridContainer);
+    m_blueprintsGridContainer = new QWidget(scroll);
+    // Without this, the grid's content minimum (two ~900px blueprint cards)
+    // propagates through the scroll area into the QTabWidget — which sizes
+    // for ALL tabs, including this hidden one — forcing the whole window
+    // wider whenever the Groups & Ministries page activates. Ignored lets
+    // the scroll area do its job instead.
+    m_blueprintsGridContainer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    scroll->setWidget(m_blueprintsGridContainer);
+    rootLay->addWidget(scroll, 1);
+
+    refreshMinistryBlueprintsTab();
+}
+
+void MainWindow::refreshMinistryBlueprintsTab() {
+    if (!m_blueprintsGridContainer) return;
+
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+
+    // Clear previous contents. Widgets go via deleteLater and the old
+    // layout via deleteLater too: both are still installed on the live
+    // container while events can be in flight (deleting them synchronously
+    // is the churn pattern that corrupted the graph's Smart Bridge panel).
+    if (QLayout* oldGrid = m_blueprintsGridContainer->layout()) {
+        QLayoutItem* item;
+        while ((item = oldGrid->takeAt(0)) != nullptr) {
+            if (item->widget()) item->widget()->deleteLater();
+            delete item;
+        }
+        oldGrid->deleteLater();
+    }
+
+    QGridLayout* grid = new QGridLayout(m_blueprintsGridContainer);
     grid->setContentsMargins(5, 5, 5, 5);
     grid->setSpacing(12);
 
-    const auto blueprints = MinistryArchetypeRegistry::canonicalBlueprints();
+    bool showArchived = m_chkShowArchivedBlueprints && m_chkShowArchivedBlueprints->isChecked();
+    const auto blueprints = MinistryArchetypeRegistry::allBlueprints(showArchived);
     int row = 0, col = 0;
 
     for (const auto& bp : blueprints) {
-        QFrame* card = new QFrame(gridContainer);
+        QFrame* card = new QFrame(m_blueprintsGridContainer);
         card->setObjectName("cardWidget");
         card->setStyleSheet(QString("QFrame#cardWidget { background-color: %1; border: 1px solid %2; border-radius: 10px; padding: 10px; }")
                                 .arg(tok.bgSurface.name(), tok.borderColor.name()));
@@ -3595,6 +3940,20 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
         QLabel* lblTitle = new QLabel(QString("<b>%1</b>").arg(bp.displayName), card);
         lblTitle->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tok.accentPrimary.name()));
         topRow->addWidget(lblTitle);
+
+        if (bp.isCustom) {
+            QLabel* lblCustomBadge = new QLabel("Custom", card);
+            lblCustomBadge->setStyleSheet(QString("background-color: rgba(%1, %2, %3, 0.15); border: 1px solid %4; border-radius: 4px; padding: 1px 5px; font-size: 9px; font-weight: bold; color: %4;")
+                                              .arg(tok.accentPrimary.red()).arg(tok.accentPrimary.green()).arg(tok.accentPrimary.blue()).arg(tok.accentPrimary.name()));
+            topRow->addWidget(lblCustomBadge);
+        }
+        if (bp.isArchived) {
+            QLabel* lblArchBadge = new QLabel("Archived", card);
+            lblArchBadge->setStyleSheet(QString("background-color: rgba(%1, %2, %3, 0.15); border: 1px solid %4; border-radius: 4px; padding: 1px 5px; font-size: 9px; font-weight: bold; color: %4;")
+                                            .arg(tok.accentDanger.red()).arg(tok.accentDanger.green()).arg(tok.accentDanger.blue()).arg(tok.accentDanger.name()));
+            topRow->addWidget(lblArchBadge);
+        }
+
         topRow->addStretch();
         cardLay->addLayout(topRow);
 
@@ -3649,24 +4008,75 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
                                            .arg(static_cast<int>(bp.targetVector.connector * 100)), card);
         cardLay->addWidget(lblVector);
 
-        // Action Button
-        QPushButton* btnCreate = new QPushButton(" Launch Team from Blueprint", card);
+        // Actions Row
+        QHBoxLayout* actionsRow = new QHBoxLayout();
+        actionsRow->setSpacing(8);
+
+        QPushButton* btnCreate = new QPushButton(" Launch Team", card);
         btnCreate->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
         btnCreate->setObjectName("primaryBtn");
         btnCreate->setStyleSheet("font-size: 11px; padding: 4px 10px;");
-        QString bpName = bp.displayName;
-        connect(btnCreate, &QPushButton::clicked, this, [this, bpName]() {
+        btnCreate->setEnabled(!bp.isArchived);
+        connect(btnCreate, &QPushButton::clicked, this, [this, bp]() {
             int rootId = 0;
             QSqlQuery qRoot;
-            qRoot.prepare("SELECT id FROM groups WHERE (name = ? OR category = ?) AND (parent_id IS NULL OR parent_id = 0) LIMIT 1");
-            qRoot.addBindValue(bpName);
-            qRoot.addBindValue(bpName);
+            qRoot.prepare("SELECT id FROM groups WHERE (name = ? OR category = ? OR name LIKE ? OR category LIKE ?) AND (parent_id IS NULL OR parent_id = 0) ORDER BY id ASC LIMIT 1");
+            qRoot.addBindValue(bp.displayName);
+            qRoot.addBindValue(bp.categoryKey);
+            qRoot.addBindValue("%" + bp.categoryKey + "%");
+            qRoot.addBindValue("%" + bp.categoryKey + "%");
             if (qRoot.exec() && qRoot.next()) {
                 rootId = qRoot.value(0).toInt();
             }
             showGroupDialog(0, false, rootId);
         });
-        cardLay->addWidget(btnCreate);
+        actionsRow->addWidget(btnCreate);
+
+        if (bp.isCustom) {
+            QPushButton* btnEdit = new QPushButton(" Edit", card);
+            btnEdit->setIcon(IconManager::instance().getIcon("edit-3", tok.textPrimary, 12));
+            btnEdit->setObjectName("secondaryBtn");
+            btnEdit->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+            connect(btnEdit, &QPushButton::clicked, this, [this, bp]() {
+                showBlueprintDialog(bp.id);
+            });
+            actionsRow->addWidget(btnEdit);
+
+            if (!bp.isArchived) {
+                QPushButton* btnArchive = new QPushButton(" Archive", card);
+                btnArchive->setIcon(IconManager::instance().getDangerIcon("trash-2", 12));
+                btnArchive->setObjectName("secondaryBtn");
+                btnArchive->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+                connect(btnArchive, &QPushButton::clicked, this, [this, bp]() {
+                    int ret = QMessageBox::question(this, "Archive Blueprint",
+                        QString("Are you sure you want to archive the blueprint '%1'?\n\n"
+                                "This will also archive its top-level ministry group heading and ALL child sub-teams, "
+                                "removing them from active ministry match recommendations.")
+                                .arg(bp.displayName),
+                        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+                    if (ret == QMessageBox::Yes) {
+                        DatabaseManager::archiveBlueprint(bp.id, true);
+                        refreshMinistryBlueprintsTab();
+                        refreshGroupsTree();
+                    }
+                });
+                actionsRow->addWidget(btnArchive);
+            } else {
+                QPushButton* btnRestore = new QPushButton(" Restore", card);
+                btnRestore->setIcon(IconManager::instance().getIcon("refresh-cw", tok.accentSuccess, 12));
+                btnRestore->setObjectName("secondaryBtn");
+                btnRestore->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+                connect(btnRestore, &QPushButton::clicked, this, [this, bp]() {
+                    DatabaseManager::archiveBlueprint(bp.id, false);
+                    refreshMinistryBlueprintsTab();
+                    refreshGroupsTree();
+                });
+                actionsRow->addWidget(btnRestore);
+            }
+        }
+
+        actionsRow->addStretch();
+        cardLay->addLayout(actionsRow);
 
         grid->addWidget(card, row, col);
         col++;
@@ -3675,9 +4085,151 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
             row++;
         }
     }
+}
 
-    scroll->setWidget(gridContainer);
-    rootLay->addWidget(scroll);
+void MainWindow::showBlueprintDialog(int blueprintId) {
+    QSqlDatabase db = QSqlDatabase::database();
+    ThemeTokens tok = ThemeManager::instance().currentTokens();
+
+    QString currentCat, currentName, currentPri = "Catalyst", currentSec = "Spark", currentGifts, currentDesc;
+
+    if (blueprintId > 0) {
+        QSqlQuery q(db);
+        q.prepare("SELECT category_key, display_name, ideal_primary, ideal_secondary, required_gifts, description FROM ministry_archetypes WHERE id = ?");
+        q.addBindValue(blueprintId);
+        if (q.exec() && q.next()) {
+            currentCat = q.value(0).toString();
+            currentName = q.value(1).toString();
+            currentPri = q.value(2).toString();
+            currentSec = q.value(3).toString();
+            currentGifts = q.value(4).toString();
+            currentDesc = q.value(5).toString();
+        }
+    }
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(blueprintId > 0 ? "Edit Blueprint Ministry" : "Define New Blueprint Ministry");
+    dlg.resize(460, 480);
+    dlg.setStyleSheet(QString("QDialog { background-color: %1; color: %2; } QLabel { color: %2; } QLineEdit, QTextEdit, QComboBox { background-color: %3; color: %2; border: 1px solid palette(mid); border-radius: 6px; padding: 5px; }")
+                          .arg(tok.bgSurface.name(), tok.textPrimary.name(), tok.bgBase.name()));
+
+    QVBoxLayout* root = new QVBoxLayout(&dlg);
+    root->setContentsMargins(16, 16, 16, 16);
+    root->setSpacing(12);
+
+    QFormLayout* form = new QFormLayout();
+    form->setSpacing(10);
+
+    QLineEdit* nameEdit = new QLineEdit(currentName, &dlg);
+    nameEdit->setPlaceholderText("e.g. Matrimonios / Marriage Ministry");
+
+    QLineEdit* catEdit = new QLineEdit(currentCat, &dlg);
+    catEdit->setPlaceholderText("e.g. Matrimonios");
+
+    if (blueprintId == 0) {
+        connect(nameEdit, &QLineEdit::textChanged, &dlg, [catEdit](const QString& text) {
+            if (catEdit->text().trimmed().isEmpty() || catEdit->property("auto").toBool()) {
+                QString derived = text.split("/").first().trimmed();
+                catEdit->setProperty("auto", true);
+                catEdit->setText(derived);
+            }
+        });
+        connect(catEdit, &QLineEdit::textEdited, &dlg, [catEdit]() {
+            catEdit->setProperty("auto", false);
+        });
+    }
+
+    QComboBox* priCombo = new QComboBox(&dlg);
+    priCombo->addItem("🔥 Catalyst (Vision & Initiation)", "Catalyst");
+    priCombo->addItem("🌿 Shepherd (Care & Discipleship)", "Shepherd");
+    priCombo->addItem("📐 Architect (Systems & Logistics)", "Architect");
+    priCombo->addItem("⚡ Spark (Energy & Recruiting)", "Spark");
+    priCombo->addItem("⚓ Anchor (Steadfast Execution)", "Anchor");
+    int pIdx = priCombo->findData(currentPri);
+    if (pIdx >= 0) priCombo->setCurrentIndex(pIdx);
+
+    QComboBox* secCombo = new QComboBox(&dlg);
+    secCombo->addItem("-- None / Pure Archetype --", "None");
+    secCombo->addItem("🔥 Catalyst (Vision & Initiation)", "Catalyst");
+    secCombo->addItem("🌿 Shepherd (Care & Discipleship)", "Shepherd");
+    secCombo->addItem("📐 Architect (Systems & Logistics)", "Architect");
+    secCombo->addItem("⚡ Spark (Energy & Recruiting)", "Spark");
+    secCombo->addItem("⚓ Anchor (Steadfast Execution)", "Anchor");
+    int sIdx = secCombo->findData(currentSec);
+    if (sIdx >= 0) secCombo->setCurrentIndex(sIdx);
+
+    QLineEdit* giftsEdit = new QLineEdit(currentGifts, &dlg);
+    giftsEdit->setPlaceholderText("e.g. Pastoral Care, Hospitality, Teaching");
+
+    QTextEdit* descEdit = new QTextEdit(&dlg);
+    descEdit->setPlaceholderText("Describe the ministry's mission, culture, and core responsibilities...");
+    descEdit->setPlainText(currentDesc);
+    descEdit->setMaximumHeight(90);
+
+    form->addRow("Ministry Name:", nameEdit);
+    form->addRow("Category Key:", catEdit);
+    form->addRow("Primary Archetype:", priCombo);
+    form->addRow("Secondary Archetype:", secCombo);
+    form->addRow("Key Spiritual Gifts:", giftsEdit);
+    form->addRow("Mission Description:", descEdit);
+    root->addLayout(form);
+
+    QDialogButtonBox* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    QPushButton* okBtn = box->button(QDialogButtonBox::Ok);
+    if (okBtn) {
+        okBtn->setText(blueprintId > 0 ? "Save Blueprint" : "Create Blueprint");
+        okBtn->setObjectName("primaryBtn");
+    }
+    QPushButton* cancelBtn = box->button(QDialogButtonBox::Cancel);
+    if (cancelBtn) cancelBtn->setObjectName("secondaryBtn");
+    root->addWidget(box);
+
+    connect(box, &QDialogButtonBox::accepted, &dlg, [&]() {
+        QString name = nameEdit->text().trimmed();
+        QString cat = catEdit->text().trimmed();
+        if (name.isEmpty()) {
+            QMessageBox::warning(&dlg, "Validation Error", "Please provide a Ministry Name.");
+            nameEdit->setFocus();
+            return;
+        }
+        if (cat.isEmpty()) {
+            QMessageBox::warning(&dlg, "Validation Error", "Please provide a Category Key.");
+            catEdit->setFocus();
+            return;
+        }
+        QString pri = priCombo->currentData().toString();
+        QString sec = secCombo->currentData().toString();
+        QStringList gifts = giftsEdit->text().split(",", Qt::SkipEmptyParts);
+        for (QString& g : gifts) g = g.trimmed();
+        QString desc = descEdit->toPlainText().trimmed();
+
+        bool ok = false;
+        if (blueprintId == 0) {
+            int newBpId = 0, newGrpId = 0;
+            ok = DatabaseManager::createBlueprint(cat, name, pri, sec, gifts, desc, &newBpId, &newGrpId, db);
+            if (ok) {
+                QMessageBox::information(this, "Success", QString("Blueprint '%1' created!\n\nIts top-level heading group has been added to the Groups tree.").arg(name));
+            } else {
+                QMessageBox::critical(&dlg, "Error", "Failed to create blueprint. Category Key may already exist.");
+                return;
+            }
+        } else {
+            ok = DatabaseManager::updateBlueprint(blueprintId, cat, name, pri, sec, gifts, desc, db);
+            if (ok) {
+                QMessageBox::information(this, "Success", QString("Blueprint '%1' updated and its top-level group heading synchronized.").arg(name));
+            } else {
+                QMessageBox::critical(&dlg, "Error", "Failed to update blueprint.");
+                return;
+            }
+        }
+
+        dlg.accept();
+        refreshMinistryBlueprintsTab();
+        refreshGroupsTree();
+    });
+    connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
 }
 
 void MainWindow::setActiveNav(QPushButton* btn) {

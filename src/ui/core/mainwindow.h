@@ -2,7 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QStackedWidget>
+#include <QStackedLayout>
 #include <QSqlTableModel>
 #include <QTableView>
 #include <QLabel>
@@ -90,7 +90,7 @@ private:
     QWidget* createDashboardPage();
     QWidget* createTablePage(const QString& title, QTableView* view);
 
-    QStackedWidget* m_stackedWidget;
+    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout — see mainwindow.cpp
     
     QPushButton* m_btnDashboard;
     QPushButton* m_btnMembers;
@@ -148,6 +148,7 @@ private:
     QString m_barcodeBuffer;
     QDateTime m_lastKeyPressTime;
     bool m_isDarkMode;
+    bool m_graphPausedByPageLeave = false; // physics auto-paused when leaving the graph page
     QString m_userRole;
     QString m_username;
 
@@ -164,11 +165,18 @@ private:
     QLabel* m_lblGroupDetailMeta;
     QTableWidget* m_groupRosterTable;
     QLabel* m_lblGroupChemistryReport;
+    QLabel* m_lblRosterTitle;
+    QPushButton* m_btnAddRosterMember;
+    QPushButton* m_btnCreateSubTeam;
     int m_selectedGroupId;
 
     QTabWidget* m_groupsTabWidget;
     QWidget* m_tabMinistryBlueprints;
+    QWidget* m_blueprintsGridContainer = nullptr;
+    QCheckBox* m_chkShowArchivedBlueprints = nullptr;
     void setupMinistryBlueprintsTab(QWidget* container);
+    void refreshMinistryBlueprintsTab();
+    void showBlueprintDialog(int blueprintId = 0);
 
     void refreshGroupsTree();
     void refreshGroupDetailPanel(int groupId);

@@ -395,6 +395,12 @@ void VaultWidget::onUploadClicked() {
     form->addRow("Person:", personCombo);
     const int groupRow = form->rowCount();
     form->addRow("Group:", groupCombo);
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+    // Row indices are only consumed by setRowVisible (Qt >= 6.4); silence
+    // -Wunused-variable on the older-Qt Linux build.
+    Q_UNUSED(personRow);
+    Q_UNUSED(groupRow);
+#endif
 
     // Auto-title ("Category — Person/Group — date") unless the user edits it.
     bool titleTouched = false;

@@ -6,6 +6,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QPointF>
 #include <QVector>
 #include <QPushButton>
@@ -169,6 +170,8 @@ public:
     QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
+    void adjust();
+
     void setSelectedState(bool sel) { m_isSelected = sel; update(); }
     bool isSelectedState() const { return m_isSelected; }
 
@@ -199,6 +202,8 @@ public:
 
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+    void adjust();
 
 private:
     NodeItem* m_source;
@@ -246,8 +251,14 @@ public:
     ~GraphWidget();
 
     void loadGraph();
+    // Reloads only when underlying data changed since the last full load
+    // (DatabaseManager::dataGeneration) or the last load is older than the
+    // staleness fallback. Makes graph-page re-entry instant; the fallback
+    // bounds staleness for writes that never bump the generation.
+    void loadGraphIfDirty();
     void pausePhysics();
     void resumePhysics();
+    bool physicsRunning() const;
     void setRepulsionStrength(double val);
     void applyTreeHierarchyLayout();
 
@@ -257,6 +268,7 @@ public:
     void handleNodeClick(NodeItem* node);
     void selectNodeForDetails(NodeItem* node);
     void selectEdgeForDetails(EdgeItem* edge);
+    void updateEdgesForNode(NodeItem* node);
     void showNodeContextMenu(NodeItem* node, const QPoint& globalPos);
     void applyRole(const QString& role);
     void applyTheme(const ThemeTokens& tokens);
@@ -542,6 +554,8 @@ private:
     double m_damping;
     double m_gravity;
     bool m_physicsRunning;
+    quint64 m_loadedGeneration = 0;      // DatabaseManager::dataGeneration() at last full load
+    QElapsedTimer m_sinceLoad;           // staleness fallback for unlogged writes
 
     int m_burnoutThreshold = 3;
     int m_familyDominancePercent = 40;
