@@ -160,7 +160,7 @@ void SettingsWidget::setupUI() {
     m_logoPreview->setFixedSize(96, 96);
     m_logoPreview->setAlignment(Qt::AlignCenter);
     m_logoPreview->setText("No logo\nselected");
-    m_logoPreview->setStyleSheet("border: 1px dashed #45475a; border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
+    m_logoPreview->setStyleSheet("border: 1px dashed palette(mid); border-radius: 8px; font-size: 11px; color: palette(placeholderText);");
     m_btnPickLogo = new QPushButton(" Upload Church Logo", pageGeneral);
     m_btnPickLogo->setIcon(IconManager::instance().getPrimaryIcon("upload", 14));
     m_btnPickLogo->setObjectName("primaryBtn");
@@ -731,7 +731,7 @@ void SettingsWidget::setupUI() {
 
     m_lblDbPath = new QLabel("Database File Path: ...", pageData);
     m_lblDbPath->setWordWrap(true);
-    m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: rgba(0, 0, 0, 0.2);");
+    m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: palette(base);");
     grpDbLay->addWidget(m_lblDbPath);
 
     QFormLayout* formLifecycle = new QFormLayout();
@@ -754,7 +754,7 @@ void SettingsWidget::setupUI() {
 
     QHBoxLayout* pcoRow = new QHBoxLayout();
     m_lblPcoStatusBadge = new QLabel("Planning Center Online: Configured via API Dialog", pageData);
-    m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: rgba(255,255,255,0.06);");
+    m_lblPcoStatusBadge->setStyleSheet("padding: 4px 10px; border-radius: 6px; font-weight: bold; background-color: palette(base);");
     pcoRow->addWidget(m_lblPcoStatusBadge);
     pcoRow->addStretch();
     grpDbLay->addLayout(pcoRow);
