@@ -36,6 +36,9 @@ set(SOURCES
     src/common/appdateformatter.cpp
     src/common/churchprofile.h
     src/common/churchprofile.cpp
+    src/common/tableutil.h
+    src/common/givingstatementgenerator.h
+    src/common/givingstatementgenerator.cpp
 
     # Database Module
     src/database/databasemanager.h
@@ -145,6 +148,9 @@ add_executable(openekklesia_tests
     src/common/appdateformatter.h
     src/common/churchprofile.cpp
     src/common/churchprofile.h
+    src/common/tableutil.h
+    src/common/givingstatementgenerator.cpp
+    src/common/givingstatementgenerator.h
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp
@@ -153,8 +159,22 @@ add_executable(openekklesia_tests
     src/ui/core/thememanager.h
     src/ui/core/iconmanager.cpp
     src/ui/core/iconmanager.h
+    src/ui/core/mainwindow.cpp
+    src/ui/core/mainwindow.h
+    src/ui/core/commandpalette.cpp
+    src/ui/core/commandpalette.h
+    src/ui/core/kioskwindow.cpp
+    src/ui/core/kioskwindow.h
+    src/ui/core/touchhelper.cpp
+    src/ui/core/touchhelper.h
     src/ui/core/usermanualdialog.cpp
     src/ui/core/usermanualdialog.h
+    src/ui/finance/contributionswidget.cpp
+    src/ui/finance/contributionswidget.h
+    src/ui/finance/inventorywidget.cpp
+    src/ui/finance/inventorywidget.h
+    src/ui/finance/transactiondialog.cpp
+    src/ui/finance/transactiondialog.h
     src/ui/ministry/ministrymatch.cpp
     src/ui/ministry/ministrymatch.h
     src/ui/ministry/shepherdwidget.cpp
@@ -176,6 +196,14 @@ add_executable(openekklesia_tests
     src/ui/ministry/facilitieswidget.h
     src/ui/people/peoplewidget.cpp
     src/ui/people/peoplewidget.h
+    src/ui/admin/settingswidget.cpp
+    src/ui/admin/settingswidget.h
+    src/ui/admin/vaultwidget.cpp
+    src/ui/admin/vaultwidget.h
+    src/integrations/planningcenterclient.cpp
+    src/integrations/planningcenterclient.h
+    src/integrations/planningcenterdialog.cpp
+    src/integrations/planningcenterdialog.h
 )
 
 target_include_directories(openekklesia_tests PRIVATE
@@ -184,6 +212,8 @@ target_include_directories(openekklesia_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
 )
 
@@ -225,3 +255,5 @@ target_link_libraries(openekklesia_benchmarks PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
+
+# Temporary crash-hunt driver (ASan diagnosis) — remove after investigation

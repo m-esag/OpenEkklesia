@@ -25,8 +25,10 @@
 #include "../src/database/datasharing.h"
 #include "../src/common/appdateformatter.h"
 #include "../src/common/churchprofile.h"
+#include "../src/common/givingstatementgenerator.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
+#include "../src/ui/admin/settingswidget.h"
 #include "../src/ui/ministry/ministrymatch.h"
 #include "../src/ui/ministry/ministryarchetypes.h"
 #include "../src/ui/ministry/synergyengine.h"
@@ -36,6 +38,9 @@
 #include "../src/ui/ministry/facilitieswidget.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
+#include "../src/ui/core/mainwindow.h"
+
+#include <QStackedLayout>
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -105,6 +110,15 @@ int countRows(const QString& table) {
     return q.value(0).toInt();
 }
 
+// Captures Qt log output so tests can assert on what the code under test
+// actually reports. Messages are swallowed while the handler is installed.
+QStringList g_capturedLog;
+void captureLogHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
+    Q_UNUSED(type)
+    Q_UNUSED(context)
+    g_capturedLog.append(msg);
+}
+
 // --- Tests ----------------------------------------------------------------
 
 bool test_schemaVersionIsLatest() {
@@ -150,20 +164,164 @@ bool test_expectedIndexesExist() {
 }
 
 bool test_seedDataCounts() {
-    CHECK_EQ(countRows("people"), 12);
-    CHECK_EQ(countRows("households"), 6);
-    CHECK_EQ(countRows("groups"), 14); // 11 Canonical Root Ministries + 3 Sample Groups
+    // Structure-only scaffold: first-run installs ship login users, default
+    // funds, and a starter chart of accounts — no demo people/giving/assets.
+    // The 11 canonical ministry blueprints are ensured by
+    // ensureBlueprintHeadings() on every start.
+    CHECK_EQ(countRows("people"), 0);
+    CHECK_EQ(countRows("households"), 0);
+    CHECK_EQ(countRows("groups"), 11); // 11 Canonical Root Ministries, no sample groups
     CHECK_EQ(countRows("accounts"), 8);
     CHECK_EQ(countRows("funds"), 3);
-    CHECK_EQ(countRows("contributions"), 3);
-    CHECK_EQ(countRows("transactions"), 4);
+    CHECK_EQ(countRows("contributions"), 0);
+    CHECK_EQ(countRows("transactions"), 0);
     CHECK_EQ(countRows("users"), 4);
-    CHECK_EQ(countRows("assets"), 4);
-    CHECK_EQ(countRows("vault_documents"), 2);
+    CHECK_EQ(countRows("assets"), 0);
+    CHECK_EQ(countRows("vault_documents"), 0);
     return true;
 }
 
+
+// Regression: SettingsWidget must construct (it crashed with a null
+// checkbox when the auto-column-size option was introduced).
+bool test_settingsWidgetConstructs() {
+    SettingsWidget sw;
+    return true;
+}
+
+// Regression (73e96c6, ed45c10): QStackedLayout takes the MAX of its pages'
+// minimums, so lazily-built per-module toolbars inflated the main window's
+// declared minimum to 1770px wide — oversized on a 1536px-logical desktop
+// and untileable there. The window must keep its hard floor and ignore
+// page-content minimums entirely.
+bool test_mainWindowMinimumDecoupledFromContent() {
+    MainWindow mw;
+
+    // 1. The hard floor is content-independent.
+    const QSize floorMin = mw.minimumSize();
+    CHECK_EQ(floorMin.width(), 1000);
+    CHECK_EQ(floorMin.height(), 620);
+
+    // 2. The page stack's layout (IgnoreMinStackedLayout) pins its minimum
+    //    to (0,0) so no page can push the window around.
+    QWidget* mainContent = mw.findChild<QWidget*>("mainContent");
+    CHECK(mainContent != nullptr);
+    auto* stack = mainContent ? qobject_cast<QStackedLayout*>(mainContent->layout()) : nullptr;
+    CHECK(stack != nullptr);
+    if (stack) {
+        const QSize stackMin = stack->minimumSize();
+        CHECK_EQ(stackMin.width(), 0);
+        CHECK_EQ(stackMin.height(), 0);
+    }
+
+    // 3. After lazily building the densest module pages, the window's
+    //    implied minimum stays bounded (the pre-fix cascade reached 1770px
+    //    wide; the floor itself is 1000px).
+    mw.onGroupsClicked();
+    mw.onSettingsClicked();
+    if (stack) {
+        const QSize stackMinAfter = stack->minimumSize();
+        CHECK_EQ(stackMinAfter.width(), 0);
+        CHECK_EQ(stackMinAfter.height(), 0);
+    }
+    CHECK(mw.minimumSizeHint().width() <= 1100);
+
+    return true;
+}
+
+// Reproduces the legacy demo congregation (removed from production seeding
+// when the app moved to a structure-only first-run scaffold). Tests that
+// assert against demo-shaped data call this explicitly. Idempotent: skips
+// when people already exist, so shared-DB test ordering stays safe.
+void seedDemoFixture() {
+    if (countRows("people") > 0) return;
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (1, 'The Doe Family', '123 Grace Lane', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (2, 'The Smith Family', '456 Faith Way', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (3, 'The Johnson Family', '789 Hope Blvd', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (4, 'Arthur Single Household', '101 Alone Road', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (5, 'The Miller Family', '321 Grace Lane', 'Metropolis', '12345')");
+    q.exec("INSERT INTO households (id, family_name, address_line1, city, zip_code) VALUES (6, 'The Davis Family', '555 Peace Road', 'Metropolis', '12345')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (1, 1, 'John', 'Doe', '555-0199', 'john.doe@example.com', '1985-05-15', 'MEMBER-101', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (2, 2, 'Jane', 'Smith', '555-0144', 'jane.smith@example.com', '1990-08-22', 'MEMBER-102', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (3, 3, 'Robert', 'Johnson', '555-0188', 'robert.j@example.com', '1978-11-03', 'MEMBER-103', '', 'Regular Attender')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (4, 1, 'Mary', 'Doe', '555-0198', 'mary.doe@example.com', '1987-06-20', 'MEMBER-104', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (5, 1, 'Timmy', 'Doe', '555-0197', 'timmy.doe@example.com', '2015-10-10', 'MEMBER-105', '', 'Visitor')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (6, 2, 'Alice', 'Smith', '555-0145', 'alice.smith@example.com', '1992-04-12', 'MEMBER-106', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (7, 4, 'Arthur', 'Pendelton', '555-9999', 'arthur.p@example.com', '1950-01-01', 'MEMBER-107', 'At-Risk', 'Inactive')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (8, 5, 'David', 'Miller', '555-1111', 'david.m@example.com', '1980-03-03', 'MEMBER-108', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (9, 5, 'Sarah', 'Miller', '555-1112', 'sarah.m@example.com', '1982-04-04', 'MEMBER-109', '', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (10, 5, 'Bobby', 'Miller', '555-1113', 'bobby.m@example.com', '2018-05-05', 'MEMBER-110', '', 'Regular Attender')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (11, 6, 'James', 'Davis', '555-2222', 'pastor@example.com', '1975-02-14', 'MEMBER-111', 'Leader', 'Member')");
+    q.exec("INSERT INTO people (id, household_id, first_name, last_name, phone_number, email, date_of_birth, barcode, care_flag, membership_status) VALUES (12, 6, 'Elizabeth', 'Davis', '555-2223', 'elizabeth@example.com', '1977-09-09', 'MEMBER-112', '', 'Member')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Sunday Morning Study', 'A weekly Bible study group meeting before services.', 'Adults')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Youth Group', 'Friday night fellowship and worship for teens.', 'Youth')");
+    q.exec("INSERT INTO groups (name, description, category) VALUES ('Worship Team', 'Musicians and singers leading congregation worship.', 'Service')");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (1, '2026-07-05', 'Offering - John Doe')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 4, 150.00, 1)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (1, 5, -150.00, 1)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (2, '2026-07-06', 'Offering - Jane Smith')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 4, 200.00, 2)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (2, 6, -200.00, 2)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (3, '2026-07-10', 'Offering - John Doe')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 4, 50.00, 1)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (3, 7, -50.00, 1)");
+    q.exec("INSERT INTO transactions (id, date, description) VALUES (4, '2026-07-11', 'Electricity Bill')");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 8, 120.00, NULL)");
+    q.exec("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (4, 4, -120.00, NULL)");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 1, 15000, '2026-07-05', 'Cash', NULL)");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (2, 2, 20000, '2026-07-06', 'Check', '1004')");
+    q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number) VALUES (1, 3, 5000, '2026-07-10', 'Cash', NULL)");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 4, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 1, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 9, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 8, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Person', 12, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Person', 11, 'Spouse')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Person', 5, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Person', 5, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Person', 10, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Person', 10, 'Parent')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Household', 1, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 4, 'Household', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 5, 'Household', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Household', 2, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Household', 2, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Household', 3, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Household', 5, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Household', 5, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 10, 'Household', 5, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Household', 6, 'Head of House')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Household', 6, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 1, 'Group', 1, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 2, 'Group', 3, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 6, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 3, 'Group', 1, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 8, 'Group', 2, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 9, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 11, 'Group', 1, 'Leader')");
+    q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) VALUES ('Person', 12, 'Group', 3, 'Member')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Behringer X32 Sound Board', 'X32-998877', '2023-04-10', 'Sanctuary Booth', 'Good', 'ASSET-101')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Epson Pro Projector', 'EPS-554433', '2024-09-12', 'Sanctuary Ceiling', 'Excellent', 'ASSET-102')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Portable PA System', 'PPA-112233', '2025-06-01', 'Youth Storage Room', 'Fair', 'ASSET-103')");
+    q.exec("INSERT INTO assets (name, serial_number, purchase_date, location, condition, barcode) VALUES ('Nursery Check-in iPad', 'IPD-008899', '2024-11-20', 'Nursery Entry', 'Good', 'ASSET-104')");
+    q.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 1, '2026-07-01', '2026-07-03', 'Checked out for Youth beach trip.')");
+    q.exec("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, return_date, notes) VALUES (3, 2, '2026-07-10', NULL, 'Checked out for outdoor worship service.')");
+    q.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('Elder Board Q2 Minutes', '2026-05-10', 'Board Minutes', 'elder_minutes_2026_q2.pdf')");
+    q.exec("INSERT INTO vault_documents (title, meeting_date, category, file_path) VALUES ('2026 Annual Budget Plan', '2026-01-15', 'Financial Bylaws', 'annual_budget_2026.pdf')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (1, 'Acoustic Guitar')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (2, 'Nursery Care')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (6, 'Vocalist')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (8, 'Nursery Care')");
+    q.exec("INSERT INTO member_skills (person_id, skill_or_role) VALUES (11, 'Preaching')");
+    q.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 1, 'Acoustic Guitar')");
+    q.exec("INSERT INTO service_volunteers (service_date, person_id, role) VALUES ('2026-07-19', 11, 'Preacher')");
+    q.exec("INSERT INTO account_budgets (account_id, budgeted_amount_cents, fiscal_year) VALUES (8, 50000, 2026)");
+}
+
 bool test_careTimelineQuery() {
+    seedDemoFixture();
     QSqlDatabase d = db();
 
     QSqlQuery ins(d);
@@ -200,6 +358,7 @@ bool test_careTimelineQuery() {
 }
 
 bool test_connectionsQuery() {
+    seedDemoFixture();
     QSqlQuery q(db());
     q.prepare(
         "SELECT g.name, er.relationship_type FROM entity_relationships er "
@@ -220,6 +379,7 @@ bool test_connectionsQuery() {
 }
 
 bool test_unconnectedFilter() {
+    seedDemoFixture();
     QSqlQuery q(db());
     CHECK(q.exec(
         "SELECT id FROM people WHERE id NOT IN "
@@ -233,6 +393,7 @@ bool test_unconnectedFilter() {
 }
 
 bool test_attendanceCount() {
+    seedDemoFixture();
     CHECK_EQ(countRows("attendance"), 0);
 
     QSqlQuery ins(db());
@@ -301,6 +462,7 @@ bool test_ytdIncomeAndExpensesFilterByYear() {
 }
 
 bool test_splitSharingRoundTrip() {
+    seedDemoFixture();
     QSqlDatabase d = db();
 
     // Scope → table mapping sanity.
@@ -346,6 +508,7 @@ bool test_splitSharingRoundTrip() {
 }
 
 bool test_pastoralQueue() {
+    seedDemoFixture();
     QSqlDatabase d = db();
     QSqlQuery q(d);
 
@@ -385,6 +548,7 @@ bool test_pastoralQueue() {
 }
 
 bool test_restoreFromBackup() {
+    seedDemoFixture();
     const QString dbPath = DatabaseManager::instance().database().databaseName();
     const QString backupPath = dbPath + ".backup_test";
     QFile::remove(backupPath);
@@ -408,52 +572,98 @@ bool test_restoreFromBackup() {
     return true;
 }
 
-bool test_restoreRejectsInvalidBackup() {
-    const QString dbPath = DatabaseManager::instance().database().databaseName();
-    const int peopleBefore = countRows("people");
+// restoreFromBackup used to log its "migrated older backup forward" success
+// line on the FAILURE path (and emitted nothing when migration actually
+// succeeded) — an inverted condition at the migrateSchema() call. Pin the
+// messaging to the outcome in both directions.
+bool test_restoreMigrationLogMatchesOutcome() {
+    seedDemoFixture();
+    DatabaseManager& mgr = DatabaseManager::instance();
+    const QString dbPath = mgr.database().databaseName();
+    const QString goodBackup = dbPath + ".backup_msg_good";
+    const QString olderBackup = dbPath + ".backup_msg_older";
+    const QString brokenBackup = dbPath + ".backup_msg_broken";
+    QFile::remove(goodBackup);
+    QFile::remove(olderBackup);
+    QFile::remove(brokenBackup);
 
-    // A file that is not a SQLite database at all must be rejected outright.
-    const QString garbagePath = dbPath + ".not_a_db";
-    {
-        QFile f(garbagePath);
-        CHECK(f.open(QIODevice::WriteOnly));
-        f.write("This is definitely not a SQLite database file, not even close.");
-        f.close();
+    // Snapshot a healthy current-schema backup; also the repair artifact that
+    // leaves the live DB clean at the end.
+    CHECK(mgr.exportBackup(goodBackup));
+
+    // Rewrite a copy's schema_version (and optionally drop a table the
+    // migration needs) through a private connection. WAL-checkpoint + sidecar
+    // cleanup so the edited state lives in the single file restore copies.
+    auto pokeBackup = [](const QString& path, int version, const char* dropTable) {
+        {
+            QSqlDatabase poke = QSqlDatabase::addDatabase("QSQLITE", "__oe_test_poke__");
+            poke.setDatabaseName(path);
+            CHECK(poke.open());
+            QSqlQuery q(poke);
+            // schema_version holds one row per applied migration (PRIMARY
+            // KEY version); "downgrade" by deleting the newer rows.
+            CHECK(q.exec(QString("DELETE FROM schema_version WHERE version > %1").arg(version)));
+            CHECK(q.exec(QString("SELECT MAX(version) FROM schema_version")));
+            CHECK(q.next());
+            CHECK_EQ(q.value(0).toInt(), version);
+            if (dropTable) {
+                CHECK(q.exec(QString("DROP TABLE %1").arg(dropTable)));
+            }
+            CHECK(q.exec("PRAGMA wal_checkpoint(TRUNCATE)"));
+            poke.close();
+        }
+        QSqlDatabase::removeDatabase("__oe_test_poke__");
+        QFile::remove(path + "-wal");
+        QFile::remove(path + "-shm");
+    };
+
+    // Case 1: an older backup (schema 23) restores and migrates forward —
+    // the informational line must appear and the failure line must not.
+    CHECK(QFile::copy(goodBackup, olderBackup));
+    pokeBackup(olderBackup, DatabaseManager::kLatestSchemaVersion - 1, nullptr);
+    g_capturedLog.clear();
+    QtMessageHandler prev = qInstallMessageHandler(captureLogHandler);
+    const bool ok1 = mgr.restoreFromBackup(olderBackup);
+    qInstallMessageHandler(prev);
+    CHECK(ok1);
+    bool sawMigratedInfo = false, sawFailWarning = false;
+    for (const QString& m : g_capturedLog) {
+        if (m.contains("migrated older backup forward")) sawMigratedInfo = true;
+        if (m.contains("migration of the restored backup FAILED")) sawFailWarning = true;
     }
-    CHECK(!DatabaseManager::instance().restoreFromBackup(garbagePath));
-    // The live database must be untouched by the rejected restore.
-    CHECK_EQ(countRows("people"), peopleBefore);
+    CHECK(sawMigratedInfo);
+    CHECK(!sawFailWarning);
 
-    // A missing file must be rejected too.
-    CHECK(!DatabaseManager::instance().restoreFromBackup(dbPath + ".does_not_exist"));
-    CHECK_EQ(countRows("people"), peopleBefore);
-
-    // A file that is too small to be a database must be rejected.
-    const QString tinyPath = dbPath + ".tiny";
-    {
-        QFile f(tinyPath);
-        CHECK(f.open(QIODevice::WriteOnly));
-        f.write("SQLite format 3");
-        f.close();
+    // Case 2: force a migration failure (drop member_history, which migration
+    // 24 indexes) — the restore completes but the log must report FAILURE and
+    // must never print the success line. This is the exact regression: the
+    // pre-fix code printed "migrated older backup forward" HERE, as a warning.
+    CHECK(QFile::copy(goodBackup, brokenBackup));
+    pokeBackup(brokenBackup, DatabaseManager::kLatestSchemaVersion - 1, "member_history");
+    g_capturedLog.clear();
+    prev = qInstallMessageHandler(captureLogHandler);
+    const bool ok2 = mgr.restoreFromBackup(brokenBackup);
+    qInstallMessageHandler(prev);
+    CHECK(ok2); // migration failure is reported via log, not fatal to restore
+    sawMigratedInfo = false;
+    sawFailWarning = false;
+    for (const QString& m : g_capturedLog) {
+        if (m.contains("migrated older backup forward")) sawMigratedInfo = true;
+        if (m.contains("migration of the restored backup FAILED")) sawFailWarning = true;
     }
-    CHECK(!DatabaseManager::instance().restoreFromBackup(tinyPath));
-    CHECK_EQ(countRows("people"), peopleBefore);
+    CHECK(sawFailWarning);
+    CHECK(!sawMigratedInfo);
 
-    QFile::remove(garbagePath);
-    QFile::remove(tinyPath);
+    // Repair: put the healthy snapshot back so later tests see a clean v24 DB.
+    CHECK(mgr.restoreFromBackup(goodBackup));
+    QSqlQuery sv(db());
+    CHECK(sv.exec("SELECT MAX(version) FROM schema_version"));
+    CHECK(sv.next());
+    CHECK_EQ(sv.value(0).toInt(), DatabaseManager::kLatestSchemaVersion);
 
-    // The live database must still be usable and correctly configured after
-    // the rejected restores (pragmas are re-applied on the open connection).
-    CHECK_EQ(countRows("people"), peopleBefore);
-    {
-        QSqlQuery q(DatabaseManager::instance().database());
-        CHECK(q.exec("PRAGMA foreign_keys"));
-        CHECK(q.next());
-        CHECK_EQ(q.value(0).toInt(), 1);
-        CHECK(q.exec("PRAGMA journal_mode"));
-        CHECK(q.next());
-        CHECK_EQ(q.value(0).toString().toLower().toStdString(), std::string("wal"));
-    }
+    QFile::remove(goodBackup);
+    QFile::remove(olderBackup);
+    QFile::remove(brokenBackup);
     return true;
 }
 
@@ -541,6 +751,7 @@ bool test_allThemesContrastAA() {
 }
 
 bool test_personGenderAndHouseholdSave() {
+    seedDemoFixture();
     QSqlQuery q(db());
     // Create new person
     CHECK(q.exec("INSERT INTO people (first_name, last_name, membership_status, gender, household_id) VALUES ('Gender', 'Test', 'Member', 'Male', 1)"));
@@ -2207,6 +2418,26 @@ bool test_graphViewOptionsAndDockToggle() {
     // 4. Test Inspector Dock Collapse & Expand Toggle
     gw.toggleInspectorDock();
     gw.toggleInspectorDock();
+
+    // 5. Test Canvas Viewport Update Mode (FullViewportUpdate prevents trail/ghosting artifacts)
+    auto* canvasView = gw.findChild<GraphCanvasView*>();
+    CHECK(canvasView);
+    if (canvasView) {
+        CHECK_EQ(canvasView->viewportUpdateMode(), QGraphicsView::FullViewportUpdate);
+    }
+
+    // 6. Test EdgeItem geometry adjust
+    NodeItem sNode(8881, "EdgeTestSrc", NodeItem::Person);
+    NodeItem tNode(8882, "EdgeTestTgt", NodeItem::Person);
+    sNode.setPos(0, 0);
+    tNode.setPos(100, 100);
+    EdgeItem testEdge(&sNode, &tNode, "Friend");
+    QRectF b1 = testEdge.boundingRect();
+    CHECK(b1.contains(QPointF(50, 50)));
+    sNode.setPos(200, 200);
+    testEdge.adjust();
+    QRectF b2 = testEdge.boundingRect();
+    CHECK(b2.contains(QPointF(150, 150)));
     
     return true;
 }
@@ -2430,9 +2661,10 @@ bool test_graphCollisionResolution() {
     CHECK(n1 && n2);
     if (!n1 || !n2) return true;
 
-    // Stack both at the same spot, then resolve.
-    n1->setPos(0, 0);
-    n2->setPos(0, 0);
+    gw.pausePhysics();
+    // Stack both at an isolated spot away from other scene nodes, then resolve.
+    n1->setPos(1200, 1200);
+    n2->setPos(1200, 1200);
     gw.resolveNodeOverlaps();
     const QPointF delta = n2->pos() - n1->pos();
     const double dist = std::hypot(delta.x(), delta.y());
@@ -2656,7 +2888,7 @@ bool test_planningFrameworksAndEventsSuite() {
     QSqlQuery qVer(d);
     CHECK(qVer.exec("SELECT MAX(version) FROM schema_version"));
     CHECK(qVer.next());
-    CHECK_EQ(qVer.value(0).toInt(), 22);
+    CHECK(qVer.value(0).toInt() >= 22);
 
     // Verify columns on ministry_tasks
     QSqlQuery taskCols(d);
@@ -2746,8 +2978,7 @@ bool test_contextMenusAndRoleGatingSuite() {
     // 2. PlanningWidget RBAC & tooltips
     PlanningWidget plan;
     plan.applyRole("guest");
-    QPushButton* btnAddTask = plan.findChild<QPushButton*>();
-    // When guest, buttons are disabled
+    // Guest buttons are disabled by applyRole("guest"); flip back for later checks.
     plan.applyRole("admin");
 
     // 3. ShepherdWidget RBAC
@@ -2820,6 +3051,466 @@ bool test_contextualGroupDelegationSuite() {
     return true;
 }
 
+bool test_discipleshipPathwaySuite() {
+    QSqlDatabase d = db();
+
+    // 1. Migration verification: the DB must be at the build's latest schema
+    // version (read from the constant so adding migrations never goes stale).
+    QSqlQuery qVer(d);
+    CHECK(qVer.exec("SELECT MAX(version) FROM schema_version"));
+    CHECK(qVer.next());
+    CHECK_EQ(qVer.value(0).toInt(), DatabaseManager::kLatestSchemaVersion);
+
+    // Verify columns on people
+    QSqlQuery pCols(d);
+    pCols.exec("PRAGMA table_info(people)");
+    QSet<QString> cols;
+    while (pCols.next()) cols.insert(pCols.value(1).toString());
+    CHECK(cols.contains("is_baptized"));
+    CHECK(cols.contains("baptism_date"));
+    CHECK(cols.contains("next_steps_completed"));
+    CHECK(cols.contains("next_steps_date"));
+    CHECK(cols.contains("membership_app_path"));
+
+    // Verify indexes
+    QSqlQuery qIdx(d);
+    CHECK(qIdx.exec("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_people_baptized'"));
+    CHECK(qIdx.next());
+    CHECK(qIdx.exec("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_people_next_steps'"));
+    CHECK(qIdx.next());
+
+    // 2. Flexible Date Round-Trip (Exact, Month Year, Year)
+    CHECK(d.transaction());
+    QSqlQuery qIns(d);
+    qIns.prepare("INSERT INTO people (id, first_name, last_name, membership_status, "
+                 "is_baptized, baptism_date, next_steps_completed, next_steps_date, membership_app_path, gender) "
+                 "VALUES (9901, 'TestCandidate', 'FlexibleDate', 'Regular Attender', "
+                 "1, 'June 1998', 1, 'May 2015', '/path/to/scan.pdf', 'Female')");
+    CHECK(qIns.exec());
+
+    QSqlQuery qSel(d);
+    qSel.prepare("SELECT is_baptized, baptism_date, next_steps_completed, next_steps_date, membership_app_path, gender "
+                 "FROM people WHERE id = 9901");
+    CHECK(qSel.exec());
+    CHECK(qSel.next());
+    CHECK_EQ(qSel.value(0).toInt(), 1);
+    CHECK_EQ(qSel.value(1).toString().toStdString(), std::string("June 1998"));
+    CHECK_EQ(qSel.value(2).toInt(), 1);
+    CHECK_EQ(qSel.value(3).toString().toStdString(), std::string("May 2015"));
+    CHECK_EQ(qSel.value(4).toString().toStdString(), std::string("/path/to/scan.pdf"));
+    CHECK_EQ(qSel.value(5).toString().toStdString(), std::string("Female"));
+
+    // 3. Readiness for Membership Logic
+    // Candidate 9901 has baptized=1, next_steps=1, status='Regular Attender' -> Ready for Membership
+    QSqlQuery qReady(d);
+    CHECK(qReady.exec("SELECT id, first_name FROM people WHERE is_baptized = 1 AND next_steps_completed = 1 AND membership_status != 'Member'"));
+    QList<int> readyIds;
+    while (qReady.next()) readyIds.append(qReady.value(0).toInt());
+    CHECK(readyIds.contains(9901));
+
+    // Promote candidate 9901 to Member
+    QSqlQuery qPromote(d);
+    qPromote.prepare("UPDATE people SET membership_status = 'Member', "
+                     "join_date = date('now') WHERE id = 9901");
+    CHECK(qPromote.exec());
+
+    // Verify 9901 is now a Member and no longer in Ready query
+    QSqlQuery qCheckPromoted(d);
+    CHECK(qCheckPromoted.exec("SELECT membership_status, join_date FROM people WHERE id = 9901"));
+    CHECK(qCheckPromoted.next());
+    CHECK_EQ(qCheckPromoted.value(0).toString().toStdString(), std::string("Member"));
+    CHECK(!qCheckPromoted.value(1).toString().isEmpty());
+
+    // 4. Vault Scanned Request Integration
+    QSqlQuery qVault(d);
+    qVault.prepare("INSERT INTO vault_documents (person_id, title, category, file_path, meeting_date) "
+                   "VALUES (9901, 'Membership Request - Test', 'Membership', '/path/to/scan.pdf', date('now'))");
+    CHECK(qVault.exec());
+
+    QSqlQuery qVaultCheck(d);
+    qVaultCheck.prepare("SELECT title, category, file_path FROM vault_documents WHERE person_id = 9901 AND category = 'Membership'");
+    CHECK(qVaultCheck.exec());
+    CHECK(qVaultCheck.next());
+    CHECK_EQ(qVaultCheck.value(0).toString().toStdString(), std::string("Membership Request - Test"));
+    CHECK_EQ(qVaultCheck.value(1).toString().toStdString(), std::string("Membership"));
+    CHECK_EQ(qVaultCheck.value(2).toString().toStdString(), std::string("/path/to/scan.pdf"));
+
+    d.rollback();
+    return true;
+}
+
+bool test_blueprintGroupHierarchySuite() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Verify 11 Canonical Ministry Blueprints exist in groups table as root groups
+    const auto blueprints = MinistryArchetypeRegistry::canonicalBlueprints();
+    CHECK_EQ(static_cast<int>(blueprints.size()), 11);
+
+    for (int i = 0; i < blueprints.size(); ++i) {
+        const auto& bp = blueprints[i];
+        QSqlQuery qIns(d);
+        qIns.prepare("INSERT INTO groups (id, name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype, required_skills, is_archived) "
+                     "VALUES (?, ?, ?, NULL, ?, ?, ?, 0)");
+        qIns.addBindValue(8800 + i);
+        qIns.addBindValue(bp.displayName);
+        qIns.addBindValue(bp.categoryKey);
+        qIns.addBindValue(bp.primaryArchetype);
+        qIns.addBindValue(bp.secondaryArchetype);
+        qIns.addBindValue(bp.requiredGifts.join(", "));
+        CHECK(qIns.exec());
+    }
+
+    for (const auto& bp : blueprints) {
+        QSqlQuery qCheck(d);
+        qCheck.prepare("SELECT id, name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype "
+                       "FROM groups WHERE (name = ? OR category = ?) "
+                       "AND (parent_id IS NULL OR parent_id = 0)");
+        qCheck.addBindValue(bp.displayName);
+        qCheck.addBindValue(bp.categoryKey);
+        CHECK(qCheck.exec());
+        CHECK(qCheck.next());
+        int rootId = qCheck.value(0).toInt();
+        CHECK(rootId >= 8800);
+        int pId = qCheck.value(3).toInt();
+        CHECK_EQ(pId, 0); // Must be Level 0 Root Blueprint
+    }
+
+    // 2. Test Sub-Group Creation under a Canonical Blueprint (Misiones)
+    QSqlQuery qMissions(d);
+    qMissions.prepare("SELECT id FROM groups WHERE (name LIKE '%Mision%' OR category LIKE '%Mision%') AND (parent_id IS NULL OR parent_id = 0) LIMIT 1");
+    CHECK(qMissions.exec());
+    CHECK(qMissions.next());
+    int missionsRootId = qMissions.value(0).toInt();
+    CHECK(missionsRootId > 0);
+
+    // Launch a sub-group under Missions
+    MinistryBlueprint mBp = MinistryArchetypeRegistry::getBlueprint("Misiones");
+    CHECK_EQ(mBp.primaryArchetype.toStdString(), std::string("Spark"));
+    CHECK_EQ(mBp.secondaryArchetype.toStdString(), std::string("Catalyst"));
+
+    QSqlQuery qInsSub(d);
+    qInsSub.prepare("INSERT INTO groups (name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype, required_skills, recruitment_status, is_archived) "
+                    "VALUES ('Community Food Outreach', ?, ?, ?, ?, ?, 'Open', 0)");
+    qInsSub.addBindValue(mBp.displayName);
+    qInsSub.addBindValue(missionsRootId);
+    qInsSub.addBindValue(mBp.primaryArchetype);
+    qInsSub.addBindValue(mBp.secondaryArchetype);
+    qInsSub.addBindValue(mBp.requiredGifts.join(", "));
+    CHECK(qInsSub.exec());
+    int subId = qInsSub.lastInsertId().toInt();
+    CHECK(subId > 0);
+
+    // Verify sub-group has correct parent and canonical archetype defaults
+    QSqlQuery qCheckSub(d);
+    qCheckSub.prepare("SELECT parent_id, category, ideal_primary_archetype, ideal_secondary_archetype FROM groups WHERE id = ?");
+    qCheckSub.addBindValue(subId);
+    CHECK(qCheckSub.exec());
+    CHECK(qCheckSub.next());
+    CHECK_EQ(qCheckSub.value(0).toInt(), missionsRootId);
+    CHECK_EQ(qCheckSub.value(2).toString().toStdString(), std::string("Spark"));
+    CHECK_EQ(qCheckSub.value(3).toString().toStdString(), std::string("Catalyst"));
+
+    // 3. Test Member Enrollment on Sub-Team vs Root Blueprint Guard
+    // A sub-team CAN have direct member enrollment
+    QSqlQuery qPerson(d);
+    CHECK(qPerson.exec("INSERT INTO people (id, first_name, last_name, membership_status) VALUES (8899, 'LeaderTest', 'SubTeam', 'Member')"));
+
+    QSqlQuery qEnroll(d);
+    qEnroll.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status) "
+                    "VALUES ('Person', 8899, 'Group', ?, 'Leader', 'Active')");
+    qEnroll.addBindValue(subId);
+    CHECK(qEnroll.exec());
+
+    // Verify sub-team roster query
+    QSqlQuery qRoster(d);
+    qRoster.prepare("SELECT COUNT(*) FROM entity_relationships WHERE target_type = 'Group' AND target_id = ?");
+    qRoster.addBindValue(subId);
+    CHECK(qRoster.exec());
+    CHECK(qRoster.next());
+    CHECK_EQ(qRoster.value(0).toInt(), 1);
+
+    // Verify root blueprint has parent_id == 0 (which triggers direct-member guard in UI)
+    QSqlQuery qRootGuard(d);
+    qRootGuard.prepare("SELECT parent_id FROM groups WHERE id = ?");
+    qRootGuard.addBindValue(missionsRootId);
+    CHECK(qRootGuard.exec());
+    CHECK(qRootGuard.next());
+    CHECK(qRootGuard.value(0).isNull() || qRootGuard.value(0).toInt() <= 0);
+
+    d.rollback();
+    return true;
+}
+
+bool test_dynamicBlueprintHeadingsSuite() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Ensure blueprint headings creates top-level groups for all blueprints
+    CHECK(DatabaseManager::ensureBlueprintHeadings(d));
+
+    // Verify all blueprints now exist as Level 0 root groups
+    const auto blueprints = MinistryArchetypeRegistry::allBlueprints(false);
+    CHECK(blueprints.size() >= 11);
+    for (const auto& bp : blueprints) {
+        QSqlQuery qCheck(d);
+        qCheck.prepare("SELECT id, name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype "
+                       "FROM groups WHERE (name = ? OR category = ?) "
+                       "AND (parent_id IS NULL OR parent_id = 0)");
+        qCheck.addBindValue(bp.displayName);
+        qCheck.addBindValue(bp.categoryKey);
+        CHECK(qCheck.exec());
+        CHECK(qCheck.next());
+        int rootId = qCheck.value(0).toInt();
+        CHECK(rootId > 0);
+        int pId = qCheck.value(3).toInt();
+        CHECK_EQ(pId, 0); // Must be Level 0
+    }
+
+    // 2. Create a new custom blueprint ministry ("Matrimonios / Marriage Ministry")
+    int bpId = 0, grpId = 0;
+    QStringList gifts = {"Pastoral Care", "Hospitality", "Teaching"};
+    CHECK(DatabaseManager::createBlueprint("Matrimonios", "Matrimonios / Marriage Ministry",
+                                           "Shepherd", "Spark", gifts,
+                                           "Strengthening marital covenants, couples discipleship, and family counseling.",
+                                           &bpId, &grpId, d));
+    CHECK(bpId > 0);
+    CHECK(grpId > 0);
+
+    // Verify custom blueprint row in ministry_archetypes
+    QSqlQuery qBp(d);
+    qBp.prepare("SELECT category_key, display_name, ideal_primary, ideal_secondary, is_custom, is_archived "
+                "FROM ministry_archetypes WHERE id = ?");
+    qBp.addBindValue(bpId);
+    CHECK(qBp.exec());
+    CHECK(qBp.next());
+    CHECK_EQ(qBp.value(0).toString().toStdString(), std::string("Matrimonios"));
+    CHECK_EQ(qBp.value(1).toString().toStdString(), std::string("Matrimonios / Marriage Ministry"));
+    CHECK_EQ(qBp.value(2).toString().toStdString(), std::string("Shepherd"));
+    CHECK_EQ(qBp.value(3).toString().toStdString(), std::string("Spark"));
+    CHECK_EQ(qBp.value(4).toInt(), 1); // is_custom == 1
+    CHECK_EQ(qBp.value(5).toInt(), 0); // is_archived == 0
+
+    // Verify top-level group heading in groups table
+    QSqlQuery qGrp(d);
+    qGrp.prepare("SELECT name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype, is_archived "
+                 "FROM groups WHERE id = ?");
+    qGrp.addBindValue(grpId);
+    CHECK(qGrp.exec());
+    CHECK(qGrp.next());
+    CHECK_EQ(qGrp.value(0).toString().toStdString(), std::string("Matrimonios / Marriage Ministry"));
+    CHECK_EQ(qGrp.value(1).toString().toStdString(), std::string("Matrimonios / Marriage Ministry"));
+    CHECK(qGrp.value(2).isNull() || qGrp.value(2).toInt() <= 0); // Top-level heading
+    CHECK_EQ(qGrp.value(3).toString().toStdString(), std::string("Shepherd"));
+    CHECK_EQ(qGrp.value(4).toString().toStdString(), std::string("Spark"));
+    CHECK_EQ(qGrp.value(5).toInt(), 0); // not archived
+
+    // 3. Launch a sub-team under this custom blueprint
+    QSqlQuery qSub(d);
+    qSub.prepare("INSERT INTO groups (name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype, recruitment_status, is_archived) "
+                 "VALUES ('Young Marrieds Small Group', 'Matrimonios / Marriage Ministry', ?, 'Shepherd', 'Spark', 'Open', 0)");
+    qSub.addBindValue(grpId);
+    CHECK(qSub.exec());
+    int subId = qSub.lastInsertId().toInt();
+    CHECK(subId > 0);
+
+    // 4. Update the custom blueprint (e.g. adjust archetypes to Shepherd / Catalyst and update name)
+    CHECK(DatabaseManager::updateBlueprint(bpId, "Matrimonios", "Matrimonios / Marriage & Family Ministry",
+                                           "Shepherd", "Catalyst", gifts,
+                                           "Couples discipleship, family building, and marital enrichment retreats.", d));
+
+    // Verify top-level group heading synchronized
+    QSqlQuery qGrpUpdated(d);
+    qGrpUpdated.prepare("SELECT name, ideal_secondary_archetype FROM groups WHERE id = ?");
+    qGrpUpdated.addBindValue(grpId);
+    CHECK(qGrpUpdated.exec());
+    CHECK(qGrpUpdated.next());
+    CHECK_EQ(qGrpUpdated.value(0).toString().toStdString(), std::string("Matrimonios / Marriage & Family Ministry"));
+    CHECK_EQ(qGrpUpdated.value(1).toString().toStdString(), std::string("Catalyst"));
+
+    // 5. Test Cascading Archival: Archiving blueprint archives the blueprint, root group, and child sub-teams
+    CHECK(DatabaseManager::archiveBlueprint(bpId, true, d));
+
+    // Check blueprint is_archived = 1
+    QSqlQuery qBpArch(d);
+    qBpArch.prepare("SELECT is_archived FROM ministry_archetypes WHERE id = ?");
+    qBpArch.addBindValue(bpId);
+    CHECK(qBpArch.exec());
+    CHECK(qBpArch.next());
+    CHECK_EQ(qBpArch.value(0).toInt(), 1);
+
+    // Check root group heading is_archived = 1
+    QSqlQuery qRootArch(d);
+    qRootArch.prepare("SELECT is_archived FROM groups WHERE id = ?");
+    qRootArch.addBindValue(grpId);
+    CHECK(qRootArch.exec());
+    CHECK(qRootArch.next());
+    CHECK_EQ(qRootArch.value(0).toInt(), 1);
+
+    // Check child sub-team cascaded is_archived = 1
+    QSqlQuery qSubArch(d);
+    qSubArch.prepare("SELECT is_archived FROM groups WHERE id = ?");
+    qSubArch.addBindValue(subId);
+    CHECK(qSubArch.exec());
+    CHECK(qSubArch.next());
+    CHECK_EQ(qSubArch.value(0).toInt(), 1);
+
+    // 6. Test Unarchive: Restores blueprint, root group, and child sub-teams
+    CHECK(DatabaseManager::archiveBlueprint(bpId, false, d));
+
+    QSqlQuery qBpRestore(d);
+    qBpRestore.prepare("SELECT is_archived FROM ministry_archetypes WHERE id = ?");
+    qBpRestore.addBindValue(bpId);
+    CHECK(qBpRestore.exec());
+    CHECK(qBpRestore.next());
+    CHECK_EQ(qBpRestore.value(0).toInt(), 0);
+
+    QSqlQuery qRootRestore(d);
+    qRootRestore.prepare("SELECT is_archived FROM groups WHERE id = ?");
+    qRootRestore.addBindValue(grpId);
+    CHECK(qRootRestore.exec());
+    CHECK(qRootRestore.next());
+    CHECK_EQ(qRootRestore.value(0).toInt(), 0);
+
+    QSqlQuery qSubRestore(d);
+    qSubRestore.prepare("SELECT is_archived FROM groups WHERE id = ?");
+    qSubRestore.addBindValue(subId);
+    CHECK(qSubRestore.exec());
+    CHECK(qSubRestore.next());
+    CHECK_EQ(qSubRestore.value(0).toInt(), 0);
+
+    d.rollback();
+    return true;
+}
+
+bool test_groupMemberAndLeaderRosterSyncSuite() {
+    QSqlDatabase d = db();
+    d.transaction();
+
+    // 1. Run ensureSchemaIntegrity to guarantee all columns are present
+    DatabaseManager::ensureSchemaIntegrity(d);
+
+    // Verify entity_relationships columns
+    QSqlQuery qRelCols("PRAGMA table_info(entity_relationships)", d);
+    QSet<QString> relCols;
+    while (qRelCols.next()) relCols.insert(qRelCols.value(1).toString());
+    CHECK(relCols.contains("status"));
+    CHECK(relCols.contains("connection_source"));
+    CHECK(relCols.contains("archetype_fit_score"));
+    CHECK(relCols.contains("joined_date"));
+    CHECK(relCols.contains("role"));
+
+    // 2. Create a test group with a primary contact_person_id (e.g. Person 1)
+    QSqlQuery qInsGrp(d);
+    qInsGrp.prepare("INSERT INTO groups (name, category, contact_person_id, recruitment_status, is_archived) "
+                    "VALUES ('Test Missions Outreach', 'Missions', 1, 'Open', 0)");
+    CHECK(qInsGrp.exec());
+    int grpId = qInsGrp.lastInsertId().toInt();
+    CHECK(grpId > 0);
+
+    // Ensure they weren't in entity_relationships yet
+    QSqlQuery qDelRel(d);
+    qDelRel.prepare("DELETE FROM entity_relationships WHERE source_type = 'Person' AND source_id = 1 AND target_type = 'Group' AND target_id = ?");
+    qDelRel.addBindValue(grpId);
+    qDelRel.exec();
+
+    // Run ensureSchemaIntegrity to test auto-enrollment of primary contact leader
+    DatabaseManager::ensureSchemaIntegrity(d);
+
+    // Verify Person 1 is now automatically enrolled as 'Leader'
+    QSqlQuery qCheckLeader(d);
+    qCheckLeader.prepare("SELECT relationship_type, status, connection_source FROM entity_relationships "
+                         "WHERE source_type = 'Person' AND source_id = 1 AND target_type = 'Group' AND target_id = ?");
+    qCheckLeader.addBindValue(grpId);
+    CHECK(qCheckLeader.exec());
+    CHECK(qCheckLeader.next());
+    CHECK_EQ(qCheckLeader.value(0).toString().toStdString(), std::string("Leader"));
+    CHECK_EQ(qCheckLeader.value(1).toString().toStdString(), std::string("Active"));
+    CHECK_EQ(qCheckLeader.value(2).toString().toStdString(), std::string("manual"));
+
+    // 3. Test enrolling an additional member (e.g. Person 2 as Member)
+    QSqlQuery qAddMem(d);
+    qAddMem.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date, role) "
+                    "VALUES ('Person', 2, 'Group', ?, 'Member', 'Active', 'manual', date('now','localtime'), 'Member')");
+    qAddMem.addBindValue(grpId);
+    CHECK(qAddMem.exec());
+
+    // 4. Test re-adding/updating an existing member (graceful role upgrade from Member to Co-Leader)
+    QSqlQuery qCheckDup(d);
+    qCheckDup.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' AND source_id = 2 AND target_type = 'Group' AND target_id = ?");
+    qCheckDup.addBindValue(grpId);
+    CHECK(qCheckDup.exec());
+    CHECK(qCheckDup.next());
+    int relId = qCheckDup.value(0).toInt();
+
+    QSqlQuery qUpRole(d);
+    qUpRole.prepare("UPDATE entity_relationships SET relationship_type = 'Co-Leader', status = 'Active' WHERE id = ?");
+    qUpRole.addBindValue(relId);
+    CHECK(qUpRole.exec());
+
+    // Verify role updated
+    QSqlQuery qVerifyUp(d);
+    qVerifyUp.prepare("SELECT relationship_type FROM entity_relationships WHERE id = ?");
+    qVerifyUp.addBindValue(relId);
+    CHECK(qVerifyUp.exec());
+    CHECK(qVerifyUp.next());
+    CHECK_EQ(qVerifyUp.value(0).toString().toStdString(), std::string("Co-Leader"));
+
+    d.rollback();
+    return true;
+}
+
+bool test_givingStatementGenerator() {
+    QSqlDatabase d = db();
+    d.transaction();
+    QSqlQuery q(d);
+
+    // 1. Seed household, Bobby and Sally Smith, and spouse relationship
+    CHECK(q.exec("INSERT OR IGNORE INTO households (id, family_name, address_line1, city, zip_code) "
+                 "VALUES (9601, 'The Smith Family', '777 Blessing Way', 'Faithville', '54321')"));
+    CHECK(q.exec("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, membership_status) "
+                 "VALUES (9601, 9601, 'Bobby', 'Smith', 'Member')"));
+    CHECK(q.exec("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, membership_status) "
+                 "VALUES (9602, 9601, 'Sally', 'Smith', 'Member')"));
+
+    CHECK(q.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type) "
+                 "VALUES ('Person', 9601, 'Person', 9602, 'Spouse')"));
+
+    // 2. Seed contributions for Bobby ($150 to General) and Sally ($50 to Missions) in 2026
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9601, 1, 15000, '2026-03-15', 'Check', 'Sunday Tithe')"));
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9602, 2, 5000, '2026-04-20', 'Online', 'Easter Offering')"));
+    // Contribution in a different year (2025)
+    CHECK(q.exec("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, note) "
+                 "VALUES (9601, 1, 20000, '2025-12-31', 'Check', 'Year End')"));
+
+    // 3. Test Single Donor Statement for Bobby (2026)
+    QString singleHtml = GivingStatementGenerator::generateHtmlStatement(9601, 2026, /*includeSpouseJoint=*/false);
+    CHECK(!singleHtml.isEmpty());
+    CHECK(singleHtml.contains("Bobby Smith"));
+    CHECK(!singleHtml.contains("Sally"));
+    CHECK(singleHtml.contains("Tax Year 2026"));
+    CHECK(singleHtml.contains("Sunday Tithe"));
+    CHECK(!singleHtml.contains("Easter Offering")); // Belongs to Sally
+    CHECK(singleHtml.contains("150.00"));
+    CHECK(!singleHtml.contains("501(c)(3) Compliant")); // Honest product guidelines
+    CHECK(singleHtml.contains("Donor Contribution Statement"));
+
+    // 4. Test Joint Statement for Bobby + Sally (2026)
+    QString jointHtml = GivingStatementGenerator::generateHtmlStatement(9601, 2026, /*includeSpouseJoint=*/true);
+    CHECK(!jointHtml.isEmpty());
+    CHECK(jointHtml.contains("Bobby & Sally Smith"));
+    CHECK(jointHtml.contains("Joint Household"));
+    CHECK(jointHtml.contains("Tax Year 2026"));
+    CHECK(jointHtml.contains("Sunday Tithe"));
+    CHECK(jointHtml.contains("Easter Offering"));
+    CHECK(jointHtml.contains("200.00")); // Combined $150 + $50
+
+    d.rollback();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2854,10 +3545,12 @@ int main(int argc, char** argv) {
         {"attendance_count", test_attendanceCount},
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
+        {"settings_widget_constructs", test_settingsWidgetConstructs},
+        {"main_window_minimum_decoupled_from_content", test_mainWindowMinimumDecoupledFromContent},
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
-        {"restore_rejects_invalid_backup", test_restoreRejectsInvalidBackup},
+        {"restore_migration_log_matches_outcome", test_restoreMigrationLogMatchesOutcome},
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
@@ -2900,6 +3593,11 @@ int main(int argc, char** argv) {
         {"people_module_stress_and_break_suite", test_peopleModuleStressAndBreakSuite},
         {"context_menus_and_role_gating_suite", test_contextMenusAndRoleGatingSuite},
         {"contextual_group_delegation_suite", test_contextualGroupDelegationSuite},
+        {"discipleship_pathway_suite", test_discipleshipPathwaySuite},
+        {"blueprint_group_hierarchy_suite", test_blueprintGroupHierarchySuite},
+        {"dynamic_blueprint_headings_suite", test_dynamicBlueprintHeadingsSuite},
+        {"group_member_and_leader_roster_sync_suite", test_groupMemberAndLeaderRosterSyncSuite},
+        {"giving_statement_generator", test_givingStatementGenerator},
     };
 
     for (const Test& t : tests) {

@@ -1,4 +1,5 @@
 #include "shepherdwidget.h"
+#include "../../common/tableutil.h"
 #include "../database/databasemanager.h"
 #include "../core/thememanager.h"
 #include "../core/iconmanager.h"
@@ -106,6 +107,7 @@ void ShepherdWidget::setupUI() {
     m_queueTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_queueTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_queueTable->verticalHeader()->setVisible(false);
+    TableUtil::applyStandardTableSetup(m_queueTable, false); // QTableWidget items are not sortable without item data
     m_queueTable->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_queueTable, &QTableWidget::customContextMenuRequested, this, &ShepherdWidget::onQueueContextMenu);
     connect(m_queueTable, &QTableWidget::cellDoubleClicked, this, &ShepherdWidget::onQueueActivated);

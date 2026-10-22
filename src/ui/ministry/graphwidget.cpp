@@ -344,14 +344,22 @@ void NodeItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void NodeItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     QGraphicsItem::mouseMoveEvent(event);
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
 }
 
 void NodeItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     isBeingDragged = false;
     QGraphicsItem::mouseReleaseEvent(event);
 
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
+
     if ((event->screenPos() - m_dragStartPos).manhattanLength() < 5) {
-        GraphWidget* gw = findParentGraphWidget(this);
         if (gw) gw->handleNodeClick(this);
     }
 }
@@ -403,6 +411,11 @@ QRectF EdgeItem::boundingRect() const {
     QPointF p1 = m_source->pos();
     QPointF p2 = m_target->pos();
     return QRectF(p1, p2).normalized().adjusted(-15, -15, 15, 15);
+}
+
+void EdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 QPainterPath EdgeItem::shape() const {
@@ -504,8 +517,21 @@ GhostEdgeItem::GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& 
 }
 
 QRectF GhostEdgeItem::boundingRect() const {
-    if (!m_source || !m_target) return QRectF();
-    return QRectF(m_source->pos(), m_target->pos()).normalized().adjusted(-30, -30, 30, 30);
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return QRectF();
+    QPointF p1 = m_source->pos();
+    QPointF p2 = m_target->pos();
+    QPointF mid = (p1 + p2) / 2.0;
+    QPointF diff = p2 - p1;
+    QPointF normal(-diff.y() * 0.12, diff.x() * 0.12);
+    QPointF ctrl = mid + normal;
+    QRectF r = QRectF(p1, p2).normalized();
+    r = r.united(QRectF(ctrl, ctrl));
+    return r.adjusted(-20, -20, 20, 20);
+}
+
+void GhostEdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
@@ -581,6 +607,10 @@ GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
 {
     setRenderHint(QPainter::Antialiasing);
     setDragMode(QGraphicsView::ScrollHandDrag);
+    // FullViewportUpdate repaints the visible canvas cleanly on each frame,
+    // eliminating dirty-rect striations / ghost edge trails during physics
+    // simulation, dragging, and panning. The physics layout auto-freezes once
+    // settled, so this incurs zero idle CPU overhead.
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -814,15 +844,33 @@ GraphWidget::~GraphWidget() {
 
 void GraphWidget::styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor) {
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
-    const QString textOnActive = (activeColor.lightness() > 140) ? "#11111b" : "#ffffff";
     if (active) {
+        const QString textOnActive = ThemeManager::textOn(activeColor).name();
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(activeColor.name(), textOnActive));
+        // The icon was painted in the accent color at creation; on an accent
+        // fill it would vanish. Repaint it in the on-accent color.
+        const QIcon cur = btn->icon();
+        if (cur.isNull()) return;
+        // Re-render from the icon's last known name is not possible, so the
+        // caller-supplied accent below is stored per-button via a property
+        // set at creation; fall back to textOn for safety.
+        const QVariant iconName = btn->property("iconName");
+        if (iconName.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         ThemeManager::textOn(activeColor), 14));
+        }
     } else {
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(tok.bgSurface.name(), tok.textSecondary.name(), tok.borderColor.name()));
+        const QVariant iconName = btn->property("iconName");
+        const QVariant iconColor = btn->property("iconColor");
+        if (iconName.isValid() && iconColor.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         QColor(iconColor.toString()), 14));
+        }
     }
 }
 
@@ -888,18 +936,28 @@ void GraphWidget::setupUI() {
 
     m_btnTogglePeople = createToggleBtn("People", true);
     m_btnTogglePeople->setIcon(IconManager::instance().getIcon("user", tok.accentPrimary, 14));
+    m_btnTogglePeople->setProperty("iconName", "user");
+    m_btnTogglePeople->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnTogglePeople, true, tok.accentPrimary);
     m_btnToggleHouseholds = createToggleBtn("Households", true);
     m_btnToggleHouseholds->setIcon(IconManager::instance().getIcon("users", tok.accentPrimary, 14));
+    m_btnToggleHouseholds->setProperty("iconName", "users");
+    m_btnToggleHouseholds->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnToggleHouseholds, true, tok.accentPrimary);
     m_btnToggleGroups = createToggleBtn("Groups", true);
     m_btnToggleGroups->setIcon(IconManager::instance().getIcon("layers", tok.accentPrimary, 14));
+    m_btnToggleGroups->setProperty("iconName", "layers");
+    m_btnToggleGroups->setProperty("iconColor", tok.accentSuccess.name());
     styleFilterButton(m_btnToggleGroups, true, tok.accentPrimary);
     m_btnToggleBurnout = createToggleBtn("Burnout", false);
     m_btnToggleBurnout->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentWarning, 14));
+    m_btnToggleBurnout->setProperty("iconName", "alert-triangle");
+    m_btnToggleBurnout->setProperty("iconColor", tok.accentWarning.name());
     styleFilterButton(m_btnToggleBurnout, false, tok.accentWarning);
     m_btnToggleIsolation = createToggleBtn("Isolated", false);
     m_btnToggleIsolation->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentDanger, 14));
+    m_btnToggleIsolation->setProperty("iconName", "alert-triangle");
+    m_btnToggleIsolation->setProperty("iconColor", tok.accentDanger.name());
     styleFilterButton(m_btnToggleIsolation, false, tok.accentDanger);
     m_btnToggleHygiene = createToggleBtn("Hygiene", false);
     m_btnToggleHygiene->setIcon(IconManager::instance().getIcon("sparkles", tok.accentSuccess, 14));
@@ -2658,7 +2716,23 @@ void GraphWidget::loadGraph() {
     onFilterToggled();
     refreshHierarchyTree();
     updateDetailsPanelForEmpty();
+    m_loadedGeneration = DatabaseManager::dataGeneration();
+    m_sinceLoad.restart();
     resumePhysics(); // fresh graph starts moving until it settles (auto-freeze)
+}
+
+void GraphWidget::loadGraphIfDirty() {
+    const quint64 gen = DatabaseManager::dataGeneration();
+    const bool clean = !m_nodes.isEmpty()
+                       && m_loadedGeneration == gen
+                       && m_sinceLoad.isValid()
+                       && m_sinceLoad.elapsed() < 5 * 60 * 1000; // staleness fallback
+    if (clean) return;
+    loadGraph();
+}
+
+bool GraphWidget::physicsRunning() const {
+    return m_physicsRunning && m_timer && m_timer->isActive();
 }
 
 void GraphWidget::updateIsolationQuery() {
@@ -2675,11 +2749,12 @@ void GraphWidget::updateIsolationQuery() {
         m_btnIsolatedBanner->setText(QString(" %1 Unconnected Members").arg(count));
         const ThemeTokens t = ThemeManager::instance().currentTokens();
         m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", t.accentDanger, 14));
-        QColor dangerBg = t.accentDanger;
-        dangerBg.setAlpha(40);
+        const QColor onDanger = ThemeManager::textOn(t.accentDanger);
         m_btnIsolatedBanner->setStyleSheet(
-            QString("QPushButton { background-color: %1; color: %2; border: 1px solid %2; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
-                .arg(dangerBg.name(), t.accentDanger.name()));
+            QString("QPushButton { background-color: rgba(%1, %2, %3, 0.4); color: %4; border: 1px solid %5; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
+                .arg(t.accentDanger.red()).arg(t.accentDanger.green()).arg(t.accentDanger.blue())
+                .arg(onDanger.name(), t.accentDanger.name()));
+        m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", onDanger, 14));
     }
 }
 
@@ -2979,6 +3054,20 @@ void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
     }
 }
 
+void GraphWidget::updateEdgesForNode(NodeItem* node) {
+    if (!node) return;
+    for (EdgeItem* e : m_edges) {
+        if (e && (e->sourceNode() == node || e->targetNode() == node)) {
+            e->adjust();
+        }
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge && (ge->sourceNode() == node || ge->targetNode() == node)) {
+            ge->adjust();
+        }
+    }
+}
+
 void GraphWidget::onSeverSelectedEdge() {
     if (!m_selectedEdgeForDetails) return;
 
@@ -3255,10 +3344,12 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aAssign = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Group...");
         QMenu* mCare = m.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
-        QAction* cActive = mCare->addAction("Active Member");
-        QAction* cLeader = mCare->addAction("Leader");
-        QAction* cRisk = mCare->addAction("At-Risk");
-        QAction* cContact = mCare->addAction("Needs Contact");
+        // The other care-flag entries are matched by text (sel->text()), not
+        // by pointer, so they need no stored handles.
+        mCare->addAction("Active Member");
+        mCare->addAction("Leader");
+        mCare->addAction("At-Risk");
+        mCare->addAction("Needs Contact");
 
         if (isReadOnly) {
             aAssign->setEnabled(false); aAssign->setToolTip(roTooltip);
@@ -3930,6 +4021,13 @@ void GraphWidget::applyForceDirectedLayout() {
     }
 
     resolveNodeOverlaps();
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 // Hard collision resolution: directly separate any two visible nodes whose
@@ -4010,6 +4108,13 @@ void GraphWidget::applyClusteredLayout() {
         resolveNodeOverlaps();
         if (m_lastMaxDisplacement < 0.05 || qFuzzyCompare(m_lastMaxDisplacement, before)) break;
     }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 void GraphWidget::updatePhysics() {
@@ -4067,7 +4172,13 @@ void GraphWidget::applyRole(const QString& role) {
 }
 
 void GraphWidget::applyTheme(const ThemeTokens& tok) {
-    if (m_scene) m_scene->update();
+    if (m_scene) {
+        m_scene->setBackgroundBrush(tok.bgBase);
+        m_scene->update();
+    }
+    if (m_canvasView) {
+        m_canvasView->setBackgroundBrush(tok.bgBase);
+    }
     styleChromeWidgets(tok);
     restyleChrome(tok);
 }
@@ -4268,6 +4379,13 @@ void GraphWidget::loadNodePositions() {
                 }
             }
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 }
 
@@ -4480,6 +4598,13 @@ void GraphWidget::applyTreeHierarchyLayout() {
             placedPersonIds.insert(p->id());
             ++memIdx;
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 
     // Pause physics so the tree stays locked in place
