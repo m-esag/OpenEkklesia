@@ -23,6 +23,7 @@
 #include <QPixmap>
 #include <QInputDialog>
 #include <QDate>
+#include <QCalendarWidget>
 #include <QDebug>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -48,6 +49,7 @@
 #include "../common/appcurrency.h"
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
+#include "../common/givingstatementgenerator.h"
 
 // ============================================================================
 // ClickableAvatarLabel Implementation
@@ -88,22 +90,24 @@ void StatusItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
         painter->fillRect(option.rect, option.palette.highlight());
     }
 
+    // Colors come from the active theme tokens so the pills stay readable on
+    // both the dark and light palettes (hardcoded Catppuccin accents washed
+    // out on light backgrounds).
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+
     QColor badgeBg;
     QColor badgeText;
 
     if (status == "Member") {
-        badgeBg = QColor(46, 240, 152, 45); // Emerald Green
-        badgeText = QColor("#2ef098");
+        badgeText = tok.accentSuccess;
     } else if (status == "Regular Attender") {
-        badgeBg = QColor(180, 190, 254, 45); // Violet/Lavender
-        badgeText = QColor("#b4befe");
+        badgeText = tok.accentPrimary;
     } else if (status == "Visitor") {
-        badgeBg = QColor(249, 226, 175, 45); // Warm Gold
-        badgeText = QColor("#f9e2af");
+        badgeText = tok.accentWarning;
     } else { // Inactive or Unspecified
-        badgeBg = QColor(108, 112, 134, 45); // Muted Slate
-        badgeText = QColor("#a6adc8");
+        badgeText = tok.textSecondary;
     }
+    badgeBg = QColor(badgeText.red(), badgeText.green(), badgeText.blue(), 45);
 
     QRect badgeRect = option.rect.adjusted(6, 4, -6, -4);
     painter->setBrush(QBrush(badgeBg));
@@ -392,6 +396,16 @@ void PeopleWidget::setupUI() {
         m_statusFilterGroup->addButton(btn, it.key());
         statusFilterRow->addWidget(btn);
     }
+    statusFilterRow->addSpacing(6);
+    m_cmbPathwayFilter = new QComboBox(this);
+    m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("layers", QColor(), 13), "All Pathways", 0);
+    m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("compass", QColor(), 13), "Needs Baptism", 1);
+    m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("book-open", QColor(), 13), "Needs Next Steps", 2);
+    m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("sparkles", QColor("#2e7d32"), 13), "Ready for Membership", 3);
+    m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("shield-check", QColor(), 13), "Completed Both", 4);
+    m_cmbPathwayFilter->setStyleSheet("QComboBox { font-size: 10px; padding: 1px 6px; }");
+    connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { reapplyFilter(); });
+    statusFilterRow->addWidget(m_cmbPathwayFilter);
     statusFilterRow->addStretch();
     leftLayout->addLayout(statusFilterRow);
     connect(m_statusFilterGroup, &QButtonGroup::idClicked, this, &PeopleWidget::onStatusFilterChanged);
@@ -637,6 +651,7 @@ void PeopleWidget::setupUI() {
     m_lastNameEdit = new QLineEdit(cardIdent);
     m_genderCombo = new QComboBox(cardIdent);
     m_genderCombo->addItems({"Male", "Female", "Unspecified"});
+    m_genderCombo->setCurrentText("Unspecified");
     m_birthDateEdit = new QDateEdit(QDate(1900, 1, 1), cardIdent);
     m_birthDateEdit->setCalendarPopup(true);
     m_birthDateEdit->setDisplayFormat("yyyy-MM-dd");
@@ -697,23 +712,87 @@ void PeopleWidget::setupUI() {
     layCardHouse->addWidget(m_lstHouseholdMembers);
     layPageIdent->addWidget(cardHouse);
 
-    // Membership Card
+    // Membership & Discipleship Pathway Card
     QFrame* cardMember = new QFrame(pageIdentity);
     cardMember->setObjectName("cardWidget");
     QVBoxLayout* layCardMember = new QVBoxLayout(cardMember);
     layCardMember->setContentsMargins(12, 10, 12, 10);
     layCardMember->setSpacing(8);
 
-    QLabel* lblMemberTitle = new QLabel("MEMBERSHIP & MILESTONES", cardMember);
+    QLabel* lblMemberTitle = new QLabel("MEMBERSHIP & DISCIPLESHIP PATHWAY", cardMember);
     lblMemberTitle->setStyleSheet("font-size: 11px; font-weight: bold; color: palette(highlight);");
     layCardMember->addWidget(lblMemberTitle);
+
+    // Visual Pathway Stepper (Visitor -> Attender -> Baptized -> Next Steps -> Covenant Member)
+    m_pnlPathwayStepper = new QFrame(cardMember);
+    m_pnlPathwayStepper->setStyleSheet("QFrame { background-color: palette(base); border: 1px solid palette(mid); border-radius: 6px; padding: 4px; }");
+    QHBoxLayout* layStepper = new QHBoxLayout(m_pnlPathwayStepper);
+    layStepper->setContentsMargins(6, 4, 6, 4);
+    layStepper->setSpacing(4);
+
+    auto makeStepBadge = [this, cardMember](const QString& text) -> QLabel* {
+        QLabel* lbl = new QLabel(text, cardMember);
+        lbl->setAlignment(Qt::AlignCenter);
+        lbl->setStyleSheet("QLabel { background-color: palette(mid); color: palette(placeholderText); border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold; }");
+        return lbl;
+    };
+
+    auto makeArrow = [cardMember]() -> QLabel* {
+        QLabel* arrow = new QLabel(cardMember);
+        arrow->setPixmap(IconManager::instance().getIcon("arrow-right", QColor("#888888"), 10).pixmap(10, 10));
+        arrow->setAlignment(Qt::AlignCenter);
+        return arrow;
+    };
+
+    m_lblPathwayStepVisitor = makeStepBadge("1. Visitor");
+    m_lblPathwayStepAttender = makeStepBadge("2. Attender");
+    m_lblPathwayStepBaptized = makeStepBadge("3. Baptized");
+    m_lblPathwayStepNextSteps = makeStepBadge("4. Next Steps");
+    m_lblPathwayStepMember = makeStepBadge("5. Member");
+
+    layStepper->addWidget(m_lblPathwayStepVisitor);
+    layStepper->addWidget(makeArrow());
+    layStepper->addWidget(m_lblPathwayStepAttender);
+    layStepper->addWidget(makeArrow());
+    layStepper->addWidget(m_lblPathwayStepBaptized);
+    layStepper->addWidget(makeArrow());
+    layStepper->addWidget(m_lblPathwayStepNextSteps);
+    layStepper->addWidget(makeArrow());
+    layStepper->addWidget(m_lblPathwayStepMember);
+    layStepper->addStretch();
+    layCardMember->addWidget(m_pnlPathwayStepper);
+
+    // Readiness / Pathway Alert Banner
+    m_pnlReadinessBanner = new QFrame(cardMember);
+    m_pnlReadinessBanner->setVisible(false);
+    m_pnlReadinessBanner->setStyleSheet("QFrame { background-color: palette(mid); border: 1px solid palette(highlight); border-radius: 6px; padding: 4px; }");
+    QHBoxLayout* layReadiness = new QHBoxLayout(m_pnlReadinessBanner);
+    layReadiness->setContentsMargins(8, 4, 8, 4);
+    layReadiness->setSpacing(8);
+    m_lblReadinessIcon = new QLabel(cardMember);
+    m_lblReadinessIcon->setFixedSize(16, 16);
+    m_lblReadinessIcon->setAlignment(Qt::AlignCenter);
+    m_lblReadinessText = new QLabel(cardMember);
+    m_lblReadinessText->setStyleSheet("font-size: 11px; font-weight: bold;");
+    m_btnPromoteToMember = new QPushButton("Promote to Member", cardMember);
+    m_btnPromoteToMember->setIcon(IconManager::instance().getIcon("user-check", QColor(), 12));
+    m_btnPromoteToMember->setObjectName("primaryBtn");
+    connect(m_btnPromoteToMember, &QPushButton::clicked, this, &PeopleWidget::onPromoteToMember);
+
+    layReadiness->addWidget(m_lblReadinessIcon);
+    layReadiness->addWidget(m_lblReadinessText, 1);
+    layReadiness->addWidget(m_btnPromoteToMember);
+    layCardMember->addWidget(m_pnlReadinessBanner);
 
     QFormLayout* formMember = new QFormLayout();
     formMember->setSpacing(6);
 
     m_statusCombo = new QComboBox(cardMember);
     m_statusCombo->addItems({"Visitor", "Regular Attender", "Member", "Inactive"});
-    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { setDirty(true); });
+    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        updatePathwayUI();
+        setDirty(true);
+    });
 
     QDate nullDate(1900, 1, 1);
     m_firstVisitEdit = new QDateEdit(nullDate, cardMember);
@@ -731,8 +810,115 @@ void PeopleWidget::setupUI() {
     connect(m_joinDateEdit, &QDateEdit::dateChanged, this, [this]() { setDirty(true); });
 
     formMember->addRow("Membership Status:", m_statusCombo);
-    formMember->addRow("First Visit:", m_firstVisitEdit);
+    formMember->addRow("First Visit Date:", m_firstVisitEdit);
     formMember->addRow("Join Date:", m_joinDateEdit);
+
+    // Water Baptism Row
+    m_chkBaptized = new QCheckBox("Water Baptized", cardMember);
+    m_txtBaptismDate = new QLineEdit(cardMember);
+    m_txtBaptismDate->setPlaceholderText("Date / Approx (e.g. 2021-04-18, May 2015, or 2012)");
+    m_btnPickBaptismDate = new QPushButton(cardMember);
+    m_btnPickBaptismDate->setIcon(IconManager::instance().getIcon("calendar", QColor(), 12));
+    m_btnPickBaptismDate->setToolTip("Pick exact date using calendar");
+    connect(m_btnPickBaptismDate, &QPushButton::clicked, this, [this]() {
+        QDialog dlg(this);
+        dlg.setWindowTitle("Select Baptism Date");
+        QVBoxLayout* l = new QVBoxLayout(&dlg);
+        QCalendarWidget* cal = new QCalendarWidget(&dlg);
+        l->addWidget(cal);
+        QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        l->addWidget(bb);
+        if (dlg.exec() == QDialog::Accepted) {
+            m_txtBaptismDate->setText(cal->selectedDate().toString("yyyy-MM-dd"));
+            if (!m_chkBaptized->isChecked()) m_chkBaptized->setChecked(true);
+            setDirty(true);
+        }
+    });
+    connect(m_chkBaptized, &QCheckBox::toggled, this, [this](bool chk) {
+        m_txtBaptismDate->setEnabled(chk);
+        m_btnPickBaptismDate->setEnabled(chk);
+        updatePathwayUI();
+        setDirty(true);
+    });
+    connect(m_txtBaptismDate, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
+
+    QHBoxLayout* layBaptismRow = new QHBoxLayout();
+    layBaptismRow->setSpacing(6);
+    layBaptismRow->addWidget(m_chkBaptized);
+    layBaptismRow->addWidget(m_txtBaptismDate, 1);
+    layBaptismRow->addWidget(m_btnPickBaptismDate);
+    formMember->addRow("Water Baptism:", layBaptismRow);
+
+    // Next Steps Workshop Row
+    m_chkNextSteps = new QCheckBox("Next Steps Completed", cardMember);
+    m_txtNextStepsDate = new QLineEdit(cardMember);
+    m_txtNextStepsDate->setPlaceholderText("Completion Date (e.g. 2024-01-14 or Jan 2024)");
+    m_btnPickNextStepsDate = new QPushButton(cardMember);
+    m_btnPickNextStepsDate->setIcon(IconManager::instance().getIcon("calendar", QColor(), 12));
+    m_btnPickNextStepsDate->setToolTip("Pick exact date using calendar");
+    connect(m_btnPickNextStepsDate, &QPushButton::clicked, this, [this]() {
+        QDialog dlg(this);
+        dlg.setWindowTitle("Select Next Steps Completion Date");
+        QVBoxLayout* l = new QVBoxLayout(&dlg);
+        QCalendarWidget* cal = new QCalendarWidget(&dlg);
+        l->addWidget(cal);
+        QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        l->addWidget(bb);
+        if (dlg.exec() == QDialog::Accepted) {
+            m_txtNextStepsDate->setText(cal->selectedDate().toString("yyyy-MM-dd"));
+            if (!m_chkNextSteps->isChecked()) m_chkNextSteps->setChecked(true);
+            setDirty(true);
+        }
+    });
+    connect(m_chkNextSteps, &QCheckBox::toggled, this, [this](bool chk) {
+        m_txtNextStepsDate->setEnabled(chk);
+        m_btnPickNextStepsDate->setEnabled(chk);
+        updatePathwayUI();
+        setDirty(true);
+    });
+    connect(m_txtNextStepsDate, &QLineEdit::textChanged, this, [this]() { setDirty(true); });
+
+    QHBoxLayout* layNextStepsRow = new QHBoxLayout();
+    layNextStepsRow->setSpacing(6);
+    layNextStepsRow->addWidget(m_chkNextSteps);
+    layNextStepsRow->addWidget(m_txtNextStepsDate, 1);
+    layNextStepsRow->addWidget(m_btnPickNextStepsDate);
+    formMember->addRow("Next Steps Workshop:", layNextStepsRow);
+
+    // Scanned Membership Request Row
+    m_txtAppScanPath = new QLineEdit(cardMember);
+    m_txtAppScanPath->setVisible(false);
+    m_lblAppScanStatus = new QLabel("<i>No scanned request attached</i>", cardMember);
+    m_lblAppScanStatus->setStyleSheet("color: palette(placeholderText); font-size: 11px;");
+
+    m_btnAttachAppScan = new QPushButton("Attach Scan...", cardMember);
+    m_btnAttachAppScan->setIcon(IconManager::instance().getIcon("file-plus", QColor(), 12));
+    m_btnAttachAppScan->setObjectName("secondaryBtn");
+    connect(m_btnAttachAppScan, &QPushButton::clicked, this, &PeopleWidget::onAttachAppScan);
+
+    m_btnViewAppScan = new QPushButton("View", cardMember);
+    m_btnViewAppScan->setIcon(IconManager::instance().getIcon("eye", QColor(), 12));
+    m_btnViewAppScan->setObjectName("secondaryBtn");
+    m_btnViewAppScan->setEnabled(false);
+    connect(m_btnViewAppScan, &QPushButton::clicked, this, &PeopleWidget::onViewAppScan);
+
+    m_btnClearAppScan = new QPushButton("✕", cardMember);
+    m_btnClearAppScan->setToolTip("Remove attached scan");
+    m_btnClearAppScan->setEnabled(false);
+    connect(m_btnClearAppScan, &QPushButton::clicked, this, &PeopleWidget::onClearAppScan);
+
+    QHBoxLayout* layAppScanRow = new QHBoxLayout();
+    layAppScanRow->setSpacing(6);
+    layAppScanRow->addWidget(m_lblAppScanStatus, 1);
+    layAppScanRow->addWidget(m_btnAttachAppScan);
+    layAppScanRow->addWidget(m_btnViewAppScan);
+    layAppScanRow->addWidget(m_btnClearAppScan);
+    formMember->addRow("Membership Request Scan:", layAppScanRow);
+
     layCardMember->addLayout(formMember);
     layPageIdent->addWidget(cardMember);
 
@@ -918,29 +1104,11 @@ void PeopleWidget::setupUI() {
     m_btnGenerateStatement->setObjectName("secondaryBtn");
     connect(m_btnGenerateStatement, &QPushButton::clicked, this, [this]() {
         if (m_currentPersonId <= 0) return;
-        QString fileName = QFileDialog::getSaveFileName(this, "Save Giving Tax Statement", 
-            QString("Giving_Statement_%1_%2.pdf").arg(m_firstNameEdit->text(), m_lastNameEdit->text()), "PDF Files (*.pdf)");
-        if (!fileName.isEmpty()) {
-            QPdfWriter writer(fileName);
-            writer.setPageSize(QPageSize(QPageSize::Letter));
-            QPainter painter(&writer);
-            painter.setPen(Qt::black);
-
-            // Official church letterhead (logo, name, address, Tax ID).
-            ChurchProfile::renderPainterHeader(painter, writer.width(), "Official Giving Tax Statement", /*includeTaxId=*/true);
-
-            QFont fHeader("Helvetica", 16, QFont::Bold);
-            painter.setFont(fHeader);
-            painter.drawText(500, 500, "Official Giving Tax Statement");
-            QFont fSub("Helvetica", 10);
-            painter.setFont(fSub);
-            painter.drawText(500, 750, QString("Donor: %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
-            painter.drawText(500, 950, QString("Total Giving Recorded: %1").arg(m_lblGivingYTD->text()));
-            painter.drawText(500, 1150, "OpenEkklesia Church Management System — 501(c)(3) Compliant");
-            painter.end();
-            QMessageBox::information(this, "Statement Generated", QString("Giving tax statement exported successfully to:\n%1").arg(fileName));
-        }
+        QString donorName = QString("%1 %2").arg(m_firstNameEdit ? m_firstNameEdit->text().trimmed() : "",
+                                                 m_lastNameEdit ? m_lastNameEdit->text().trimmed() : "").trimmed();
+        GivingStatementGenerator::exportPdfWithDialog(this, m_currentPersonId, donorName);
     });
+
     layCardGiving->addWidget(m_btnGenerateStatement);
     layPageGiving->addWidget(cardGiving);
     layPageGiving->addStretch();
@@ -1620,19 +1788,17 @@ void PeopleWidget::updateHeader(const QString& name, const QString& status, cons
 
     if (m_lblHeaderStatusBadge) {
         m_lblHeaderStatusBadge->setText(status.isEmpty() ? "Member" : status);
-        QString statusColor = "#a6adc8";
-        QString statusBg = "rgba(166, 173, 200, 0.2)";
+        const ThemeTokens tokStatus = ThemeManager::instance().currentTokens();
+        QColor statusC = tokStatus.textSecondary; // Inactive / unspecified default
         if (status == "Member") {
-            statusColor = "#2ef098";
-            statusBg = "rgba(46, 240, 152, 0.2)";
+            statusC = tokStatus.accentSuccess;
         } else if (status == "Regular Attender") {
-            statusColor = "#b4befe";
-            statusBg = "rgba(180, 190, 254, 0.2)";
+            statusC = tokStatus.accentPrimary;
         } else if (status == "Visitor") {
-            statusColor = "#f9e2af";
-            statusBg = "rgba(249, 226, 175, 0.2)";
+            statusC = tokStatus.accentWarning;
         }
-        m_lblHeaderStatusBadge->setStyleSheet(QString("color: %1; background-color: %2; border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;").arg(statusColor, statusBg));
+        m_lblHeaderStatusBadge->setStyleSheet(QString("color: %1; background-color: rgba(%2, %3, %4, 0.2); border-radius: 6px; padding: 2px 8px; font-weight: bold; font-size: 10px;")
+            .arg(statusC.name()).arg(statusC.red()).arg(statusC.green()).arg(statusC.blue()));
     }
 
     if (m_lblHeaderCareBadge) {
@@ -1812,12 +1978,18 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     // Query directly from database to guarantee 100% fidelity without relational model column-shift bugs
     QString priArchetype = "Anchor";
     QString secArchetype = "None";
+    int isBaptized = 0;
+    QString baptismDate;
+    int nextStepsCompleted = 0;
+    QString nextStepsDate;
+    QString membershipAppPath;
     {
         QSqlQuery hq;
         hq.prepare("SELECT household_id, gender, first_name, last_name, phone_number, email, "
                    "date_of_birth, avatar_path, care_flag, admin_notes, membership_status, "
                    "first_visit_date, join_date, spiritual_gifts, relational_style, interest_tags, "
-                   "ministry_personality, personality_secondary "
+                   "ministry_personality, personality_secondary, "
+                   "is_baptized, baptism_date, next_steps_completed, next_steps_date, membership_app_path "
                    "FROM people WHERE id = ?");
         hq.addBindValue(personId);
         if (hq.exec() && hq.next()) {
@@ -1839,6 +2011,11 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
             m_tagsEdit->setText(hq.value(15).toString());
             priArchetype = hq.value(16).toString();
             secArchetype = hq.value(17).toString();
+            isBaptized = hq.value(18).toInt();
+            baptismDate = hq.value(19).toString();
+            nextStepsCompleted = hq.value(20).toInt();
+            nextStepsDate = hq.value(21).toString();
+            membershipAppPath = hq.value(22).toString();
         }
     }
 
@@ -1872,6 +2049,52 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     int hIdx = m_householdCombo->findData(householdId);
     m_householdCombo->setCurrentIndex(hIdx >= 0 ? hIdx : 0);
     m_householdCombo->blockSignals(false);
+
+    if (m_chkBaptized) {
+        m_chkBaptized->blockSignals(true);
+        m_chkBaptized->setChecked(isBaptized == 1);
+        m_chkBaptized->blockSignals(false);
+    }
+    if (m_txtBaptismDate) {
+        m_txtBaptismDate->blockSignals(true);
+        m_txtBaptismDate->setText(baptismDate);
+        m_txtBaptismDate->setEnabled(isBaptized == 1);
+        m_btnPickBaptismDate->setEnabled(isBaptized == 1);
+        m_txtBaptismDate->blockSignals(false);
+    }
+
+    if (m_chkNextSteps) {
+        m_chkNextSteps->blockSignals(true);
+        m_chkNextSteps->setChecked(nextStepsCompleted == 1);
+        m_chkNextSteps->blockSignals(false);
+    }
+    if (m_txtNextStepsDate) {
+        m_txtNextStepsDate->blockSignals(true);
+        m_txtNextStepsDate->setText(nextStepsDate);
+        m_txtNextStepsDate->setEnabled(nextStepsCompleted == 1);
+        m_btnPickNextStepsDate->setEnabled(nextStepsCompleted == 1);
+        m_txtNextStepsDate->blockSignals(false);
+    }
+
+    if (m_txtAppScanPath) {
+        m_txtAppScanPath->setText(membershipAppPath);
+    }
+    if (m_lblAppScanStatus) {
+        if (!membershipAppPath.isEmpty()) {
+            QFileInfo fi(membershipAppPath);
+            m_lblAppScanStatus->setText(QString("<b>Attached:</b> %1").arg(fi.fileName()));
+            m_lblAppScanStatus->setStyleSheet("color: palette(highlight); font-size: 11px;");
+            if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(true);
+            if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(true);
+        } else {
+            m_lblAppScanStatus->setText("<i>No scanned request attached</i>");
+            m_lblAppScanStatus->setStyleSheet("color: palette(placeholderText); font-size: 11px;");
+            if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(false);
+            if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(false);
+        }
+    }
+
+    updatePathwayUI();
 
     if (m_adminNotesText) {
         m_adminNotesText->setText(notes);
@@ -2082,6 +2305,19 @@ void PeopleWidget::reapplyFilter() {
         default: break;
     }
 
+    if (m_cmbPathwayFilter) {
+        int pw = m_cmbPathwayFilter->currentData().toInt();
+        if (pw == 1) { // Needs Baptism
+            conditions << "is_baptized = 0";
+        } else if (pw == 2) { // Needs Next Steps
+            conditions << "next_steps_completed = 0";
+        } else if (pw == 3) { // Ready for Membership
+            conditions << "(is_baptized = 1 AND next_steps_completed = 1 AND membership_status != 'Member')";
+        } else if (pw == 4) { // Completed Both
+            conditions << "(is_baptized = 1 AND next_steps_completed = 1)";
+        }
+    }
+
     m_peopleModel->setFilter(conditions.join(" AND "));
     m_peopleModel->select();
     while (m_peopleModel->canFetchMore()) {
@@ -2171,6 +2407,11 @@ void PeopleWidget::onAddPerson() {
     if (m_searchEdit) m_searchEdit->clear();
     if (m_statusFilterGroup && m_statusFilterGroup->button(0)) {
         m_statusFilterGroup->button(0)->setChecked(true);
+    }
+    if (m_cmbPathwayFilter) {
+        m_cmbPathwayFilter->blockSignals(true);
+        m_cmbPathwayFilter->setCurrentIndex(0);
+        m_cmbPathwayFilter->blockSignals(false);
     }
     reapplyFilter();
 
@@ -2301,6 +2542,11 @@ void PeopleWidget::onSaveProfile() {
     if (secArchetype.isEmpty() || secArchetype == "None" || secArchetype.contains("None")) secArchetype = "";
     QString notes = m_adminNotesText ? m_adminNotesText->toPlainText() : "";
     QString careFlag = m_careFlagCombo ? m_careFlagCombo->currentText() : "Normal";
+    int isBaptized = (m_chkBaptized && m_chkBaptized->isChecked()) ? 1 : 0;
+    QString baptismDate = m_txtBaptismDate ? m_txtBaptismDate->text().trimmed() : "";
+    int nextStepsCompleted = (m_chkNextSteps && m_chkNextSteps->isChecked()) ? 1 : 0;
+    QString nextStepsDate = m_txtNextStepsDate ? m_txtNextStepsDate->text().trimmed() : "";
+    QString appScanPath = m_txtAppScanPath ? m_txtAppScanPath->text().trimmed() : "";
 
     QSqlDatabase db = QSqlDatabase::database();
     QSqlQuery q(db);
@@ -2322,7 +2568,12 @@ void PeopleWidget::onSaveProfile() {
               "relational_style = :style, "
               "interest_tags = :tags, "
               "ministry_personality = :pri, "
-              "personality_secondary = :sec "
+              "personality_secondary = :sec, "
+              "is_baptized = :is_baptized, "
+              "baptism_date = :baptism_date, "
+              "next_steps_completed = :ns_completed, "
+              "next_steps_date = :ns_date, "
+              "membership_app_path = :app_path "
               "WHERE id = :id");
 
     q.bindValue(":fn", fn);
@@ -2343,6 +2594,11 @@ void PeopleWidget::onSaveProfile() {
     q.bindValue(":tags", tagsText);
     q.bindValue(":pri", priArchetype);
     q.bindValue(":sec", secArchetype);
+    q.bindValue(":is_baptized", isBaptized);
+    q.bindValue(":baptism_date", baptismDate);
+    q.bindValue(":ns_completed", nextStepsCompleted);
+    q.bindValue(":ns_date", nextStepsDate);
+    q.bindValue(":app_path", appScanPath);
     q.bindValue(":id", personId);
 
     if (q.exec()) {
@@ -2791,6 +3047,12 @@ void PeopleWidget::onPrintDirectory() {
     html += "</table></body></html>";
     doc.setHtml(html);
     doc.print(&writer);
+    QFileInfo doneInfo(fileName);
+    if (!doneInfo.exists() || doneInfo.size() == 0) {
+        QMessageBox::warning(this, "Export Failed",
+            "Could not write directory PDF (check disk space and permissions).");
+        return;
+    }
 
     QMessageBox::information(this, "Directory Printed", QString("Member directory PDF successfully exported to:\n%1").arg(fileName));
 }
@@ -2882,6 +3144,11 @@ void PeopleWidget::onExportVCard() {
     QString savePath = QFileDialog::getSaveFileName(this, "Export Contact as vCard", defaultFileName, "vCard Files (*.vcf)");
     if (savePath.isEmpty()) return;
 
+    auto warn = QMessageBox::warning(this, "Data Security Notice",
+        "This export contains personal contact details.\nEnsure it is stored safely.",
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (warn != QMessageBox::Ok) return;
+
     QFile file(savePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::critical(this, "Export Error", "Could not open file for writing: " + file.errorString());
@@ -2891,6 +3158,7 @@ void PeopleWidget::onExportVCard() {
     QString vcardText = generateVCard(fn, ln, phone, email, bday, status, careFlag, notes);
     file.write(vcardText.toUtf8());
     file.close();
+    DatabaseManager::logAudit("exports", personId, "vcard", QString("%1 %2").arg(fn, ln), savePath, "people");
 
     QMessageBox::information(this, "vCard Exported", QString("vCard contact for '%1 %2' successfully exported to:\n%3").arg(fn, ln, savePath));
 }
@@ -3060,16 +3328,22 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
 
         QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), QString("Set Pastoral Flag (%1 Profiles)").arg(totalSelected));
         QAction* actFlagNormal = menuCare->addAction("Normal / None");
-        QAction* actFlagLeader = menuCare->addAction("Leader");
-        QAction* actFlagRisk = menuCare->addAction("At-Risk");
-        QAction* actFlagContact = menuCare->addAction("Needs Contact");
-        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+        // Remaining entries are matched by text (selected->text()), not pointer.
+        menuCare->addAction("Leader");
+        menuCare->addAction("At-Risk");
+        menuCare->addAction("Needs Contact");
+        menuCare->addAction("Grief Support");
 
         QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), QString("Set Membership Status (%1 Profiles)").arg(totalSelected));
-        QAction* actStatMember = menuStatus->addAction("Member");
-        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
-        QAction* actStatVisitor = menuStatus->addAction("Visitor");
-        QAction* actStatInactive = menuStatus->addAction("Inactive");
+        menuStatus->addAction("Member");
+        menuStatus->addAction("Regular Attender");
+        menuStatus->addAction("Visitor");
+        menuStatus->addAction("Inactive");
+
+        QMenu* menuPathway = menu.addMenu(IconManager::instance().getIcon("check-circle", QColor(), 14), QString("Discipleship Pathway (%1 Profiles)").arg(totalSelected));
+        QAction* actBatchBaptism = menuPathway->addAction("Mark Water Baptized...");
+        QAction* actBatchNextSteps = menuPathway->addAction("Mark Next Steps Completed...");
+        QAction* actBatchPromote = menuPathway->addAction("Promote Ready Attenders to Member");
 
         menu.addSeparator();
         QAction* actCopyEmails = nullptr;
@@ -3091,6 +3365,7 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             actBatchCareNote->setEnabled(false); actBatchCareNote->setToolTip(roTooltip);
             menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
             menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
+            menuPathway->setEnabled(false); menuPathway->setToolTip(roTooltip);
             actBatchDelete->setEnabled(false); actBatchDelete->setToolTip(roTooltip);
         }
 
@@ -3199,6 +3474,74 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             reapplyFilter();
             if (selectedPersonIds.contains(m_currentPersonId)) selectPerson(m_currentPersonId);
             QMessageBox::information(this, "Batch Status Update", QString("Updated membership status to '%1' for %2 profiles.").arg(st).arg(totalSelected));
+        } else if (selected == actBatchBaptism) {
+            bool ok = false;
+            QString dateInput = QInputDialog::getText(this, "Batch Mark Water Baptized",
+                                                     QString("Enter baptism date for %1 profiles (e.g. %2, %3, or approximate year):")
+                                                         .arg(totalSelected)
+                                                         .arg(QDate::currentDate().toString("yyyy-MM-dd"))
+                                                         .arg(QDate::currentDate().toString("MMMM yyyy")),
+                                                     QLineEdit::Normal,
+                                                     QDate::currentDate().toString("yyyy-MM-dd"), &ok);
+            if (ok) {
+                QSqlDatabase db = QSqlDatabase::database();
+                db.transaction();
+                for (int pid : selectedPersonIds) {
+                    QSqlQuery uq(db);
+                    uq.prepare("UPDATE people SET is_baptized = 1, baptism_date = :bdate WHERE id = :id");
+                    uq.bindValue(":bdate", dateInput.trimmed());
+                    uq.bindValue(":id", pid);
+                    uq.exec();
+                }
+                db.commit();
+                refreshModel();
+                if (m_currentPersonId > 0 && selectedPersonIds.contains(m_currentPersonId)) {
+                    selectPerson(m_currentPersonId);
+                }
+                QMessageBox::information(this, "Batch Updated", QString("Updated baptism record for %1 profiles.").arg(totalSelected));
+            }
+        } else if (selected == actBatchNextSteps) {
+            bool ok = false;
+            QString dateInput = QInputDialog::getText(this, "Batch Mark Next Steps Completed",
+                                                     QString("Enter completion date for %1 profiles:")
+                                                         .arg(totalSelected),
+                                                     QLineEdit::Normal,
+                                                     QDate::currentDate().toString("yyyy-MM-dd"), &ok);
+            if (ok) {
+                QSqlDatabase db = QSqlDatabase::database();
+                db.transaction();
+                for (int pid : selectedPersonIds) {
+                    QSqlQuery uq(db);
+                    uq.prepare("UPDATE people SET next_steps_completed = 1, next_steps_date = :ndate WHERE id = :id");
+                    uq.bindValue(":ndate", dateInput.trimmed());
+                    uq.bindValue(":id", pid);
+                    uq.exec();
+                }
+                db.commit();
+                refreshModel();
+                if (m_currentPersonId > 0 && selectedPersonIds.contains(m_currentPersonId)) {
+                    selectPerson(m_currentPersonId);
+                }
+                QMessageBox::information(this, "Batch Updated", QString("Updated Next Steps record for %1 profiles.").arg(totalSelected));
+            }
+        } else if (selected == actBatchPromote) {
+            QSqlDatabase db = QSqlDatabase::database();
+            db.transaction();
+            int count = 0;
+            for (int pid : selectedPersonIds) {
+                QSqlQuery pq(db);
+                pq.prepare("UPDATE people SET membership_status = 'Member', "
+                           "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now') ELSE join_date END "
+                           "WHERE id = :id AND (membership_status = 'Regular Attender' OR membership_status = 'Visitor')");
+                pq.bindValue(":id", pid);
+                if (pq.exec() && pq.numRowsAffected() > 0) count++;
+            }
+            db.commit();
+            refreshModel();
+            if (m_currentPersonId > 0 && selectedPersonIds.contains(m_currentPersonId)) {
+                selectPerson(m_currentPersonId);
+            }
+            QMessageBox::information(this, "Batch Promotion", QString("Promoted %1 eligible profiles to Member.").arg(count));
         } else if (selected == actCopyEmails && !selectedEmails.isEmpty()) {
             QGuiApplication::clipboard()->setText(selectedEmails.join(", "));
             QMessageBox::information(this, "Emails Copied", QString("%1 email addresses copied to clipboard.").arg(selectedEmails.size()));
@@ -3266,16 +3609,22 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
         
         QMenu* menuCare = menu.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Pastoral Flag");
         QAction* actFlagNormal = menuCare->addAction("Normal / None");
-        QAction* actFlagLeader = menuCare->addAction("Leader");
-        QAction* actFlagRisk = menuCare->addAction("At-Risk");
-        QAction* actFlagContact = menuCare->addAction("Needs Contact");
-        QAction* actFlagGrief = menuCare->addAction("Grief Support");
+        // Remaining entries are matched by text (selected->text()), not pointer.
+        menuCare->addAction("Leader");
+        menuCare->addAction("At-Risk");
+        menuCare->addAction("Needs Contact");
+        menuCare->addAction("Grief Support");
 
         QMenu* menuStatus = menu.addMenu(IconManager::instance().getIcon("tag", QColor(), 14), "Set Membership Status");
-        QAction* actStatMember = menuStatus->addAction("Member");
-        QAction* actStatAttender = menuStatus->addAction("Regular Attender");
-        QAction* actStatVisitor = menuStatus->addAction("Visitor");
-        QAction* actStatInactive = menuStatus->addAction("Inactive");
+        menuStatus->addAction("Member");
+        menuStatus->addAction("Regular Attender");
+        menuStatus->addAction("Visitor");
+        menuStatus->addAction("Inactive");
+
+        QMenu* menuPathwaySingle = menu.addMenu(IconManager::instance().getIcon("check-circle", QColor(), 14), "Discipleship Pathway");
+        QAction* actSingleBaptism = menuPathwaySingle->addAction("Mark Water Baptized...");
+        QAction* actSingleNextSteps = menuPathwaySingle->addAction("Mark Next Steps Completed...");
+        QAction* actSinglePromote = menuPathwaySingle->addAction("Promote to Member");
 
         menu.addSeparator();
         QAction* actCopyPhone = nullptr;
@@ -3292,6 +3641,7 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             actAssignGroup->setEnabled(false); actAssignGroup->setToolTip(roTooltip);
             menuCare->setEnabled(false); menuCare->setToolTip(roTooltip);
             menuStatus->setEnabled(false); menuStatus->setToolTip(roTooltip);
+            menuPathwaySingle->setEnabled(false); menuPathwaySingle->setToolTip(roTooltip);
             actDelete->setEnabled(false); actDelete->setToolTip(roTooltip);
         }
 
@@ -3350,6 +3700,53 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             m_peopleModel->select();
             reapplyFilter();
             if (m_currentPersonId == personId) selectPerson(personId);
+        } else if (selected == actSingleBaptism) {
+            bool ok = false;
+            QString dateInput = QInputDialog::getText(this, "Mark Water Baptized",
+                                                     QString("Enter baptism date for %1 (e.g. %2, %3, or approximate year):")
+                                                         .arg(fullName)
+                                                         .arg(QDate::currentDate().toString("yyyy-MM-dd"))
+                                                         .arg(QDate::currentDate().toString("MMMM yyyy")),
+                                                     QLineEdit::Normal,
+                                                     QDate::currentDate().toString("yyyy-MM-dd"), &ok);
+            if (ok) {
+                QSqlQuery uq;
+                uq.prepare("UPDATE people SET is_baptized = 1, baptism_date = :bdate WHERE id = :id");
+                uq.bindValue(":bdate", dateInput.trimmed());
+                uq.bindValue(":id", personId);
+                uq.exec();
+                m_peopleModel->select();
+                reapplyFilter();
+                if (m_currentPersonId == personId) selectPerson(personId);
+            }
+        } else if (selected == actSingleNextSteps) {
+            bool ok = false;
+            QString dateInput = QInputDialog::getText(this, "Mark Next Steps Completed",
+                                                     QString("Enter completion date for %1:")
+                                                         .arg(fullName),
+                                                     QLineEdit::Normal,
+                                                     QDate::currentDate().toString("yyyy-MM-dd"), &ok);
+            if (ok) {
+                QSqlQuery uq;
+                uq.prepare("UPDATE people SET next_steps_completed = 1, next_steps_date = :ndate WHERE id = :id");
+                uq.bindValue(":ndate", dateInput.trimmed());
+                uq.bindValue(":id", personId);
+                uq.exec();
+                m_peopleModel->select();
+                reapplyFilter();
+                if (m_currentPersonId == personId) selectPerson(personId);
+            }
+        } else if (selected == actSinglePromote) {
+            QSqlQuery uq;
+            uq.prepare("UPDATE people SET membership_status = 'Member', "
+                       "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now') ELSE join_date END "
+                       "WHERE id = :id");
+            uq.bindValue(":id", personId);
+            uq.exec();
+            m_peopleModel->select();
+            reapplyFilter();
+            if (m_currentPersonId == personId) selectPerson(personId);
+            QMessageBox::information(this, "Promotion Complete", QString("Promoted %1 to Member.").arg(fullName));
         } else if (selected == actCopyPhone && !phone.isEmpty()) {
             QGuiApplication::clipboard()->setText(phone);
         } else if (selected == actCopyEmail && !email.isEmpty()) {
@@ -3450,8 +3847,8 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
         m_peopleModel->setFilter(QString(
-            "id IN (SELECT DISTINCT person_id FROM contributions) "
-            "AND id NOT IN (SELECT DISTINCT person_id FROM contributions WHERE contribution_date >= date('now', '-%1 days'))")
+            "EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
+            "AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', '-%1 days'))")
             .arg(inactivityDays));
         m_peopleModel->select();
         while (m_peopleModel->canFetchMore()) {
@@ -3463,3 +3860,140 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
         m_searchEdit->setText(val);
     }
 }
+
+void PeopleWidget::updatePathwayUI() {
+    if (!m_pnlPathwayStepper) return;
+
+    QString st = m_statusCombo ? m_statusCombo->currentText() : "Visitor";
+    bool baptized = m_chkBaptized && m_chkBaptized->isChecked();
+    bool nextSteps = m_chkNextSteps && m_chkNextSteps->isChecked();
+
+    const QString styleDone = "QLabel { background-color: #2e7d32; color: #ffffff; border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold; }";
+    const QString styleInactive = "QLabel { background-color: palette(mid); color: palette(placeholderText); border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold; }";
+    const QString styleActive = "QLabel { background-color: palette(highlight); color: palette(highlightedText); border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold; }";
+
+    // Step 1: Visitor
+    if (m_lblPathwayStepVisitor) {
+        if (st == "Visitor") m_lblPathwayStepVisitor->setStyleSheet(styleActive);
+        else m_lblPathwayStepVisitor->setStyleSheet(styleDone);
+    }
+
+    // Step 2: Attender
+    if (m_lblPathwayStepAttender) {
+        if (st == "Regular Attender") m_lblPathwayStepAttender->setStyleSheet(styleActive);
+        else if (st == "Member") m_lblPathwayStepAttender->setStyleSheet(styleDone);
+        else m_lblPathwayStepAttender->setStyleSheet(styleInactive);
+    }
+
+    // Step 3: Baptized
+    if (m_lblPathwayStepBaptized) {
+        m_lblPathwayStepBaptized->setStyleSheet(baptized ? styleDone : styleInactive);
+    }
+
+    // Step 4: Next Steps
+    if (m_lblPathwayStepNextSteps) {
+        m_lblPathwayStepNextSteps->setStyleSheet(nextSteps ? styleDone : styleInactive);
+    }
+
+    // Step 5: Member
+    if (m_lblPathwayStepMember) {
+        m_lblPathwayStepMember->setStyleSheet((st == "Member") ? styleDone : styleInactive);
+    }
+
+    // Readiness / Alert Banner
+    if (m_pnlReadinessBanner && m_lblReadinessText) {
+        if (st == "Regular Attender" && baptized && nextSteps) {
+            m_pnlReadinessBanner->setVisible(true);
+            m_pnlReadinessBanner->setStyleSheet("QFrame { background-color: #1b5e20; border: 1px solid #4caf50; border-radius: 6px; padding: 4px; }");
+            if (m_lblReadinessIcon) {
+                m_lblReadinessIcon->setPixmap(IconManager::instance().getIcon("sparkles", QColor("#ffffff"), 16).pixmap(16, 16));
+            }
+            m_lblReadinessText->setText("<span style='color: #ffffff;'><b>Ready for Membership:</b> Water baptism & Next Steps workshop completed!</span>");
+            if (m_btnPromoteToMember) m_btnPromoteToMember->setVisible(!m_isReadOnly);
+        } else if (st == "Member" && (!baptized || !nextSteps)) {
+            m_pnlReadinessBanner->setVisible(true);
+            m_pnlReadinessBanner->setStyleSheet("QFrame { background-color: #e65100; border: 1px solid #ff9800; border-radius: 6px; padding: 4px; }");
+            if (m_lblReadinessIcon) {
+                m_lblReadinessIcon->setPixmap(IconManager::instance().getIcon("alert-triangle", QColor("#ffffff"), 16).pixmap(16, 16));
+            }
+            QString missing;
+            if (!baptized && !nextSteps) missing = "Water baptism and Next Steps workshop not recorded";
+            else if (!baptized) missing = "Water baptism not recorded";
+            else missing = "Next Steps workshop not recorded";
+            m_lblReadinessText->setText(QString("<span style='color: #ffffff;'><b>Membership Prerequisites Incomplete:</b> %1.</span>").arg(missing));
+            if (m_btnPromoteToMember) m_btnPromoteToMember->setVisible(false);
+        } else {
+            m_pnlReadinessBanner->setVisible(false);
+        }
+    }
+}
+
+void PeopleWidget::onPromoteToMember() {
+    if (m_currentPersonId <= 0 || m_isReadOnly) return;
+    if (m_statusCombo) {
+        int idx = m_statusCombo->findText("Member");
+        if (idx >= 0) m_statusCombo->setCurrentIndex(idx);
+    }
+    if (m_joinDateEdit && m_joinDateEdit->date() <= QDate(1900, 1, 1)) {
+        m_joinDateEdit->setDate(QDate::currentDate());
+    }
+    setDirty(true);
+    updatePathwayUI();
+    onSaveProfile();
+}
+
+void PeopleWidget::onAttachAppScan() {
+    if (m_currentPersonId <= 0 || m_isReadOnly) return;
+    QString path = QFileDialog::getOpenFileName(this, "Attach Membership Request Scan", QString(),
+                                                "Documents & Images (*.pdf *.png *.jpg *.jpeg *.tif *.tiff);;All Files (*.*)");
+    if (path.isEmpty()) return;
+
+    if (m_txtAppScanPath) m_txtAppScanPath->setText(path);
+    QFileInfo fi(path);
+    if (m_lblAppScanStatus) {
+        m_lblAppScanStatus->setText(QString("<b>Attached:</b> %1").arg(fi.fileName()));
+        m_lblAppScanStatus->setStyleSheet("color: palette(highlight); font-size: 11px;");
+    }
+    if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(true);
+    if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(!m_isReadOnly);
+    setDirty(true);
+
+    // Link into vault_documents under category 'Membership' if not already linked
+    QSqlQuery chk;
+    chk.prepare("SELECT id FROM vault_documents WHERE person_id = ? AND file_path = ?");
+    chk.addBindValue(m_currentPersonId);
+    chk.addBindValue(path);
+    if (chk.exec() && !chk.next()) {
+        QSqlQuery vq;
+        vq.prepare("INSERT INTO vault_documents (person_id, title, category, file_path, meeting_date) "
+                   "VALUES (?, ?, 'Membership', ?, date('now'))");
+        vq.addBindValue(m_currentPersonId);
+        vq.addBindValue(QString("Membership Request - %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
+        vq.addBindValue(path);
+        vq.exec();
+        updateDocumentsSection(m_currentPersonId);
+    }
+}
+
+void PeopleWidget::onViewAppScan() {
+    QString path = m_txtAppScanPath ? m_txtAppScanPath->text().trimmed() : "";
+    if (path.isEmpty()) return;
+    if (!QFile::exists(path)) {
+        QMessageBox::warning(this, "File Not Found", QString("Could not find the attached file at:\n%1").arg(path));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+void PeopleWidget::onClearAppScan() {
+    if (m_isReadOnly) return;
+    if (m_txtAppScanPath) m_txtAppScanPath->clear();
+    if (m_lblAppScanStatus) {
+        m_lblAppScanStatus->setText("<i>No scanned request attached</i>");
+        m_lblAppScanStatus->setStyleSheet("color: palette(placeholderText); font-size: 11px;");
+    }
+    if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(false);
+    if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(false);
+    setDirty(true);
+}
+

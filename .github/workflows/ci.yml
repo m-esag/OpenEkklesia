@@ -1,0 +1,87 @@
+name: CI
+
+# Build and test on every push and pull request.
+#
+# The suite is a self-contained CHECK/CHECK_EQ harness (not QtTest) that
+# constructs real widgets, so it needs a display-less Qt platform plugin
+# (offscreen) rather than a real X server.
+#
+# The Linux job uses the distribution's Qt 6 packages; the Windows job uses
+# the official Qt 6.8.3 binaries via install-qt-action.
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (Ubuntu, GCC)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6 and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-charts-dev \
+            libqt6sql6-sqlite \
+            libgl1-mesa-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build
+        # --keep-going makes ninja report every failing translation unit
+        # instead of stopping at the first, so one CI run surfaces all
+        # portability problems instead of one per run.
+        run: cmake --build build --parallel -- -k 0
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: "windows"
+          target: "desktop"
+          arch: "win64_msvc2022_64"
+          modules: "qtcharts"
+          cache: true
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build -C Release --output-on-failure

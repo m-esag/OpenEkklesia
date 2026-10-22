@@ -6,6 +6,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QPointF>
 #include <QVector>
 #include <QPushButton>
@@ -27,6 +28,7 @@
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QPinchGesture>
 #include "thememanager.h"
 
 class NodeItem;
@@ -168,6 +170,8 @@ public:
     QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
+    void adjust();
+
     void setSelectedState(bool sel) { m_isSelected = sel; update(); }
     bool isSelectedState() const { return m_isSelected; }
 
@@ -199,6 +203,8 @@ public:
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
+    void adjust();
+
 private:
     NodeItem* m_source;
     NodeItem* m_target;
@@ -215,6 +221,7 @@ public:
     void setSelectMode(bool selectMode);
 
 protected:
+    bool event(QEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
@@ -224,8 +231,10 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private:
+    bool handlePinchGesture(QPinchGesture* pinch);
     GraphWidget* m_graphWidget = nullptr;
     bool m_selectMode = false;
+    double m_pinchStartZoom = 1.0;
 };
 
 class GraphWidget : public QWidget {
@@ -242,8 +251,14 @@ public:
     ~GraphWidget();
 
     void loadGraph();
+    // Reloads only when underlying data changed since the last full load
+    // (DatabaseManager::dataGeneration) or the last load is older than the
+    // staleness fallback. Makes graph-page re-entry instant; the fallback
+    // bounds staleness for writes that never bump the generation.
+    void loadGraphIfDirty();
     void pausePhysics();
     void resumePhysics();
+    bool physicsRunning() const;
     void setRepulsionStrength(double val);
     void applyTreeHierarchyLayout();
 
@@ -253,6 +268,7 @@ public:
     void handleNodeClick(NodeItem* node);
     void selectNodeForDetails(NodeItem* node);
     void selectEdgeForDetails(EdgeItem* edge);
+    void updateEdgesForNode(NodeItem* node);
     void showNodeContextMenu(NodeItem* node, const QPoint& globalPos);
     void applyRole(const QString& role);
     void applyTheme(const ThemeTokens& tokens);
@@ -538,6 +554,8 @@ private:
     double m_damping;
     double m_gravity;
     bool m_physicsRunning;
+    quint64 m_loadedGeneration = 0;      // DatabaseManager::dataGeneration() at last full load
+    QElapsedTimer m_sinceLoad;           // staleness fallback for unlogged writes
 
     int m_burnoutThreshold = 3;
     int m_familyDominancePercent = 40;

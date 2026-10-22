@@ -1,14 +1,31 @@
 #include <QApplication>
+#include <QGuiApplication>
 #include <QMessageBox>
+#if defined(Q_OS_WIN)
+#include <windows.h>
+#include <shobjidl.h>
+#endif
 #include "databasemanager.h"
 #include "mainwindow.h"
 #include "thememanager.h"
+#include "touchhelper.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
+    // Touchscreen + active pen (e.g. Latitude 7320 Detachable / PN7320A):
+    // untracked touch becomes mouse clicks; pen already acts as a mouse.
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents, true);
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
+#if defined(Q_OS_WIN)
+    SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
+#endif
+#if defined(Q_OS_WIN)
+    SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
+#endif
     QApplication app(argc, argv);
+    TouchHelper::installAppWide();
     app.setApplicationName("OpenEkklesia");
     app.setOrganizationName("OpenEkklesia");
 
@@ -18,7 +35,7 @@ int main(int argc, char *argv[]) {
     // a stable, user-writable location (QStandardPaths::AppDataLocation) so
     // data survives regardless of where the binary is launched from.
     if (!DatabaseManager::instance().initialize(QString())) {
-        QMessageBox::critical(nullptr, "Database Error", 
+        QMessageBox::critical(nullptr, "Database Error",
                               "Failed to open or initialize the application database. OpenEkklesia will now exit.");
         return 1;
     }

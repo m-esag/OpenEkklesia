@@ -20,6 +20,7 @@
 #include <QCache>
 #include <QMouseEvent>
 #include <QStackedWidget>
+#include <QCheckBox>
 
 // Custom Clickable Avatar Label with Camera Overlay on Hover
 class ClickableAvatarLabel : public QLabel {
@@ -138,6 +139,10 @@ private slots:
     void onOpenPersonDocument(QListWidgetItem* item);
     void onPeopleTableContextMenu(const QPoint& pos);
     void onTimelineContextMenu(const QPoint& pos);
+    void onAttachAppScan();
+    void onViewAppScan();
+    void onClearAppScan();
+    void onPromoteToMember();
 
 private:
     void setupUI();
@@ -161,6 +166,7 @@ private:
     bool deletePersonCascade(QSqlQuery& q, int personId);
     void updateGivingSummary(int personId);
     void updateDocumentsSection(int personId);
+    void updatePathwayUI();
     void setDirty(bool dirty);
     void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 
@@ -211,6 +217,35 @@ private:
     QComboBox* m_statusCombo = nullptr;
     QDateEdit* m_firstVisitEdit = nullptr;
     QDateEdit* m_joinDateEdit = nullptr;
+
+    // Tab 0: Discipleship & Membership Pathway
+    QFrame* m_pnlPathwayStepper = nullptr;
+    QLabel* m_lblPathwayStepVisitor = nullptr;
+    QLabel* m_lblPathwayStepAttender = nullptr;
+    QLabel* m_lblPathwayStepBaptized = nullptr;
+    QLabel* m_lblPathwayStepNextSteps = nullptr;
+    QLabel* m_lblPathwayStepMember = nullptr;
+
+    QFrame* m_pnlReadinessBanner = nullptr;
+    QLabel* m_lblReadinessIcon = nullptr;
+    QLabel* m_lblReadinessText = nullptr;
+    QPushButton* m_btnPromoteToMember = nullptr;
+
+    QCheckBox* m_chkBaptized = nullptr;
+    QLineEdit* m_txtBaptismDate = nullptr;
+    QPushButton* m_btnPickBaptismDate = nullptr;
+
+    QCheckBox* m_chkNextSteps = nullptr;
+    QLineEdit* m_txtNextStepsDate = nullptr;
+    QPushButton* m_btnPickNextStepsDate = nullptr;
+
+    QLineEdit* m_txtAppScanPath = nullptr;
+    QLabel* m_lblAppScanStatus = nullptr;
+    QPushButton* m_btnAttachAppScan = nullptr;
+    QPushButton* m_btnViewAppScan = nullptr;
+    QPushButton* m_btnClearAppScan = nullptr;
+
+    QComboBox* m_cmbPathwayFilter = nullptr;
 
     // Tab 1: Pastoral Care & History
     QComboBox* m_careFlagCombo = nullptr;

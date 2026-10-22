@@ -1,4 +1,5 @@
 #include "shepherdwidget.h"
+#include "../../common/tableutil.h"
 #include "../database/databasemanager.h"
 #include "../core/thememanager.h"
 #include "../core/iconmanager.h"
@@ -106,6 +107,7 @@ void ShepherdWidget::setupUI() {
     m_queueTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_queueTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_queueTable->verticalHeader()->setVisible(false);
+    TableUtil::applyStandardTableSetup(m_queueTable, false); // QTableWidget items are not sortable without item data
     m_queueTable->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_queueTable, &QTableWidget::customContextMenuRequested, this, &ShepherdWidget::onQueueContextMenu);
     connect(m_queueTable, &QTableWidget::cellDoubleClicked, this, &ShepherdWidget::onQueueActivated);
@@ -557,7 +559,7 @@ void ShepherdWidget::onMarkFollowUpDone() {
 
 void ShepherdWidget::onRescheduleFollowUp() {
     int row = m_queueTable->currentRow();
-    if (row < 0 || !m_queueTable->item(row, 0)) {
+    if (row < 0 || !m_queueTable->item(row, 0) || !m_queueTable->item(row, 1)) {
         QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
         return;
     }
@@ -619,7 +621,8 @@ void ShepherdWidget::onRescheduleFollowUp() {
 
 void ShepherdWidget::onExportCalendarEvent() {
     int row = m_queueTable->currentRow();
-    if (row < 0 || !m_queueTable->item(row, 0)) {
+    if (row < 0 || !m_queueTable->item(row, 0) || !m_queueTable->item(row, 1)
+        || !m_queueTable->item(row, 2) || !m_queueTable->item(row, 3)) {
         QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
         return;
     }
@@ -637,6 +640,11 @@ void ShepherdWidget::onExportCalendarEvent() {
 
     QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Reminder (.ics)", defaultFile, "iCalendar Files (*.ics)");
     if (fileName.isEmpty()) return;
+
+    auto warn = QMessageBox::warning(this, "Data Security Notice",
+        "This calendar file contains pastoral care details in plain text.\nOnly store it on a trusted device.",
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (warn != QMessageBox::Ok) return;
 
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -668,13 +676,15 @@ void ShepherdWidget::onExportCalendarEvent() {
     out << "END:VCALENDAR\n";
     file.close();
 
+    DatabaseManager::logAudit("exports", id, "pastoral_ics", memberName, fileName, "shepherd");
     QMessageBox::information(this, "Calendar Event Exported",
         QString("Calendar reminder exported successfully!\n\nYou can open this file in Outlook, Apple Calendar, Google Calendar, or Thunderbird:\n%1").arg(fileName));
 }
 
 void ShepherdWidget::onQueueContextMenu(const QPoint& pos) {
     int row = m_queueTable->rowAt(pos.y());
-    if (row < 0 || !m_queueTable->item(row, 0)) return;
+    if (row < 0 || !m_queueTable->item(row, 0) || !m_queueTable->item(row, 1)
+        || !m_queueTable->item(row, 2)) return;
 
     m_queueTable->selectRow(row);
     int personId = m_queueTable->item(row, 1)->data(Qt::UserRole + 1).toInt();

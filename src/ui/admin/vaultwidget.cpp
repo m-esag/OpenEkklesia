@@ -22,6 +22,7 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QDateEdit>
 #include <QComboBox>
@@ -101,7 +102,7 @@ void VaultWidget::setupUI() {
     QHBoxLayout* controls = new QHBoxLayout();
     
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("🔍 Search documents...");
+    m_searchEdit->setPlaceholderText("Search documents...");
     m_searchEdit->setFixedWidth(220);
     m_searchEdit->setObjectName("searchEdit");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &VaultWidget::onSearchChanged);
@@ -184,8 +185,15 @@ void VaultWidget::setupUI() {
                     QFileInfo fi(fullPath);
                     QString savePath = QFileDialog::getSaveFileName(this, "Export Document", fi.fileName(), "All Files (*.*)");
                     if (!savePath.isEmpty()) {
-                        QFile::copy(fullPath, savePath);
-                        QMessageBox::information(this, "Success", "Document copy saved!");
+                        // QFile::copy fails if the destination exists — remove first
+                        // and report the real result instead of false success.
+                        if (QFile::exists(savePath)) QFile::remove(savePath);
+                        if (QFile::copy(fullPath, savePath)) {
+                            QMessageBox::information(this, "Success", "Document copy saved!");
+                        } else {
+                            QMessageBox::warning(this, "Export Failed",
+                                "Could not save a copy (check disk space and permissions).");
+                        }
                     }
                 }
             }
@@ -387,6 +395,12 @@ void VaultWidget::onUploadClicked() {
     form->addRow("Person:", personCombo);
     const int groupRow = form->rowCount();
     form->addRow("Group:", groupCombo);
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+    // Row indices are only consumed by setRowVisible (Qt >= 6.4); silence
+    // -Wunused-variable on the older-Qt Linux build.
+    Q_UNUSED(personRow);
+    Q_UNUSED(groupRow);
+#endif
 
     // Auto-title ("Category — Person/Group — date") unless the user edits it.
     bool titleTouched = false;
@@ -457,8 +471,8 @@ void VaultWidget::onUploadClicked() {
         insert.addBindValue(finalFilename);
         const int personId = personCombo->currentData().toInt();
         const int groupId = groupCombo->currentData().toInt();
-        insert.addBindValue(personId > 0 ? QVariant(personId) : QVariant(QMetaType(QMetaType::Int)));
-        insert.addBindValue(groupId > 0 ? QVariant(groupId) : QVariant(QMetaType(QMetaType::Int)));
+        insert.addBindValue(personId > 0 ? QVariant(personId) : QVariant());
+        insert.addBindValue(groupId > 0 ? QVariant(groupId) : QVariant());
 
         if (insert.exec()) {
             dlg.accept();
@@ -760,5 +774,11 @@ void VaultWidget::onExportMinutesPDF() {
     printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout::Millimeter);
 
     doc.print(&printer);
+    QFileInfo doneInfo(savePath);
+    if (!doneInfo.exists() || doneInfo.size() == 0) {
+        QMessageBox::warning(this, "Export Failed",
+            "Could not write minutes PDF (check disk space and permissions).");
+        return;
+    }
     QMessageBox::information(this, "PDF Export Complete", QString("Board Minutes PDF successfully exported to:\n%1").arg(savePath));
 }

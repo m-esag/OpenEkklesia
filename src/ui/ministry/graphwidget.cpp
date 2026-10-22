@@ -4,6 +4,9 @@
 #include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
 #include "matchdialog.h"
+#include <QApplication>
+#include <QGestureEvent>
+#include <QPinchGesture>
 #include <QPainter>
 #include <QPainterPathStroker>
 #include <QGraphicsSceneMouseEvent>
@@ -341,14 +344,22 @@ void NodeItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void NodeItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     QGraphicsItem::mouseMoveEvent(event);
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
 }
 
 void NodeItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     isBeingDragged = false;
     QGraphicsItem::mouseReleaseEvent(event);
 
+    GraphWidget* gw = findParentGraphWidget(this);
+    if (gw) {
+        gw->updateEdgesForNode(this);
+    }
+
     if ((event->screenPos() - m_dragStartPos).manhattanLength() < 5) {
-        GraphWidget* gw = findParentGraphWidget(this);
         if (gw) gw->handleNodeClick(this);
     }
 }
@@ -400,6 +411,11 @@ QRectF EdgeItem::boundingRect() const {
     QPointF p1 = m_source->pos();
     QPointF p2 = m_target->pos();
     return QRectF(p1, p2).normalized().adjusted(-15, -15, 15, 15);
+}
+
+void EdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 QPainterPath EdgeItem::shape() const {
@@ -496,12 +512,26 @@ GhostEdgeItem::GhostEdgeItem(NodeItem* source, NodeItem* target, const QString& 
     : m_source(source), m_target(target), m_matchReason(matchReason), m_matchPct(matchPct), m_isSolid(isSolid)
 {
     setZValue(-1);
-    setToolTip(QString("💡 Smart Bridge Recommendation: %1\n%2% Match — %3").arg(target->name()).arg(matchPct).arg(matchReason));
+    const QString targetName = target ? target->name() : QString("?");
+    setToolTip(QString("💡 Smart Bridge Recommendation: %1\n%2% Match — %3").arg(targetName).arg(matchPct).arg(matchReason));
 }
 
 QRectF GhostEdgeItem::boundingRect() const {
-    if (!m_source || !m_target) return QRectF();
-    return QRectF(m_source->pos(), m_target->pos()).normalized().adjusted(-30, -30, 30, 30);
+    if (!m_source || !m_target || !m_source->isVisible() || !m_target->isVisible()) return QRectF();
+    QPointF p1 = m_source->pos();
+    QPointF p2 = m_target->pos();
+    QPointF mid = (p1 + p2) / 2.0;
+    QPointF diff = p2 - p1;
+    QPointF normal(-diff.y() * 0.12, diff.x() * 0.12);
+    QPointF ctrl = mid + normal;
+    QRectF r = QRectF(p1, p2).normalized();
+    r = r.united(QRectF(ctrl, ctrl));
+    return r.adjusted(-20, -20, 20, 20);
+}
+
+void GhostEdgeItem::adjust() {
+    prepareGeometryChange();
+    update();
 }
 
 void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
@@ -541,14 +571,94 @@ void GhostEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QW
 
 // --- GraphCanvasView Implementation ---
 
+namespace {
+// Zoom-out crash guard: unbounded scale() drives the view transform toward 0
+// (then mapToScene divides by ~0 -> inf/nan -> paint crash) or toward huge
+// values on repeated zoom-in (painter overflow). Clamp uniform scale.
+constexpr double kMinZoom = 0.15;
+constexpr double kMaxZoom = 4.0;
+constexpr double kSceneBound = 1900.0;
+constexpr int kMaxGridPoints = 20000;
+
+double currentZoom(const QGraphicsView* v) {
+    if (!v) return 1.0;
+    const double m11 = v->transform().m11();
+    // transform() is scale-only in this widget (scale/reset/fitInView), so
+    // m11 is the uniform zoom. Guard against degenerate transforms.
+    if (!std::isfinite(m11) || m11 <= 0.0) return 1.0;
+    return m11;
+}
+
+bool clampedScale(QGraphicsView* v, double factor) {
+    if (!v || !std::isfinite(factor) || factor <= 0.0) return false;
+    const double cur = currentZoom(v);
+    double want = cur * factor;
+    if (want < kMinZoom) factor = kMinZoom / cur;
+    else if (want > kMaxZoom) factor = kMaxZoom / cur;
+    // Already at the bound and pushing further out: swallow, don't scale.
+    if (!std::isfinite(factor) || qFuzzyCompare(factor, 1.0)) return false;
+    v->scale(factor, factor);
+    return true;
+}
+} // namespace
+
 GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
     : QGraphicsView(scene, parent), m_selectMode(false)
 {
     setRenderHint(QPainter::Antialiasing);
     setDragMode(QGraphicsView::ScrollHandDrag);
+    // FullViewportUpdate repaints the visible canvas cleanly on each frame,
+    // eliminating dirty-rect striations / ghost edge trails during physics
+    // simulation, dragging, and panning. The physics layout auto-freezes once
+    // settled, so this incurs zero idle CPU overhead.
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Keep zoom centered under the cursor and stable on resize.
+    setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    // Touchscreen (detachable 2-in-1) + active pen: taps synthesize mouse by
+    // default; grab pinch so two-finger zoom works on the canvas.
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
+    viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    grabGesture(Qt::PinchGesture);
+}
+
+bool GraphCanvasView::event(QEvent* event) {
+    if (event && event->type() == QEvent::Gesture) {
+        auto* ge = static_cast<QGestureEvent*>(event);
+        if (QGesture* g = ge->gesture(Qt::PinchGesture)) {
+            if (auto* pinch = static_cast<QPinchGesture*>(g)) {
+                if (handlePinchGesture(pinch)) {
+                    event->accept();
+                    return true;
+                }
+            }
+        }
+    }
+    return QGraphicsView::event(event);
+}
+
+bool GraphCanvasView::handlePinchGesture(QPinchGesture* pinch) {
+    if (!pinch) return false;
+    const double total = pinch->totalScaleFactor();
+    if (!std::isfinite(total) || total <= 0.0) return false;
+    if (pinch->state() == Qt::GestureStarted) {
+        m_pinchStartZoom = currentZoom(this);
+        return true;
+    }
+    if (pinch->state() == Qt::GestureUpdated) {
+        if (!std::isfinite(m_pinchStartZoom) || m_pinchStartZoom <= 0.0)
+            m_pinchStartZoom = currentZoom(this);
+        double want = m_pinchStartZoom * total;
+        if (!std::isfinite(want) || want <= 0.0) return true;
+        want = qBound(kMinZoom, want, kMaxZoom);
+        const double cur = currentZoom(this);
+        if (cur <= 0.0 || qFuzzyCompare(cur, want)) return true;
+        clampedScale(this, want / cur);
+        return true;
+    }
+    return false;
 }
 
 void GraphCanvasView::setSelectMode(bool selectMode) {
@@ -561,8 +671,12 @@ void GraphCanvasView::setSelectMode(bool selectMode) {
 }
 
 void GraphCanvasView::wheelEvent(QWheelEvent* event) {
+    if (event->angleDelta().y() == 0) {
+        QGraphicsView::wheelEvent(event);
+        return;
+    }
     double factor = (event->angleDelta().y() > 0) ? 1.15 : 0.85;
-    scale(factor, factor);
+    clampedScale(this, factor);
     event->accept();
 }
 
@@ -601,7 +715,16 @@ void GraphCanvasView::contextMenuEvent(QContextMenuEvent* event) {
     } else if (sel == actExportPng) {
         m_graphWidget->onExportPNG();
     } else if (sel == actFit) {
-        if (scene()) fitInView(scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+        if (scene()) {
+            const QRectF bounds = scene()->itemsBoundingRect();
+            if (bounds.isValid() && !bounds.isNull() && bounds.width() > 0.0 && bounds.height() > 0.0
+                && std::isfinite(bounds.width()) && std::isfinite(bounds.height())) {
+                fitInView(bounds, Qt::KeepAspectRatio);
+                const double z = currentZoom(this);
+                if (z < kMinZoom) clampedScale(this, kMinZoom / z);
+                else if (z > kMaxZoom) clampedScale(this, kMaxZoom / z);
+            }
+        }
     }
 }
 
@@ -636,18 +759,38 @@ void GraphCanvasView::drawBackground(QPainter* painter, const QRectF& rect) {
     ThemeTokens tok = ThemeManager::instance().currentTokens();
     painter->fillRect(rect, tok.bgBase);
 
+    // Far zoom-out makes `rect` enormous (viewport mapped to scene). Drawing
+    // a 50px dot grid for the whole rect would allocate millions of points
+    // and hang/crash. Adapt the step so the point count stays bounded, and
+    // skip dots entirely past a sane limit.
+    if (!rect.isValid() || !std::isfinite(rect.width()) || !std::isfinite(rect.height())
+        || rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return;
+    }
+    double gridSize = 50.0;
+    const double area = rect.width() * rect.height();
+    if (area / (gridSize * gridSize) > kMaxGridPoints) {
+        gridSize = std::ceil(std::sqrt(area / kMaxGridPoints));
+        if (!std::isfinite(gridSize) || gridSize <= 0.0) return;
+    }
+    // Past ~400px steps the grid is sub-pixel noise — skip it.
+    if (gridSize > 400.0) return;
+
     painter->setPen(QPen(tok.bgSurface, 1, Qt::DotLine));
-    int gridSize = 50;
     qreal left = std::floor(rect.left() / gridSize) * gridSize;
     qreal top = std::floor(rect.top() / gridSize) * gridSize;
 
     QVector<QPointF> points;
+    points.reserve(kMaxGridPoints);
     for (qreal x = left; x < rect.right(); x += gridSize) {
         for (qreal y = top; y < rect.bottom(); y += gridSize) {
             points.append(QPointF(x, y));
+            if (points.size() >= kMaxGridPoints) break;
         }
+        if (points.size() >= kMaxGridPoints) break;
     }
-    painter->drawPoints(points.data(), points.size());
+    if (!points.isEmpty())
+        painter->drawPoints(points.data(), points.size());
 }
 
 void GraphCanvasView::drawForeground(QPainter* painter, const QRectF&) {
@@ -684,6 +827,9 @@ GraphWidget::GraphWidget(QWidget* parent)
     {
         QSettings s("OpenEkklesia", "CHMS");
         m_physicsRunning = s.value("graphPhysicsEnabled", true).toBool();
+        // Advisory thresholds from Settings → Pastoral & Graph (live, not hardcoded).
+        m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
+        m_familyDominancePercent = qBound(10, s.value("familyDominancePercent", 40).toInt(), 90);
     }
     m_timer->start(33);
 
@@ -698,15 +844,33 @@ GraphWidget::~GraphWidget() {
 
 void GraphWidget::styleFilterButton(QPushButton* btn, bool active, const QColor& activeColor) {
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
-    const QString textOnActive = (activeColor.lightness() > 140) ? "#11111b" : "#ffffff";
     if (active) {
+        const QString textOnActive = ThemeManager::textOn(activeColor).name();
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(activeColor.name(), textOnActive));
+        // The icon was painted in the accent color at creation; on an accent
+        // fill it would vanish. Repaint it in the on-accent color.
+        const QIcon cur = btn->icon();
+        if (cur.isNull()) return;
+        // Re-render from the icon's last known name is not possible, so the
+        // caller-supplied accent below is stored per-button via a property
+        // set at creation; fall back to textOn for safety.
+        const QVariant iconName = btn->property("iconName");
+        if (iconName.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         ThemeManager::textOn(activeColor), 14));
+        }
     } else {
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 5px 10px; font-size: 11px; }")
             .arg(tok.bgSurface.name(), tok.textSecondary.name(), tok.borderColor.name()));
+        const QVariant iconName = btn->property("iconName");
+        const QVariant iconColor = btn->property("iconColor");
+        if (iconName.isValid() && iconColor.isValid()) {
+            btn->setIcon(IconManager::instance().getIcon(iconName.toString(),
+                                                         QColor(iconColor.toString()), 14));
+        }
     }
 }
 
@@ -772,18 +936,28 @@ void GraphWidget::setupUI() {
 
     m_btnTogglePeople = createToggleBtn("People", true);
     m_btnTogglePeople->setIcon(IconManager::instance().getIcon("user", tok.accentPrimary, 14));
+    m_btnTogglePeople->setProperty("iconName", "user");
+    m_btnTogglePeople->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnTogglePeople, true, tok.accentPrimary);
     m_btnToggleHouseholds = createToggleBtn("Households", true);
     m_btnToggleHouseholds->setIcon(IconManager::instance().getIcon("users", tok.accentPrimary, 14));
+    m_btnToggleHouseholds->setProperty("iconName", "users");
+    m_btnToggleHouseholds->setProperty("iconColor", tok.accentPrimary.name());
     styleFilterButton(m_btnToggleHouseholds, true, tok.accentPrimary);
     m_btnToggleGroups = createToggleBtn("Groups", true);
     m_btnToggleGroups->setIcon(IconManager::instance().getIcon("layers", tok.accentPrimary, 14));
+    m_btnToggleGroups->setProperty("iconName", "layers");
+    m_btnToggleGroups->setProperty("iconColor", tok.accentSuccess.name());
     styleFilterButton(m_btnToggleGroups, true, tok.accentPrimary);
     m_btnToggleBurnout = createToggleBtn("Burnout", false);
     m_btnToggleBurnout->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentWarning, 14));
+    m_btnToggleBurnout->setProperty("iconName", "alert-triangle");
+    m_btnToggleBurnout->setProperty("iconColor", tok.accentWarning.name());
     styleFilterButton(m_btnToggleBurnout, false, tok.accentWarning);
     m_btnToggleIsolation = createToggleBtn("Isolated", false);
     m_btnToggleIsolation->setIcon(IconManager::instance().getIcon("alert-triangle", tok.accentDanger, 14));
+    m_btnToggleIsolation->setProperty("iconName", "alert-triangle");
+    m_btnToggleIsolation->setProperty("iconColor", tok.accentDanger.name());
     styleFilterButton(m_btnToggleIsolation, false, tok.accentDanger);
     m_btnToggleHygiene = createToggleBtn("Hygiene", false);
     m_btnToggleHygiene->setIcon(IconManager::instance().getIcon("sparkles", tok.accentSuccess, 14));
@@ -1774,6 +1948,11 @@ void GraphWidget::onBatchCopyPhones() {
 }
 
 void GraphWidget::onBatchExportCSV() {
+    auto warn = QMessageBox::warning(this, "Data Security Notice",
+        "This export contains personal contact details and directory data.\n"
+        "Ensure it is stored on an encrypted drive.",
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (warn != QMessageBox::Ok) return;
     QString fileName = QFileDialog::getSaveFileName(this, "Export Batch CSV", "selected_network.csv", "CSV Files (*.csv)");
     if (fileName.isEmpty()) return;
 
@@ -1802,6 +1981,7 @@ void GraphWidget::onBatchExportCSV() {
         }
     }
     file.close();
+    DatabaseManager::logAudit("exports", 0, "batch_csv", QString::number(m_lstBatchMembers->count()), fileName, "graph");
     QMessageBox::information(this, "Export Complete", QString("Exported %1 records to CSV.").arg(m_lstBatchMembers->count()));
 }
 
@@ -2297,6 +2477,13 @@ void GraphWidget::loadGraph() {
     m_pathHighlightedNodes.clear();
     m_pathHighlightedEdges.clear();
 
+    // Re-read advisory thresholds so Settings changes apply without restart.
+    {
+        QSettings s("OpenEkklesia", "CHMS");
+        m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
+        m_familyDominancePercent = qBound(10, s.value("familyDominancePercent", 40).toInt(), 90);
+    }
+
     m_scene->clear();
     m_nodes.clear();
     m_edges.clear();
@@ -2529,7 +2716,23 @@ void GraphWidget::loadGraph() {
     onFilterToggled();
     refreshHierarchyTree();
     updateDetailsPanelForEmpty();
+    m_loadedGeneration = DatabaseManager::dataGeneration();
+    m_sinceLoad.restart();
     resumePhysics(); // fresh graph starts moving until it settles (auto-freeze)
+}
+
+void GraphWidget::loadGraphIfDirty() {
+    const quint64 gen = DatabaseManager::dataGeneration();
+    const bool clean = !m_nodes.isEmpty()
+                       && m_loadedGeneration == gen
+                       && m_sinceLoad.isValid()
+                       && m_sinceLoad.elapsed() < 5 * 60 * 1000; // staleness fallback
+    if (clean) return;
+    loadGraph();
+}
+
+bool GraphWidget::physicsRunning() const {
+    return m_physicsRunning && m_timer && m_timer->isActive();
 }
 
 void GraphWidget::updateIsolationQuery() {
@@ -2546,11 +2749,12 @@ void GraphWidget::updateIsolationQuery() {
         m_btnIsolatedBanner->setText(QString(" %1 Unconnected Members").arg(count));
         const ThemeTokens t = ThemeManager::instance().currentTokens();
         m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", t.accentDanger, 14));
-        QColor dangerBg = t.accentDanger;
-        dangerBg.setAlpha(40);
+        const QColor onDanger = ThemeManager::textOn(t.accentDanger);
         m_btnIsolatedBanner->setStyleSheet(
-            QString("QPushButton { background-color: %1; color: %2; border: 1px solid %2; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
-                .arg(dangerBg.name(), t.accentDanger.name()));
+            QString("QPushButton { background-color: rgba(%1, %2, %3, 0.4); color: %4; border: 1px solid %5; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 5px 10px; }")
+                .arg(t.accentDanger.red()).arg(t.accentDanger.green()).arg(t.accentDanger.blue())
+                .arg(onDanger.name(), t.accentDanger.name()));
+        m_btnIsolatedBanner->setIcon(IconManager::instance().getIcon("alert-triangle", onDanger, 14));
     }
 }
 
@@ -2850,6 +3054,20 @@ void GraphWidget::onRosterItemClicked(QListWidgetItem* item) {
     }
 }
 
+void GraphWidget::updateEdgesForNode(NodeItem* node) {
+    if (!node) return;
+    for (EdgeItem* e : m_edges) {
+        if (e && (e->sourceNode() == node || e->targetNode() == node)) {
+            e->adjust();
+        }
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge && (ge->sourceNode() == node || ge->targetNode() == node)) {
+            ge->adjust();
+        }
+    }
+}
+
 void GraphWidget::onSeverSelectedEdge() {
     if (!m_selectedEdgeForDetails) return;
 
@@ -2936,6 +3154,7 @@ void GraphWidget::onSeverSelectedEdge() {
 
 void GraphWidget::onGroupSuggest() {
     if (!m_selectedNodeForDetails || m_selectedNodeForDetails->nodeType() != NodeItem::Group) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int gid = m_selectedNodeForDetails->id();
 
     MatchDialog dlg(gid, this);
@@ -2950,6 +3169,7 @@ void GraphWidget::onGroupSuggest() {
 
 void GraphWidget::onLogContact() {
     if (!m_selectedNodeForDetails || !m_selectedNodeForDetails->isPersonNode()) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int pid = m_selectedNodeForDetails->id();
 
     QSqlDatabase db = DatabaseManager::instance().database();
@@ -3124,10 +3344,12 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aAssign = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Group...");
         QMenu* mCare = m.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
-        QAction* cActive = mCare->addAction("Active Member");
-        QAction* cLeader = mCare->addAction("Leader");
-        QAction* cRisk = mCare->addAction("At-Risk");
-        QAction* cContact = mCare->addAction("Needs Contact");
+        // The other care-flag entries are matched by text (sel->text()), not
+        // by pointer, so they need no stored handles.
+        mCare->addAction("Active Member");
+        mCare->addAction("Leader");
+        mCare->addAction("At-Risk");
+        mCare->addAction("Needs Contact");
 
         if (isReadOnly) {
             aAssign->setEnabled(false); aAssign->setToolTip(roTooltip);
@@ -3445,6 +3667,7 @@ void GraphWidget::runBFSPathfind() {
 
 void GraphWidget::onSaveNotes() {
     if (!m_selectedNodeForDetails) return;
+    if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     QString notes = m_txtAdminNotes->toPlainText().trimmed();
     m_selectedNodeForDetails->setAdminNotes(notes);
 
@@ -3703,18 +3926,32 @@ void GraphWidget::clearSceneSelection() {
 }
 
 void GraphWidget::onZoomIn() {
-    m_canvasView->scale(1.2, 1.2);
+    if (!m_canvasView) return;
+    clampedScale(m_canvasView, 1.2);
 }
 
 void GraphWidget::onZoomOut() {
-    m_canvasView->scale(0.8, 0.8);
+    if (!m_canvasView) return;
+    clampedScale(m_canvasView, 0.8);
 }
 
 void GraphWidget::onZoomReset() {
+    if (!m_canvasView || !m_scene) return;
     m_canvasView->resetTransform();
-    if (!m_nodes.isEmpty()) {
-        m_canvasView->fitInView(m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50), Qt::KeepAspectRatio);
+    if (m_nodes.isEmpty()) return;
+    const QRectF bounds = m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50);
+    // fitInView with a null/degenerate rect produces a degenerate transform
+    // (the next wheel/scale then divides by ~0). Guard it.
+    if (!bounds.isValid() || bounds.isNull() || bounds.width() <= 0.0 || bounds.height() <= 0.0
+        || !std::isfinite(bounds.width()) || !std::isfinite(bounds.height())) {
+        return;
     }
+    m_canvasView->fitInView(bounds, Qt::KeepAspectRatio);
+    // fitInView can still land outside the safe band for very large/small
+    // graphs (huge sceneRect vs tiny cluster) — clamp back inside.
+    const double z = currentZoom(m_canvasView);
+    if (z < kMinZoom) clampedScale(m_canvasView, kMinZoom / z);
+    else if (z > kMaxZoom) clampedScale(m_canvasView, kMaxZoom / z);
 }
 
 void GraphWidget::applyForceDirectedLayout() {
@@ -3772,12 +4009,25 @@ void GraphWidget::applyForceDirectedLayout() {
         }
 
         if (speed > 0.04) {
-            n1->setPos(n1->pos() + n1->velocity);
+            QPointF next = n1->pos() + n1->velocity;
+            // Keep nodes inside the scene so itemsBoundingRect can never grow
+            // unbounded (which would make fitInView zoom to ~0 and explode
+            // the background grid / paint math on the next zoom-out).
+            next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+            next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+            n1->setPos(next);
         }
         m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, speed);
     }
 
     resolveNodeOverlaps();
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 // Hard collision resolution: directly separate any two visible nodes whose
@@ -3804,8 +4054,18 @@ void GraphWidget::resolveNodeOverlaps() {
             // along an arbitrary axis instead of skipping them.
             const QPointF dir = (dist < 0.001) ? QPointF(1.0, 0.0) : delta / dist;
             const double push = (minDist - dist) * 0.5;
-            if (!a->isBeingDragged && !a->isPinned()) a->setPos(a->pos() - dir * push);
-            if (!b->isBeingDragged && !b->isPinned()) b->setPos(b->pos() + dir * push);
+            if (!a->isBeingDragged && !a->isPinned()) {
+                QPointF next = a->pos() - dir * push;
+                next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+                next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+                a->setPos(next);
+            }
+            if (!b->isBeingDragged && !b->isPinned()) {
+                QPointF next = b->pos() + dir * push;
+                next.setX(qBound(-kSceneBound, next.x(), kSceneBound));
+                next.setY(qBound(-kSceneBound, next.y(), kSceneBound));
+                b->setPos(next);
+            }
             m_lastMaxDisplacement = qMax(m_lastMaxDisplacement, push);
         }
     }
@@ -3848,10 +4108,20 @@ void GraphWidget::applyClusteredLayout() {
         resolveNodeOverlaps();
         if (m_lastMaxDisplacement < 0.05 || qFuzzyCompare(m_lastMaxDisplacement, before)) break;
     }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
+    }
 }
 
 void GraphWidget::updatePhysics() {
     if (!m_physicsRunning || m_layoutMode != ForceDirected) return;
+    // Never mutate the scene while a modal dialog (sever confirm, MatchDialog)
+    // holds the event loop — that path clears/deletes nodes mid-iteration.
+    if (QApplication::activeModalWidget()) return;
     if (m_nodes.isEmpty()) {
         m_timer->stop(); // nothing to simulate — don't idle at 30 FPS
         return;
@@ -3902,7 +4172,13 @@ void GraphWidget::applyRole(const QString& role) {
 }
 
 void GraphWidget::applyTheme(const ThemeTokens& tok) {
-    if (m_scene) m_scene->update();
+    if (m_scene) {
+        m_scene->setBackgroundBrush(tok.bgBase);
+        m_scene->update();
+    }
+    if (m_canvasView) {
+        m_canvasView->setBackgroundBrush(tok.bgBase);
+    }
     styleChromeWidgets(tok);
     restyleChrome(tok);
 }
@@ -4103,6 +4379,13 @@ void GraphWidget::loadNodePositions() {
                 }
             }
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 }
 
@@ -4315,6 +4598,13 @@ void GraphWidget::applyTreeHierarchyLayout() {
             placedPersonIds.insert(p->id());
             ++memIdx;
         }
+    }
+
+    for (EdgeItem* e : m_edges) {
+        if (e) e->adjust();
+    }
+    for (GhostEdgeItem* ge : m_ghostEdges) {
+        if (ge) ge->adjust();
     }
 
     // Pause physics so the tree stays locked in place

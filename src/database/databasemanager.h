@@ -32,9 +32,39 @@ public:
     static void logAudit(const QString& tableName, int recordId, const QString& fieldName, const QString& oldValue, const QString& newValue, const QString& changedBy = "system");
     static void logMemberHistory(int personId, const QString& activityType, const QString& details);
 
+    // Monotonic counter bumped whenever data that can affect the Connection
+    // Graph changes (people, groups, households, relationships). The graph
+    // compares it against the value recorded at its last full load to skip
+    // redundant rebuilds. Cheap: one integer increment.
+    static quint64 dataGeneration();
+    static void bumpDataGeneration();
+
+    // Ensure all critical columns and indices exist across people, groups, and entity_relationships
+    static void ensureSchemaIntegrity(QSqlDatabase db = QSqlDatabase::database());
+
+    // Ensure all blueprint ministries (canonical and custom) have a Level 0 top-level heading group
+    static bool ensureBlueprintHeadings(QSqlDatabase db = QSqlDatabase::database());
+
+    // Create a new blueprint ministry and immediately generate its top-level heading group
+    static bool createBlueprint(const QString& categoryKey, const QString& displayName,
+                                const QString& primaryArchetype, const QString& secondaryArchetype,
+                                const QStringList& requiredGifts, const QString& description,
+                                int* outBlueprintId = nullptr, int* outGroupId = nullptr,
+                                QSqlDatabase db = QSqlDatabase::database());
+
+    // Update an existing blueprint ministry and synchronize its top-level heading group
+    static bool updateBlueprint(int blueprintId, const QString& categoryKey, const QString& displayName,
+                                const QString& primaryArchetype, const QString& secondaryArchetype,
+                                const QStringList& requiredGifts, const QString& description,
+                                QSqlDatabase db = QSqlDatabase::database());
+
+    // Archive or restore a blueprint ministry, its top-level group, and cascade to child sub-teams
+    static bool archiveBlueprint(int blueprintId, bool archive,
+                                 QSqlDatabase db = QSqlDatabase::database());
+
     // Highest schema version known to this build. migrateSchema() will run any
     // migrations between the DB's recorded version and this number, in order.
-    static constexpr int kLatestSchemaVersion = 22;
+    static constexpr int kLatestSchemaVersion = 24;
 
 private:
     DatabaseManager() = default;
@@ -47,6 +77,7 @@ private:
     bool migrateSchema();
     int  readSchemaVersion();
     bool recordSchemaVersion(int version);
+    void applyPragmas();
     void seedInitialData();
     void seedServiceLibrary();
 
