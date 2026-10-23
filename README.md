@@ -16,13 +16,21 @@ The project follows a clean, domain-driven modular structure:
 OpenEkklesia/
 ├── CMakeLists.txt              # Primary CMake Build Configuration
 ├── .clangd                     # Language Server Configuration
+├── .gitattributes              # Line-ending normalisation (LF in the repo)
 ├── README.md                   # Architecture & Developer Documentation
 ├── NOTES.md                    # Future roadmap & decision log
+├── DEVELOPMENT_GUIDELINES.md   # Code conventions every contributor follows
+├── .github/workflows/          # CI (Linux + Windows) and the promotion gate
 ├── tests/                      # Data-layer integration tests (ctest)
 └── src/
     ├── main.cpp                # Application Entry Point & Bootstrap
     ├── common/                 # Shared app utilities
-    │   └── appcurrency.h       # Currency symbol helper (Settings → Localization)
+    │   ├── appcurrency.h       # Currency symbol helper (Settings → Localization)
+    │   ├── appdateformatter.h / .cpp   # Date formatting per the date-format setting
+    │   ├── churchprofile.h / .cpp       # Church metadata & PDF letterhead
+    │   ├── tableutil.h         # Shared table conventions
+    │   ├── givingstatementgenerator.h / .cpp  # Donor contribution statements
+    │   └── icalgenerator.h / .cpp        # Shared iCalendar (RFC 5545) writer
     ├── database/               # Persistence & data sharing
     │   ├── databasemanager.h / .cpp   # SQLite, migrations, backup/restore
     │   └── datasharing.h / .cpp       # Scoped export/import ("split sharing")
@@ -30,10 +38,13 @@ OpenEkklesia/
     │   ├── planningcenterclient.h / .cpp
     │   └── planningcenterdialog.h / .cpp
     └── ui/                     # Graphical User Interface Modules
-        ├── core/               # App shell, navigation, command palette, kiosk & theme engine
+        ├── core/               # App shell, navigation, command palette, kiosk, tray & theme engine
         │   ├── mainwindow.h / .cpp
         │   ├── commandpalette.h / .cpp
         │   ├── kioskwindow.h / .cpp
+        │   ├── traymanager.h / .cpp     # System tray icon & reminder collection
+        │   ├── startuplaunchmanager.h / .cpp  # Start-at-login (Windows/macOS/Linux)
+        │   ├── touchhelper.h / .cpp      # Touchscreen & pen detection
         │   └── thememanager.h / .cpp
         ├── people/             # Congregation directory & pastoral analytics
         │   ├── peoplewidget.h / .cpp
@@ -74,6 +85,41 @@ cmake --build build
 # 3. Launch OpenEkklesia
 ./build/OpenEkklesia
 ```
+
+On Windows, `build-windows.ps1` does all of the above plus runs the test
+suite, and on Linux `build-linux-appimage.sh` produces the AppImage.
+
+### Running the tests
+
+```bash
+ctest --test-dir build --output-on-failure   # or run the test binary directly
+```
+
+The suite constructs real widgets, so it needs a display-less Qt platform
+plugin: set `QT_QPA_PLATFORM=offscreen` on a headless machine.
+
+---
+
+## 🌿 Branch flow
+
+Three long-lived branches, promoted in this order:
+
+```
+Unstable   →   Testing   →   master
+ (alpha)      (CI-verified)   (released)
+```
+
+Promotion is done with a **pull request**. The `Promotion` workflow builds
+the *merge commit* and runs the test suite, and `ci.yml` runs the full
+build matrix (Linux + Windows) on every push — read both results before
+merging.
+
+> GitHub branch protection is not available on private repositories for free
+> plans, so the `Promotion` check is the only automated gate. Treat it as
+> mandatory.
+
+See `DEVELOPMENT_GUIDELINES.md` for the conventions to follow and `NOTES.md`
+for the roadmap and current release state.
 
 ---
 
