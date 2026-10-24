@@ -151,6 +151,8 @@ private:
     QLabel* m_lblDbPath;
     QComboBox* m_cmbAutoBackupSchedule;
     QSpinBox* m_spnBackupRetention;
+    QSpinBox* m_spnAuditRetention;
+    QSpinBox* m_spnHistoryRetention;
     QLabel* m_lblPcoStatusBadge;
     QLabel* m_lblLastBackup;
     QPushButton* m_btnBackupDb;

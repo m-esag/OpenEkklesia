@@ -56,6 +56,45 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure
 
+  asan:
+    name: Linux (Ubuntu, GCC, ASan + UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6 and build tools
+        # Same distro Qt packages as the linux job; ASan/UBSan come from GCC.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-charts-dev \
+            libqt6sql6-sqlite \
+            libgl1-mesa-dev
+
+      - name: Configure (sanitizers)
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DOE_ENABLE_SANITIZERS=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build app and tests
+        # --keep-going surfaces every failing translation unit, and the
+        # explicit targets skip the benchmark suite (ctest only runs tests).
+        run: >
+          cmake --build build --target OpenEkklesia openekklesia_tests
+          --parallel -- -k 0
+
+      - name: Test (ASan + UBSan)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+        run: ctest --test-dir build --output-on-failure
+
   windows:
     name: Windows (MSVC)
     runs-on: windows-2022

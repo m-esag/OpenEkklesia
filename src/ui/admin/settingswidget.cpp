@@ -761,8 +761,25 @@ void SettingsWidget::setupUI() {
     m_spnBackupRetention->setSuffix(" snapshots");
     m_spnBackupRetention->setValue(10);
 
+    // Audit/member history retention: pruned at startup by DatabaseManager.
+    // 0 is the spin box minimum and renders as "Keep forever", meaning the
+    // table is never trimmed.
+    m_spnAuditRetention = new QSpinBox(pageData);
+    m_spnAuditRetention->setObjectName("auditRetentionSpin");
+    m_spnAuditRetention->setRange(0, 3650);
+    m_spnAuditRetention->setSpecialValueText("Keep forever");
+    m_spnAuditRetention->setValue(365);
+
+    m_spnHistoryRetention = new QSpinBox(pageData);
+    m_spnHistoryRetention->setObjectName("historyRetentionSpin");
+    m_spnHistoryRetention->setRange(0, 3650);
+    m_spnHistoryRetention->setSpecialValueText("Keep forever");
+    m_spnHistoryRetention->setValue(730);
+
     formLifecycle->addRow("Automated Backup Schedule:", m_cmbAutoBackupSchedule);
     formLifecycle->addRow("Backup Snapshot Retention:", m_spnBackupRetention);
+    formLifecycle->addRow("Audit log retention (days):", m_spnAuditRetention);
+    formLifecycle->addRow("Member history retention (days):", m_spnHistoryRetention);
     grpDbLay->addLayout(formLifecycle);
 
     QHBoxLayout* pcoRow = new QHBoxLayout();
@@ -1163,11 +1180,11 @@ void SettingsWidget::setupUI() {
         if (res == QMessageBox::Yes) {
             QSettings s("OpenEkklesia", "CHMS");
             s.clear();
-            s.sync();
+    s.sync();
             ThemeManager::instance().loadTheme("catppuccin_mocha");
             loadSettings();
             QMessageBox::information(this, "Settings Reset", "All application settings have been restored to default values.");
-            emit settingsSaved();
+    emit settingsSaved();
         }
     });
     rowReset->addWidget(m_btnResetAppDefaults);
@@ -1233,6 +1250,8 @@ void SettingsWidget::setupUI() {
     connect(m_chkKioskRequirePin, &QCheckBox::toggled, this, trackChanges);
     connect(m_cmbAutoBackupSchedule, QOverload<int>::of(&QComboBox::currentIndexChanged), this, trackChanges);
     connect(m_spnBackupRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_spnAuditRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
+    connect(m_spnHistoryRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_chkAutoCollapseSidebar, &QCheckBox::toggled, this, trackChanges);
     connect(m_chkAutoColumnSize, &QCheckBox::toggled, this, trackChanges);
 
@@ -1281,6 +1300,18 @@ void SettingsWidget::applyRole(const QString& role) {
         if (!btn) continue;
         btn->setEnabled(canAdminister);
         btn->setToolTip(tip);
+    }
+
+    // History-retention windows decide how much audit/care history is
+    // permanently deleted at startup, so they follow the admin-only rule of
+    // the destructive database controls above.
+    const QList<QWidget*> retentionControls = {
+        m_spnAuditRetention, m_spnHistoryRetention
+    };
+    for (QWidget* w : retentionControls) {
+        if (!w) continue;
+        w->setEnabled(canAdminister);
+        w->setToolTip(tip);
     }
 
     // Access-PIN / login-user management controls.
@@ -1515,6 +1546,8 @@ void SettingsWidget::loadSettings() {
     int schedIdx = m_cmbAutoBackupSchedule->findData(s.value("autoBackupSchedule", "weekly").toString());
     if (schedIdx >= 0) m_cmbAutoBackupSchedule->setCurrentIndex(schedIdx);
     m_spnBackupRetention->setValue(s.value("backupRetentionCount", 10).toInt());
+    m_spnAuditRetention->setValue(s.value("auditLogRetentionDays", 365).toInt());
+    m_spnHistoryRetention->setValue(s.value("memberHistoryRetentionDays", 730).toInt());
 
     // Update live PCO badge (canonical key is pco/appId; legacy pcoAppId falls back).
     const QString pcoId = s.value("pco/appId", s.value("pcoAppId").toString()).toString();
@@ -1603,14 +1636,13 @@ void SettingsWidget::saveSettings() {
 
     s.setValue("autoBackupSchedule", m_cmbAutoBackupSchedule->currentData().toString());
     s.setValue("backupRetentionCount", m_spnBackupRetention->value());
+    s.setValue("auditLogRetentionDays", m_spnAuditRetention->value());
+    s.setValue("memberHistoryRetentionDays", m_spnHistoryRetention->value());
 
-    if (m_chkSyncSystemTheme->isChecked()) {
-        ThemeManager::instance().loadTheme("system_auto");
-    } else {
-        // The active theme is already applied live by the gallery;
-        // re-apply so the setting round-trips cleanly.
-        ThemeManager::instance().loadTheme(ThemeManager::instance().activeThemeId());
-    }
+    // Theme selection (gallery clicks, color/radius tweaks and the
+    // sync-with-system toggle) is applied live while the user edits, so saving
+    // must not re-apply the global stylesheet here: that forces a full restyle
+    // of every widget on each save for no visible change.
 
     s.sync();
 

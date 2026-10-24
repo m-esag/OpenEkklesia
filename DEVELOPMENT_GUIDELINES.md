@@ -185,7 +185,14 @@ The QSS engine styles by object name. Use these names — never invent a new
   copies the workspace `open_ekklesia.db`; run from a clean dir with
   `XDG_DATA_HOME=$PWD/smoke-data`.
   - Keep the suite green before committing (`build/openekklesia_tests`):
-    **currently 1216 checks, must stay 0 failed.**
+    **currently 1285 checks, must stay 0 failed.**
+  - For a focused rerun, `OE_TEST_FILTER=name1,name2` restricts the run to the
+    named scenarios (in registration order); the default is still the full
+    suite. Do not use it to claim a green commit.
+  - Retention pruning is part of startup: `DatabaseManager::pruneHistory()`
+    reads QSettings `auditLogRetentionDays` / `memberHistoryRetentionDays`
+    (`<= 0` = keep forever) and only runs for a pre-existing database. Tests
+    call it directly with explicit windows instead of relying on the defaults.
   - The suite is **fail-fast**: the first scenario that adds a failing `CHECK`
     stops the run, so a red run shows the first real problem instead of a
     cascade of follow-on errors. A test passes only if it returned `true`
@@ -207,7 +214,8 @@ The QSS engine styles by object name. Use these names — never invent a new
     → `master` (released). All three currently point at the same commit.
   - **Promote with a pull request, never a direct push.** The `Promotion`
     workflow (`.github/workflows/promotion.yml`) builds the *merge commit* and
-    runs the suite; `ci.yml` runs the full matrix (Linux + Windows) on every
+    runs the suite; `ci.yml` runs the full matrix (Linux, Windows and an
+    Ubuntu GCC ASan + UBSan job via `-DOE_ENABLE_SANITIZERS=ON`) on every
     push. Read both results before merging a promotion PR.
   - **Branch protection is unavailable on private repos for free plans**
     ("Upgrade to GitHub Pro or make this repository public"), so the

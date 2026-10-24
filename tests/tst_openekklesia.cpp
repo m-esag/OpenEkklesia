@@ -38,12 +38,14 @@
 #include "../src/ui/ministry/servicebuilderwidget.h"
 #include "../src/ui/ministry/shepherdwidget.h"
 #include "../src/ui/ministry/facilitieswidget.h"
+#include "../src/ui/finance/transactiondialog.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
 #include "../src/ui/core/mainwindow.h"
 
 #include <QStackedLayout>
 #include <QToolButton>
+#include <QSpinBox>
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -3857,6 +3859,256 @@ bool test_icalGeneratorRfcCompliance() {
     return true;
 }
 
+// Double-entry ledger entry (the previously unreachable TransactionDialog) and
+// the dashboard "Total Assets" KPI it feeds.
+bool test_ledgerEntryAndTotalAssets() {
+    seedDemoFixture();
+    QSqlDatabase d = db();
+
+    // The demo fixture seeds Checking (ASSET) and General Fund (INCOME) rows.
+    auto findAccount = [&](const QString& name, const QString& type) {
+        QSqlQuery q(d);
+        q.prepare("SELECT id FROM accounts WHERE name = ? LIMIT 1");
+        q.addBindValue(name);
+        if (q.exec() && q.next()) return q.value(0).toInt();
+        QSqlQuery f(d);
+        f.prepare("SELECT id FROM accounts WHERE type = ? ORDER BY id DESC LIMIT 1");
+        f.addBindValue(type);
+        if (f.exec() && f.next()) return f.value(0).toInt();
+        return 0;
+    };
+    const int assetId = findAccount("Checking Account", "ASSET");
+    const int incomeId = findAccount("General Fund", "INCOME");
+    CHECK(assetId > 0 && incomeId > 0);
+    if (assetId <= 0 || incomeId <= 0) return true;
+
+    auto totalAssets = [&]() -> double {
+        QSqlQuery q(d);
+        if (q.exec("SELECT COALESCE(SUM(s.amount), 0) FROM splits s "
+                   "JOIN accounts a ON s.account_id = a.id WHERE a.type = 'ASSET'")
+            && q.next()) {
+            return q.value(0).toDouble();
+        }
+        return -1.0;
+    };
+    auto txCount = [&](const QString& description) {
+        QSqlQuery q(d);
+        q.prepare("SELECT COUNT(*) FROM transactions WHERE description = ?");
+        q.addBindValue(description);
+        if (q.exec() && q.next()) return q.value(0).toInt();
+        return -1;
+    };
+
+    const QString okDesc = QStringLiteral("__ledger_test_ok_9401__");
+    const QString badDesc = QStringLiteral("__ledger_test_bad_9401__");
+    const QDate entryDate(2026, 8, 23);
+    const double assetsBefore = totalAssets();
+    CHECK(assetsBefore >= 0.0);
+
+    // 1. Balanced entry persists one transaction + one split per line.
+    QString error = QStringLiteral("not-cleared");
+    QList<LedgerSplit> balanced;
+    balanced.append({assetId, 123.45, 0});
+    balanced.append({incomeId, -123.45, 0});
+    CHECK(TransactionDialog::saveTransaction(d, entryDate, okDesc, balanced, &error));
+    CHECK(error.isEmpty());
+    CHECK_EQ(txCount(okDesc), 1);
+    CHECK(std::fabs(totalAssets() - (assetsBefore + 123.45)) < 0.01);
+
+    QSqlQuery splitQ(d);
+    splitQ.prepare("SELECT COUNT(*), SUM(CASE WHEN person_id IS NULL THEN 1 ELSE 0 END) FROM splits "
+                   "WHERE transaction_id = (SELECT id FROM transactions WHERE description = ?)");
+    splitQ.addBindValue(okDesc);
+    CHECK(splitQ.exec() && splitQ.next());
+    CHECK_EQ(splitQ.value(0).toInt(), 2);
+    CHECK_EQ(splitQ.value(1).toInt(), 2); // personId 0 is stored as NULL
+
+    // 2. Unbalanced entry is rejected and writes nothing.
+    error.clear();
+    QList<LedgerSplit> unbalanced;
+    unbalanced.append({assetId, 100.0, 0});
+    unbalanced.append({incomeId, -99.0, 0});
+    CHECK(!TransactionDialog::saveTransaction(d, entryDate, badDesc, unbalanced, &error));
+    CHECK(!error.isEmpty());
+    CHECK_EQ(txCount(badDesc), 0);
+    CHECK(std::fabs(totalAssets() - (assetsBefore + 123.45)) < 0.01);
+
+    // 3. Empty description / too few splits / unknown account are rejected.
+    error.clear();
+    CHECK(!TransactionDialog::saveTransaction(d, entryDate, QString(), balanced, &error));
+    CHECK(!error.isEmpty());
+    error.clear();
+    QList<LedgerSplit> oneSplit;
+    oneSplit.append({assetId, 0.0, 0});
+    CHECK(!TransactionDialog::saveTransaction(d, entryDate, badDesc, oneSplit, &error));
+    CHECK(!error.isEmpty());
+    error.clear();
+    QList<LedgerSplit> unknownAccount;
+    unknownAccount.append({999999, 50.0, 0});
+    unknownAccount.append({assetId, -50.0, 0});
+    CHECK(!TransactionDialog::saveTransaction(d, entryDate, badDesc, unknownAccount, &error));
+    CHECK(!error.isEmpty());
+    CHECK_EQ(txCount(badDesc), 0);
+
+    // 4. Reachability + guest gating of the ledger entry button.
+    ContributionsWidget cw;
+    QPushButton* ledgerBtn = cw.findChild<QPushButton*>("ledgerEntryBtn");
+    CHECK(ledgerBtn != nullptr);
+    if (ledgerBtn) {
+        cw.applyRole("guest");
+        CHECK(!ledgerBtn->isEnabled());
+        CHECK(ledgerBtn->toolTip().contains("Guest"));
+        cw.applyRole("readonly");
+        CHECK(!ledgerBtn->isEnabled());
+        cw.applyRole("admin");
+        CHECK(ledgerBtn->isEnabled());
+    }
+
+    // Cleanup the probe entry.
+    QSqlQuery cleanup(d);
+    CHECK(cleanup.exec("DELETE FROM splits WHERE transaction_id IN "
+                       "(SELECT id FROM transactions WHERE description = '__ledger_test_ok_9401__')"));
+    CHECK(cleanup.exec("DELETE FROM transactions WHERE description = '__ledger_test_ok_9401__'"));
+    return true;
+}
+
+// audit_log / member_history retention pruning (NOTES.md issue: unbounded growth).
+bool test_historyRetentionPruning() {
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT INTO people (id, first_name, last_name, membership_status) "
+                 "VALUES (9401, 'Retention', 'Probe', 'Member')"));
+
+    auto insertAuditProbe = [&](const QString& field, int daysAgo) {
+        QSqlQuery i(d);
+        i.prepare("INSERT INTO audit_log (table_name, record_id, field_name, old_value, new_value, changed_at) "
+                  "VALUES ('people', 9401, ?, '', '', datetime('now', ?))");
+        i.addBindValue(field);
+        i.addBindValue(QString("-%1 days").arg(daysAgo));
+        return i.exec();
+    };
+    auto insertHistoryProbe = [&](const QString& details, int daysAgo) {
+        QSqlQuery i(d);
+        i.prepare("INSERT INTO member_history (person_id, activity_type, details, timestamp) "
+                  "VALUES (9401, 'probe', ?, datetime('now', ?))");
+        i.addBindValue(details);
+        i.addBindValue(QString("-%1 days").arg(daysAgo));
+        return i.exec();
+    };
+    auto countAudit = [&](const QString& field) {
+        QSqlQuery c(d);
+        c.prepare("SELECT COUNT(*) FROM audit_log WHERE field_name = ?");
+        c.addBindValue(field);
+        if (c.exec() && c.next()) return c.value(0).toInt();
+        return -1;
+    };
+    auto countHistory = [&](const QString& details) {
+        QSqlQuery c(d);
+        c.prepare("SELECT COUNT(*) FROM member_history WHERE details = ?");
+        c.addBindValue(details);
+        if (c.exec() && c.next()) return c.value(0).toInt();
+        return -1;
+    };
+
+    // 1. Old rows are pruned, recent rows stay.
+    CHECK(insertAuditProbe("retention_probe_old", 400));
+    CHECK(insertAuditProbe("retention_probe_new", 1));
+    CHECK(insertHistoryProbe("retention_probe_old", 800));
+    CHECK(insertHistoryProbe("retention_probe_new", 1));
+    DatabaseManager::RetentionResult res =
+        DatabaseManager::instance().pruneHistory(365, 730);
+    CHECK(res.auditDeleted >= 1);
+    CHECK(res.historyDeleted >= 1);
+    CHECK_EQ(countAudit("retention_probe_old"), 0);
+    CHECK_EQ(countAudit("retention_probe_new"), 1);
+    CHECK_EQ(countHistory("retention_probe_old"), 0);
+    CHECK_EQ(countHistory("retention_probe_new"), 1);
+
+    // 2. 0 means "keep forever" for that table.
+    CHECK(insertAuditProbe("retention_probe_keep_audit", 400));
+    CHECK(insertHistoryProbe("retention_probe_keep_hist", 800));
+    DatabaseManager::RetentionResult keepForever =
+        DatabaseManager::instance().pruneHistory(0, 0);
+    CHECK_EQ(keepForever.auditDeleted, 0);
+    CHECK_EQ(keepForever.historyDeleted, 0);
+    CHECK_EQ(countAudit("retention_probe_keep_audit"), 1);
+    CHECK_EQ(countHistory("retention_probe_keep_hist"), 1);
+
+    // 3. Retention is per table: disabling audit must not stop history pruning.
+    CHECK(insertAuditProbe("retention_probe_partial_audit", 400));
+    CHECK(insertHistoryProbe("retention_probe_partial_hist", 800));
+    DatabaseManager::RetentionResult partialResult =
+        DatabaseManager::instance().pruneHistory(0, 730);
+    CHECK_EQ(partialResult.auditDeleted, 0);
+    CHECK(partialResult.historyDeleted >= 1);
+    CHECK_EQ(countAudit("retention_probe_partial_audit"), 1);
+    CHECK_EQ(countHistory("retention_probe_partial_hist"), 0);
+
+    // Cleanup all probe rows.
+    CHECK(q.exec("DELETE FROM audit_log WHERE field_name LIKE 'retention_probe%'"));
+    CHECK(q.exec("DELETE FROM member_history WHERE details LIKE 'retention_probe%'"));
+    CHECK(q.exec("DELETE FROM people WHERE id = 9401"));
+    return true;
+}
+
+// Settings page retention controls: defaults, persistence and admin gating.
+bool test_settingsRetentionControls() {
+    QSettings s("OpenEkklesia", "CHMS");
+    const QVariant oldAudit = s.value("auditLogRetentionDays");
+    const QVariant oldHistory = s.value("memberHistoryRetentionDays");
+
+    SettingsWidget sw;
+    QSpinBox* audit = sw.findChild<QSpinBox*>("auditRetentionSpin");
+    QSpinBox* history = sw.findChild<QSpinBox*>("historyRetentionSpin");
+    CHECK(audit != nullptr);
+    CHECK(history != nullptr);
+    if (!audit || !history) return true;
+
+    CHECK_EQ(audit->minimum(), 0);
+    CHECK_EQ(audit->maximum(), 3650);
+    CHECK_EQ(audit->specialValueText().toStdString(), std::string("Keep forever"));
+    CHECK_EQ(history->specialValueText().toStdString(), std::string("Keep forever"));
+    audit->setValue(0);
+    CHECK_EQ(audit->text().toStdString(), std::string("Keep forever"));
+
+    // Load/save round-trip through the same QSettings keys the startup policy uses.
+    s.setValue("auditLogRetentionDays", 120);
+    s.setValue("memberHistoryRetentionDays", 240);
+    sw.loadSettings();
+    CHECK_EQ(audit->value(), 120);
+    CHECK_EQ(history->value(), 240);
+
+    // Programmatic value changes would mark the page dirty, which makes
+    // saveSettings() show a modal confirmation; block signals so the save can
+    // be exercised headless (the dirty path is covered by the widget tests).
+    {
+        QSignalBlocker auditBlocker(audit);
+        QSignalBlocker historyBlocker(history);
+        audit->setValue(90);
+        history->setValue(180);
+    }
+    sw.saveSettings();
+    CHECK_EQ(s.value("auditLogRetentionDays").toInt(), 90);
+    CHECK_EQ(s.value("memberHistoryRetentionDays").toInt(), 180);
+
+    // Guest/readonly can view but not change retention; admin can.
+    sw.applyRole("guest");
+    CHECK(!audit->isEnabled());
+    CHECK(!history->isEnabled());
+    CHECK(audit->toolTip().contains("Guest"));
+    sw.applyRole("admin");
+    CHECK(audit->isEnabled());
+    CHECK(history->isEnabled());
+
+    // Restore the previous settings so other tests see their usual defaults.
+    if (oldAudit.isValid()) s.setValue("auditLogRetentionDays", oldAudit);
+    else s.remove("auditLogRetentionDays");
+    if (oldHistory.isValid()) s.setValue("memberHistoryRetentionDays", oldHistory);
+    else s.remove("memberHistoryRetentionDays");
+    s.sync();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3947,9 +4199,22 @@ int main(int argc, char** argv) {
         {"group_member_and_leader_roster_sync_suite", test_groupMemberAndLeaderRosterSyncSuite},
         {"giving_statement_generator", test_givingStatementGenerator},
         {"ical_generator_rfc_compliance", test_icalGeneratorRfcCompliance},
+        {"ledger_entry_and_total_assets", test_ledgerEntryAndTotalAssets},
+        {"history_retention_pruning", test_historyRetentionPruning},
+        {"settings_retention_controls", test_settingsRetentionControls},
     };
 
+    // Optional debugging aid: OE_TEST_FILTER=name1,name2 runs only the named
+    // scenarios (in registration order). Unset/empty still runs the full suite.
+    QStringList testFilter = qEnvironmentVariable("OE_TEST_FILTER").split(',', Qt::SkipEmptyParts);
+    for (QString& name : testFilter) name = name.trimmed();
+
     for (const Test& t : tests) {
+        if (!testFilter.isEmpty() &&
+            !testFilter.contains(QString::fromLatin1(t.name))) {
+            continue;
+        }
+        std::cout.flush();
         // Hard check: once one scenario has added a failing CHECK, halt rather
         // than letting downstream tests pile up their own follow-on errors.
         if (g_failures > 0)

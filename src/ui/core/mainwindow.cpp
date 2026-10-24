@@ -195,6 +195,19 @@ public:
     using QStackedLayout::QStackedLayout;
     QSize minimumSize() const override { return QSize(0, 0); }
 };
+
+// QCheckBox::stateChanged(int) is deprecated since Qt 6.7 in favour of
+// checkStateChanged(Qt::CheckState). Bind whichever signal this Qt provides so
+// the same source builds against the Qt 6.4 floor and 6.7+ without warnings.
+void connectCheckBoxToggled(QCheckBox* box, QObject* context, std::function<void()> onToggled) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    QObject::connect(box, &QCheckBox::checkStateChanged, context,
+                     [onToggled](Qt::CheckState) { onToggled(); });
+#else
+    QObject::connect(box, &QCheckBox::stateChanged, context,
+                     [onToggled](int) { onToggled(); });
+#endif
+}
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -945,21 +958,21 @@ void MainWindow::populatePages() {
 
     m_chkShowArchivedGroups = new QCheckBox("Show Archived Groups", this);
     m_chkShowArchivedGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowArchivedGroups, &QCheckBox::stateChanged, this, [this](int) {
+    connectCheckBoxToggled(m_chkShowArchivedGroups, this, [this]() {
         refreshGroupsTree();
     });
     grpFilterLayout->addWidget(m_chkShowArchivedGroups);
 
     m_chkShowHiddenGroups = new QCheckBox("Show Hidden", this);
     m_chkShowHiddenGroups->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowHiddenGroups, &QCheckBox::stateChanged, this, [this](int) {
+    connectCheckBoxToggled(m_chkShowHiddenGroups, this, [this]() {
         refreshGroupsTree();
     });
     grpFilterLayout->addWidget(m_chkShowHiddenGroups);
 
     m_chkShowMembersInTree = new QCheckBox("Show People in Tree", this);
     m_chkShowMembersInTree->setStyleSheet("font-size: 12px; font-weight: bold;");
-    connect(m_chkShowMembersInTree, &QCheckBox::stateChanged, this, [this](int) {
+    connectCheckBoxToggled(m_chkShowMembersInTree, this, [this]() {
         refreshGroupsTree();
     });
     grpFilterLayout->addWidget(m_chkShowMembersInTree);
@@ -2205,6 +2218,10 @@ void MainWindow::onContributionsClicked() {
     if (!m_contributionsWidget) {
         m_contributionsWidget = new ContributionsWidget(this);
         m_contributionsWidget->applyRole(m_userRole);
+        // A committed ledger entry changes the ASSET-account balances behind the
+        // dashboard's Total Assets KPI, so refresh the dashboard immediately.
+        connect(m_contributionsWidget, &ContributionsWidget::ledgerChanged,
+                this, &MainWindow::updateDashboardStats);
         ensurePageLoaded(3, [this]() { return m_contributionsWidget; });
     }
     m_contributionsWidget->refreshContributions();

@@ -1,4 +1,5 @@
 #include "contributionswidget.h"
+#include "transactiondialog.h"
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
 #include "../common/givingstatementgenerator.h"
@@ -235,6 +236,13 @@ void ContributionsWidget::setupUI() {
     m_btnManageFunds->setObjectName("secondaryBtn");
     connect(m_btnManageFunds, &QPushButton::clicked, this, &ContributionsWidget::onManageFunds);
     tableFooter->addWidget(m_btnManageFunds);
+
+    m_btnLedgerEntry = new QPushButton(" New Ledger Transaction", tableCard);
+    m_btnLedgerEntry->setIcon(IconManager::instance().getIcon("book-open", QColor(), 14));
+    m_btnLedgerEntry->setObjectName("ledgerEntryBtn");
+    m_btnLedgerEntry->setToolTip("Record a balanced double-entry transaction against the chart of accounts");
+    connect(m_btnLedgerEntry, &QPushButton::clicked, this, &ContributionsWidget::onNewLedgerTransaction);
+    tableFooter->addWidget(m_btnLedgerEntry);
 
     m_btnGnuCashExport = new QPushButton(" Export for GnuCash (CSV)", tableCard);
     m_btnGnuCashExport->setIcon(IconManager::instance().getIcon("download", ThemeManager::textOn(QColor("#74c7ec")), 14));
@@ -1521,6 +1529,17 @@ void ContributionsWidget::onExportGnuCashCsv() {
             .arg(QString::number(rowCount), appCurrencySymbol(), QString::number(totalCents / 100.0, 'f', 2)));
 }
 
+void ContributionsWidget::onNewLedgerTransaction() {
+    // Defensive gate: the button is disabled for Guest/read-only by applyRole(),
+    // but the write path must also refuse when invoked programmatically.
+    if (isReadOnlyRole()) return;
+
+    TransactionDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        emit ledgerChanged();
+    }
+}
+
 bool ContributionsWidget::isReadOnlyRole() const {
     // Roles only gate full-access vs read-only (Guest); modules gate features.
     return m_userRole.compare("readonly", Qt::CaseInsensitive) == 0 ||
@@ -1544,6 +1563,9 @@ void ContributionsWidget::applyRole(const QString& role) {
     // Batch and fund management actions.
     if (m_btnManageFunds) m_btnManageFunds->setEnabled(!readOnly);
     if (m_btnGnuCashExport) m_btnGnuCashExport->setEnabled(!readOnly);
+    // Double-entry ledger entry writes to transactions/splits: Guest/read-only
+    // must not reach the dialog.
+    if (m_btnLedgerEntry) m_btnLedgerEntry->setEnabled(!readOnly);
     if (m_btnNewBatch) m_btnNewBatch->setEnabled(!readOnly);
     if (m_btnDeleteBatch) m_btnDeleteBatch->setEnabled(!readOnly);
     if (m_btnCommitBatch) m_btnCommitBatch->setEnabled(!readOnly);
@@ -1562,6 +1584,14 @@ void ContributionsWidget::applyRole(const QString& role) {
     };
     for (QPushButton* btn : gatedButtons) {
         if (btn) btn->setToolTip(tip);
+    }
+
+    // The ledger button keeps its descriptive tooltip for editors; in Guest
+    // mode it carries the standard read-only explanation.
+    if (m_btnLedgerEntry) {
+        m_btnLedgerEntry->setToolTip(readOnly
+            ? tip
+            : "Record a balanced double-entry transaction against the chart of accounts");
     }
 
     // Construction defers the initial auto-create until the real role is known,

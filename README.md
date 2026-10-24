@@ -132,18 +132,18 @@ backup snapshots:
 - `people` / `households`: Member profiles, household groupings, membership lifecycle (Visitor → Regular Attender → Member → Inactive), spiritual gifts, tags, and contact details.
 - `groups`: Ministries, small groups, serving teams, subgroup hierarchy, and meeting metadata.
 - `entity_relationships`: Polymorphic connections (spouse, parent/child, household, and group membership/leadership) that power the Connection Graph.
-- `accounts` / `transactions` / `splits` / `account_budgets`: Chart of accounts, fiscal budgets and ledger tables. The ledger-entry dialog is not exposed in the shipped UI yet (see NOTES.md); giving is tracked in `funds` / `contributions`.
+- `accounts` / `transactions` / `splits` / `account_budgets`: Chart of accounts, fiscal budgets and double-entry ledger tables. Ledger entries are recorded from Finance → Contributions → “New Ledger Transaction” (balanced splits feed the dashboard “Total Assets” KPI); giving is tracked in `funds` / `contributions`.
 - `funds` / `contributions`: Tithes, offerings, fund categories, and payment methods.
 - `assets` / `checkout_logs`: Facilities and equipment inventory with serial numbers, conditions, and checkout history.
 - `services` / `service_volunteers`: Worship service plans and volunteer scheduling.
 - `attendance`: Kiosk self-service check-in ledger.
-- `care_logs` / `member_history`: Pastoral care logs with follow-up flags, plus a unified activity/care timeline.
+- `care_logs` / `member_history`: Pastoral care logs with follow-up flags, plus a unified activity/care timeline. History is pruned at startup according to the retention settings on the Database page.
 - `ministry_tasks`: Planning initiatives and ministry roadmap tasks.
 - `facility_reservations`: Room and equipment bookings.
 - `board_motions`: Governance board minutes, motions, and votes.
 - `vault_documents`: Document metadata, categories, and meeting records.
 - `users`: Sign-in accounts with role-based access (admin, pastor, finance, readonly) and PINs.
-- `member_skills`, `graph_layout`, `audit_log`, `schema_version`: Supporting skills, graph node-position cache, audit trail, and migration tracking.
+- `member_skills`, `graph_layout`, `audit_log`, `schema_version`: Supporting skills, graph node-position cache, audit trail (auto-pruned per retention setting), and migration tracking.
 
 > 🔐 On launch, OpenEkklesia prompts for a user PIN validated against `users`;
 > the resolved role drives role-based access restrictions across modules

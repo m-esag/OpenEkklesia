@@ -214,57 +214,134 @@ void TransactionDialog::updateBalanceVerification() {
     m_lblBalance->setText(QString("%1%2").arg(appCurrencySymbol(), QString::number(total, 'f', 2)));
 
     // Double-entry matches to zero
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
     bool balanced = qAbs(total) < 0.001 && m_splitRows.size() >= 2;
-    if (balanced) {
-        m_lblBalance->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 14px;"); // Green
-        m_btnSave->setEnabled(true);
-    } else {
-        m_lblBalance->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 14px;"); // Red
-        m_btnSave->setEnabled(false);
-    }
+    const QColor color = balanced ? tok.accentSuccess : tok.accentDanger;
+    m_lblBalance->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 14px;").arg(color.name()));
+    m_btnSave->setEnabled(balanced);
 }
 
-void TransactionDialog::onSaveClicked() {
-    if (m_descEdit->text().trimmed().isEmpty()) {
-        QMessageBox::warning(this, "Validation Error", "Please enter a transaction description.");
-        return;
+bool TransactionDialog::saveTransaction(QSqlDatabase& db,
+                                        const QDate& date,
+                                        const QString& description,
+                                        const QList<LedgerSplit>& splits,
+                                        QString* error) {
+    const QString desc = description.trimmed();
+    if (desc.isEmpty()) {
+        if (error) *error = "Please enter a transaction description.";
+        return false;
+    }
+    if (splits.size() < 2) {
+        if (error) *error = "A double-entry transaction needs at least two splits.";
+        return false;
     }
 
-    QSqlDatabase db = DatabaseManager::instance().database();
-    db.transaction();
-
-    QSqlQuery query;
-    query.prepare("INSERT INTO transactions (date, description) VALUES (?, ?)");
-    query.addBindValue(m_dateEdit->date().toString("yyyy-MM-dd"));
-    query.addBindValue(m_descEdit->text().trimmed());
-
-    if (!query.exec()) {
-        db.rollback();
-        QMessageBox::critical(this, "Database Error", "Failed to save transaction: " + query.lastError().text());
-        return;
+    double total = 0.0;
+    for (const LedgerSplit& split : splits) {
+        if (split.accountId <= 0) {
+            if (error) *error = "Every split must reference an account.";
+            return false;
+        }
+        total += split.amount;
+    }
+    if (qAbs(total) > 0.005) {
+        if (error) *error = QString("Transaction is not balanced: the splits total %1 instead of 0.")
+                                .arg(QString::number(total, 'f', 2));
+        return false;
     }
 
-    int transactionId = query.lastInsertId().toInt();
-
-    query.prepare("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (?, ?, ?, ?)");
-    for (const auto& row : m_splitRows) {
-        int accountId = row.accountCombo->currentData().toInt();
-        double amount = row.amountSpin->value();
-        QVariant memberId = row.memberCombo->currentData();
-
-        query.addBindValue(transactionId);
-        query.addBindValue(accountId);
-        query.addBindValue(amount);
-        query.addBindValue(memberId);
-
-        if (!query.exec()) {
-            db.rollback();
-            QMessageBox::critical(this, "Database Error", "Failed to save transaction splits: " + query.lastError().text());
-            return;
+    // Referential pre-check: fail with a clear message instead of relying on
+    // the (optional) SQLite foreign-key pragma to reject the INSERTs.
+    for (const LedgerSplit& split : splits) {
+        QSqlQuery accountCheck(db);
+        accountCheck.prepare("SELECT 1 FROM accounts WHERE id = ?");
+        accountCheck.addBindValue(split.accountId);
+        if (!accountCheck.exec() || !accountCheck.next()) {
+            if (error) *error = QString("Account id %1 does not exist.").arg(split.accountId);
+            return false;
         }
     }
 
-    db.commit();
+    if (!db.transaction()) {
+        if (error) *error = QString("Could not start the database transaction: %1").arg(db.lastError().text());
+        return false;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("INSERT INTO transactions (date, description) VALUES (?, ?)");
+    query.addBindValue(date.toString("yyyy-MM-dd"));
+    query.addBindValue(desc);
+
+    if (!query.exec()) {
+        const QString message = QString("Failed to save transaction: %1").arg(query.lastError().text());
+        db.rollback();
+        if (error) *error = message;
+        return false;
+    }
+
+    const int transactionId = query.lastInsertId().toInt();
+
+    // A fresh QSqlQuery per split keeps positional binding unambiguous (the
+    // bind count is not carried over from the transactions INSERT).
+    for (const LedgerSplit& split : splits) {
+        QSqlQuery splitQuery(db);
+        splitQuery.prepare("INSERT INTO splits (transaction_id, account_id, amount, person_id) VALUES (?, ?, ?, ?)");
+        splitQuery.addBindValue(transactionId);
+        splitQuery.addBindValue(split.accountId);
+        splitQuery.addBindValue(split.amount);
+        splitQuery.addBindValue(split.personId > 0 ? QVariant(split.personId) : QVariant());
+
+        if (!splitQuery.exec()) {
+            const QString message = QString("Failed to save transaction splits: %1").arg(splitQuery.lastError().text());
+            db.rollback();
+            if (error) *error = message;
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        const QString message = QString("Failed to commit the transaction: %1").arg(db.lastError().text());
+        db.rollback();
+        if (error) *error = message;
+        return false;
+    }
+
+    if (error) error->clear();
+    return true;
+}
+
+void TransactionDialog::onSaveClicked() {
+    // Enter is bound to save, and a default button can also fire while the
+    // first insert is still running; ignore re-entrant saves. The flag is also
+    // left set after a successful commit (see below), so even a queued second
+    // Enter cannot insert the same entry twice.
+    if (m_saving) return;
+    m_saving = true;
+
+    QList<LedgerSplit> splits;
+    splits.reserve(m_splitRows.size());
+    for (const auto& row : m_splitRows) {
+        LedgerSplit split;
+        split.accountId = row.accountCombo->currentData().toInt();
+        split.amount = row.amountSpin->value();
+        const QVariant memberId = row.memberCombo->currentData();
+        split.personId = memberId.isValid() ? memberId.toInt() : 0;
+        splits.append(split);
+    }
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    QString error;
+    const bool saved = saveTransaction(db, m_dateEdit->date(), m_descEdit->text(), splits, &error);
+
+    if (!saved) {
+        // Re-arm so the user can correct the entry and retry.
+        m_saving = false;
+        QMessageBox::warning(this, "Transaction Not Saved", error);
+        return;
+    }
+
+    // m_saving deliberately stays true: the entry is committed and the dialog
+    // is about to close, so no further save may run.
     accept();
 }
 

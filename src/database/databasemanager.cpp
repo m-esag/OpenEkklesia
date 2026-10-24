@@ -216,8 +216,14 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     // Automatic snapshot: only for a database that already existed before this
     // launch. A fresh file was 0 bytes when the old pre-migration code copied
     // it, producing an unusable backup that counted as "done" for a whole cycle.
+    // Retention pruning runs after the snapshot so a due backup still contains
+    // the history rows it is about to trim, and is skipped for a brand-new DB.
     if (dbExists) {
         runAutoBackup();
+
+        QSettings retentionSet("OpenEkklesia", "CHMS");
+        pruneHistory(retentionSet.value("auditLogRetentionDays", 365).toInt(),
+                     retentionSet.value("memberHistoryRetentionDays", 730).toInt());
     }
 
     return true;
@@ -2581,6 +2587,62 @@ bool DatabaseManager::purgeDemoData() {
     return success;
 }
 
+DatabaseManager::RetentionResult DatabaseManager::pruneHistory(int auditKeepDays, int historyKeepDays) {
+    RetentionResult result;
+
+    QSqlDatabase db = database();
+    if (!db.isOpen()) {
+        qWarning() << "Cannot prune history: database is not open.";
+        return result;
+    }
+
+    // A non-positive window means "keep forever": that table is left untouched.
+    if (auditKeepDays <= 0 && historyKeepDays <= 0) {
+        qInfo() << "History retention disabled (keep forever); nothing to prune.";
+        return result;
+    }
+
+    if (!db.transaction()) {
+        qWarning() << "Failed to begin history-prune transaction:" << db.lastError().text();
+        return result;
+    }
+
+    // Both tables default their timestamp column to datetime('now'), which is
+    // UTC. The cutoff therefore uses the same clock so a local-time comparison
+    // cannot silently shift the retention window by the UTC offset.
+    if (auditKeepDays > 0) {
+        QSqlQuery auditCutoff(db);
+        if (!auditCutoff.exec(QString("DELETE FROM audit_log WHERE changed_at < datetime('now', '-%1 days')")
+                                  .arg(auditKeepDays))) {
+            qWarning() << "Failed to prune audit_log:" << auditCutoff.lastError().text();
+            db.rollback();
+            return RetentionResult();
+        }
+        result.auditDeleted = auditCutoff.numRowsAffected();
+    }
+
+    if (historyKeepDays > 0) {
+        QSqlQuery historyCutoff(db);
+        if (!historyCutoff.exec(QString("DELETE FROM member_history WHERE timestamp < datetime('now', '-%1 days')")
+                                    .arg(historyKeepDays))) {
+            qWarning() << "Failed to prune member_history:" << historyCutoff.lastError().text();
+            db.rollback();
+            return RetentionResult();
+        }
+        result.historyDeleted = historyCutoff.numRowsAffected();
+    }
+
+    if (!db.commit()) {
+        qWarning() << "Failed to commit history prune:" << db.lastError().text();
+        db.rollback();
+        return RetentionResult();
+    }
+
+    qInfo() << "History retention pruned" << result.auditDeleted << "audit_log row(s) and"
+            << result.historyDeleted << "member_history row(s).";
+    return result;
+}
+
 void DatabaseManager::ensureSchemaIntegrity(QSqlDatabase db) {
     if (!db.isOpen()) return;
 
@@ -2590,19 +2652,34 @@ void DatabaseManager::ensureSchemaIntegrity(QSqlDatabase db) {
     while (pragmaRel.next()) relCols.insert(pragmaRel.value(1).toString());
 
     if (!relCols.contains("status")) {
-        db.exec("ALTER TABLE entity_relationships ADD COLUMN status TEXT NOT NULL DEFAULT 'Active';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE entity_relationships ADD COLUMN status TEXT NOT NULL DEFAULT 'Active';")) {
+            qWarning() << "Failed to add entity_relationships.status:" << alterQ.lastError().text();
+        }
     }
     if (!relCols.contains("connection_source")) {
-        db.exec("ALTER TABLE entity_relationships ADD COLUMN connection_source TEXT DEFAULT 'manual';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE entity_relationships ADD COLUMN connection_source TEXT DEFAULT 'manual';")) {
+            qWarning() << "Failed to add entity_relationships.connection_source:" << alterQ.lastError().text();
+        }
     }
     if (!relCols.contains("archetype_fit_score")) {
-        db.exec("ALTER TABLE entity_relationships ADD COLUMN archetype_fit_score REAL DEFAULT 0.0;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE entity_relationships ADD COLUMN archetype_fit_score REAL DEFAULT 0.0;")) {
+            qWarning() << "Failed to add entity_relationships.archetype_fit_score:" << alterQ.lastError().text();
+        }
     }
     if (!relCols.contains("joined_date")) {
-        db.exec("ALTER TABLE entity_relationships ADD COLUMN joined_date TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE entity_relationships ADD COLUMN joined_date TEXT;")) {
+            qWarning() << "Failed to add entity_relationships.joined_date:" << alterQ.lastError().text();
+        }
     }
     if (!relCols.contains("role")) {
-        db.exec("ALTER TABLE entity_relationships ADD COLUMN role TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE entity_relationships ADD COLUMN role TEXT;")) {
+            qWarning() << "Failed to add entity_relationships.role:" << alterQ.lastError().text();
+        }
     }
 
     // 2. Critical columns in groups
@@ -2611,25 +2688,46 @@ void DatabaseManager::ensureSchemaIntegrity(QSqlDatabase db) {
     while (pragmaGrp.next()) grpCols.insert(pragmaGrp.value(1).toString());
 
     if (!grpCols.contains("parent_id")) {
-        db.exec("ALTER TABLE groups ADD COLUMN parent_id INTEGER;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN parent_id INTEGER;")) {
+            qWarning() << "Failed to add groups.parent_id:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("is_archived")) {
-        db.exec("ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0;")) {
+            qWarning() << "Failed to add groups.is_archived:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("contact_person_id")) {
-        db.exec("ALTER TABLE groups ADD COLUMN contact_person_id INTEGER;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN contact_person_id INTEGER;")) {
+            qWarning() << "Failed to add groups.contact_person_id:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("recruitment_status")) {
-        db.exec("ALTER TABLE groups ADD COLUMN recruitment_status TEXT DEFAULT 'Open';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN recruitment_status TEXT DEFAULT 'Open';")) {
+            qWarning() << "Failed to add groups.recruitment_status:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("ideal_primary_archetype")) {
-        db.exec("ALTER TABLE groups ADD COLUMN ideal_primary_archetype TEXT DEFAULT 'Shepherd';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN ideal_primary_archetype TEXT DEFAULT 'Shepherd';")) {
+            qWarning() << "Failed to add groups.ideal_primary_archetype:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("ideal_secondary_archetype")) {
-        db.exec("ALTER TABLE groups ADD COLUMN ideal_secondary_archetype TEXT DEFAULT 'Anchor';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN ideal_secondary_archetype TEXT DEFAULT 'Anchor';")) {
+            qWarning() << "Failed to add groups.ideal_secondary_archetype:" << alterQ.lastError().text();
+        }
     }
     if (!grpCols.contains("required_skills")) {
-        db.exec("ALTER TABLE groups ADD COLUMN required_skills TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE groups ADD COLUMN required_skills TEXT;")) {
+            qWarning() << "Failed to add groups.required_skills:" << alterQ.lastError().text();
+        }
     }
 
     // 3. Critical columns in people
@@ -2638,37 +2736,64 @@ void DatabaseManager::ensureSchemaIntegrity(QSqlDatabase db) {
     while (pragmaPpl.next()) pplCols.insert(pragmaPpl.value(1).toString());
 
     if (!pplCols.contains("is_baptized")) {
-        db.exec("ALTER TABLE people ADD COLUMN is_baptized INTEGER DEFAULT 0;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN is_baptized INTEGER DEFAULT 0;")) {
+            qWarning() << "Failed to add people.is_baptized:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("baptism_date")) {
-        db.exec("ALTER TABLE people ADD COLUMN baptism_date TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN baptism_date TEXT;")) {
+            qWarning() << "Failed to add people.baptism_date:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("next_steps_completed")) {
-        db.exec("ALTER TABLE people ADD COLUMN next_steps_completed INTEGER DEFAULT 0;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN next_steps_completed INTEGER DEFAULT 0;")) {
+            qWarning() << "Failed to add people.next_steps_completed:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("next_steps_date")) {
-        db.exec("ALTER TABLE people ADD COLUMN next_steps_date TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN next_steps_date TEXT;")) {
+            qWarning() << "Failed to add people.next_steps_date:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("membership_app_path")) {
-        db.exec("ALTER TABLE people ADD COLUMN membership_app_path TEXT;");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN membership_app_path TEXT;")) {
+            qWarning() << "Failed to add people.membership_app_path:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("primary_archetype")) {
-        db.exec("ALTER TABLE people ADD COLUMN primary_archetype TEXT DEFAULT 'Shepherd';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN primary_archetype TEXT DEFAULT 'Shepherd';")) {
+            qWarning() << "Failed to add people.primary_archetype:" << alterQ.lastError().text();
+        }
     }
     if (!pplCols.contains("secondary_archetype")) {
-        db.exec("ALTER TABLE people ADD COLUMN secondary_archetype TEXT DEFAULT 'Anchor';");
+        QSqlQuery alterQ(db);
+        if (!alterQ.exec("ALTER TABLE people ADD COLUMN secondary_archetype TEXT DEFAULT 'Anchor';")) {
+            qWarning() << "Failed to add people.secondary_archetype:" << alterQ.lastError().text();
+        }
     }
 
     // 4. Automatically enroll any group contact_person_id as Leader in entity_relationships
-    db.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
-            "SELECT 'Person', g.contact_person_id, 'Group', g.id, 'Leader', 'Active', 'manual', date('now','localtime') "
-            "FROM groups g "
-            "WHERE g.contact_person_id IS NOT NULL AND g.contact_person_id > 0 "
-            "AND NOT EXISTS ( "
-            "    SELECT 1 FROM entity_relationships er "
-            "    WHERE er.source_type = 'Person' AND er.source_id = g.contact_person_id "
-            "      AND er.target_type = 'Group' AND er.target_id = g.id "
-            ");");
+    {
+        QSqlQuery enrollQ(db);
+        if (!enrollQ.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                          "SELECT 'Person', g.contact_person_id, 'Group', g.id, 'Leader', 'Active', 'manual', date('now','localtime') "
+                          "FROM groups g "
+                          "WHERE g.contact_person_id IS NOT NULL AND g.contact_person_id > 0 "
+                          "AND NOT EXISTS ( "
+                          "    SELECT 1 FROM entity_relationships er "
+                          "    WHERE er.source_type = 'Person' AND er.source_id = g.contact_person_id "
+                          "      AND er.target_type = 'Group' AND er.target_id = g.id "
+                          ");")) {
+            qWarning() << "Failed to auto-enroll group contact persons in entity_relationships:"
+                       << enrollQ.lastError().text();
+        }
+    }
 }
 
 bool DatabaseManager::ensureBlueprintHeadings(QSqlDatabase db) {
@@ -2741,15 +2866,21 @@ bool DatabaseManager::ensureBlueprintHeadings(QSqlDatabase db) {
     }
 
     // 4. Auto-enroll any group primary contact/leader into entity_relationships as Leader
-    db.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
-            "SELECT 'Person', g.contact_person_id, 'Group', g.id, 'Leader', 'Active', 'manual', date('now','localtime') "
-            "FROM groups g "
-            "WHERE g.contact_person_id IS NOT NULL AND g.contact_person_id > 0 "
-            "AND NOT EXISTS ( "
-            "    SELECT 1 FROM entity_relationships er "
-            "    WHERE er.source_type = 'Person' AND er.source_id = g.contact_person_id "
-            "      AND er.target_type = 'Group' AND er.target_id = g.id "
-            ");");
+    {
+        QSqlQuery enrollQ(db);
+        if (!enrollQ.exec("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
+                          "SELECT 'Person', g.contact_person_id, 'Group', g.id, 'Leader', 'Active', 'manual', date('now','localtime') "
+                          "FROM groups g "
+                          "WHERE g.contact_person_id IS NOT NULL AND g.contact_person_id > 0 "
+                          "AND NOT EXISTS ( "
+                          "    SELECT 1 FROM entity_relationships er "
+                          "    WHERE er.source_type = 'Person' AND er.source_id = g.contact_person_id "
+                          "      AND er.target_type = 'Group' AND er.target_id = g.id "
+                          ");")) {
+            qWarning() << "Failed to auto-enroll group contact persons in entity_relationships:"
+                       << enrollQ.lastError().text();
+        }
+    }
 
     return true;
 }

@@ -414,12 +414,8 @@ void PeopleWidget::setupUI() {
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("sparkles", QColor("#2e7d32"), 13), "Ready for Membership", 3);
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("shield-check", QColor(), 13), "Completed Both", 4);
     m_cmbPathwayFilter->setStyleSheet("QComboBox { font-size: 10px; padding: 1px 6px; }");
-    connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
-        // A user-initiated filter change drops any one-shot analytics drill-through.
-        m_drillCareFlag.clear();
-        m_drillSpecialFilter.clear();
-        reapplyFilter();
-    });
+    connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &PeopleWidget::onPathwayFilterChanged);
     statusFilterRow->addWidget(m_cmbPathwayFilter);
     statusFilterRow->addStretch();
     leftLayout->addLayout(statusFilterRow);
@@ -2404,6 +2400,10 @@ void PeopleWidget::applyRole(const QString& role) {
 
 void PeopleWidget::onSearchTextChanged(const QString& text) {
     Q_UNUSED(text);
+    if (!confirmFilterChange()) {
+        restoreFilterWidgets();
+        return;
+    }
     // A user-initiated search replaces any analytics drill-through view.
     m_drillCareFlag.clear();
     m_drillSpecialFilter.clear();
@@ -2412,9 +2412,70 @@ void PeopleWidget::onSearchTextChanged(const QString& text) {
 
 void PeopleWidget::onStatusFilterChanged(int id) {
     Q_UNUSED(id);
+    if (!confirmFilterChange()) {
+        restoreFilterWidgets();
+        return;
+    }
     m_drillCareFlag.clear();
     m_drillSpecialFilter.clear();
     reapplyFilter();
+}
+
+void PeopleWidget::onPathwayFilterChanged(int index) {
+    Q_UNUSED(index);
+    if (!confirmFilterChange()) {
+        restoreFilterWidgets();
+        return;
+    }
+    // A user-initiated filter change drops any one-shot analytics drill-through.
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
+    reapplyFilter();
+}
+
+// The roster model reload in reapplyFilter() clears the bound selection, which
+// used to silently throw away typed edits in the profile editor. Ask first,
+// exactly like person switching / roster refreshes do.
+bool PeopleWidget::confirmFilterChange() {
+    if (m_suppressUnsavedPrompt || !m_isDirty || m_currentPersonId <= 0) return true;
+
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        this, "Unsaved Changes",
+        "You have unsaved changes in this member's profile.\n\n"
+        "Save them before changing the directory filter?",
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+        QMessageBox::Save);
+
+    if (answer == QMessageBox::Cancel) return false;
+
+    if (answer == QMessageBox::Save) {
+        m_suppressUnsavedPrompt = true;
+        onSaveProfile();
+        const bool saved = !m_isDirty;
+        m_suppressUnsavedPrompt = false;
+        // A failed save keeps the editor (and its unsaved changes) intact.
+        return saved;
+    }
+
+    // Discard: drop the edits and let the new filter load the DB row.
+    setDirty(false);
+    return true;
+}
+
+void PeopleWidget::restoreFilterWidgets() {
+    if (m_searchEdit) {
+        QSignalBlocker blocker(m_searchEdit);
+        m_searchEdit->setText(m_appliedSearchText);
+    }
+    // idClicked() only fires for real user clicks, so setChecked() cannot loop.
+    if (m_statusFilterGroup && m_appliedStatusId >= 0
+        && m_statusFilterGroup->button(m_appliedStatusId)) {
+        m_statusFilterGroup->button(m_appliedStatusId)->setChecked(true);
+    }
+    if (m_cmbPathwayFilter) {
+        QSignalBlocker blocker(m_cmbPathwayFilter);
+        m_cmbPathwayFilter->setCurrentIndex(m_appliedPathwayIndex);
+    }
 }
 
 void PeopleWidget::reapplyFilter() {
@@ -2474,6 +2535,12 @@ void PeopleWidget::reapplyFilter() {
 
     // Re-apply active sort mode so filtered results are immediately and properly sorted
     onSortByChanged(m_cmbSortBy->currentIndex());
+
+    // Remember what is actually applied so a cancelled filter change can roll
+    // the filter widgets back to the previous view.
+    m_appliedSearchText = m_searchEdit ? m_searchEdit->text() : QString();
+    m_appliedStatusId = m_statusFilterGroup ? m_statusFilterGroup->checkedId() : -1;
+    m_appliedPathwayIndex = m_cmbPathwayFilter ? m_cmbPathwayFilter->currentIndex() : 0;
 }
 
 void PeopleWidget::refreshModel() {

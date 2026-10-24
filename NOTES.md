@@ -161,12 +161,34 @@ identical across them.
   overnight handling. The Service Builder, Shepherd and Facilities modules all
   delegate to `eventIcal()` / `volunteerServiceIcal()` (Facilities adds a
   15-minute display alarm). Covered by `ical_generator_rfc_compliance`.
-- **Sanitizer build.** `cmake -DOE_ENABLE_SANITIZERS=ON` wires ASan/UBSan
-  on GCC/Clang and `/fsanitize=address` on MSVC. Off by default.
+- **History retention pruning.** `DatabaseManager::pruneHistory(auditKeepDays,
+  historyKeepDays)` deletes `audit_log` / `member_history` rows older than the
+  given windows in one transaction (UTC cutoffs, `<= 0` = keep forever).
+  `initialize()` runs it only for an existing database, after migrations and
+  the auto-backup snapshot, reading QSettings `auditLogRetentionDays` (365) and
+  `memberHistoryRetentionDays` (730). Both are editable on Settings → Data,
+  Backup & Integrations (0 renders as “Keep forever”, admin-only).
+- **Double-entry ledger entry.** Finance → Contributions → “New Ledger
+  Transaction” (`ledgerEntryBtn`) opens `TransactionDialog`; saves go through
+  `TransactionDialog::saveTransaction()` which rejects an empty description,
+  fewer than two splits, unknown accounts and any unbalanced total, then writes
+  the `transactions` row plus its `splits` in one checked transaction. Success
+  emits `ContributionsWidget::ledgerChanged()`, which MainWindow connects to
+  `updateDashboardStats()` so the “Total Assets” KPI (SUM of ASSET-account
+  splits) refreshes immediately. Guest/read-only roles get a disabled button.
+  Covered by `ledger_entry_and_total_assets`.
+- **Unsaved-edit prompts beyond person switching.** The People module now also
+  prompts on search/status/pathway filter changes (Save/Discard/Cancel);
+  Cancel restores the previous filter widgets with blocked signals, and
+  programmatic analytics drill-through refreshes do not prompt.
+- **CI sanitizer job.** `ci.yml` has an `asan` job (Ubuntu GCC, ASan + UBSan,
+  `-DOE_ENABLE_SANITIZERS=ON`) building and running the suite with
+  `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`, in addition to the local
+  `OE_ENABLE_SANITIZERS` option.
 - **Qt 6.4 / MSVC 14.44 portability.** The `QCheckBox::checkStateChanged`
-  API (Qt 6.7+) was replaced with `stateChanged(int)`; the in-app manual
-  was split across two string literals because it exceeded the 16,384
-  character limit for a single literal.
+  API (Qt 6.7+) is used through a `QT_VERSION`-guarded helper with a
+  `stateChanged(int)` fallback; the in-app manual was split across two string
+  literals because it exceeded the 16,384 character limit for a single literal.
 - **Repository hygiene.** Build outputs are no longer tracked (the history
   was purged), `.gitattributes` normalises line endings so a Windows edit
   no longer rewrites every line of a file, and the test suite fails fast
@@ -175,28 +197,20 @@ identical across them.
 
 ### 6.3 Still open
 
-- **Ledger entry UI is not exposed.** `accounts`/`transactions`/`splits` and
-  `TransactionDialog` exist but nothing in the shipped UI opens the dialog, so
-  the dashboard "Total Assets" KPI (SUM of ASSET-account splits) stays 0 until
-  transaction entry is wired up. Giving is tracked in `funds`/`contributions`.
 - **Planning Center designations.** Donations are imported with real amounts
   and dates, but designation→fund mapping still falls back to
   "Imported (Unmapped)" until the sync requests `&include=designations`.
-- **Unsaved-edit prompt scope.** The People module prompts on person switch,
-  roster refresh and Add Person, but a search/status filter change still
-  resets the model and clears the selection without prompting (prompting per
-  keystroke would be worse). Cancel on the refresh prompt cannot stop
-  MainWindow's drill-through re-filter.
 - **Hard-coded seed identities.** The seeded admin/pastor/finance/readonly
   users and the demo household ids are fixed product seed data; don't build
   assumptions about "household 1" into new features.
 - A native Windows toast (Start Menu shortcut carrying the AppUserModelID).
 - macOS notification delivery needs a signed bundle.
-- `member_history` and `audit_log` grow without pruning.
-- A shipped ASan build in CI, not just a local build option.
 - `QSystemTrayIcon` cannot be compiled into the offscreen test target on
   every toolchain; the tray's *queries* are the testable part, and
   `collectReminders()` is public for that reason.
+- `MainWindow`'s analytics drill-through re-filters the People model without
+  asking about unsaved edits; leaving the module through a normal person
+  switch/refresh already prompts.
 
 
 ## 7. Smart features roadmap (agreed 2025 direction)

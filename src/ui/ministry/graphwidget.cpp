@@ -2538,7 +2538,7 @@ void GraphWidget::loadGraph() {
             NodeItem* node = new NodeItem(gid, name, NodeItem::Group);
             node->setHealthStatus(NodeItem::FullyStaffed);
             if (!category.isEmpty()) {
-                uint h = qHash(category);
+                const uint h = static_cast<uint>(qHash(category));
                 node->setCategoryColor(kCategoryPalette[h % kCategoryPalette.size()]);
             }
 

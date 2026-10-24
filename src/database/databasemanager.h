@@ -29,6 +29,16 @@ public:
 
     bool purgeDemoData();
 
+    // Delete audit_log / member_history rows older than the given retention
+    // windows. A keepDays value <= 0 means "keep forever" (that table is
+    // skipped). Both deletes share one transaction and roll back together on
+    // failure; the returned counts are the rows actually removed.
+    struct RetentionResult {
+        int auditDeleted = 0;
+        int historyDeleted = 0;
+    };
+    RetentionResult pruneHistory(int auditKeepDays, int historyKeepDays);
+
     static void logAudit(const QString& tableName, int recordId, const QString& fieldName, const QString& oldValue, const QString& newValue, const QString& changedBy = "system");
     static void logMemberHistory(int personId, const QString& activityType, const QString& details);
 

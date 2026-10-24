@@ -35,6 +35,12 @@ public:
     void refreshContributions();
     void loadBatch(int batchId);
 
+signals:
+    // Emitted after a double-entry ledger transaction has been committed, so
+    // the dashboard KPIs (notably Total Assets = SUM of ASSET-account splits)
+    // can refresh immediately instead of waiting for the next page visit.
+    void ledgerChanged();
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
 
@@ -47,6 +53,7 @@ private slots:
     void onHistoryContextMenu(const QPoint& pos);
     void onManageFunds();
     void onExportGnuCashCsv();
+    void onNewLedgerTransaction();
     void onNewBatchClicked();
     void onDeleteBatchClicked();
     void onToggleBatchCommit();
@@ -113,6 +120,7 @@ private:
     // Footer Actions
     QPushButton* m_btnManageFunds;
     QPushButton* m_btnGnuCashExport;
+    QPushButton* m_btnLedgerEntry;
 
     // --- Right Drawer: Batches Navigation ---
     QPushButton* m_tabInProgress;

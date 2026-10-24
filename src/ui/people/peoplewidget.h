@@ -134,6 +134,7 @@ private slots:
     void onDeleteSelectedMembers();
     void onBatchSetStatus();
     void onStatusFilterChanged(int id);
+    void onPathwayFilterChanged(int index);
     void onSortByChanged(int index);
     void onLogCareEntry();
     void onOpenPersonDocument(QListWidgetItem* item);
@@ -168,6 +169,11 @@ private:
     void updateDocumentsSection(int personId);
     void updatePathwayUI();
     void setDirty(bool dirty);
+    // User-initiated filter changes reload the roster model, which clears the
+    // bound selection; never let that silently discard typed profile edits.
+    // Returns false when the user cancels (caller restores the filter widgets).
+    bool confirmFilterChange();
+    void restoreFilterWidgets();
     void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 
     // Left Panel (Master)
@@ -301,6 +307,12 @@ private:
     // filters, and are cleared on every roster refresh (never persistent).
     QString m_drillCareFlag;
     QString m_drillSpecialFilter;
+
+    // Last successfully applied filter values, used to roll the filter widgets
+    // back when the user cancels an unsaved-changes prompt mid-filter-change.
+    QString m_appliedSearchText;
+    int m_appliedStatusId = -1;
+    int m_appliedPathwayIndex = 0;
 
     // Models & Mapping
     QSqlRelationalTableModel* m_peopleModel = nullptr;

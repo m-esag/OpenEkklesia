@@ -1,4 +1,4 @@
-﻿#include "servicebuilderwidget.h"
+#include "servicebuilderwidget.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -105,7 +105,16 @@ ServiceBuilderWidget::ServiceBuilderWidget(QWidget *parent)
     applyRole("admin"); // default: full access until MainWindow applies the real role
 }
 
-ServiceBuilderWidget::~ServiceBuilderWidget() {}
+ServiceBuilderWidget::~ServiceBuilderWidget() {
+    // The playlist model emits reset/row signals while the widget tree is being
+    // torn down. By then the derived part of this object is already destroyed,
+    // so a still-connected slot would run on a half-destructed widget (Qt
+    // asserts "class destructor may have already run"). Drop those connections
+    // while the widget is still intact.
+    if (m_playlist && m_playlist->model()) {
+        disconnect(m_playlist->model(), nullptr, this, nullptr);
+    }
+}
 
 // Pastel type tint used by both the library and the run sheet, blended at low
 // alpha so it reads on light and dark themes alike.

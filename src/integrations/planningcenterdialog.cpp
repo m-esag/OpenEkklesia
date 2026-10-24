@@ -186,10 +186,10 @@ void PlanningCenterDialog::onStartImport() {
         tasks->append({"People", [this, appId, secret](std::function<void()> next) {
             m_txtLog->append("Fetching People from Planning Center (/people/v2/people)...");
             m_progressBar->setValue(15);
-            m_client.fetchPeople(appId, secret, [this, next](bool ok, const QJsonArray& data, const QString& err) {
+            m_client.fetchPeople(appId, secret, [this, next](bool ok, const QJsonArray& records, const QString& err) {
                 if (ok) {
-                    m_txtLog->append(QString("Received %1 member records from Planning Center API.").arg(data.size()));
-                    PcoImportSummary sum = m_client.importPeopleData(data);
+                    m_txtLog->append(QString("Received %1 member records from Planning Center API.").arg(records.size()));
+                    PcoImportSummary sum = m_client.importPeopleData(records);
                     m_txtLog->append(QString("✅ Synced %1 member records into OpenEkklesia.").arg(sum.peopleCount));
                     for (const QString& e : sum.errors) m_txtLog->append(QString("⚠️ %1").arg(e));
                 } else {
@@ -205,10 +205,10 @@ void PlanningCenterDialog::onStartImport() {
     if (m_chkImportGroups->isChecked()) {
         tasks->append({"Groups", [this, appId, secret](std::function<void()> next) {
             m_txtLog->append("Fetching Groups from Planning Center (/groups/v2/groups)...");
-            m_client.fetchGroups(appId, secret, [this, next](bool ok, const QJsonArray& data, const QString& err) {
+            m_client.fetchGroups(appId, secret, [this, next](bool ok, const QJsonArray& records, const QString& err) {
                 if (ok) {
-                    m_txtLog->append(QString("Received %1 group records from API.").arg(data.size()));
-                    PcoImportSummary sum = m_client.importGroupsData(data);
+                    m_txtLog->append(QString("Received %1 group records from API.").arg(records.size()));
+                    PcoImportSummary sum = m_client.importGroupsData(records);
                     m_txtLog->append(QString("✅ Synced %1 groups.").arg(sum.groupsCount));
                     for (const QString& e : sum.errors) m_txtLog->append(QString("⚠️ %1").arg(e));
                 } else {
@@ -224,10 +224,10 @@ void PlanningCenterDialog::onStartImport() {
     if (m_chkImportServices->isChecked()) {
         tasks->append({"Services", [this, appId, secret](std::function<void()> next) {
             m_txtLog->append("Fetching Services from Planning Center (/services/v2/service_types)...");
-            m_client.fetchServicePlans(appId, secret, [this, next](bool ok, const QJsonArray& data, const QString& err) {
+            m_client.fetchServicePlans(appId, secret, [this, next](bool ok, const QJsonArray& records, const QString& err) {
                 if (ok) {
-                    m_txtLog->append(QString("Received %1 service plans from API.").arg(data.size()));
-                    PcoImportSummary sum = m_client.importServicesData(data);
+                    m_txtLog->append(QString("Received %1 service plans from API.").arg(records.size()));
+                    PcoImportSummary sum = m_client.importServicesData(records);
                     m_txtLog->append(QString("✅ Synced %1 service plans into the service schedule.").arg(sum.servicesCount));
                     for (const QString& e : sum.errors) m_txtLog->append(QString("⚠️ %1").arg(e));
                 } else {
