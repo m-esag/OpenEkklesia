@@ -169,17 +169,24 @@ double SynergyEngine::calculateEquilibriumDelta(const CandidateProfile& candidat
 
     double distBefore = RelationalStyleVector::euclideanDistance(current, target);
 
-    // Simulate candidate joining
+    // Simulate candidate joining. currentAggregateVector holds the member MEAN
+    // (loadGroup/loadAllGroups divide the sum by activeMemberCount), so the new
+    // team mean is (mean * n + candidate) / (n + 1) — not (mean + candidate)/n+1.
     RelationalStyleVector candVec = MinistryArchetypeRegistry::personStyleVector(candidate.primaryArchetype, candidate.secondaryArchetype);
-    int n = std::max(0, group.activeMemberCount);
-    RelationalStyleVector simulated(
-        (group.currentAggregateVector.organizer + candVec.organizer) / (n + 1.0),
-        (group.currentAggregateVector.listener + candVec.listener) / (n + 1.0),
-        (group.currentAggregateVector.doer + candVec.doer) / (n + 1.0),
-        (group.currentAggregateVector.energizer + candVec.energizer) / (n + 1.0),
-        (group.currentAggregateVector.strategist + candVec.strategist) / (n + 1.0),
-        (group.currentAggregateVector.connector + candVec.connector) / (n + 1.0)
-    );
+    const double n = static_cast<double>(std::max(0, group.activeMemberCount));
+    RelationalStyleVector simulated;
+    if (n <= 0.0) {
+        simulated = candVec; // empty team: the candidate alone defines the mix
+    } else {
+        simulated = RelationalStyleVector(
+            (group.currentAggregateVector.organizer * n + candVec.organizer) / (n + 1.0),
+            (group.currentAggregateVector.listener * n + candVec.listener) / (n + 1.0),
+            (group.currentAggregateVector.doer * n + candVec.doer) / (n + 1.0),
+            (group.currentAggregateVector.energizer * n + candVec.energizer) / (n + 1.0),
+            (group.currentAggregateVector.strategist * n + candVec.strategist) / (n + 1.0),
+            (group.currentAggregateVector.connector * n + candVec.connector) / (n + 1.0)
+        );
+    }
     double distAfter = RelationalStyleVector::euclideanDistance(simulated, target);
 
     double delta = distBefore - distAfter; // positive means moving closer to ideal

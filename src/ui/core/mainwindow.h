@@ -82,6 +82,8 @@ private:
     void applyRolePermissions();
     void applyModuleVisibility();
     bool isModuleEnabled(const QString& moduleKey, bool defaultValue = true) const;
+    // True for read-only roles (guest / read-only): write paths must refuse.
+    bool isReadOnlyRole() const;
     void updateDashboardStats();
     void updatePieChart();
 
@@ -92,7 +94,7 @@ private:
     QWidget* createTablePage(const QString& title, QTableView* view);
 
     TrayManager* m_trayManager = nullptr;
-    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout â€” see mainwindow.cpp
+    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout — see mainwindow.cpp
     
     QPushButton* m_btnDashboard;
     QPushButton* m_btnMembers;
@@ -121,6 +123,7 @@ private:
     QAction* m_actCont;
     QAction* m_actInventory;
     QAction* m_actVault;
+    QAction* m_actKiosk = nullptr;
     QAction* m_actUserManual;
 
     PeopleWidget* m_peopleWidget;
@@ -158,6 +161,7 @@ private:
     QCheckBox* m_chkShowArchivedGroups;
     QCheckBox* m_chkShowHiddenGroups;
     QCheckBox* m_chkShowMembersInTree;
+    QPushButton* m_btnAddGroup = nullptr;
     QPushButton* m_btnEditGroup;
     QPushButton* m_btnDuplicateGroup;
     QPushButton* m_btnArchiveGroup;
@@ -170,12 +174,14 @@ private:
     QLabel* m_lblRosterTitle;
     QPushButton* m_btnAddRosterMember;
     QPushButton* m_btnCreateSubTeam;
-    int m_selectedGroupId;
+    QPushButton* m_btnSuggestPeople = nullptr;
+    int m_selectedGroupId = 0;
 
     QTabWidget* m_groupsTabWidget;
     QWidget* m_tabMinistryBlueprints;
     QWidget* m_blueprintsGridContainer = nullptr;
     QCheckBox* m_chkShowArchivedBlueprints = nullptr;
+    QPushButton* m_btnDefineBlueprint = nullptr;
     void setupMinistryBlueprintsTab(QWidget* container);
     void refreshMinistryBlueprintsTab();
     void showBlueprintDialog(int blueprintId = 0);
@@ -214,6 +220,7 @@ private:
     QListWidget* m_lstPastoralAlerts = nullptr;
     QListWidget* m_lstVisitorFollowup = nullptr;
     QListWidget* m_lstUpcomingServices = nullptr;
+    QPushButton* m_btnQuickNote = nullptr;
 
     bool m_hintsEnabled = false;
     QWidget* m_hintPanel = nullptr;

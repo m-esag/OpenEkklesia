@@ -14,6 +14,7 @@
 #include <QSqlError>
 #include <QDebug>
 #include <cmath>
+#include <QSignalBlocker>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -1407,7 +1408,10 @@ void GraphWidget::setupUI() {
     QLabel* lblCare = new QLabel("Care Flag:", m_pagePerson);
     lblCare->setStyleSheet("font-size: 12px; font-weight: bold; color: palette(text);");
     m_cmbCareFlag = new QComboBox(m_pagePerson);
-    m_cmbCareFlag->addItems({"Normal", "Active Member", "Leader", "At-Risk", "New Visitor", "Needs Contact"});
+    m_cmbCareFlag->setObjectName("careFlagCombo");
+    // Canonical pastoral care flags (same vocabulary as PeopleWidget) so a flag
+    // set here reads back correctly everywhere else.
+    m_cmbCareFlag->addItems({"Normal", "Needs Contact", "At-Risk", "Follow-up", "Grief Support", "Leader"});
     m_cmbCareFlag->setStyleSheet("font-size: 11px; padding: 5px;");
     connect(m_cmbCareFlag, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onCareFlagChanged);
 
@@ -1610,6 +1614,7 @@ void GraphWidget::setupUI() {
     QLabel* lblRole = new QLabel("Assigned Role / Connection:", m_pageEdge);
     lblRole->setStyleSheet("font-size: 11px;");
     m_cmbEdgeRole = new QComboBox(m_pageEdge);
+    m_cmbEdgeRole->setObjectName("edgeRoleCombo");
     m_cmbEdgeRole->addItems({"Member", "Leader", "Co-Leader", "Volunteer", "Spouse", "Child", "Parent"});
     connect(m_cmbEdgeRole, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphWidget::onEdgeRoleChanged);
 
@@ -1962,6 +1967,18 @@ void GraphWidget::onBatchExportCSV() {
         return;
     }
 
+    // RFC 4180: quote fields containing quotes, commas or line breaks and
+    // double any embedded quote so the export stays parseable.
+    auto csvField = [](const QString& value) {
+        QString escaped = value;
+        escaped.replace('"', "\"\"");
+        if (escaped.contains(',') || escaped.contains('"') ||
+            escaped.contains('\n') || escaped.contains('\r')) {
+            return "\"" + escaped + "\"";
+        }
+        return escaped;
+    };
+
     QTextStream out(&file);
     out << "ID,Name,Type,Phone,Email,CareFlag\n";
     for (int i = 0; i < m_lstBatchMembers->count(); ++i) {
@@ -1969,13 +1986,13 @@ void GraphWidget::onBatchExportCSV() {
         for (NodeItem* n : m_nodes) {
             if (n->id() == id) {
                 QString nType = n->isPersonNode() ? "Person" : "Group";
-                out << QString("%1,\"%2\",%3,\"%4\",\"%5\",\"%6\"\n")
+                out << QString("%1,%2,%3,%4,%5,%6\n")
                            .arg(n->id())
-                           .arg(n->name())
+                           .arg(csvField(n->name()))
                            .arg(nType)
-                           .arg(n->phone())
-                           .arg(n->email())
-                           .arg(n->careFlag());
+                           .arg(csvField(n->phone()))
+                           .arg(csvField(n->email()))
+                           .arg(csvField(n->careFlag()));
                 break;
             }
         }
@@ -1986,6 +2003,7 @@ void GraphWidget::onBatchExportCSV() {
 }
 
 void GraphWidget::onBatchAssignGroup() {
+    if (m_readOnly) return;
     QList<int> personIds;
     for (int i = 0; i < m_lstBatchMembers->count(); ++i) {
         int id = m_lstBatchMembers->item(i)->data(Qt::UserRole).toInt();
@@ -2238,6 +2256,10 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
         QPushButton* btnConnect = new QPushButton(" Connect", rowWidget);
         btnConnect->setIcon(IconManager::instance().getPrimaryIcon("zap", 14));
         btnConnect->setCursor(Qt::PointingHandCursor);
+        btnConnect->setEnabled(!m_readOnly);
+        if (m_readOnly) {
+            btnConnect->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
+        }
         btnConnect->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; font-weight: bold; font-size: 11px; border-radius: 5px; padding: 4px 10px; border: none; }"
             "QPushButton:hover { background-color: %3; }"
@@ -2282,6 +2304,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
 }
 
 void GraphWidget::onConnectSmartBridge(int personId, int groupId, const QString& role, int score, const QStringList& warnings) {
+    if (m_readOnly) return;
     // Dedup guard: never create a second relationship for the same pair.
     QSqlQuery exists;
     exists.prepare("SELECT 1 FROM entity_relationships "
@@ -2845,8 +2868,23 @@ void GraphWidget::selectNodeForDetails(NodeItem* node) {
             m_lblPersonBrokerBadge->hide();
         }
 
-        int idx = m_cmbCareFlag->findText(node->careFlag());
-        if (idx >= 0) m_cmbCareFlag->setCurrentIndex(idx);
+        // Programmatic combo updates must not fire the write-through handler
+        // (it would persist the previously selected person's flag).
+        const QSignalBlocker careBlocker(m_cmbCareFlag);
+        // Trim any legacy flag item added for a previously selected person.
+        while (m_cmbCareFlag->count() > 6) m_cmbCareFlag->removeItem(m_cmbCareFlag->count() - 1);
+        int idx = m_cmbCareFlag->findText(node->careFlag(), Qt::MatchFixedString);
+        if (idx >= 0) {
+            m_cmbCareFlag->setCurrentIndex(idx);
+        } else if (!node->careFlag().isEmpty()) {
+            // Preserve an off-list legacy flag instead of silently showing the
+            // previously selected person's flag. Changing it writes the new
+            // value, which is what the admin asked for.
+            m_cmbCareFlag->addItem(node->careFlag());
+            m_cmbCareFlag->setCurrentIndex(m_cmbCareFlag->count() - 1);
+        } else {
+            m_cmbCareFlag->setCurrentIndex(0);
+        }
 
         QStringList groups;
         QSqlQuery q;
@@ -3010,6 +3048,8 @@ void GraphWidget::selectEdgeForDetails(EdgeItem* edge) {
     m_detailsStack->setCurrentWidget(m_pageEdge);
 
     m_lblEdgeBetween->setText(QString("%1 ↔ %2").arg(edge->sourceNode()->name(), edge->targetNode()->name()));
+    // Programmatic selection must not fire the write-through role handler.
+    const QSignalBlocker edgeRoleBlocker(m_cmbEdgeRole);
     int idx = m_cmbEdgeRole->findText(edge->relationshipType());
     if (idx >= 0) m_cmbEdgeRole->setCurrentIndex(idx);
 
@@ -3069,6 +3109,7 @@ void GraphWidget::updateEdgesForNode(NodeItem* node) {
 }
 
 void GraphWidget::onSeverSelectedEdge() {
+    if (m_readOnly) return;
     if (!m_selectedEdgeForDetails) return;
 
     // Guard across the confirmation dialog's nested event loop: anything
@@ -3153,6 +3194,7 @@ void GraphWidget::onSeverSelectedEdge() {
 }
 
 void GraphWidget::onGroupSuggest() {
+    if (m_readOnly) return;
     if (!m_selectedNodeForDetails || m_selectedNodeForDetails->nodeType() != NodeItem::Group) return;
     if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int gid = m_selectedNodeForDetails->id();
@@ -3168,6 +3210,7 @@ void GraphWidget::onGroupSuggest() {
 }
 
 void GraphWidget::onLogContact() {
+    if (m_readOnly) return;
     if (!m_selectedNodeForDetails || !m_selectedNodeForDetails->isPersonNode()) return;
     if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     const int pid = m_selectedNodeForDetails->id();
@@ -3181,20 +3224,41 @@ void GraphWidget::onLogContact() {
         QMessageBox::critical(this, "Database Error", "Failed to log contact: " + q.lastError().text());
         return;
     }
-    // Ensure the person is flagged for follow-up.
+    // Ensure the person is flagged for follow-up. An existing deliberate flag
+    // (At-Risk, Grief Support, Leader, ...) is kept: report what was persisted
+    // instead of pretending the flag changed.
     QSqlQuery flag(db);
     flag.prepare("UPDATE people SET care_flag = 'Needs Contact' "
                  "WHERE id = ? AND (care_flag IS NULL OR care_flag = '' OR care_flag = 'Normal')");
     flag.addBindValue(pid);
-    flag.exec();
+    const bool flagged = flag.exec() && flag.numRowsAffected() > 0;
 
-    m_selectedNodeForDetails->setCareFlag("Needs Contact");
-    m_lblLogContactStatus->setText("✓ Contact attempt logged — flagged 'Needs Contact' for follow-up.");
+    QString persistedFlag;
+    if (flagged) {
+        persistedFlag = QStringLiteral("Needs Contact");
+    } else {
+        QSqlQuery read(db);
+        read.prepare("SELECT COALESCE(care_flag, '') FROM people WHERE id = ?");
+        read.addBindValue(pid);
+        if (read.exec() && read.next()) persistedFlag = read.value(0).toString();
+    }
+    if (!persistedFlag.isEmpty()) m_selectedNodeForDetails->setCareFlag(persistedFlag);
+    if (flagged) {
+        m_lblLogContactStatus->setText(
+            QStringLiteral("✓ Contact attempt logged — flagged 'Needs Contact' for follow-up."));
+    } else if (!persistedFlag.isEmpty()) {
+        m_lblLogContactStatus->setText(
+            QStringLiteral("✓ Contact attempt logged — existing care flag '%1' kept.").arg(persistedFlag));
+    } else {
+        m_lblLogContactStatus->setText(
+            QStringLiteral("✓ Contact attempt logged — care flag unchanged."));
+    }
     m_lblLogContactStatus->show();
     m_scene->update();
 }
 
 void GraphWidget::onUndoSever() {
+    if (m_readOnly) return;
     if (!m_hasUndoSever) return;
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
@@ -3239,6 +3303,7 @@ void GraphWidget::onToggleStatusCluster() {
 }
 
 void GraphWidget::onEdgeRoleChanged(int) {
+    if (m_readOnly) return;
     if (!m_selectedEdgeForDetails) return;
     QString newRole = m_cmbEdgeRole->currentText();
     m_selectedEdgeForDetails->setRelationshipType(newRole);
@@ -3273,6 +3338,7 @@ void GraphWidget::onCopyContactInfo(NodeItem* node, const QString& type) {
 }
 
 void GraphWidget::onQuickAssignGroup(NodeItem* node) {
+    if (m_readOnly) return;
     if (!node) return;
     QDialog dlg(this);
     dlg.setWindowTitle("Assign to Group");
@@ -3330,7 +3396,7 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
     // m_nodes and re-validate after exec().
     const int nodeSlot = m_nodes.indexOf(node);
 
-    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+    const bool isReadOnly = m_readOnly;
     const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
 
     if (node->isPersonNode()) {
@@ -3344,12 +3410,12 @@ void GraphWidget::showNodeContextMenu(NodeItem* node, const QPoint& globalPos) {
         QAction* aAssign = m.addAction(IconManager::instance().getIcon("user-plus", QColor(), 14), "Assign to Group...");
         QMenu* mCare = m.addMenu(IconManager::instance().getIcon("flag", QColor(), 14), "Set Care Flag");
         QAction* cNone = mCare->addAction("None / Normal");
-        // The other care-flag entries are matched by text (sel->text()), not
-        // by pointer, so they need no stored handles.
-        mCare->addAction("Active Member");
-        mCare->addAction("Leader");
-        mCare->addAction("At-Risk");
+        // Same canonical flags as the People list / person inspector combo.
         mCare->addAction("Needs Contact");
+        mCare->addAction("At-Risk");
+        mCare->addAction("Follow-up");
+        mCare->addAction("Grief Support");
+        mCare->addAction("Leader");
 
         if (isReadOnly) {
             aAssign->setEnabled(false); aAssign->setToolTip(roTooltip);
@@ -3666,6 +3732,7 @@ void GraphWidget::runBFSPathfind() {
 }
 
 void GraphWidget::onSaveNotes() {
+    if (m_readOnly) return;
     if (!m_selectedNodeForDetails) return;
     if (!m_nodes.contains(m_selectedNodeForDetails)) return;
     QString notes = m_txtAdminNotes->toPlainText().trimmed();
@@ -3690,6 +3757,7 @@ void GraphWidget::onSaveNotes() {
 }
 
 void GraphWidget::onCareFlagChanged(int) {
+    if (m_readOnly) return;
     if (!m_selectedNodeForDetails || !m_selectedNodeForDetails->isPersonNode()) return;
     QString newFlag = m_cmbCareFlag->currentText();
     m_selectedNodeForDetails->setCareFlag(newFlag);
@@ -4169,6 +4237,77 @@ void GraphWidget::setRepulsionStrength(double val) {
 
 void GraphWidget::applyRole(const QString& role) {
     m_userRole = role;
+    m_readOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 ||
+                  role.compare("guest", Qt::CaseInsensitive) == 0);
+    const bool canEdit = !m_readOnly;
+    const QString tip = m_readOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : "";
+
+    // Person inspector: care flag, admin notes and the reconnect workflow all
+    // write to the database.
+    if (m_cmbCareFlag) {
+        m_cmbCareFlag->setEnabled(canEdit);
+        m_cmbCareFlag->setToolTip(tip);
+    }
+    if (m_txtAdminNotes) {
+        m_txtAdminNotes->setReadOnly(m_readOnly);
+        m_txtAdminNotes->setToolTip(tip);
+    }
+    if (m_btnSaveNotes) {
+        m_btnSaveNotes->setEnabled(canEdit);
+        m_btnSaveNotes->setToolTip(tip);
+    }
+    if (m_btnLogContact) {
+        m_btnLogContact->setEnabled(canEdit);
+        // Keep the explanatory tooltip for admins; only guests get the
+        // read-only explanation.
+        m_btnLogContact->setToolTip(m_readOnly
+            ? tip
+            : QStringLiteral("Records a contact attempt (pastoral log) and flags 'Needs Contact' "
+                             "when no other care flag is set"));
+    }
+
+    // Edge inspector: role reassignment and severing are writes.
+    if (m_cmbEdgeRole) {
+        m_cmbEdgeRole->setEnabled(canEdit);
+        m_cmbEdgeRole->setToolTip(tip);
+    }
+    if (m_btnSeverEdge) {
+        m_btnSeverEdge->setEnabled(canEdit);
+        m_btnSeverEdge->setToolTip(tip);
+    }
+    if (m_btnUndoSever) {
+        m_btnUndoSever->setEnabled(canEdit && m_hasUndoSever);
+        m_btnUndoSever->setToolTip(tip);
+    }
+
+    // Group inspector: roster assignment and the ministry-match quick-add flow.
+    if (m_btnGroupAddMember) {
+        m_btnGroupAddMember->setEnabled(canEdit);
+        m_btnGroupAddMember->setToolTip(tip);
+    }
+    if (m_btnGroupSuggest) {
+        m_btnGroupSuggest->setEnabled(canEdit);
+        m_btnGroupSuggest->setToolTip(tip);
+    }
+
+    // Batch operations: assignment writes memberships.
+    if (m_btnBatchAssign) {
+        m_btnBatchAssign->setEnabled(canEdit);
+        m_btnBatchAssign->setToolTip(tip);
+    }
+
+    // Smart Bridge "Connect" cards are rebuilt on demand; update any that are
+    // already on screen instead of recomputing (which would duplicate cards).
+    if (m_smartBridgeSection) {
+        for (QPushButton* connectBtn : m_smartBridgeSection->findChildren<QPushButton*>()) {
+            if (connectBtn->text().trimmed() == QStringLiteral("Connect")) {
+                connectBtn->setEnabled(canEdit);
+                connectBtn->setToolTip(tip);
+            }
+        }
+    }
 }
 
 void GraphWidget::applyTheme(const ThemeTokens& tok) {

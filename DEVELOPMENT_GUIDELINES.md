@@ -177,11 +177,15 @@ The QSS engine styles by object name. Use these names — never invent a new
 - Tests **seed their own data** after the harness purges demo data: people
   ids `9001+`, groups `9101+`, households `9201+`, assets `9301+`. Never rely
   on demo rows or on another test's leftovers.
+- Purge (`purgeDemoData`, the product's Factory Reset) deliberately keeps the
+  chart of accounts, funds, login users, ministry archetypes and the 11
+  canonical blueprint heading groups. Tests that run after it must tolerate
+  those structural rows — assert **containment**, never an exact table size.
 - The harness `chdir`s to `/tmp/oe_test_work` so legacy-DB adoption never
   copies the workspace `open_ekklesia.db`; run from a clean dir with
   `XDG_DATA_HOME=$PWD/smoke-data`.
   - Keep the suite green before committing (`build/openekklesia_tests`):
-    **currently 1095 checks, must stay 0 failed.**
+    **currently 1216 checks, must stay 0 failed.**
   - The suite is **fail-fast**: the first scenario that adds a failing `CHECK`
     stops the run, so a red run shows the first real problem instead of a
     cascade of follow-on errors. A test passes only if it returned `true`

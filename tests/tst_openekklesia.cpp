@@ -1,4 +1,4 @@
-﻿// Data-layer integration tests for OpenEkklesia.
+// Data-layer integration tests for OpenEkklesia.
 //
 // Runs against a fresh, throwaway SQLite database (never a user's real data).
 // Uses a minimal self-contained assertion harness so it does not depend on the
@@ -18,6 +18,7 @@
 #include <QJsonObject>
 #include <QByteArray>
 #include <cmath>
+#include <exception>
 #include <functional>
 #include <iostream>
 
@@ -26,6 +27,7 @@
 #include "../src/common/appdateformatter.h"
 #include "../src/common/churchprofile.h"
 #include "../src/common/givingstatementgenerator.h"
+#include "../src/common/icalgenerator.h"
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/admin/settingswidget.h"
@@ -41,6 +43,7 @@
 #include "../src/ui/core/mainwindow.h"
 
 #include <QStackedLayout>
+#include <QToolButton>
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -165,7 +168,7 @@ bool test_expectedIndexesExist() {
 
 bool test_seedDataCounts() {
     // Structure-only scaffold: first-run installs ship login users, default
-    // funds, and a starter chart of accounts â€” no demo people/giving/assets.
+    // funds, and a starter chart of accounts — no demo people/giving/assets.
     // The 11 canonical ministry blueprints are ensured by
     // ensureBlueprintHeadings() on every start.
     CHECK_EQ(countRows("people"), 0);
@@ -191,7 +194,7 @@ bool test_settingsWidgetConstructs() {
 
 // Regression (73e96c6, ed45c10): QStackedLayout takes the MAX of its pages'
 // minimums, so lazily-built per-module toolbars inflated the main window's
-// declared minimum to 1770px wide â€” oversized on a 1536px-logical desktop
+// declared minimum to 1770px wide — oversized on a 1536px-logical desktop
 // and untileable there. The window must keep its hard floor and ignore
 // page-content minimums entirely.
 bool test_mainWindowMinimumDecoupledFromContent() {
@@ -465,13 +468,17 @@ bool test_splitSharingRoundTrip() {
     seedDemoFixture();
     QSqlDatabase d = db();
 
-    // Scope â†’ table mapping sanity.
+    // Scope → table mapping sanity.
     CHECK(DataSharing::tablesForScope("care_notes") == QStringList({"care_logs", "member_history", "pastoral_activities"}));
     CHECK(DataSharing::tablesForScope("membership").contains("people"));
+    CHECK(DataSharing::tablesForScope("membership").contains("assets"));
     CHECK(DataSharing::tablesForScope("finance").contains("contributions"));
+    CHECK(DataSharing::tablesForScope("finance").contains("giving_batches"));
+    CHECK(DataSharing::tablesForScope("schedules").contains("ministry_events"));
+    CHECK(DataSharing::tablesForScope("schedules").contains("facility_reservations"));
 
     // Credential hygiene: the users table (with login PINs) must never be part
-    // of any share â€” logins are per-machine, and a JSON archive must not carry
+    // of any share — logins are per-machine, and a JSON archive must not carry
     // a pin column or a users payload.
     CHECK(!DataSharing::tablesForScope("full").contains("users"));
     const QJsonObject fullDoc = DataSharing::exportTables(d, DataSharing::tablesForScope("full"));
@@ -485,7 +492,7 @@ bool test_splitSharingRoundTrip() {
     CHECK(payload.size() > 1000);
 
     // Wipe membership tables (FK checks deferred so finance rows that reference
-    // people do not block the delete â€” this mirrors a fresh receive-only copy).
+    // people do not block the delete — this mirrors a fresh receive-only copy).
     QSqlQuery q(d);
     q.exec("PRAGMA foreign_keys = OFF");
     for (const QString& t : QStringList{"checkout_logs", "care_logs", "member_history", "attendance",
@@ -547,6 +554,30 @@ bool test_pastoralQueue() {
     return true;
 }
 
+// exportBackup must refuse to write over the live database or its WAL/SHM
+// sidecars: the copy path removes the destination first, which on POSIX would
+// unlink the working database while SQLite keeps writing to the removed inode.
+bool test_exportBackupRejectsLivePaths() {
+    seedDemoFixture();
+    DatabaseManager& mgr = DatabaseManager::instance();
+    const QString live = mgr.database().databaseName();
+    const int before = countRows("people");
+
+    CHECK(!mgr.exportBackup(live));
+    CHECK(!mgr.exportBackup(live + "-wal"));
+    CHECK(!mgr.exportBackup(live + "-shm"));
+    CHECK(!mgr.exportBackup(QString()));
+
+    // The live database is untouched and still queryable.
+    CHECK(QFile::exists(live));
+    CHECK_EQ(countRows("people"), before);
+    QSqlQuery q(mgr.database());
+    CHECK(q.exec("SELECT COUNT(*) FROM people"));
+    CHECK(q.next());
+    CHECK_EQ(q.value(0).toInt(), before);
+    return true;
+}
+
 bool test_restoreFromBackup() {
     seedDemoFixture();
     const QString dbPath = DatabaseManager::instance().database().databaseName();
@@ -574,7 +605,7 @@ bool test_restoreFromBackup() {
 
 // restoreFromBackup used to log its "migrated older backup forward" success
 // line on the FAILURE path (and emitted nothing when migration actually
-// succeeded) â€” an inverted condition at the migrateSchema() call. Pin the
+// succeeded) — an inverted condition at the migrateSchema() call. Pin the
 // messaging to the outcome in both directions.
 bool test_restoreMigrationLogMatchesOutcome() {
     seedDemoFixture();
@@ -617,7 +648,7 @@ bool test_restoreMigrationLogMatchesOutcome() {
         QFile::remove(path + "-shm");
     };
 
-    // Case 1: an older backup (schema 23) restores and migrates forward â€”
+    // Case 1: an older backup (schema 23) restores and migrates forward —
     // the informational line must appear and the failure line must not.
     CHECK(QFile::copy(goodBackup, olderBackup));
     pokeBackup(olderBackup, DatabaseManager::kLatestSchemaVersion - 1, nullptr);
@@ -635,7 +666,7 @@ bool test_restoreMigrationLogMatchesOutcome() {
     CHECK(!sawFailWarning);
 
     // Case 2: force a migration failure (drop member_history, which migration
-    // 24 indexes) â€” the restore completes but the log must report FAILURE and
+    // 24 indexes) — the restore completes but the log must report FAILURE and
     // must never print the success line. This is the exact regression: the
     // pre-fix code printed "migrated older backup forward" HERE, as a warning.
     CHECK(QFile::copy(goodBackup, brokenBackup));
@@ -672,12 +703,30 @@ bool test_purgeDemoData() {
 
     CHECK_EQ(countRows("people"), 0);
     CHECK_EQ(countRows("households"), 0);
-    CHECK_EQ(countRows("groups"), 0);
     CHECK_EQ(countRows("contributions"), 0);
     CHECK_EQ(countRows("transactions"), 0);
     CHECK_EQ(countRows("assets"), 0);
     CHECK_EQ(countRows("vault_documents"), 0);
     CHECK_EQ(countRows("care_logs"), 0);
+
+    // New contract: `groups` is cleared, but the 11 canonical blueprint root
+    // headings are re-created immediately (no restart) by
+    // ensureBlueprintHeadings(); nothing else survives in that table.
+    CHECK_EQ(countRows("groups"), 11);
+    QSqlQuery rootQ(db());
+    CHECK(rootQ.exec("SELECT COUNT(*) FROM groups WHERE parent_id IS NULL OR parent_id = 0"));
+    CHECK(rootQ.next());
+    CHECK_EQ(rootQ.value(0).toInt(), 11);
+    QSqlQuery canonQ(db());
+    CHECK(canonQ.exec("SELECT COUNT(*) FROM groups WHERE name LIKE 'Ujier%'"));
+    CHECK(canonQ.next());
+    CHECK(canonQ.value(0).toInt() >= 1);
+
+    // The audit trail is preserved (non-repudiation) and records the purge.
+    QSqlQuery purgeQ(db());
+    CHECK(purgeQ.exec("SELECT COUNT(*) FROM audit_log WHERE table_name = 'database' AND field_name = 'purge'"));
+    CHECK(purgeQ.next());
+    CHECK(purgeQ.value(0).toInt() >= 1);
 
     CHECK_EQ(countRows("accounts"), 8);
     CHECK_EQ(countRows("funds"), 3);
@@ -845,7 +894,7 @@ bool test_ministryMatchRecommendAndExclude() {
     c.maxResults = 25;
 
     const QList<MatchResult> results = MinistryRecommender::recommend(d, gid, c);
-    // Advisory model: the burned-out volunteer is no longer excluded â€” they
+    // Advisory model: the burned-out volunteer is no longer excluded — they
     // appear with a workload warning and a reduced score. Member excluded,
     // adult age-out, no-skill excluded.
     CHECK_EQ(results.size(), 2);
@@ -1046,7 +1095,7 @@ bool test_pastoralAnalyticsUpgrade() {
     // computeSnapshot() must be scope-aware, exclude archived groups, count
     // Teacher roles, and back every action with a real number. Uses DELTA
     // assertions against a baseline (the shared suite DB has unpredictable
-    // state) and cleans up its own rows by id â€” never wipes shared tables.
+    // state) and cleans up its own rows by id — never wipes shared tables.
     QSqlDatabase d = db();
     QSqlQuery q(d);
 
@@ -1404,6 +1453,91 @@ bool test_serviceBuilderRunSheetPersistence() {
     return true;
 }
 
+// Regression: restoring a date is a read-only operation and must never write
+// the previously shown run sheet / start time into the newly selected date's
+// services row. Both the constructor path and a user date switch used to
+// clobber the stored row because setTime() and the playlist-clear autosave ran
+// before the row was read back.
+bool test_serviceBuilderLoadDoesNotClobberSavedSheet() {
+    QSettings settings("OpenEkklesia", "CHMS");
+    const QVariant previousDefaultTime = settings.value("defaultServiceTime");
+    settings.setValue("defaultServiceTime", "08:00"); // widget default != stored 09:30
+    settings.sync();
+
+    QDate nextSunday = QDate::currentDate();
+    while (nextSunday.dayOfWeek() != 7) nextSunday = nextSunday.addDays(1);
+    const QString firstDate = nextSunday.toString("yyyy-MM-dd");
+    const QString secondDate = nextSunday.addDays(14).toString("yyyy-MM-dd");
+    const QString firstSheet = "[{\"title\":\"Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]";
+    const QString secondSheet = "[{\"title\":\"Holy Holy Holy (3m)\",\"type\":\"Song\",\"durationMins\":3}]";
+
+    QSqlDatabase d = db();
+    auto seed = [&](const QString& date, const QString& sheet) {
+        QSqlQuery q(d);
+        q.prepare("INSERT INTO services (date, run_sheet, start_time) VALUES (?, ?, '09:30') "
+                  "ON CONFLICT(date) DO UPDATE SET run_sheet = excluded.run_sheet, "
+                  "start_time = excluded.start_time");
+        q.addBindValue(date);
+        q.addBindValue(sheet);
+        CHECK(q.exec());
+    };
+    seed(firstDate, firstSheet);
+    seed(secondDate, secondSheet);
+
+    {
+        ServiceBuilderWidget sb;
+        QListWidget* playlist = sb.findChild<QListWidget*>("servicePlaylist");
+        QDateEdit* dateEdit = sb.findChild<QDateEdit*>("serviceDateEdit");
+        CHECK(playlist && dateEdit);
+        if (playlist && dateEdit) {
+            // Constructor path: the default date's saved sheet survives the
+            // 08:00 default -> stored 09:30 start-time transition.
+            CHECK_EQ(playlist->count(), 1);
+            if (playlist->count() == 1) {
+                CHECK(playlist->item(0)->text().contains("Amazing Grace"));
+            }
+            {
+                QSqlQuery q(d);
+                q.prepare("SELECT run_sheet, start_time FROM services WHERE date = ?");
+                q.addBindValue(firstDate);
+                CHECK(q.exec() && q.next());
+                CHECK(q.value(0).toString().contains("Amazing Grace"));
+                CHECK_EQ(q.value(1).toString().toStdString(), std::string("09:30"));
+            }
+
+            // Date-switch path: the target date's own sheet and start time are
+            // preserved (the old code wrote the previous sheet here).
+            dateEdit->setDate(nextSunday.addDays(14));
+            CHECK_EQ(playlist->count(), 1);
+            if (playlist->count() == 1) {
+                CHECK(playlist->item(0)->text().contains("Holy Holy Holy"));
+            }
+            {
+                QSqlQuery q(d);
+                q.prepare("SELECT run_sheet, start_time FROM services WHERE date = ?");
+                q.addBindValue(secondDate);
+                CHECK(q.exec() && q.next());
+                CHECK(q.value(0).toString().contains("Holy Holy Holy"));
+                CHECK_EQ(q.value(1).toString().toStdString(), std::string("09:30"));
+            }
+        }
+    }
+
+    QSqlQuery del(d);
+    del.prepare("DELETE FROM services WHERE date IN (?, ?)");
+    del.addBindValue(firstDate);
+    del.addBindValue(secondDate);
+    CHECK(del.exec());
+
+    if (previousDefaultTime.isValid()) {
+        settings.setValue("defaultServiceTime", previousDefaultTime);
+    } else {
+        settings.remove("defaultServiceTime");
+    }
+    settings.sync();
+    return true;
+}
+
 bool test_graphDualPanelAndDataHygiene() {
     QSqlDatabase d = db();
     d.transaction();
@@ -1444,7 +1578,7 @@ bool test_graphDualPanelAndDataHygiene() {
 bool test_serviceBuilderTier2() {
     QSqlDatabase d = db();
 
-    // Volunteers for the widget's default date (next Sunday) â€” inserted before
+    // Volunteers for the widget's default date (next Sunday) — inserted before
     // the widget is constructed so its constructor loads them.
     QDate nextSun = QDate::currentDate();
     while (nextSun.dayOfWeek() != 7) nextSun = nextSun.addDays(1);
@@ -1634,12 +1768,12 @@ bool test_serviceBuilderTier3() {
     CHECK(ins.exec("DELETE FROM services"));
     ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
     ins.addBindValue(QString("2030-01-05"));
-    ins.addBindValue(QString("[{\"title\":\"ðŸŽµ Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]"));
+    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4}]"));
     CHECK(ins.exec());
     ins.prepare("INSERT INTO services (date, run_sheet) VALUES (?, ?)");
     ins.addBindValue(QString("2030-01-12"));
-    ins.addBindValue(QString("[{\"title\":\"ðŸŽµ Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4},"
-                             "{\"title\":\"ðŸ“– Scripture: Psalm 23 (2m)\",\"type\":\"Scripture\",\"durationMins\":2}]"));
+    ins.addBindValue(QString("[{\"title\":\"🎵 Song: Amazing Grace (4m)\",\"type\":\"Song\",\"durationMins\":4},"
+                             "{\"title\":\"📖 Scripture: Psalm 23 (2m)\",\"type\":\"Scripture\",\"durationMins\":2}]"));
     CHECK(ins.exec());
 
     const QList<ElementUsage> stats = ServiceBuilderWidget::elementUsageStats(d, 100);
@@ -1719,7 +1853,7 @@ bool test_planningWidgetRendersAndRoles() {
         CHECK_EQ(roadmap->rowCount(), 1);
         CHECK_EQ(gantt->rowCount(), 1);
         if (roadmap->rowCount() == 1) {
-            // Roadmap: 12 real calendar months â€” FEB (col 3) and MAR (col 4)
+            // Roadmap: 12 real calendar months — FEB (col 3) and MAR (col 4)
             // covered by the span; JAN (col 2) and APR (col 5) empty.
             CHECK_EQ(roadmap->item(0, 1)->text().toStdString(), std::string("Easter Production"));
             CHECK(roadmap->item(0, 2) && roadmap->item(0, 2)->text().isEmpty()); // JAN
@@ -2153,7 +2287,7 @@ bool test_graphHealthFeatures() {
     return true;
 }
 
-// The graph's filter toggles (e.g. "ðŸ¡ Households") must persist across
+// The graph's filter toggles (e.g. "🏡 Households") must persist across
 // restarts: what the admin saved is what a fresh widget restores.
 bool test_graphFilterPersistence() {
     QSettings s("OpenEkklesia", "CHMS");
@@ -2472,7 +2606,10 @@ bool test_smartBridgeEngineAndSourceLogging() {
 
     QMap<int, GroupProfile> groups;
     SynergyEngine::loadAllGroups(d, 9101, groups); // candidate = person 9101
-    CHECK_EQ(groups.size(), 1);
+    // The suite database also carries the canonical blueprint heading groups
+    // (re-created by purgeDemoData), so assert containment rather than a size.
+    CHECK(groups.size() >= 1);
+    CHECK(groups.contains(9101));
     if (groups.contains(9101)) {
         const GroupProfile& g = groups[9101];
         CHECK(g.hasHouseholdFamilyTie);           // household member 9102 is active
@@ -2501,6 +2638,67 @@ bool test_smartBridgeEngineAndSourceLogging() {
     CHECK(!src.value(1).toString().isEmpty()); // joined_date recorded
 
     d.rollback();
+    return true;
+}
+
+// Regression: Equilibrium Law simulation must blend the member MEAN with the
+// candidate, i.e. (mean * n + candidate) / (n + 1). The old formula treated the
+// mean as a sum and re-divided by (n + 1), so large teams dominated the mix.
+bool test_synergyEquilibriumSimulationUsesMemberAverage() {
+    CandidateProfile cand;
+    cand.personId = 9701;
+    cand.primaryArchetype = ChurchArchetype::Architect;
+    cand.secondaryArchetype = ChurchArchetype::None;
+
+    GroupProfile group;
+    group.groupId = 9701;
+    group.activeMemberCount = 10;
+    // Deliberately different from the candidate: mostly strategist/connector.
+    group.currentAggregateVector = RelationalStyleVector(2.0, 1.0, 1.0, 1.0, 80.0, 15.0);
+    group.targetVector = RelationalStyleVector(10.0, 10.0, 30.0, 10.0, 30.0, 10.0);
+
+    const RelationalStyleVector candVec = MinistryArchetypeRegistry::personStyleVector(
+        cand.primaryArchetype, cand.secondaryArchetype);
+    const double n = static_cast<double>(group.activeMemberCount);
+    const double distBefore = RelationalStyleVector::euclideanDistance(
+        group.currentAggregateVector, group.targetVector);
+
+    RelationalStyleVector expected(
+        (group.currentAggregateVector.organizer * n + candVec.organizer) / (n + 1.0),
+        (group.currentAggregateVector.listener * n + candVec.listener) / (n + 1.0),
+        (group.currentAggregateVector.doer * n + candVec.doer) / (n + 1.0),
+        (group.currentAggregateVector.energizer * n + candVec.energizer) / (n + 1.0),
+        (group.currentAggregateVector.strategist * n + candVec.strategist) / (n + 1.0),
+        (group.currentAggregateVector.connector * n + candVec.connector) / (n + 1.0));
+    const double expectedDelta = distBefore - RelationalStyleVector::euclideanDistance(expected, group.targetVector);
+    const double actualDelta = SynergyEngine::calculateEquilibriumDelta(cand, group);
+    CHECK(std::fabs(actualDelta - expectedDelta) < 1e-9);
+
+    // The old (mean + candidate) / (n + 1) formula would produce a clearly
+    // different value for a 10-member team.
+    RelationalStyleVector buggy(
+        (group.currentAggregateVector.organizer + candVec.organizer) / (n + 1.0),
+        (group.currentAggregateVector.listener + candVec.listener) / (n + 1.0),
+        (group.currentAggregateVector.doer + candVec.doer) / (n + 1.0),
+        (group.currentAggregateVector.energizer + candVec.energizer) / (n + 1.0),
+        (group.currentAggregateVector.strategist + candVec.strategist) / (n + 1.0),
+        (group.currentAggregateVector.connector + candVec.connector) / (n + 1.0));
+    const double buggyDelta = distBefore - RelationalStyleVector::euclideanDistance(buggy, group.targetVector);
+    CHECK(std::fabs(actualDelta - buggyDelta) > 0.01);
+
+    // n == 0 must not divide by zero or double-count: the candidate alone forms
+    // the simulated mix.
+    GroupProfile emptyGroup = group;
+    emptyGroup.activeMemberCount = 0;
+    emptyGroup.currentAggregateVector = RelationalStyleVector();
+    const RelationalStyleVector uniform(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+    const double expectedZeroDelta =
+        RelationalStyleVector::euclideanDistance(uniform, group.targetVector) -
+        RelationalStyleVector::euclideanDistance(candVec, group.targetVector);
+    const double zeroDelta = SynergyEngine::calculateEquilibriumDelta(cand, emptyGroup);
+    CHECK(std::fabs(zeroDelta - expectedZeroDelta) < 1e-9);
+    CHECK(std::isfinite(zeroDelta));
+
     return true;
 }
 
@@ -2589,7 +2787,9 @@ bool test_graphInspectorUpgrade() {
     EdgeItem* edgeItem = nullptr;
     for (QGraphicsItem* item : gw.scene()->items()) {
         if (auto* n = dynamic_cast<NodeItem*>(item)) {
-            if (n->nodeType() == NodeItem::Group) groupNode = n;
+            // The suite DB also carries the canonical blueprint heading groups,
+            // so select the seeded test group by id instead of taking any node.
+            if (n->nodeType() == NodeItem::Group && n->id() == 9201) groupNode = n;
             else if (n->isPersonNode()) personNode = n;
         } else if (auto* e = dynamic_cast<EdgeItem*>(item)) {
             edgeItem = e;
@@ -2598,7 +2798,7 @@ bool test_graphInspectorUpgrade() {
     CHECK(groupNode && personNode && edgeItem);
     if (!groupNode || !personNode || !edgeItem) return true;
 
-    // Person context strip â€” the person with the pastoral care record.
+    // Person context strip — the person with the pastoral care record.
     NodeItem* caredPerson = nullptr;
     for (QGraphicsItem* item : gw.scene()->items()) {
         auto* n = dynamic_cast<NodeItem*>(item);
@@ -2901,7 +3101,7 @@ bool test_planningFrameworksAndEventsSuite() {
     CHECK(cols.contains("notes"));
 
     // Verify ministry_events table exists with seeded rows
-    // (purge clears demo events, so re-seed if needed â€” tests must not rely
+    // (purge clears demo events, so re-seed if needed — tests must not rely
     // on leftover demo rows per DEVELOPMENT_GUIDELINES).
     ensureMinistryEvents(5);
     QSqlQuery qEv(d);
@@ -2962,6 +3162,13 @@ bool test_contextMenusAndRoleGatingSuite() {
     QSqlDatabase d = db();
     d.transaction();
 
+    auto findButton = [](QWidget* w, const QString& text) -> QPushButton* {
+        for (QPushButton* b : w->findChildren<QPushButton*>()) {
+            if (b->text().trimmed().contains(text)) return b;
+        }
+        return nullptr;
+    };
+
     // 1. FacilitiesWidget RBAC & tooltips
     FacilitiesWidget fac;
     fac.applyRole("guest");
@@ -2975,18 +3182,72 @@ bool test_contextMenusAndRoleGatingSuite() {
         CHECK(btnBook->isEnabled());
     }
 
-    // 2. PlanningWidget RBAC & tooltips
+    // 2. PlanningWidget RBAC: header mutators, Kanban quick-add and the
+    //    double-click/quick-add dialog entry points are guest-gated.
     PlanningWidget plan;
-    plan.applyRole("guest");
-    // Guest buttons are disabled by applyRole("guest"); flip back for later checks.
-    plan.applyRole("admin");
+    QPushButton* planAddTask = findButton(&plan, "Add Initiative");
+    QPushButton* planAddEvent = findButton(&plan, "Add Church Event");
+    QList<QToolButton*> quickAdds = plan.findChildren<QToolButton*>(QStringLiteral("kanbanQuickAdd"));
+    CHECK(planAddTask && planAddEvent);
+    CHECK_EQ(quickAdds.size(), 5);
+    if (planAddTask && planAddEvent && !quickAdds.isEmpty()) {
+        plan.applyRole("guest");
+        CHECK(!planAddTask->isEnabled());
+        CHECK(!planAddEvent->isEnabled());
+        CHECK(!quickAdds.first()->isEnabled());
+        CHECK(quickAdds.first()->toolTip().contains("Guest (Read-Only) mode"));
 
-    // 3. ShepherdWidget RBAC
+        plan.applyRole("admin");
+        CHECK(planAddTask->isEnabled());
+        CHECK(planAddEvent->isEnabled());
+        CHECK(quickAdds.first()->isEnabled());
+    }
+
+    // 3. GraphWidget RBAC: every DB-writing affordance in the inspectors
+    //    (care flag, notes, contact log, edge role/sever, batch assign, add
+    //    member, suggest people) must be off for guests and back for admins.
+    GraphWidget graph;
+    QComboBox* careFlagCombo = graph.findChild<QComboBox*>("careFlagCombo");
+    QComboBox* edgeRoleCombo = graph.findChild<QComboBox*>("edgeRoleCombo");
+    QPushButton* saveNotes = findButton(&graph, "Save Notes");
+    QPushButton* logContact = findButton(&graph, "Log Contact Attempt");
+    QPushButton* severEdge = findButton(&graph, "Sever Connection");
+    QPushButton* batchAssign = findButton(&graph, "Batch Assign to Group");
+    QPushButton* addMember = findButton(&graph, "Add Member");
+    QPushButton* suggestPeople = findButton(&graph, "Suggest People");
+    CHECK(careFlagCombo && edgeRoleCombo);
+    CHECK(saveNotes && logContact && severEdge && batchAssign && addMember && suggestPeople);
+    if (careFlagCombo && edgeRoleCombo && saveNotes && logContact && severEdge &&
+        batchAssign && addMember && suggestPeople) {
+        graph.applyRole("guest");
+        CHECK(!careFlagCombo->isEnabled());
+        CHECK(!edgeRoleCombo->isEnabled());
+        CHECK(!saveNotes->isEnabled());
+        CHECK(!logContact->isEnabled());
+        CHECK(!severEdge->isEnabled());
+        CHECK(!batchAssign->isEnabled());
+        CHECK(!addMember->isEnabled());
+        CHECK(!suggestPeople->isEnabled());
+        CHECK(saveNotes->toolTip().contains("Guest (Read-Only) mode"));
+
+        graph.applyRole("admin");
+        CHECK(careFlagCombo->isEnabled());
+        CHECK(edgeRoleCombo->isEnabled());
+        CHECK(saveNotes->isEnabled());
+        CHECK(logContact->isEnabled());
+        CHECK(severEdge->isEnabled());
+        CHECK(batchAssign->isEnabled());
+        CHECK(addMember->isEnabled());
+        CHECK(suggestPeople->isEnabled());
+    }
+    graph.applyRole("admin");
+
+    // 4. ShepherdWidget RBAC
     ShepherdWidget shepherd;
     shepherd.applyRole("guest");
     shepherd.applyRole("admin");
 
-    // 4. PeopleWidget RBAC & tooltips
+    // 5. PeopleWidget RBAC & tooltips
     PeopleWidget people;
     people.applyRole("guest");
     QPushButton* btnAddPerson = people.findChild<QPushButton*>();
@@ -3165,6 +3426,7 @@ bool test_blueprintGroupHierarchySuite() {
         QSqlQuery qCheck(d);
         qCheck.prepare("SELECT id, name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype "
                        "FROM groups WHERE (name = ? OR category = ?) "
+                       "AND id >= 8800 "
                        "AND (parent_id IS NULL OR parent_id = 0)");
         qCheck.addBindValue(bp.displayName);
         qCheck.addBindValue(bp.categoryKey);
@@ -3175,6 +3437,13 @@ bool test_blueprintGroupHierarchySuite() {
         int pId = qCheck.value(3).toInt();
         CHECK_EQ(pId, 0); // Must be Level 0 Root Blueprint
     }
+
+    // 1b. Empty/unknown category must fall back to "Other" — an empty needle
+    // used to match every display name and returned the first blueprint.
+    CHECK_EQ(MinistryArchetypeRegistry::getBlueprint(QString()).categoryKey.toStdString(), std::string("Other"));
+    CHECK_EQ(MinistryArchetypeRegistry::getBlueprint("   ").categoryKey.toStdString(), std::string("Other"));
+    CHECK_EQ(MinistryArchetypeRegistry::getBlueprint("No Such Ministry").categoryKey.toStdString(), std::string("Other"));
+    CHECK_EQ(MinistryArchetypeRegistry::getBlueprint("Alabanza").categoryKey.toStdString(), std::string("Alabanza"));
 
     // 2. Test Sub-Group Creation under a Canonical Blueprint (Misiones)
     QSqlQuery qMissions(d);
@@ -3500,7 +3769,7 @@ bool test_givingStatementGenerator() {
     // 4. Test Joint Statement for Bobby + Sally (2026)
     QString jointHtml = GivingStatementGenerator::generateHtmlStatement(9601, 2026, /*includeSpouseJoint=*/true);
     CHECK(!jointHtml.isEmpty());
-    CHECK(jointHtml.contains("Bobby & Sally Smith"));
+    CHECK(jointHtml.contains("Bobby &amp; Sally Smith")); // HTML-escaped by design
     CHECK(jointHtml.contains("Joint Household"));
     CHECK(jointHtml.contains("Tax Year 2026"));
     CHECK(jointHtml.contains("Sunday Tithe"));
@@ -3508,6 +3777,83 @@ bool test_givingStatementGenerator() {
     CHECK(jointHtml.contains("200.00")); // Combined $150 + $50
 
     d.rollback();
+    return true;
+}
+
+// iCal generator: RFC 5545 escaping, 75-octet folding, stable UIDs, and the
+// all-day / overnight DTSTART-DTEND paths. Facilities, shepherd, planning and
+// the service builder all delegate to this one generator.
+bool test_icalGeneratorRfcCompliance() {
+    using namespace ICalGenerator;
+
+    // Escaping: backslash first, then ; , and line breaks.
+    CHECK(escape(QString("a\\b;c,d")) == QString("a\\\\b\\;c\\,d"));
+    CHECK(escape(QString("line1\r\nline2")) == QString("line1\\nline2"));
+    CHECK(escape(QString("line1\rline2")) == QString("line1\\nline2"));
+
+    // Short lines are returned unchanged.
+    const QString shortLine = QString("SUMMARY:Hello");
+    CHECK(foldLine(shortLine) == shortLine);
+
+    // 100 'é' code points: 200 UTF-8 octets, so folding must split it while
+    // never exceeding 75 octets per physical line and never splitting a code
+    // point (a split would produce mojibake in the calendar client).
+    QString longText;
+    for (int i = 0; i < 100; ++i) longText += QChar(0x00E9);
+    const QString folded = foldLine("SUMMARY:" + longText);
+    const QStringList physical = folded.split('\n');
+    CHECK(physical.size() > 1);
+    for (const QString& line : physical) CHECK(line.toUtf8().size() <= 75);
+    QString reassembled = physical.first();
+    for (int i = 1; i < physical.size(); ++i) {
+        CHECK(physical[i].startsWith(' ')); // continuation marker
+        reassembled += physical[i].mid(1);
+    }
+    CHECK(reassembled == "SUMMARY:" + longText);
+
+    // Timed event: escaped summary/location, DTSTART/DTEND, reminder alarm.
+    const QDate date(2026, 8, 23);
+    const QString ics = eventIcal(date, QTime(10, 0), QTime(11, 30),
+                                  QString("Prayer; Meeting, Test"),
+                                  QString("Line one\nLine two"),
+                                  QString("Room 1, Building A"));
+    CHECK(ics.startsWith("BEGIN:VCALENDAR"));
+    CHECK(ics.endsWith("END:VCALENDAR\n"));
+    CHECK(ics.contains("DTSTART:20260823T100000"));
+    CHECK(ics.contains("DTEND:20260823T113000"));
+    CHECK(ics.contains("SUMMARY:Prayer\\; Meeting\\, Test"));
+    CHECK(ics.contains("DESCRIPTION:Line one\\nLine two"));
+    CHECK(ics.contains("LOCATION:Room 1\\, Building A"));
+    CHECK(ics.contains("BEGIN:VALARM"));
+    for (const QString& line : ics.split('\n')) CHECK(line.toUtf8().size() <= 75);
+
+    // Stable UID for identical events, distinct UID when the start time differs.
+    const auto uidOf = [](const QString& text) {
+        for (const QString& line : text.split('\n'))
+            if (line.startsWith("UID:")) return line.mid(4);
+        return QString();
+    };
+    const QString uid1 = uidOf(ics);
+    const QString uid2 = uidOf(eventIcal(date, QTime(10, 0), QTime(11, 30),
+                                         QString("Prayer; Meeting, Test")));
+    const QString uid3 = uidOf(eventIcal(date, QTime(11, 0), QTime(12, 30),
+                                         QString("Prayer; Meeting, Test")));
+    CHECK(!uid1.isEmpty());
+    CHECK(uid1 == uid2);
+    CHECK(uid1 != uid3);
+
+    // All-day event (no start time): exclusive DTEND is the next day.
+    const QString allDay = eventIcal(date, QTime(), QTime(), QString("Church Picnic"));
+    CHECK(allDay.contains("DTSTART;VALUE=DATE:20260823"));
+    CHECK(allDay.contains("DTEND;VALUE=DATE:20260824"));
+
+    // Overnight event: end time <= start time rolls DTEND to the next day.
+    const QString overnight = eventIcal(date, QTime(23, 0), QTime(1, 0), QString("Night Watch"));
+    CHECK(overnight.contains("DTSTART:20260823T230000"));
+    CHECK(overnight.contains("DTEND:20260824T010000"));
+
+    // Invalid date yields no calendar at all.
+    CHECK(eventIcal(QDate(), QTime(10, 0), QTime(11, 0), QString("Nope")).isEmpty());
     return true;
 }
 
@@ -3549,12 +3895,14 @@ int main(int argc, char** argv) {
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
+        {"export_backup_rejects_live_paths", test_exportBackupRejectsLivePaths},
         {"restore_migration_log_matches_outcome", test_restoreMigrationLogMatchesOutcome},
         {"purge_demo_data", test_purgeDemoData},
         {"theme_named_tokens_template", test_themeNamedTokensTemplate},
         {"theme_contrast_guardian", test_themeContrastGuardian},
         {"all_themes_contrast_aa", test_allThemesContrastAA},
         {"synergy_engine_and_migration_19", test_synergyEngineAndMigration19},
+        {"synergy_equilibrium_simulation_uses_member_average", test_synergyEquilibriumSimulationUsesMemberAverage},
         {"ministry_match_recommend_and_exclude", test_ministryMatchRecommendAndExclude},
         {"ministry_match_add_members_dedup", test_ministryMatchAddMembersDedup},
         {"ministry_match_declared_profile_wins", test_ministryMatchDeclaredProfileWins},
@@ -3562,6 +3910,7 @@ int main(int argc, char** argv) {
         {"service_builder_role_and_duration", test_serviceBuilderRoleAndDuration},
         {"service_builder_library_filter_and_autosave", test_serviceBuilderLibraryFilterAndAutosave},
         {"service_builder_run_sheet_persistence", test_serviceBuilderRunSheetPersistence},
+        {"service_builder_load_does_not_clobber_saved_sheet", test_serviceBuilderLoadDoesNotClobberSavedSheet},
         {"service_builder_tier2", test_serviceBuilderTier2},
         {"service_builder_tier3", test_serviceBuilderTier3},
         {"planning_widget_renders_and_roles", test_planningWidgetRendersAndRoles},
@@ -3597,6 +3946,7 @@ int main(int argc, char** argv) {
         {"dynamic_blueprint_headings_suite", test_dynamicBlueprintHeadingsSuite},
         {"group_member_and_leader_roster_sync_suite", test_groupMemberAndLeaderRosterSyncSuite},
         {"giving_statement_generator", test_givingStatementGenerator},
+        {"ical_generator_rfc_compliance", test_icalGeneratorRfcCompliance},
     };
 
     for (const Test& t : tests) {
@@ -3608,9 +3958,16 @@ int main(int argc, char** argv) {
         bool ok = false;
         try {
             ok = t.fn();
-        } catch (...) {
+        } catch (const std::exception& ex) {
+            // An escaping exception is a failure: count it so the run exits
+            // non-zero instead of reporting "0 failed" with a broken test.
+            ++g_failures;
             ok = false;
-            std::cerr << "EXCEPTION in test " << t.name << std::endl;
+            std::cerr << "EXCEPTION in test " << t.name << ": " << ex.what() << std::endl;
+        } catch (...) {
+            ++g_failures;
+            ok = false;
+            std::cerr << "EXCEPTION in test " << t.name << " (unknown exception)" << std::endl;
         }
         // A test passes only if it returned true AND added no new failures.
         // (Previously `return true` masked CHECK failures as [PASS].)

@@ -14,10 +14,14 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
+#include <QTime>
+#include <QDate>
+#include <QStringList>
 #include <QClipboard>
 #include <QGuiApplication>
 #include "../database/databasemanager.h"
 #include "../core/iconmanager.h"
+#include "../../common/icalgenerator.h"
 
 FacilitiesWidget::FacilitiesWidget(QWidget *parent)
     : QWidget(parent)
@@ -92,7 +96,6 @@ void FacilitiesWidget::setupUI() {
         if (!idx.isValid()) return;
         int row = idx.row();
         m_table->selectRow(row);
-        int resId = m_model->index(row, 0).data().toInt();
         QString facility = m_model->index(row, 1).data().toString();
         QString eventName = m_model->index(row, 2).data().toString();
         QString dateStr = m_model->index(row, 3).data().toString();
@@ -121,17 +124,30 @@ void FacilitiesWidget::setupUI() {
             QString defaultFile = QString("Booking_%1_%2.ics").arg(facility, dateStr).replace(" ", "_").replace("/", "_");
             QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Event (.ics)", defaultFile, "iCalendar Files (*.ics)");
             if (!fileName.isEmpty()) {
+                const QDate reservationDate = QDate::fromString(dateStr, "yyyy-MM-dd");
+                // The table shows "start - end" (built from the start_time and
+                // end_time columns); parse it so the export is a timed event.
+                QTime startTime;
+                QTime endTime;
+                const QStringList window = timeWindow.split(" - ", Qt::SkipEmptyParts);
+                if (window.size() == 2) {
+                    startTime = QTime::fromString(window.at(0).trimmed(), "HH:mm");
+                    endTime = QTime::fromString(window.at(1).trimmed(), "HH:mm");
+                }
+                const QString description = QString("Facility Booking: %1\nTime: %2")
+                                               .arg(eventName, timeWindow);
+                const QString ics = ICalGenerator::eventIcal(
+                    reservationDate, startTime, endTime,
+                    QString("%1 (%2)").arg(eventName, facility), description, facility);
+                if (ics.isEmpty()) {
+                    QMessageBox::warning(this, "Export Failed",
+                                        "The reservation date could not be read; nothing was exported.");
+                    return;
+                }
                 QFile file(fileName);
                 if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     QTextStream out(&file);
-                    out << "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//OpenEkklesia//Facilities//EN\nBEGIN:VEVENT\n";
-                    out << QString("UID:facility-%1@openekklesia.local\n").arg(resId);
-                    out << QString("DTSTAMP:%1\n").arg(QDateTime::currentDateTimeUtc().toString("yyyyMMddThhmmssZ"));
-                    out << QString("DTSTART;VALUE=DATE:%1\n").arg(dateStr.remove("-"));
-                    out << QString("SUMMARY:%1 (%2)\n").arg(eventName, facility);
-                    out << QString("LOCATION:%1\n").arg(facility);
-                    out << QString("DESCRIPTION:Facility Booking: %1\\nTime: %2\n").arg(eventName, timeWindow);
-                    out << "STATUS:CONFIRMED\nEND:VEVENT\nEND:VCALENDAR\n";
+                    out << ics;
                     file.close();
                     QMessageBox::information(this, "Success", "Calendar file exported!");
                 }

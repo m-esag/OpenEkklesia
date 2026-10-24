@@ -102,6 +102,11 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     }
 
     // --- Automated Database Backup Snapshot (schedule + retention from Settings) ---
+    // Defined here but invoked after createTables()/migrateSchema() below: on a
+    // brand-new database the file is still 0 bytes at this point, so snapshotting
+    // it produced an auto_backup_<date>.db that restoreFromBackup() rightly
+    // rejects. The snapshot therefore only runs for a DB that existed before open.
+    auto runAutoBackup = [this, &resolvedPath]() {
     QSettings bSet("OpenEkklesia", "CHMS");
     const QString scheduleRaw = bSet.value("autoBackupSchedule", "weekly").toString();
     const QString schedule = scheduleRaw.toLower();
@@ -133,7 +138,7 @@ bool DatabaseManager::initialize(const QString& dbPath) {
             // The vault holds the actual documents; a DB-only backup would
             // preserve records pointing at missing files. Copy the vault dir
             // alongside the .db snapshot and prune down to `retention`.
-            const QString vaultDir = vaultDirPath();
+            const QString vaultDir = DatabaseManager::vaultDirPath();
             if (QDir(vaultDir).exists()) {
                 const QString vaultBackupDir = QString("%1/auto_backup_%2_vault")
                                                    .arg(backupDir, QDate::currentDate().toString("yyyyMMdd"));
@@ -184,6 +189,7 @@ bool DatabaseManager::initialize(const QString& dbPath) {
             }
         }
     }
+    };
 
     // Enforce foreign keys, WAL mode, memory caching, and memory-mapped IO for ultra-fast queries & low CPU usage.
     applyPragmas();
@@ -206,6 +212,13 @@ bool DatabaseManager::initialize(const QString& dbPath) {
 
     ensureSchemaIntegrity(m_db);
     ensureBlueprintHeadings(m_db);
+
+    // Automatic snapshot: only for a database that already existed before this
+    // launch. A fresh file was 0 bytes when the old pre-migration code copied
+    // it, producing an unusable backup that counted as "done" for a whole cycle.
+    if (dbExists) {
+        runAutoBackup();
+    }
 
     return true;
 }
@@ -344,7 +357,25 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
 
 bool DatabaseManager::exportBackup(const QString& destPath) {
     const QString dbPath = m_db.isValid() ? m_db.databaseName() : QString();
-    if (dbPath.isEmpty()) return false;
+    if (dbPath.isEmpty() || destPath.isEmpty()) return false;
+
+    // Never let an export overwrite the live database or its WAL sidecars: the
+    // QFile::remove(destPath) below would unlink the working copy on POSIX while
+    // SQLite keeps writing to the removed inode, silently destroying all data.
+    {
+        const QFileInfo destInfo(destPath);
+        const QStringList liveFiles = { dbPath, dbPath + "-wal", dbPath + "-shm" };
+        for (const QString& live : liveFiles) {
+            const QFileInfo liveInfo(live);
+            const bool samePath = (destInfo == liveInfo);
+            const bool sameCanonical = !destInfo.canonicalFilePath().isEmpty()
+                                       && destInfo.canonicalFilePath() == liveInfo.canonicalFilePath();
+            if (samePath || sameCanonical) {
+                qWarning() << "Backup refused: destination is the live database file:" << destPath;
+                return false;
+            }
+        }
+    }
 
     // Force the write-ahead log into the main file so the copy is complete.
     QSqlQuery q(m_db);
@@ -2236,42 +2267,14 @@ bool DatabaseManager::migrateSchema() {
             return false;
         }
 
-        // 3. Seed canonical church events if empty
-        QSqlQuery cntEv("SELECT COUNT(*) FROM ministry_events", m_db);
-        if (cntEv.next() && cntEv.value(0).toInt() == 0) {
-            const int year = QDate::currentDate().year();
-            struct SeedEv {
-                const char* title;
-                const char* type;
-                const char* start;
-                const char* end;
-                int attendance;
-                int budget;
-                const char* facility;
-                const char* desc;
-            };
-            const SeedEv seedEvents[] = {
-                {"Easter Celebration & Community Outreach", "Worship / Service", "04-05 09:00", "04-05 13:00", 450, 250000, "Main Worship Sanctuary", "Full Easter production, choir, and family hospitality reception."},
-                {"Youth Summer Discipleship Camp", "Youth / Children", "07-15 08:00", "07-18 17:00", 85, 450000, "Camp Cedar Ridge", "Annual 4-day student retreat focused on spiritual growth, worship, and leadership."},
-                {"Annual Leadership & Ministry Vision Summit", "Training", "09-12 09:00", "09-12 16:00", 120, 150000, "Fellowship Hall", "Strategic planning, team alignment, and volunteer appreciation for all ministry leads."},
-                {"Thanksgiving Community Food Drive", "Outreach", "11-21 10:00", "11-21 15:00", 250, 100000, "Outdoor Pavilion & Kitchen", "City-wide basket distribution and hot meal outreach for local families in need."},
-                {"Christmas Eve Candlelight Service", "Worship / Service", "12-24 17:00", "12-24 19:30", 500, 180000, "Main Worship Sanctuary", "Candlelight communion, carols, nativity story, and welcome for first-time visitors."}
-            };
-            for (const auto& ev : seedEvents) {
-                QSqlQuery ins(m_db);
-                ins.prepare("INSERT INTO ministry_events (title, event_type, start_datetime, end_datetime, expected_attendance, budget_cents, facility_name, description) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                ins.addBindValue(ev.title);
-                ins.addBindValue(ev.type);
-                ins.addBindValue(QString("%1-%2").arg(year).arg(ev.start));
-                ins.addBindValue(QString("%1-%2").arg(year).arg(ev.end));
-                ins.addBindValue(ev.attendance);
-                ins.addBindValue(ev.budget);
-                ins.addBindValue(ev.facility);
-                ins.addBindValue(ev.desc);
-                ins.exec();
-            }
-        }
+        // 3. Deliberately no seed rows here. A schema migration must never
+        // fabricate row data: an earlier version of this migration inserted
+        // five fake church events (with budgets and attendance figures) into
+        // every database - including existing production installs upgrading
+        // from v21 - polluting real planning/finance figures. Church events are
+        // user data, not schema. (The canonical ministry blueprints are the only
+        // structural seed; they are reference/config data, applied by
+        // ensureBlueprintHeadings() at startup, not by a migration.)
 
         if (!m_db.commit()) {
             qCritical() << "Migration 22: commit failed";
@@ -2497,16 +2500,18 @@ bool DatabaseManager::purgeDemoData() {
     QSqlQuery q(db);
 
     // Clear child tables first so foreign-key constraints never block a
-    // parent delete. Chart-of-accounts (accounts/funds), login users,
-    // ministry blueprints and the service library are intentionally kept:
-    // they are structural/seed content, not sample ministry data.
+    // parent delete. Chart-of-accounts (accounts/funds), login users, the
+    // service library, the ministry_archetypes definitions, and the audit_log
+    // trail (non-repudiation evidence) are intentionally kept.
+    // NOTE: the `groups` table IS cleared, so the canonical blueprint heading
+    // groups disappear with it; they are re-created through
+    // ensureBlueprintHeadings() after the commit so no restart is required.
     // Order is child -> parent: volunteers/tasks/events/reservations/motions
     // before groups/people/services; vault before groups (vault.group_id);
     // contributions before batches (batch_id); splits before transactions.
     const QStringList tablesToClear = {
         "graph_layout",          // no FK
         "graph_snapshots",       // no FK
-        "audit_log",             // no FK
         "entity_relationships",  // no FK (polymorphic)
         "member_history",        // -> people
         "care_logs",             // -> people
@@ -2559,7 +2564,16 @@ bool DatabaseManager::purgeDemoData() {
 
     bool success = db.commit();
     if (success) {
-        qInfo() << "Successfully purged all demo/sample data from database.";
+        // `groups` was cleared above, taking the canonical blueprint heading
+        // groups with it. Re-create them now (public static helper, same one the
+        // app calls at startup) so the ministry tree is usable immediately
+        // instead of only after a restart.
+        if (!ensureBlueprintHeadings(db)) {
+            qWarning() << "Purge committed, but re-creating canonical blueprint headings failed.";
+        }
+        // Record the destructive operation in the (now preserved) audit trail.
+        logAudit("database", 0, "purge", "", "all people/ministry/finance tables cleared", "admin");
+        qInfo() << "Successfully purged demo/sample data from database.";
     } else {
         db.rollback();
         qWarning() << "Failed to purge demo data:" << db.lastError().text();

@@ -13,6 +13,22 @@
 #include <QDebug>
 #include <QGuiApplication>
 
+namespace {
+// Move the palette selection to the next visible row in `direction` (+1/-1) so
+// arrow keys never land on a row that the active filter has hidden.
+void moveSelectionToVisibleRow(QListWidget* list, int direction) {
+    if (!list || list->count() == 0) return;
+    const int step = direction >= 0 ? 1 : -1;
+    for (int row = list->currentRow() + step; row >= 0 && row < list->count(); row += step) {
+        QListWidgetItem* item = list->item(row);
+        if (item && !item->isHidden()) {
+            list->setCurrentRow(row);
+            return;
+        }
+    }
+}
+} // namespace
+
 CommandPaletteDialog::CommandPaletteDialog(QWidget* parent)
     : QDialog(parent)
 {
@@ -115,16 +131,10 @@ bool CommandPaletteDialog::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_searchEdit && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Down) {
-            int currRow = m_listWidget->currentRow();
-            if (currRow < m_listWidget->count() - 1) {
-                m_listWidget->setCurrentRow(currRow + 1);
-            }
+            moveSelectionToVisibleRow(m_listWidget, +1);
             return true;
         } else if (keyEvent->key() == Qt::Key_Up) {
-            int currRow = m_listWidget->currentRow();
-            if (currRow > 0) {
-                m_listWidget->setCurrentRow(currRow - 1);
-            }
+            moveSelectionToVisibleRow(m_listWidget, -1);
             return true;
         } else if (keyEvent->key() == Qt::Key_Escape) {
             reject();
@@ -204,12 +214,20 @@ void CommandPaletteDialog::onSearchChanged(const QString& text) {
     }
 
     // Select first visible
+    bool foundVisible = false;
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem* item = m_listWidget->item(i);
         if (!item->isHidden()) {
             m_listWidget->setCurrentItem(item);
+            foundVisible = true;
             break;
         }
+    }
+    if (!foundVisible) {
+        // No matches: drop the current row so Enter cannot execute a stale,
+        // now-invisible item.
+        m_listWidget->setCurrentRow(-1);
+        m_listWidget->clearSelection();
     }
 }
 
@@ -252,5 +270,8 @@ void CommandPaletteDialog::onItemSelected(QListWidgetItem* item) {
 }
 
 void CommandPaletteDialog::executeSelection() {
-    onItemSelected(m_listWidget->currentItem());
+    QListWidgetItem* current = m_listWidget->currentItem();
+    // Rows hidden by the active filter must never be executed.
+    if (!current || current->isHidden()) return;
+    onItemSelected(current);
 }

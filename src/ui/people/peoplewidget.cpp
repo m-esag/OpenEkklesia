@@ -50,6 +50,10 @@
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
 #include "../common/givingstatementgenerator.h"
+#include <QDateTime>
+#include <QFile>
+#include <QFileInfo>
+#include <QSignalBlocker>
 
 // ============================================================================
 // ClickableAvatarLabel Implementation
@@ -329,13 +333,19 @@ void PeopleWidget::setupUI() {
         if (m_searchEdit) { m_searchEdit->setFocus(); m_searchEdit->selectAll(); }
     });
     QShortcut* scNew = new QShortcut(QKeySequence("Ctrl+N"), this);
-    connect(scNew, &QShortcut::activated, this, &PeopleWidget::onAddPerson);
+    connect(scNew, &QShortcut::activated, this, [this]() {
+        if (!m_isReadOnly) onAddPerson();
+    });
     QShortcut* scSave = new QShortcut(QKeySequence("Ctrl+S"), this);
-    connect(scSave, &QShortcut::activated, this, &PeopleWidget::onSaveProfile);
+    connect(scSave, &QShortcut::activated, this, [this]() {
+        if (!m_isReadOnly) onSaveProfile();
+    });
     QShortcut* scEsc = new QShortcut(QKeySequence(Qt::Key_Escape), this);
     connect(scEsc, &QShortcut::activated, this, [this]() {
         if (m_searchEdit) m_searchEdit->clear();
         if (m_statusFilterGroup && m_statusFilterGroup->button(0)) m_statusFilterGroup->button(0)->setChecked(true);
+        m_drillCareFlag.clear();
+        m_drillSpecialFilter.clear();
         reapplyFilter();
     });
 
@@ -404,7 +414,12 @@ void PeopleWidget::setupUI() {
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("sparkles", QColor("#2e7d32"), 13), "Ready for Membership", 3);
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("shield-check", QColor(), 13), "Completed Both", 4);
     m_cmbPathwayFilter->setStyleSheet("QComboBox { font-size: 10px; padding: 1px 6px; }");
-    connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { reapplyFilter(); });
+    connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        // A user-initiated filter change drops any one-shot analytics drill-through.
+        m_drillCareFlag.clear();
+        m_drillSpecialFilter.clear();
+        reapplyFilter();
+    });
     statusFilterRow->addWidget(m_cmbPathwayFilter);
     statusFilterRow->addStretch();
     leftLayout->addLayout(statusFilterRow);
@@ -837,8 +852,8 @@ void PeopleWidget::setupUI() {
         }
     });
     connect(m_chkBaptized, &QCheckBox::toggled, this, [this](bool chk) {
-        m_txtBaptismDate->setEnabled(chk);
-        m_btnPickBaptismDate->setEnabled(chk);
+        m_txtBaptismDate->setEnabled(!m_isReadOnly && chk);
+        m_btnPickBaptismDate->setEnabled(!m_isReadOnly && chk);
         updatePathwayUI();
         setDirty(true);
     });
@@ -875,8 +890,8 @@ void PeopleWidget::setupUI() {
         }
     });
     connect(m_chkNextSteps, &QCheckBox::toggled, this, [this](bool chk) {
-        m_txtNextStepsDate->setEnabled(chk);
-        m_btnPickNextStepsDate->setEnabled(chk);
+        m_txtNextStepsDate->setEnabled(!m_isReadOnly && chk);
+        m_btnPickNextStepsDate->setEnabled(!m_isReadOnly && chk);
         updatePathwayUI();
         setDirty(true);
     });
@@ -1525,9 +1540,18 @@ void PeopleWidget::setupModels() {
     m_mapper->addMapping(m_phoneEdit, 4);
     m_mapper->addMapping(m_emailEdit, 5);
     m_mapper->addMapping(m_avatarPathEdit, 7);
-    m_mapper->addMapping(m_giftsEdit, 15); // spiritual_gifts
-    m_mapper->addMapping(m_styleEdit, 16); // relational_style
-    m_mapper->addMapping(m_tagsEdit, 17);  // interest_tags
+    // Map the extended profile columns by NAME: their numeric positions depend on
+    // the migration order (people base table has 20 columns, then migration 4 adds
+    // spiritual_gifts/relational_style/interest_tags, then later migrations append
+    // ministry_personality/personality_secondary). Hard-coded indices used to point
+    // at is_baptized/baptism_date/next_steps_completed and silently destroyed the
+    // gifts/style text on every save.
+    const int giftsColumn = m_peopleModel->fieldIndex("spiritual_gifts");
+    const int styleColumn = m_peopleModel->fieldIndex("relational_style");
+    const int tagsColumn = m_peopleModel->fieldIndex("interest_tags");
+    if (giftsColumn >= 0) m_mapper->addMapping(m_giftsEdit, giftsColumn);
+    if (styleColumn >= 0) m_mapper->addMapping(m_styleEdit, styleColumn);
+    if (tagsColumn >= 0) m_mapper->addMapping(m_tagsEdit, tagsColumn);
 
     connect(m_peopleTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &PeopleWidget::onSelectionChanged);
 
@@ -1954,13 +1978,64 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     QModelIndex sourceIndex = m_proxyModel->mapToSource(current);
     int row = sourceIndex.row();
 
-    m_mapper->setCurrentIndex(row);
-
     QSqlRecord rec = m_peopleModel->record(row);
     int personId = rec.value("id").toInt();
     if (personId <= 0) {
         personId = m_peopleModel->data(m_peopleModel->index(row, 0)).toInt();
     }
+
+    // Never discard typed edits silently: ask before switching to a different
+    // person, or before a programmatic refresh reloads the profile being edited.
+    if (!m_suppressUnsavedPrompt && m_isDirty && m_currentPersonId > 0 && personId > 0) {
+        const bool switchingPerson = (personId != m_currentPersonId);
+        const QMessageBox::StandardButton answer = QMessageBox::question(
+            this, "Unsaved Changes",
+            switchingPerson
+                ? "You have unsaved changes in this member's profile.\n\n"
+                  "Save them before switching to another person?"
+                : "You have unsaved changes in this member's profile.\n\n"
+                  "Save them before the profile is refreshed?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+        if (answer == QMessageBox::Cancel) {
+            if (switchingPerson) {
+                // Restore the edited person's row without re-entering this slot.
+                const int editedPersonId = m_currentPersonId;
+                m_suppressUnsavedPrompt = true;
+                {
+                    QSignalBlocker blocker(m_peopleTable->selectionModel());
+                    selectPerson(editedPersonId);
+                }
+                m_suppressUnsavedPrompt = false;
+                m_peopleTable->update();
+            }
+            // Same person: keep the edited form exactly as it is.
+            return;
+        }
+        if (answer == QMessageBox::Save) {
+            m_suppressUnsavedPrompt = true;
+            onSaveProfile();
+            const bool saved = !m_isDirty;
+            m_suppressUnsavedPrompt = false;
+            if (!saved) {
+                // The save failed (error already shown): keep the editor on the
+                // profile that still has unsaved changes.
+                const int editedPersonId = m_currentPersonId;
+                QSignalBlocker blocker(m_peopleTable->selectionModel());
+                selectPerson(editedPersonId);
+                m_peopleTable->update();
+                return;
+            }
+            // onSaveProfile() re-selects the saved person; move to the clicked one
+            // (same person: this simply reloads the freshly saved values).
+            selectPerson(personId);
+            return;
+        }
+        // Discard: fall through and reload the person from the database.
+        setDirty(false);
+    }
+
+    m_mapper->setCurrentIndex(row);
     m_currentPersonId = personId;
 
     int householdId = 0;
@@ -2008,6 +2083,10 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
             jdStr = hq.value(12).toString();
             giftsText = hq.value(13).toString();
             styleText = hq.value(14).toString();
+            // Keep the SQL-driven overrides authoritative for all three text
+            // columns so a stale mapper row can never feed the save path.
+            m_giftsEdit->setText(giftsText);
+            m_styleEdit->setText(styleText);
             m_tagsEdit->setText(hq.value(15).toString());
             priArchetype = hq.value(16).toString();
             secArchetype = hq.value(17).toString();
@@ -2058,8 +2137,8 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     if (m_txtBaptismDate) {
         m_txtBaptismDate->blockSignals(true);
         m_txtBaptismDate->setText(baptismDate);
-        m_txtBaptismDate->setEnabled(isBaptized == 1);
-        m_btnPickBaptismDate->setEnabled(isBaptized == 1);
+        m_txtBaptismDate->setEnabled(!m_isReadOnly && isBaptized == 1);
+        m_btnPickBaptismDate->setEnabled(!m_isReadOnly && isBaptized == 1);
         m_txtBaptismDate->blockSignals(false);
     }
 
@@ -2071,8 +2150,8 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
     if (m_txtNextStepsDate) {
         m_txtNextStepsDate->blockSignals(true);
         m_txtNextStepsDate->setText(nextStepsDate);
-        m_txtNextStepsDate->setEnabled(nextStepsCompleted == 1);
-        m_btnPickNextStepsDate->setEnabled(nextStepsCompleted == 1);
+        m_txtNextStepsDate->setEnabled(!m_isReadOnly && nextStepsCompleted == 1);
+        m_btnPickNextStepsDate->setEnabled(!m_isReadOnly && nextStepsCompleted == 1);
         m_txtNextStepsDate->blockSignals(false);
     }
 
@@ -2085,7 +2164,7 @@ void PeopleWidget::onSelectionChanged(const QModelIndex& current, const QModelIn
             m_lblAppScanStatus->setText(QString("<b>Attached:</b> %1").arg(fi.fileName()));
             m_lblAppScanStatus->setStyleSheet("color: palette(highlight); font-size: 11px;");
             if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(true);
-            if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(true);
+            if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(!m_isReadOnly);
         } else {
             m_lblAppScanStatus->setText("<i>No scanned request attached</i>");
             m_lblAppScanStatus->setStyleSheet("color: palette(placeholderText); font-size: 11px;");
@@ -2183,6 +2262,7 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
 }
 
 void PeopleWidget::onLogCareEntry() {
+    if (m_isReadOnly) return;
     if (m_currentPersonId <= 0) {
         QMessageBox::information(this, "Select a Person", "Select a person profile before logging a care entry.");
         return;
@@ -2224,6 +2304,9 @@ void PeopleWidget::onLogCareEntry() {
     q.addBindValue(m_currentPersonId);
     q.addBindValue(type);
     q.addBindValue(notes);
+    // Column 4 of the statement used to be left unbound (SQLite rejects a
+    // parameter-count mismatch), so every care entry silently failed to save.
+    q.addBindValue(followUpCheck->isChecked() ? 1 : 0);
     if (q.exec()) {
         if (followUpCheck->isChecked()) {
             QSqlQuery qPastoral(db);
@@ -2256,32 +2339,81 @@ void PeopleWidget::selectPerson(int personId) {
 void PeopleWidget::applyRole(const QString& role) {
     // Roles only gate full-access vs read-only (Guest); modules gate features.
     m_isReadOnly = (role.compare("readonly", Qt::CaseInsensitive) == 0 || role.compare("guest", Qt::CaseInsensitive) == 0);
-    bool canEdit = !m_isReadOnly;
-    m_btnSave->setEnabled(canEdit);
-    m_btnDeletePerson->setEnabled(canEdit);
-    m_btnAddPerson->setEnabled(canEdit);
-    m_btnAddHousehold->setEnabled(canEdit);
-    m_btnManageHouseholds->setEnabled(canEdit);
-    m_btnDeleteSelected->setEnabled(canEdit);
-    m_btnBatchStatus->setEnabled(canEdit);
+    const bool canEdit = !m_isReadOnly;
 
-    QString tip = m_isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify records." : "";
-    m_btnSave->setToolTip(tip);
-    m_btnDeletePerson->setToolTip(tip);
-    m_btnAddPerson->setToolTip(tip);
-    m_btnAddHousehold->setToolTip(tip);
-    m_btnManageHouseholds->setToolTip(tip);
-    m_btnDeleteSelected->setToolTip(tip);
-    m_btnBatchStatus->setToolTip(tip);
+    const QString tip = m_isReadOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify records." : "";
+
+    // Record-changing actions.
+    QPushButton* actionButtons[] = {
+        m_btnSave, m_btnDeletePerson, m_btnAddPerson, m_btnAddHousehold,
+        m_btnManageHouseholds, m_btnDeleteSelected, m_btnBatchStatus,
+        m_btnImportCSV, m_btnLogCare, m_btnAttachAppScan
+    };
+    for (QPushButton* btn : actionButtons) {
+        if (!btn) continue;
+        btn->setEnabled(canEdit);
+        btn->setToolTip(tip);
+    }
+    if (m_btnPromoteToMember) m_btnPromoteToMember->setVisible(canEdit);
+
+    // Profile fields must be genuinely read-only for guests, and restored when a
+    // full-access role signs back in. QLineEdit/QTextEdit stay copyable.
+    const auto setEditor = [canEdit](QWidget* w) {
+        if (!w) return;
+        if (QLineEdit* lineEdit = qobject_cast<QLineEdit*>(w)) {
+            lineEdit->setReadOnly(!canEdit);
+            return;
+        }
+        if (QTextEdit* textEdit = qobject_cast<QTextEdit*>(w)) {
+            textEdit->setReadOnly(!canEdit);
+            return;
+        }
+        w->setEnabled(canEdit);
+    };
+    QWidget* editors[] = {
+        m_firstNameEdit, m_lastNameEdit, m_phoneEdit, m_emailEdit, m_householdCombo,
+        m_genderCombo, m_birthDateEdit, m_firstVisitEdit, m_joinDateEdit, m_statusCombo,
+        m_careFlagCombo, m_adminNotesText, m_chkBaptized, m_txtBaptismDate,
+        m_chkNextSteps, m_txtNextStepsDate, m_primaryArchetypeEdit,
+        m_cmbSecondaryArchetype, m_giftsEdit, m_styleEdit, m_tagsEdit, m_tagInputField
+    };
+    for (QWidget* w : editors) setEditor(w);
+
+    if (m_btnPickBaptismDate) {
+        m_btnPickBaptismDate->setEnabled(canEdit && m_chkBaptized && m_chkBaptized->isChecked());
+    }
+    if (m_btnPickNextStepsDate) {
+        m_btnPickNextStepsDate->setEnabled(canEdit && m_chkNextSteps && m_chkNextSteps->isChecked());
+    }
+    if (m_btnClearAppScan) {
+        m_btnClearAppScan->setEnabled(canEdit && m_txtAppScanPath && !m_txtAppScanPath->text().trimmed().isEmpty());
+    }
+
+    const QList<QPushButton*>* chipLists[] = {
+        &m_archetypeChips, &m_giftChips, &m_styleChips, &m_popularTagChips
+    };
+    for (const QList<QPushButton*>* chips : chipLists) {
+        for (QPushButton* chip : *chips) {
+            if (chip) chip->setEnabled(canEdit);
+        }
+    }
+
+    // Re-sync derived UI (promote button / stepper) with the new mode.
+    if (m_currentPersonId > 0) updatePathwayUI();
 }
 
 void PeopleWidget::onSearchTextChanged(const QString& text) {
     Q_UNUSED(text);
+    // A user-initiated search replaces any analytics drill-through view.
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
     reapplyFilter();
 }
 
 void PeopleWidget::onStatusFilterChanged(int id) {
     Q_UNUSED(id);
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
     reapplyFilter();
 }
 
@@ -2318,6 +2450,22 @@ void PeopleWidget::reapplyFilter() {
         }
     }
 
+    // One-shot drill-through from Pastoral Analytics. Composed like any other
+    // filter instead of leaving a hidden, sticky model filter behind.
+    if (!m_drillCareFlag.isEmpty()) {
+        if (m_drillCareFlag == "At-Risk") {
+            // The analytics card counts At-Risk + Needs Contact together.
+            conditions << "care_flag IN ('At-Risk', 'Needs Contact')";
+        } else {
+            QString escapedFlag = m_drillCareFlag;
+            escapedFlag.replace("'", "''");
+            conditions << QString("care_flag = '%1'").arg(escapedFlag);
+        }
+    }
+    if (!m_drillSpecialFilter.isEmpty()) {
+        conditions << "(" + m_drillSpecialFilter + ")";
+    }
+
     m_peopleModel->setFilter(conditions.join(" AND "));
     m_peopleModel->select();
     while (m_peopleModel->canFetchMore()) {
@@ -2329,14 +2477,29 @@ void PeopleWidget::reapplyFilter() {
 }
 
 void PeopleWidget::refreshModel() {
+    // Reloading the roster (e.g. page navigation) must not silently throw away
+    // edits in progress.
+    if (m_isDirty && m_currentPersonId > 0) {
+        const QMessageBox::StandardButton answer = QMessageBox::question(
+            this, "Unsaved Changes",
+            "You have unsaved changes in this member's profile.\n\n"
+            "Save them before reloading the directory?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+        if (answer == QMessageBox::Cancel) return;
+        if (answer == QMessageBox::Save) onSaveProfile();
+        else setDirty(false);
+    }
+
+    // A Pastoral Analytics drill-through is a one-shot view: clear it here so a
+    // later visit to the directory never starts silently filtered.
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
+
     populateHouseholdCombo();
     m_householdModel->select();
-    m_peopleModel->select();
-    while (m_peopleModel->canFetchMore()) {
-        m_peopleModel->fetchMore();
-    }
     refreshTagCompleter();
-    onSortByChanged(m_cmbSortBy->currentIndex());
+    reapplyFilter();
 }
 
 void PeopleWidget::onSortByChanged(int index) {
@@ -2403,7 +2566,24 @@ void PeopleWidget::onSortByChanged(int index) {
 }
 
 void PeopleWidget::onAddPerson() {
-    // Reset any active search or status filter so the newly created person is immediately visible
+    if (m_isReadOnly) return;
+
+    // Creating a new profile must not silently discard edits in progress.
+    if (m_isDirty && m_currentPersonId > 0) {
+        const QMessageBox::StandardButton answer = QMessageBox::question(
+            this, "Unsaved Changes",
+            "Save the current member's changes before creating a new profile?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+        if (answer == QMessageBox::Cancel) return;
+        if (answer == QMessageBox::Save) onSaveProfile();
+        else setDirty(false);
+    }
+
+    // Reset any active search, status or analytics drill-through filter so the
+    // newly created person is immediately visible.
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
     if (m_searchEdit) m_searchEdit->clear();
     if (m_statusFilterGroup && m_statusFilterGroup->button(0)) {
         m_statusFilterGroup->button(0)->setChecked(true);
@@ -2443,6 +2623,8 @@ void PeopleWidget::onAddPerson() {
 }
 
 void PeopleWidget::onAddHousehold() {
+    if (m_isReadOnly) return;
+
     bool ok;
     QString familyName = QInputDialog::getText(this, "Add New Household", "Enter Family / Household Name:", QLineEdit::Normal, "", &ok);
     if (ok && !familyName.trimmed().isEmpty()) {
@@ -2462,6 +2644,8 @@ void PeopleWidget::onAddHousehold() {
 }
 
 void PeopleWidget::onChangeAvatar() {
+    if (m_isReadOnly) return;
+
     QString fileName = QFileDialog::getOpenFileName(this, "Select Profile Avatar Image", "", "Images (*.png *.jpg *.jpeg *.bmp)");
     if (!fileName.isEmpty()) {
         m_selectedAvatarPath = fileName;
@@ -2501,6 +2685,10 @@ void PeopleWidget::loadAvatar(const QString& path) {
 }
 
 void PeopleWidget::onSaveProfile() {
+    // Defence in depth: the button/shortcut are disabled for guests, but never
+    // let a read-only role write through a programmatic call either.
+    if (m_isReadOnly) return;
+
     int personId = m_currentPersonId;
     if (personId <= 0) {
         QModelIndex current = m_peopleTable->currentIndex();
@@ -2602,11 +2790,15 @@ void PeopleWidget::onSaveProfile() {
     q.bindValue(":id", personId);
 
     if (q.exec()) {
+        // Saving already happened: never re-prompt about the stale dirty flag
+        // while the model is being refreshed/reselected.
+        m_suppressUnsavedPrompt = true;
         m_peopleModel->revertAll();
         m_peopleModel->select();
         reapplyFilter();
         selectPerson(personId);
         refreshTagCompleter();
+        m_suppressUnsavedPrompt = false;
         setDirty(false);
         updateHeader(QString("%1 %2").arg(fn, ln), status, careFlag, m_householdCombo->currentText(), joinDate);
         DatabaseManager::logAudit("people", personId, "profile", "Profile Modifications", "UPDATED", "admin");
@@ -2617,6 +2809,8 @@ void PeopleWidget::onSaveProfile() {
 }
 
 void PeopleWidget::onDeletePerson() {
+    if (m_isReadOnly) return;
+
     int personId = m_currentPersonId;
     QString fullName;
     QModelIndex current = m_peopleTable->currentIndex();
@@ -2645,7 +2839,10 @@ void PeopleWidget::onDeletePerson() {
     }
 
     auto res = QMessageBox::question(this, "Confirm Member Deletion", 
-                                     QString("Are you sure you want to permanently delete '%1' and all care/attendance history?").arg(fullName),
+                                     QString("Are you sure you want to permanently delete '%1'?\n\n"
+                                             "This removes their care notes, attendance history and group links. "
+                                             "Giving records are kept for finance/audit but are anonymized "
+                                             "(no longer linked to this person).").arg(fullName),
                                      QMessageBox::Yes | QMessageBox::No);
     if (res == QMessageBox::Yes) {
         QSqlDatabase db = QSqlDatabase::database();
@@ -2655,6 +2852,7 @@ void PeopleWidget::onDeletePerson() {
         if (deletePersonCascade(q, personId)) {
             db.commit();
             DatabaseManager::logAudit("people", personId, "record", fullName, "DELETED", "admin");
+            setDirty(false);
             m_peopleModel->select();
             reapplyFilter();
             QMessageBox::information(this, "Success", "Person profile deleted successfully.");
@@ -2688,23 +2886,38 @@ bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
         return false;
     }
 
-    // Delete direct contributions records
-    q.prepare("DELETE FROM contributions WHERE person_id = ?");
+    // Keep fiscal giving history but anonymize the donor: the ledger stays
+    // complete for audit/receipts while no row references the deleted person.
+    q.prepare("UPDATE contributions SET person_id = NULL WHERE person_id = ?");
     q.addBindValue(personId);
     if (!q.exec()) {
         qWarning() << "deletePersonCascade failed on contributions:" << q.lastError().text();
         return false;
     }
 
+    // Ministry events may name the person as coordinator (FK would block DELETE).
+    q.prepare("UPDATE ministry_events SET coordinator_id = NULL WHERE coordinator_id = ?");
+    q.addBindValue(personId);
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on ministry_events:" << q.lastError().text();
+        return false;
+    }
+
     // Unlink document vault attachments
     q.prepare("UPDATE vault_documents SET person_id = NULL WHERE person_id = ?");
     q.addBindValue(personId);
-    q.exec();
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on vault_documents:" << q.lastError().text();
+        return false;
+    }
 
     // Unlink task ownership
     q.prepare("UPDATE ministry_tasks SET owner_id = NULL WHERE owner_id = ?");
     q.addBindValue(personId);
-    q.exec();
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on ministry_tasks:" << q.lastError().text();
+        return false;
+    }
 
     // Polymorphic relationships can reference the person as source or target.
     q.prepare("DELETE FROM entity_relationships WHERE (source_type = 'Person' AND source_id = ?) "
@@ -2727,7 +2940,10 @@ bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
     // Clear graph layout cache
     q.prepare("DELETE FROM graph_layout WHERE entity_type = 'Person' AND entity_id = ?");
     q.addBindValue(personId);
-    q.exec();
+    if (!q.exec()) {
+        qWarning() << "deletePersonCascade failed on graph_layout:" << q.lastError().text();
+        return false;
+    }
 
     q.prepare("DELETE FROM people WHERE id = ?");
     q.addBindValue(personId);
@@ -2739,6 +2955,8 @@ bool PeopleWidget::deletePersonCascade(QSqlQuery& q, int personId) {
 }
 
 void PeopleWidget::onDeleteSelectedMembers() {
+    if (m_isReadOnly) return;
+
     QModelIndexList selectedIndexes = m_peopleTable->selectionModel()->selectedIndexes();
     QSet<int> rowSet;
     for (const QModelIndex& idx : selectedIndexes) {
@@ -2780,29 +2998,44 @@ void PeopleWidget::onDeleteSelectedMembers() {
 
     auto res = QMessageBox::question(
         this, "Confirm Batch Deletion",
-        QString("Are you sure you want to permanently delete the following %1 selected member(s)?\n\n%2")
+        QString("Are you sure you want to permanently delete the following %1 selected member(s)?\n\n%2\n\n"
+                "Care notes, attendance history and group links are removed. Giving records are kept "
+                "for finance/audit but are anonymized.")
             .arg(ids.size()).arg(names.join("\n")),
         QMessageBox::Yes | QMessageBox::No
     );
 
     if (res == QMessageBox::Yes) {
         QSqlDatabase db = QSqlDatabase::database();
-        db.transaction();
+        if (!db.transaction()) {
+            QMessageBox::critical(this, "Database Error", "Could not start a delete transaction: " + db.lastError().text());
+            return;
+        }
 
+        // All-or-nothing: a failure anywhere rolls the whole batch back so the
+        // roster can never end up with half-deleted members and orphaned rows.
         QSqlQuery q(db);
-        int deleted = 0;
         for (int id : ids) {
-            if (deletePersonCascade(q, id)) {
-                ++deleted;
-                DatabaseManager::logAudit("people", id, "record", "Batch Delete", "DELETED", "admin");
+            if (!deletePersonCascade(q, id)) {
+                db.rollback();
+                QMessageBox::critical(this, "Deletion Failed",
+                    QString("Could not delete every selected member, so no changes were saved.\n\n"
+                            "Database error: %1").arg(q.lastError().text()));
+                return;
             }
         }
-        if (deleted > 0) {
-            db.commit();
-        } else {
+        if (!db.commit()) {
+            const QString commitError = db.lastError().text();
             db.rollback();
+            QMessageBox::critical(this, "Deletion Failed",
+                QString("Committing the batch deletion failed; no changes were saved.\n\n%1").arg(commitError));
+            return;
+        }
+        for (int id : ids) {
+            DatabaseManager::logAudit("people", id, "record", "Batch Delete", "DELETED", "admin");
         }
 
+        setDirty(false);
         m_peopleModel->revertAll();
         m_peopleModel->select();
         reapplyFilter();
@@ -2812,12 +3045,14 @@ void PeopleWidget::onDeleteSelectedMembers() {
             m_currentPersonId = 0;
             loadAvatar("");
         }
-        QMessageBox::information(this, "Success", QString("Successfully deleted %1 people.").arg(deleted));
+        QMessageBox::information(this, "Success", QString("Successfully deleted %1 people.").arg(ids.size()));
     }
 }
 
 
 void PeopleWidget::onBatchSetStatus() {
+    if (m_isReadOnly) return;
+
     QModelIndexList selectedRows = m_peopleTable->selectionModel()->selectedRows();
     if (selectedRows.isEmpty()) {
         QMessageBox::warning(this, "No Selection", "Please select members in the table first.");
@@ -2849,6 +3084,8 @@ void PeopleWidget::onBatchSetStatus() {
 }
 
 void PeopleWidget::onDeleteHousehold() {
+    if (m_isReadOnly) return;
+
     QSqlDatabase db = DatabaseManager::instance().database();
     
     QDialog dlg(this);
@@ -2939,11 +3176,6 @@ void PeopleWidget::onDeleteHousehold() {
         int hId = current->data(Qt::UserRole).toInt();
         QString hName = current->data(Qt::UserRole + 1).toString();
 
-        if (hId == 1 || hName.toLower() == "unassigned") {
-            QMessageBox::warning(houseList, "Action Denied", "The system default 'Unassigned' household cannot be renamed.");
-            return;
-        }
-
         bool ok;
         QString newName = QInputDialog::getText(&dlg, "Rename Household",
                                                 QString("New name for '%1':").arg(hName),
@@ -2975,22 +3207,24 @@ void PeopleWidget::onDeleteHousehold() {
         QString hName = current->data(Qt::UserRole + 1).toString();
         int memberCount = current->data(Qt::UserRole + 2).toInt();
 
-        if (hId == 1 || hName.toLower() == "unassigned") {
-            QMessageBox::warning(houseList, "Action Denied", "The system default 'Unassigned' household record cannot be purged.");
-            return;
-        }
-
         auto res = QMessageBox::question(&dlg, "Confirm Household Purge",
-                                         QString("Are you sure you want to purge '%1'?\n\n%2 member(s) will be reassigned to 'Unassigned'.")
+                                         QString("Are you sure you want to purge '%1'?\n\n%2 member(s) will become unassigned (no household).")
                                              .arg(hName).arg(memberCount),
                                          QMessageBox::Yes | QMessageBox::No);
         if (res == QMessageBox::Yes) {
             db.transaction();
 
+            // There is no special "unassigned" household row: NULL means
+            // "no household", so purging any household (including the legacy
+            // id 1 row) is safe.
             QSqlQuery q1(db);
-            q1.prepare("UPDATE people SET household_id = 1 WHERE household_id = ?");
+            q1.prepare("UPDATE people SET household_id = NULL WHERE household_id = ?");
             q1.addBindValue(hId);
-            q1.exec();
+            if (!q1.exec()) {
+                db.rollback();
+                QMessageBox::critical(&dlg, "Database Error", "Failed to unassign household members: " + q1.lastError().text());
+                return;
+            }
 
             QSqlQuery q2(db);
             q2.prepare("DELETE FROM households WHERE id = ?");
@@ -3000,7 +3234,7 @@ void PeopleWidget::onDeleteHousehold() {
                 DatabaseManager::logAudit("households", hId, "family_name", hName, "PURGED", "admin");
                 refreshRelationalModels();
                 refreshHouseholds();
-                QMessageBox::information(&dlg, "Success", QString("Household '%1' purged. Members reassigned to Unassigned.").arg(hName));
+                QMessageBox::information(&dlg, "Success", QString("Household '%1' purged. Members are now unassigned.").arg(hName));
             } else {
                 db.rollback();
                 QMessageBox::critical(&dlg, "Database Error", "Failed to purge household: " + q2.lastError().text());
@@ -3015,6 +3249,40 @@ void PeopleWidget::onPrintDirectory() {
     QString fileName = QFileDialog::getSaveFileName(this, "Export Member Directory PDF", "Member_Directory.pdf", "PDF Files (*.pdf)");
     if (fileName.isEmpty()) return;
 
+    // Always export the complete roster: a directory is an official document and
+    // must not be silently truncated by whatever filter happens to be on screen.
+    QSqlQuery rosterQuery;
+    rosterQuery.prepare("SELECT p.first_name, p.last_name, p.phone_number, p.email, "
+                        "p.membership_status, h.family_name "
+                        "FROM people p LEFT JOIN households h ON p.household_id = h.id "
+                        "ORDER BY p.last_name, p.first_name");
+    if (!rosterQuery.exec()) {
+        QMessageBox::critical(this, "Export Failed",
+            "Could not read the member roster: " + rosterQuery.lastError().text());
+        return;
+    }
+
+    QStringList rows;
+    int memberCount = 0;
+    while (rosterQuery.next()) {
+        const QString firstName = rosterQuery.value(0).toString();
+        const QString lastName = rosterQuery.value(1).toString();
+        QString name;
+        if (lastName.isEmpty() && firstName.isEmpty()) name = "—";
+        else if (lastName.isEmpty()) name = firstName;
+        else if (firstName.isEmpty()) name = lastName;
+        else name = QString("%1, %2").arg(lastName, firstName);
+
+        // escape every cell: names/addresses can legitimately contain &, <, >.
+        rows << QString("<tr><td><b>%1</b></td><td>%2</td><td>%3</td><td>%4</td><td>%5</td></tr>")
+                    .arg(name.toHtmlEscaped(),
+                         rosterQuery.value(5).toString().toHtmlEscaped(),
+                         rosterQuery.value(2).toString().toHtmlEscaped(),
+                         rosterQuery.value(3).toString().toHtmlEscaped(),
+                         rosterQuery.value(4).toString().toHtmlEscaped());
+        ++memberCount;
+    }
+
     QPdfWriter writer(fileName);
     writer.setPageSize(QPageSize(QPageSize::Letter));
     writer.setPageMargins(QMarginsF(30, 30, 30, 30));
@@ -3028,23 +3296,14 @@ void PeopleWidget::onPrintDirectory() {
                    "td { padding: 6px; border-bottom: 1px solid #cdd6f4; font-size: 10px; }"
                    "tr:nth-child(even) { background-color: #f2f4f8; }"
                    "</style></head><body>"                    + ChurchProfile::renderHtmlHeader("Official Member Directory",
-                                                      QString("Exported on %1").arg(AppDateFormatter::formatDate(QDate::currentDate())),
+                                                      QString("All members • %1 • %2 record%3")
+                                                          .arg(AppDateFormatter::formatDate(QDate::currentDate()))
+                                                          .arg(memberCount)
+                                                          .arg(memberCount == 1 ? "" : "s"),
                                                       /*includeTaxId=*/false)
                     + "<table>"
-                    "<tr><th>Name</th><th>Household</th><th>Phone</th><th>Email</th><th>Status</th></tr>";
-
-    for (int r = 0; r < m_proxyModel->rowCount(); ++r) {
-        QString name = m_proxyModel->index(r, 0).data().toString();
-        QString house = m_proxyModel->index(r, 1).data().toString();
-        QString phone = m_proxyModel->index(r, 2).data().toString();
-        QString email = m_proxyModel->index(r, 3).data().toString();
-        QString status = m_proxyModel->index(r, 4).data().toString();
-
-        html += QString("<tr><td><b>%1</b></td><td>%2</td><td>%3</td><td>%4</td><td>%5</td></tr>")
-                    .arg(name, house, phone, email, status);
-    }
-
-    html += "</table></body></html>";
+                    "<tr><th>Name</th><th>Household</th><th>Phone</th><th>Email</th><th>Status</th></tr>"
+                    + rows.join("") + "</table></body></html>";
     doc.setHtml(html);
     doc.print(&writer);
     QFileInfo doneInfo(fileName);
@@ -3054,7 +3313,8 @@ void PeopleWidget::onPrintDirectory() {
         return;
     }
 
-    QMessageBox::information(this, "Directory Printed", QString("Member directory PDF successfully exported to:\n%1").arg(fileName));
+    QMessageBox::information(this, "Directory Printed",
+        QString("Member directory PDF (%1 records) successfully exported to:\n%2").arg(memberCount).arg(fileName));
 }
 
 QStringList PeopleWidget::parseCsvLine(const QString& line) {
@@ -3164,6 +3424,8 @@ void PeopleWidget::onExportVCard() {
 }
 
 void PeopleWidget::onImportCSV() {
+    if (m_isReadOnly) return;
+
     QString fileName = QFileDialog::getOpenFileName(this, "Import Members from CSV", "", "CSV Files (*.csv)");
     if (fileName.isEmpty()) return;
 
@@ -3213,16 +3475,22 @@ void PeopleWidget::onImportCSV() {
     if (mapDlg.exec() != QDialog::Accepted) return;
 
     QSqlDatabase db = QSqlDatabase::database();
-    db.transaction();
+    if (!db.transaction()) {
+        QMessageBox::critical(this, "Import Failed",
+            "Could not start an import transaction: " + db.lastError().text());
+        return;
+    }
 
-    // Default to first available household (or 1)
-    int defaultHouseholdId = 1;
+    // No special "Unassigned" household row exists: NULL means no household.
+    QVariant defaultHouseholdId; // invalid QVariant binds SQL NULL
     QSqlQuery hq("SELECT id FROM households ORDER BY id ASC LIMIT 1", db);
     if (hq.next()) {
         defaultHouseholdId = hq.value(0).toInt();
     }
 
     int importedCount = 0;
+    int failedCount = 0;
+    QString lastError;
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.isEmpty()) continue;
@@ -3249,14 +3517,37 @@ void PeopleWidget::onImportCSV() {
         q.addBindValue(email);
         q.addBindValue(status.isEmpty() ? "Member" : status);
         q.addBindValue(defaultHouseholdId);
-        if (q.exec()) importedCount++;
+        if (q.exec()) {
+            ++importedCount;
+        } else {
+            ++failedCount;
+            lastError = q.lastError().text();
+        }
     }
 
-    db.commit();
+    if (!db.commit()) {
+        const QString commitError = db.lastError().text();
+        db.rollback();
+        QMessageBox::critical(this, "Import Failed",
+            QString("Committing the CSV import failed; no members were saved.\n\n%1").arg(commitError));
+        return;
+    }
     m_peopleModel->revertAll();
     m_peopleModel->select();
     reapplyFilter();
-    QMessageBox::information(this, "Success", QString("Successfully imported %1 members!").arg(importedCount));
+
+    if (importedCount == 0) {
+        QMessageBox::warning(this, "Import Failed",
+            QString("No members were imported.%1")
+                .arg(lastError.isEmpty() ? "" : "\n\nDatabase error: " + lastError));
+    } else if (failedCount > 0) {
+        QMessageBox::warning(this, "Import Partially Completed",
+            QString("Imported %1 members; %2 row(s) could not be saved.%3")
+                .arg(importedCount).arg(failedCount)
+                .arg(lastError.isEmpty() ? "" : "\n\nLast error: " + lastError));
+    } else {
+        QMessageBox::information(this, "Success", QString("Successfully imported %1 members!").arg(importedCount));
+    }
 }
 
 void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
@@ -3391,19 +3682,56 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
                 int gid = groupCombo->currentData().toInt();
                 QString roleStr = roleEdit->text().trimmed();
                 QSqlDatabase db = QSqlDatabase::database();
-                db.transaction();
+                if (!db.transaction()) {
+                    QMessageBox::critical(this, "Database Error",
+                        "Could not start an assignment transaction: " + db.lastError().text());
+                    return;
+                }
                 int assignedCount = 0;
+                int alreadyCount = 0;
                 for (int pid : selectedPersonIds) {
+                    // Skip people already linked to this group so a batch assign
+                    // does not create duplicate membership rows.
+                    QSqlQuery exists(db);
+                    exists.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' "
+                                   "AND source_id = ? AND target_type = 'Group' AND target_id = ?");
+                    exists.addBindValue(pid);
+                    exists.addBindValue(gid);
+                    if (exists.exec() && exists.next()) {
+                        ++alreadyCount;
+                        continue;
+                    }
                     QSqlQuery ins(db);
-                    ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
-                                "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
+                    ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, "
+                                "relationship_type, role, joined_date) "
+                                "VALUES ('Person', ?, 'Group', ?, 'member_of', ?, date('now', 'localtime'))");
                     ins.addBindValue(pid);
                     ins.addBindValue(gid);
                     ins.addBindValue(roleStr);
-                    if (ins.exec()) assignedCount++;
+                    if (!ins.exec()) {
+                        db.rollback();
+                        QMessageBox::critical(this, "Assignment Failed",
+                            QString("Could not assign every selected member, so no changes were saved.\n\n%1")
+                                .arg(ins.lastError().text()));
+                        return;
+                    }
+                    ++assignedCount;
                 }
-                db.commit();
-                QMessageBox::information(this, "Batch Assignment", QString("Successfully assigned %1 people to %2.").arg(assignedCount).arg(groupCombo->currentText()));
+                if (!db.commit()) {
+                    const QString commitError = db.lastError().text();
+                    db.rollback();
+                    QMessageBox::critical(this, "Assignment Failed",
+                        QString("Committing the group assignment failed; no changes were saved.\n\n%1").arg(commitError));
+                    return;
+                }
+                if (m_currentPersonId > 0 && selectedPersonIds.contains(m_currentPersonId)) {
+                    selectPerson(m_currentPersonId);
+                }
+                QString summary = QString("Successfully assigned %1 people to %2.").arg(assignedCount).arg(groupCombo->currentText());
+                if (alreadyCount > 0) {
+                    summary += QString("\n%1 were already members of that group and were skipped.").arg(alreadyCount);
+                }
+                QMessageBox::information(this, "Batch Assignment", summary);
             }
         } else if (selected == actBatchCareNote) {
             QDialog dlg(this);
@@ -3531,7 +3859,7 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             for (int pid : selectedPersonIds) {
                 QSqlQuery pq(db);
                 pq.prepare("UPDATE people SET membership_status = 'Member', "
-                           "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now') ELSE join_date END "
+                           "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now', 'localtime') ELSE join_date END "
                            "WHERE id = :id AND (membership_status = 'Regular Attender' OR membership_status = 'Visitor')");
                 pq.bindValue(":id", pid);
                 if (pq.exec() && pq.numRowsAffected() > 0) count++;
@@ -3552,47 +3880,87 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             QString fileName = QFileDialog::getSaveFileName(this, "Export Contacts as vCard", "contacts_export.vcf", "vCard Files (*.vcf)");
             if (!fileName.isEmpty()) {
                 QFile file(fileName);
-                if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                    QTextStream out(&file);
-                    int exported = 0;
-                    for (int pid : selectedPersonIds) {
-                        QSqlQuery q;
-                        q.prepare("SELECT first_name, last_name, email, phone_number, address, date_of_birth FROM people WHERE id = ?");
-                        q.addBindValue(pid);
-                        if (q.exec() && q.next()) {
-                            out << "BEGIN:VCARD\nVERSION:3.0\n";
-                            out << QString("N:%1;%2;;;\n").arg(q.value(1).toString(), q.value(0).toString());
-                            out << QString("FN:%1 %2\n").arg(q.value(0).toString(), q.value(1).toString());
-                            if (!q.value(2).toString().isEmpty()) out << QString("EMAIL:%1\n").arg(q.value(2).toString());
-                            if (!q.value(3).toString().isEmpty()) out << QString("TEL:%1\n").arg(q.value(3).toString());
-                            if (!q.value(4).toString().isEmpty()) out << QString("ADR:;;%1;;;;\n").arg(q.value(4).toString());
-                            if (!q.value(5).toString().isEmpty()) out << QString("BDAY:%1\n").arg(q.value(5).toString());
-                            out << "END:VCARD\n\n";
-                            exported++;
-                        }
+                if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    QMessageBox::critical(this, "Export Failed",
+                        QString("Could not open '%1' for writing:\n%2").arg(fileName, file.errorString()));
+                    return;
+                }
+                QTextStream out(&file);
+                int exported = 0;
+                QString lastError;
+                for (int pid : selectedPersonIds) {
+                    QSqlQuery q;
+                    // Address lives on households, not people (the old query asked
+                    // for a non-existent people.address column and exported nothing).
+                    q.prepare("SELECT p.first_name, p.last_name, p.email, p.phone_number, "
+                              "h.address_line1, p.date_of_birth "
+                              "FROM people p LEFT JOIN households h ON p.household_id = h.id "
+                              "WHERE p.id = ?");
+                    q.addBindValue(pid);
+                    if (!q.exec()) {
+                        lastError = q.lastError().text();
+                        continue;
                     }
-                    file.close();
-                    QMessageBox::information(this, "Export Complete", QString("Successfully exported %1 contacts to %2").arg(exported).arg(QFileInfo(fileName).fileName()));
+                    if (!q.next()) continue;
+                    out << "BEGIN:VCARD\nVERSION:3.0\n";
+                    out << QString("N:%1;%2;;;\n").arg(q.value(1).toString(), q.value(0).toString());
+                    out << QString("FN:%1 %2\n").arg(q.value(0).toString(), q.value(1).toString());
+                    if (!q.value(2).toString().isEmpty()) out << QString("EMAIL:%1\n").arg(q.value(2).toString());
+                    if (!q.value(3).toString().isEmpty()) out << QString("TEL:%1\n").arg(q.value(3).toString());
+                    if (!q.value(4).toString().isEmpty()) out << QString("ADR:;;%1;;;;\n").arg(q.value(4).toString());
+                    if (!q.value(5).toString().isEmpty()) out << QString("BDAY:%1\n").arg(q.value(5).toString());
+                    out << "END:VCARD\n\n";
+                    ++exported;
+                }
+                file.close();
+                if (exported == 0) {
+                    QMessageBox::warning(this, "Export Failed",
+                        QString("No contacts were exported.%1")
+                            .arg(lastError.isEmpty() ? "" : "\n\nDatabase error: " + lastError));
+                } else {
+                    QMessageBox::information(this, "Export Complete",
+                        QString("Successfully exported %1 contacts to %2").arg(exported).arg(QFileInfo(fileName).fileName()));
                 }
             }
         } else if (selected == actBatchDelete) {
             auto res = QMessageBox::question(this, "Confirm Batch Deletion",
-                                             QString("Are you sure you want to permanently delete ALL %1 selected profiles and their care history?").arg(totalSelected),
+                                             QString("Are you sure you want to permanently delete ALL %1 selected profiles?\n\n"
+                                                     "Care notes, attendance history and group links are removed. Giving records "
+                                                     "are kept for finance/audit but are anonymized.").arg(totalSelected),
                                              QMessageBox::Yes | QMessageBox::No);
             if (res == QMessageBox::Yes) {
                 QSqlDatabase db = QSqlDatabase::database();
-                db.transaction();
-                QSqlQuery q(db);
-                int deletedCount = 0;
-                for (int pid : selectedPersonIds) {
-                    if (deletePersonCascade(q, pid)) deletedCount++;
+                if (!db.transaction()) {
+                    QMessageBox::critical(this, "Database Error",
+                        "Could not start a delete transaction: " + db.lastError().text());
+                    return;
                 }
-                db.commit();
+                // All-or-nothing: never commit a partially deleted selection.
+                QSqlQuery q(db);
+                for (int pid : selectedPersonIds) {
+                    if (!deletePersonCascade(q, pid)) {
+                        db.rollback();
+                        QMessageBox::critical(this, "Deletion Failed",
+                            QString("Could not delete every selected member, so no changes were saved.\n\n"
+                                    "Database error: %1").arg(q.lastError().text()));
+                        return;
+                    }
+                }
+                if (!db.commit()) {
+                    const QString commitError = db.lastError().text();
+                    db.rollback();
+                    QMessageBox::critical(this, "Deletion Failed",
+                        QString("Committing the batch deletion failed; no changes were saved.\n\n%1").arg(commitError));
+                    return;
+                }
+                setDirty(false);
+                m_peopleModel->revertAll();
                 m_peopleModel->select();
                 reapplyFilter();
                 m_dossierContainer->setVisible(false);
                 m_currentPersonId = -1;
-                QMessageBox::information(this, "Batch Deletion Complete", QString("Successfully deleted %1 member profiles.").arg(deletedCount));
+                QMessageBox::information(this, "Batch Deletion Complete",
+                    QString("Successfully deleted %1 member profiles.").arg(selectedPersonIds.size()));
             }
         }
     } else {
@@ -3670,13 +4038,32 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
             form->addRow(bb);
             if (dlg.exec() == QDialog::Accepted && groupCombo->count() > 0) {
                 int gid = groupCombo->currentData().toInt();
+                const QString roleStr = roleEdit->text().trimmed();
+
+                // Never create a duplicate Person->Group membership row.
+                QSqlQuery exists;
+                exists.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' "
+                               "AND source_id = ? AND target_type = 'Group' AND target_id = ?");
+                exists.addBindValue(personId);
+                exists.addBindValue(gid);
+                if (exists.exec() && exists.next()) {
+                    QMessageBox::information(this, "Already Assigned",
+                        QString("%1 is already a member of %2.").arg(fullName, groupCombo->currentText()));
+                    return;
+                }
+
                 QSqlQuery ins;
-                ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, role) "
-                            "VALUES ('Person', ?, 'Group', ?, 'member_of', ?)");
+                ins.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, "
+                            "relationship_type, role, joined_date) "
+                            "VALUES ('Person', ?, 'Group', ?, 'member_of', ?, date('now', 'localtime'))");
                 ins.addBindValue(personId);
                 ins.addBindValue(gid);
-                ins.addBindValue(roleEdit->text().trimmed());
-                ins.exec();
+                ins.addBindValue(roleStr);
+                if (!ins.exec()) {
+                    QMessageBox::critical(this, "Assignment Failed",
+                        "Failed to assign group membership: " + ins.lastError().text());
+                    return;
+                }
                 QMessageBox::information(this, "Success", QString("%1 assigned to %2").arg(fullName, groupCombo->currentText()));
             }
         } else if (menuCare->actions().contains(selected)) {
@@ -3739,7 +4126,7 @@ void PeopleWidget::onPeopleTableContextMenu(const QPoint& pos) {
         } else if (selected == actSinglePromote) {
             QSqlQuery uq;
             uq.prepare("UPDATE people SET membership_status = 'Member', "
-                       "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now') ELSE join_date END "
+                       "join_date = CASE WHEN join_date IS NULL OR join_date = '' THEN date('now', 'localtime') ELSE join_date END "
                        "WHERE id = :id");
             uq.bindValue(":id", personId);
             uq.exec();
@@ -3819,6 +4206,17 @@ void PeopleWidget::onTimelineContextMenu(const QPoint& pos) {
 }
 
 void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& val) {
+    // Drill-through state is stored on the widget and applied through
+    // reapplyFilter(), so it composes with the user's filters and is cleared on
+    // the next roster refresh instead of lingering as an invisible model filter.
+    m_drillCareFlag.clear();
+    m_drillSpecialFilter.clear();
+
+    // Silence the widgets while we change them: the explicit reapplyFilter() at
+    // the end (and the user-driven filter slots) own the drill-through reset.
+    const QSignalBlocker searchBlocker(m_searchEdit);
+    const QSignalBlocker statusBlocker(m_statusFilterGroup);
+
     if (type == "status") {
         if (val == "Active") m_statusFilterGroup->button(1)->setChecked(true);
         else if (val == "Visitor" || val == "Visitors") m_statusFilterGroup->button(2)->setChecked(true);
@@ -3827,38 +4225,44 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
         else if (val == "Inactive") m_statusFilterGroup->button(5)->setChecked(true);
         else m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
-        reapplyFilter();
     } else if (type == "care_flag") {
         m_statusFilterGroup->button(0)->setChecked(true);
-        m_searchEdit->setText(val);
+        m_searchEdit->clear();
+        if (val == "Follow-up") {
+            // This action comes from the overdue follow-up count, not from a
+            // care_flag value: filter on outstanding pastoral follow-ups.
+            m_drillSpecialFilter =
+                "EXISTS (SELECT 1 FROM pastoral_activities WHERE person_id = people.id "
+                "AND follow_up_done = 0 AND follow_up_date IS NOT NULL "
+                "AND follow_up_date <= date('now', 'localtime'))";
+        } else {
+            m_drillCareFlag = val;
+        }
     } else if (type == "unconnected") {
+        // Same predicate the Pastoral Analytics card counts: no link to a live group.
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
-        m_peopleModel->setFilter("id NOT IN (SELECT DISTINCT source_id FROM entity_relationships WHERE source_type = 'Person' AND target_type = 'Group')");
-        m_peopleModel->select();
-        while (m_peopleModel->canFetchMore()) {
-            m_peopleModel->fetchMore();
-        }
-        onSortByChanged(m_cmbSortBy->currentIndex());
+        m_drillSpecialFilter =
+            "id NOT IN (SELECT DISTINCT source_id FROM entity_relationships "
+            "WHERE source_type = 'Person' AND target_type = 'Group' "
+            "AND target_id IN (SELECT id FROM groups WHERE is_archived = 0))";
     } else if (type == "lapsed_giver") {
         // Givers with a giving history but nothing since the inactivity window
         // (same rule as the dashboard and Pastoral Analytics).
         const int inactivityDays = qBound(7, QSettings("OpenEkklesia", "CHMS").value("inactivityDays", 30).toInt(), 365);
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
-        m_peopleModel->setFilter(QString(
-            "EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
-            "AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', '-%1 days'))")
-            .arg(inactivityDays));
-        m_peopleModel->select();
-        while (m_peopleModel->canFetchMore()) {
-            m_peopleModel->fetchMore();
-        }
-        onSortByChanged(m_cmbSortBy->currentIndex());
+        m_drillSpecialFilter = QString(
+            "membership_status IN ('Member', 'Regular Attender') "
+            "AND EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
+            "AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id "
+            "AND contribution_date >= date('now', 'localtime', '-%1 days'))").arg(inactivityDays);
     } else {
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->setText(val);
     }
+
+    reapplyFilter();
 }
 
 void PeopleWidget::updatePathwayUI() {
@@ -3944,43 +4348,82 @@ void PeopleWidget::onPromoteToMember() {
 
 void PeopleWidget::onAttachAppScan() {
     if (m_currentPersonId <= 0 || m_isReadOnly) return;
-    QString path = QFileDialog::getOpenFileName(this, "Attach Membership Request Scan", QString(),
+    const QString sourcePath = QFileDialog::getOpenFileName(this, "Attach Membership Request Scan", QString(),
                                                 "Documents & Images (*.pdf *.png *.jpg *.jpeg *.tif *.tiff);;All Files (*.*)");
-    if (path.isEmpty()) return;
+    if (sourcePath.isEmpty()) return;
 
-    if (m_txtAppScanPath) m_txtAppScanPath->setText(path);
-    QFileInfo fi(path);
-    if (m_lblAppScanStatus) {
-        m_lblAppScanStatus->setText(QString("<b>Attached:</b> %1").arg(fi.fileName()));
-        m_lblAppScanStatus->setStyleSheet("color: palette(highlight); font-size: 11px;");
+    // Follow the Document Vault convention: keep a durable copy inside the vault
+    // folder and store only the file name in vault_documents.file_path. The old
+    // code stored an absolute path to a file the app does not own, so the vault
+    // record broke as soon as the source file moved or was deleted.
+    const QString vaultDir = DatabaseManager::vaultDirPath();
+    if (!QDir().mkpath(vaultDir)) {
+        QMessageBox::critical(this, "Attach Failed",
+            QString("Could not create the document vault folder:\n%1").arg(vaultDir));
+        return;
     }
-    if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(true);
-    if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(!m_isReadOnly);
-    setDirty(true);
+    const QFileInfo sourceInfo(sourcePath);
+    QString baseName = sourceInfo.fileName();
+    QString destinationPath = vaultDir + "/" + baseName;
+    if (QFile::exists(destinationPath)) {
+        baseName = QString("%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(sourceInfo.fileName());
+        destinationPath = vaultDir + "/" + baseName;
+    }
+    if (!QFile::copy(sourcePath, destinationPath)) {
+        QMessageBox::critical(this, "Attach Failed",
+            QString("Could not copy the scan into the document vault:\n%1").arg(destinationPath));
+        return;
+    }
 
     // Link into vault_documents under category 'Membership' if not already linked
     QSqlQuery chk;
     chk.prepare("SELECT id FROM vault_documents WHERE person_id = ? AND file_path = ?");
     chk.addBindValue(m_currentPersonId);
-    chk.addBindValue(path);
-    if (chk.exec() && !chk.next()) {
+    chk.addBindValue(baseName);
+    if (!chk.exec()) {
+        QFile::remove(destinationPath);
+        QMessageBox::critical(this, "Attach Failed", "Could not check the document vault: " + chk.lastError().text());
+        return;
+    }
+    if (!chk.next()) {
         QSqlQuery vq;
         vq.prepare("INSERT INTO vault_documents (person_id, title, category, file_path, meeting_date) "
-                   "VALUES (?, ?, 'Membership', ?, date('now'))");
+                   "VALUES (?, ?, 'Membership', ?, date('now', 'localtime'))");
         vq.addBindValue(m_currentPersonId);
         vq.addBindValue(QString("Membership Request - %1 %2").arg(m_firstNameEdit->text(), m_lastNameEdit->text()));
-        vq.addBindValue(path);
-        vq.exec();
-        updateDocumentsSection(m_currentPersonId);
+        vq.addBindValue(baseName);
+        if (!vq.exec()) {
+            QFile::remove(destinationPath);
+            QMessageBox::critical(this, "Attach Failed",
+                "Could not register the scan in the document vault: " + vq.lastError().text());
+            return;
+        }
     }
+
+    // Point the profile at the durable vault copy (saved to membership_app_path).
+    if (m_txtAppScanPath) m_txtAppScanPath->setText(destinationPath);
+    if (m_lblAppScanStatus) {
+        m_lblAppScanStatus->setText(QString("<b>Attached:</b> %1").arg(baseName));
+        m_lblAppScanStatus->setStyleSheet("color: palette(highlight); font-size: 11px;");
+    }
+    if (m_btnViewAppScan) m_btnViewAppScan->setEnabled(true);
+    if (m_btnClearAppScan) m_btnClearAppScan->setEnabled(!m_isReadOnly);
+    setDirty(true);
+    updateDocumentsSection(m_currentPersonId);
 }
 
 void PeopleWidget::onViewAppScan() {
     QString path = m_txtAppScanPath ? m_txtAppScanPath->text().trimmed() : "";
     if (path.isEmpty()) return;
     if (!QFile::exists(path)) {
-        QMessageBox::warning(this, "File Not Found", QString("Could not find the attached file at:\n%1").arg(path));
-        return;
+        // Older rows may store only the vault file name: resolve it in the vault.
+        const QString inVault = DatabaseManager::vaultDirPath() + "/" + QFileInfo(path).fileName();
+        if (QFile::exists(inVault)) {
+            path = inVault;
+        } else {
+            QMessageBox::warning(this, "File Not Found", QString("Could not find the attached file at:\n%1").arg(path));
+            return;
+        }
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }

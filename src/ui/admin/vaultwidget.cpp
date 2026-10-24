@@ -594,19 +594,23 @@ void VaultWidget::onSweepOrphans() {
 
 void VaultWidget::applyRole(const QString& role) {
     m_userRole = role;
-    if (role == "readonly" || role == "guest") {
-        const QString roTip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
-        m_btnUpload->setEnabled(false);
-        m_btnDelete->setEnabled(false);
-        m_btnSweep->setEnabled(false);
-        m_btnAddMinutes->setEnabled(false);
-        m_btnDeleteMinutes->setEnabled(false);
-        m_btnUpload->setToolTip(roTip);
-        m_btnDelete->setToolTip(roTip);
-        m_btnSweep->setToolTip(roTip);
-        m_btnAddMinutes->setToolTip(roTip);
-        m_btnDeleteMinutes->setToolTip(roTip);
-    }
+    // Roles only gate editing vs read-only; a Guest -> Admin sign-in must
+    // re-enable the controls (otherwise Vault stays latched disabled).
+    const bool isReadOnly = (role == "readonly" || role == "guest");
+    const QString roTip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+    const QString tip = isReadOnly ? roTip : QString();
+
+    m_btnUpload->setEnabled(!isReadOnly);
+    m_btnDelete->setEnabled(!isReadOnly);
+    m_btnSweep->setEnabled(!isReadOnly);
+    m_btnAddMinutes->setEnabled(!isReadOnly);
+    m_btnDeleteMinutes->setEnabled(!isReadOnly);
+
+    m_btnUpload->setToolTip(tip);
+    m_btnDelete->setToolTip(tip);
+    m_btnSweep->setToolTip(tip);
+    m_btnAddMinutes->setToolTip(tip);
+    m_btnDeleteMinutes->setToolTip(tip);
 }
 
 void VaultWidget::onSearchChanged(const QString& text) {

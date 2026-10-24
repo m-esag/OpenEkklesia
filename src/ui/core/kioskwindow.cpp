@@ -40,6 +40,9 @@ KioskWindow::KioskWindow(QWidget* parent)
         m_statusLabel->clear();
         m_statusLabel->setStyleSheet("");
         m_isAdminUnlocked = false;
+        // The timer is single-shot: re-arm it, otherwise the kiosk only resets
+        // once per session and later idle periods leave the screen unattended.
+        restartIdleTimer();
     });
     restartIdleTimer();
 }
@@ -50,12 +53,19 @@ void KioskWindow::setupUI() {
     // Kiosk Background Styling (token-driven so it follows the active theme)
     {
         const ThemeTokens t = ThemeManager::instance().currentTokens();
-        const QString onAccent = t.accentPrimary.lightness() > 140 ? "#11111b" : "#ffffff";
-        const QString onDanger = t.accentDanger.lightness() > 140 ? "#11111b" : "#ffffff";
+        // textOn() picks the higher-contrast foreground, so the kiosk keeps AA
+        // contrast on every accent background in every theme.
+        const QString onAccent = ThemeManager::textOn(t.accentPrimary).name();
+        const QString onDanger = ThemeManager::textOn(t.accentDanger).name();
+        // NOTE: QString::arg() replaces placeholders sequentially (lowest
+        // remaining %N), not by argument position. The %5 slot must therefore
+        // exist, or every argument from accentPrimary onward shifts one slot
+        // and CHECK IN renders as red-on-green.
         setStyleSheet(QString(
             "QDialog { background-color: %1; }"
             "QLabel { color: %2; }"
             "QLineEdit { background-color: %3; border: 2px solid %4; border-radius: 8px; color: %2; font-size: 24px; padding: 12px; font-weight: bold; font-family: monospace; }"
+            "QLineEdit:focus { border: 2px solid %5; }"
             "QPushButton { background-color: %6; color: %2; border: 1px solid %4; border-radius: 10px; font-size: 20px; font-weight: bold; min-height: 55px; min-width: 70px; }"
             "QPushButton:hover { background-color: %4; }"
             "QPushButton:pressed { background-color: %6; }"
@@ -224,7 +234,11 @@ void KioskWindow::onCheckinClicked() {
         ins.prepare("INSERT INTO attendance (service_id, person_id, attended) VALUES (NULL, ?, 1)");
         ins.addBindValue(personId);
         if (!ins.exec()) {
+            // Never claim success (or clear the field) when the write failed:
+            // the family must be able to retry immediately.
             qWarning() << "Failed to record attendance:" << ins.lastError().text();
+            flashStatus("Check-in Failed: attendance could not be saved. Please try again or see an usher.", false);
+            return;
         }
 
         flashStatus(QString("Check-in Successful! Welcome, %1!").arg(name), true);

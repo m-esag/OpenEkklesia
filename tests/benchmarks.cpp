@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <vector>
 #include <cmath>
+#include <cstdlib>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -45,6 +46,14 @@ void printResult(const BenchmarkResult& r) {
               << std::setw(14) << std::fixed << std::setprecision(2) << r.timePerOpUs << " µs"
               << std::setw(20) << r.throughput
               << "\n";
+}
+
+// A failed prepare/exec must abort the run: otherwise a mistyped column name
+// would still print a fast "benchmark" of a query that never executes.
+[[noreturn]] void benchFail(const char* context, const QSqlQuery& query) {
+    std::cerr << "❌ BENCHMARK SQL FAILURE during " << context << ": "
+              << query.lastError().text().toStdString() << std::endl;
+    std::exit(1);
 }
 
 // 1. Connection Graph Physics Benchmark
@@ -158,11 +167,12 @@ void benchmarkDatabaseThroughput(QSqlDatabase& db) {
 
     db.transaction();
     QSqlQuery q(db);
-    q.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) VALUES (?, 1, ?, '2026-08-23', 'Batch Benchmark')");
+    if (!q.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, note) VALUES (?, 1, ?, '2026-08-23', 'Batch Benchmark')"))
+        benchFail("bulk contribution insert (prepare)", q);
     for (int i = 1; i <= count; ++i) {
         q.addBindValue(i % 100 + 1);
         q.addBindValue(QRandomGenerator::global()->bounded(1000, 50000));
-        q.exec();
+        if (!q.exec()) benchFail("bulk contribution insert (exec)", q);
     }
     db.commit();
 
@@ -181,17 +191,18 @@ void benchmarkDatabaseThroughput(QSqlDatabase& db) {
     for (int i = 1; i <= queries; ++i) {
         int personId = (i % 100) + 1;
         QSqlQuery dq(db);
-        dq.prepare("SELECT p.first_name, p.last_name, h.family_name, h.address, "
-                   "       COALESCE(SUM(c.amount), 0) AS total_giving, "
-                   "       COUNT(DISTINCT a.id) AS attendance_count "
-                   "FROM people p "
-                   "LEFT JOIN households h ON p.household_id = h.id "
-                   "LEFT JOIN contributions c ON p.id = c.person_id "
-                   "LEFT JOIN attendance a ON p.id = a.person_id "
-                   "WHERE p.id = ? "
-                   "GROUP BY p.id");
+        if (!dq.prepare("SELECT p.first_name, p.last_name, h.family_name, h.address_line1, "
+                        "       COALESCE(SUM(c.amount), 0) AS total_giving, "
+                        "       COUNT(DISTINCT a.id) AS attendance_count "
+                        "FROM people p "
+                        "LEFT JOIN households h ON p.household_id = h.id "
+                        "LEFT JOIN contributions c ON p.id = c.person_id "
+                        "LEFT JOIN attendance a ON p.id = a.person_id "
+                        "WHERE p.id = ? "
+                        "GROUP BY p.id"))
+            benchFail("dossier aggregation (prepare)", dq);
         dq.addBindValue(personId);
-        dq.exec();
+        if (!dq.exec()) benchFail("dossier aggregation (exec)", dq);
         if (dq.next()) {
             // Read columns
             volatile double amt = dq.value(4).toDouble();
@@ -213,11 +224,12 @@ void benchmarkDatabaseThroughput(QSqlDatabase& db) {
     timer.restart();
     for (int i = 0; i < scanCount; ++i) {
         QSqlQuery sq(db);
-        sq.exec("SELECT p.id, p.first_name || ' ' || p.last_name, MAX(a.attendance_date) as last_seen "
-                "FROM people p "
-                "LEFT JOIN attendance a ON p.id = a.person_id "
-                "GROUP BY p.id "
-                "HAVING last_seen < date('now', '-90 days') OR last_seen IS NULL");
+        if (!sq.exec("SELECT p.id, p.first_name || ' ' || p.last_name, MAX(a.timestamp) as last_seen "
+                     "FROM people p "
+                     "LEFT JOIN attendance a ON p.id = a.person_id "
+                     "GROUP BY p.id "
+                     "HAVING last_seen < date('now', '-90 days') OR last_seen IS NULL"))
+            benchFail("90-day inactivity scan (exec)", sq);
         while (sq.next()) {
             volatile int pid = sq.value(0).toInt();
             (void)pid;
@@ -293,6 +305,29 @@ int main(int argc, char** argv) {
     }
 
     QSqlDatabase db = DatabaseManager::instance().database();
+
+    // The benchmark queries need a minimal fixture. Without it the FK-backed
+    // inserts/joins fail silently (the old suite benchmarked failing statements
+    // and printed meaningless throughput).
+    {
+        QSqlQuery seed(db);
+        if (!seed.exec("INSERT OR IGNORE INTO households (id, family_name) VALUES (1, 'Benchmark Household')"))
+            benchFail("benchmark fixture (household)", seed);
+        for (int i = 1; i <= 100; ++i) {
+            QSqlQuery p(db);
+            p.prepare("INSERT OR IGNORE INTO people (id, household_id, first_name, last_name, "
+                      "membership_status, ministry_personality, spiritual_gifts, care_flag) "
+                      "VALUES (?, 1, ?, ?, 'Member', 'Anchor', 'Worship,Leadership', 'Normal')");
+            p.addBindValue(i);
+            p.addBindValue(QString("First%1").arg(i));
+            p.addBindValue(QString("Last%1").arg(i));
+            if (!p.exec()) benchFail("benchmark fixture (person)", p);
+        }
+        QSqlQuery g(db);
+        if (!g.exec("INSERT OR IGNORE INTO groups (id, name, category, required_skills, recruitment_status) "
+                    "VALUES (1, 'Benchmark Worship Team', 'Alabanza', 'Acoustic Guitar', 'Open')"))
+            benchFail("benchmark fixture (group)", g);
+    }
 
     // Run benchmark suites
     benchmarkGraphPhysics();

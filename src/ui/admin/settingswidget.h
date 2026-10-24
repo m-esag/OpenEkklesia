@@ -23,6 +23,9 @@ public:
     void loadSettings();
     void saveSettings();
     void selectCategory(int index);
+    // Gate destructive/settings-mutating controls by signed-in role. MainWindow
+    // calls this from applyRolePermissions() on every login.
+    void applyRole(const QString& role);
 
 signals:
     void settingsSaved();
@@ -45,6 +48,11 @@ private:
     void updateColorButtonStyles();
     void updateLivePreview();
     void populateThemePresets(int filterIndex);
+    bool isAdminRole() const;
+    bool requireAdmin(const QString& action);
+
+    // Signed-in role from MainWindow (defaults to full access until applied).
+    QString m_userRole = "admin";
 
     // Navigation & Search
     QLineEdit* m_searchBox;

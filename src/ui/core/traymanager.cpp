@@ -24,6 +24,13 @@ TrayManager::TrayManager(MainWindow* window, QObject* parent)
       m_timer(nullptr), m_enabled(true), m_leadMinutes(30) {
 }
 
+TrayManager::~TrayManager() {
+    // QSystemTrayIcon::setContextMenu() does not take ownership and a QMenu
+    // needs a QWidget parent, so TrayManager deletes its menu explicitly.
+    delete m_menu;
+    m_menu = nullptr;
+}
+
 bool TrayManager::isSystemTrayAvailable() {
     return QSystemTrayIcon::isSystemTrayAvailable();
 }

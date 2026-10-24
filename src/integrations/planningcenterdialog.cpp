@@ -228,7 +228,7 @@ void PlanningCenterDialog::onStartImport() {
                 if (ok) {
                     m_txtLog->append(QString("Received %1 service plans from API.").arg(data.size()));
                     PcoImportSummary sum = m_client.importServicesData(data);
-                    m_txtLog->append(QString("✅ Synced %1 service types & plans.").arg(sum.servicesCount));
+                    m_txtLog->append(QString("✅ Synced %1 service plans into the service schedule.").arg(sum.servicesCount));
                     for (const QString& e : sum.errors) m_txtLog->append(QString("⚠️ %1").arg(e));
                 } else {
                     m_txtLog->append(QString("❌ Failed to fetch service plans: %1").arg(err));
@@ -248,6 +248,17 @@ void PlanningCenterDialog::onStartImport() {
                     m_txtLog->append(QString("Received %1 giving funds from API.").arg(fData.size()));
                 } else {
                     m_txtLog->append(QString("⚠️ Could not fetch funds: %1").arg(fErr));
+                }
+
+                if (!fOk) {
+                    // Without the PCO fund map every donation would be filed as
+                    // "Imported (Unmapped)" and, because donations are deduped on
+                    // external_id, a retry could never correct them.
+                    m_txtLog->append("⏭ Skipping donation import: the fund list could not be fetched, "
+                                     "so every gift would be misfiled as 'Imported (Unmapped)'.");
+                    m_progressBar->setValue(95);
+                    next();
+                    return;
                 }
 
                 m_txtLog->append("Fetching Giving Donations (/giving/v2/donations)...");

@@ -40,13 +40,21 @@ function Find-Qt {
             return $cand
         }
     }
-    $kits = Get-ChildItem "C:\Qt" -Directory -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        ForEach-Object { Get-ChildItem $_.FullName -Directory -Filter "msvc*_64" -ErrorAction SilentlyContinue } |
-        Sort-Object FullName -Descending
+    # Version-aware ordering: a plain name sort is lexical, so "6.8.0" would
+    # beat "6.10.0". Parse the version directory and prefer the newest kit.
+    $kits = @()
+    foreach ($verDir in (Get-ChildItem "C:\Qt" -Directory -ErrorAction SilentlyContinue)) {
+        $ver = $null
+        if (-not [version]::TryParse($verDir.Name, [ref]$ver)) { continue }
+        foreach ($kit in (Get-ChildItem $verDir.FullName -Directory -Filter "msvc*_64" -ErrorAction SilentlyContinue)) {
+            $kits += [pscustomobject]@{ Version = $ver; Path = $kit.FullName }
+        }
+    }
+    $kits = $kits | Sort-Object -Property @{ Expression = { $_.Version }; Descending = $true },
+                                           @{ Expression = { $_.Path }; Descending = $true }
     foreach ($kit in $kits) {
-        if (Test-Path (Join-Path $kit.FullName "lib\cmake\Qt6\Qt6Config.cmake")) {
-            return $kit.FullName
+        if (Test-Path (Join-Path $kit.Path "lib\cmake\Qt6\Qt6Config.cmake")) {
+            return $kit.Path
         }
     }
     return $null

@@ -445,7 +445,14 @@ PastoralAnalyticsWidget::AnalyticsSnapshot PastoralAnalyticsWidget::computeSnaps
                               "WHERE er.source_type = 'Person' AND er.target_type = 'Group' AND g.is_archived = 0";
     if (q.exec(QString("SELECT COUNT(DISTINCT er.source_id) FROM %1%2").arg(groupJoin, windowClauseJoined)))
         if (q.next()) s.smallGroupConnected = q.value(0).toInt();
-    if (q.exec(QString("SELECT COUNT(DISTINCT er.source_id), COUNT(DISTINCT er.target_id) FROM %1%2").arg(groupJoin, windowClauseJoined)))
+    // Serving: people who actually serve (leader / co-leader / teacher / volunteer
+    // roles) or belong to a child serving team under a ministry. The old query
+    // counted every group membership, so it reported exactly the same number as
+    // the small-group coverage card above.
+    const QString servingGroupJoin = groupJoin +
+        " AND (er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher', 'Volunteer')"
+        " OR (g.parent_id IS NOT NULL AND g.parent_id > 0))";
+    if (q.exec(QString("SELECT COUNT(DISTINCT er.source_id), COUNT(DISTINCT er.target_id) FROM %1%2").arg(servingGroupJoin, windowClauseJoined)))
         if (q.next()) { s.servingCount = q.value(0).toInt(); s.servingTeams = q.value(1).toInt(); }
 
     // New visitors in the scope window (this month for the live snapshot),
@@ -476,7 +483,7 @@ PastoralAnalyticsWidget::AnalyticsSnapshot PastoralAnalyticsWidget::computeSnaps
         "SELECT COUNT(*) FROM people "
         "WHERE membership_status IN ('Member', 'Regular Attender') "
         "  AND EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id) "
-        "  AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', '-%1 days'))")
+        "  AND NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= date('now', 'localtime', '-%1 days'))")
         .arg(inactivityDays));
     if (qLapsed.exec() && qLapsed.next()) s.lapsedGivers = qLapsed.value(0).toInt();
 

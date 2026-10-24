@@ -49,7 +49,7 @@ OpenEkklesia/
         ├── people/             # Congregation directory & pastoral analytics
         │   ├── peoplewidget.h / .cpp
         │   └── pastoralanalyticswidget.h / .cpp
-        ├── finance/            # Giving, double-entry ledger, transactions & inventory
+        ├── finance/            # Giving batches, chart of accounts & inventory
         │   ├── contributionswidget.h / .cpp
         │   ├── inventorywidget.h / .cpp
         │   └── transactiondialog.h / .cpp
@@ -132,7 +132,7 @@ backup snapshots:
 - `people` / `households`: Member profiles, household groupings, membership lifecycle (Visitor → Regular Attender → Member → Inactive), spiritual gifts, tags, and contact details.
 - `groups`: Ministries, small groups, serving teams, subgroup hierarchy, and meeting metadata.
 - `entity_relationships`: Polymorphic connections (spouse, parent/child, household, and group membership/leadership) that power the Connection Graph.
-- `accounts` / `transactions` / `splits` / `account_budgets`: Double-entry chart of accounts and fiscal budgets.
+- `accounts` / `transactions` / `splits` / `account_budgets`: Chart of accounts, fiscal budgets and ledger tables. The ledger-entry dialog is not exposed in the shipped UI yet (see NOTES.md); giving is tracked in `funds` / `contributions`.
 - `funds` / `contributions`: Tithes, offerings, fund categories, and payment methods.
 - `assets` / `checkout_logs`: Facilities and equipment inventory with serial numbers, conditions, and checkout history.
 - `services` / `service_volunteers`: Worship service plans and volunteer scheduling.

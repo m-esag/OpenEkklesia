@@ -540,6 +540,7 @@ private:
     NodeItem* m_selectedNodeForDetails;
     EdgeItem* m_selectedEdgeForDetails;
     QString m_userRole;
+    bool m_readOnly = false; // true for readonly/guest: all DB-writing affordances off
 
     // Data Sets
     QSet<int> m_isolatedPersonIds;

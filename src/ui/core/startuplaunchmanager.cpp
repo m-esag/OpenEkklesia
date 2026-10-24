@@ -9,6 +9,29 @@
 
 namespace StartupLaunchManager {
 
+namespace {
+// Escape a path for interpolation into the LaunchAgents plist XML text node.
+[[maybe_unused]] QString xmlEscape(const QString& value) {
+    QString escaped = value;
+    escaped.replace(QStringLiteral("&"), QStringLiteral("&amp;"));
+    escaped.replace(QStringLiteral("<"), QStringLiteral("&lt;"));
+    escaped.replace(QStringLiteral(">"), QStringLiteral("&gt;"));
+    escaped.replace(QStringLiteral("\""), QStringLiteral("&quot;"));
+    escaped.replace(QStringLiteral("'"), QStringLiteral("&apos;"));
+    return escaped;
+}
+
+// Compare a stored autostart command with the current executable path.
+[[maybe_unused]] QString normalizedLaunchPath(QString path) {
+    path = path.trimmed();
+    const QString quote = QStringLiteral("\"");
+    if (path.size() >= 2 && path.startsWith(quote) && path.endsWith(quote)) {
+        path = path.mid(1, path.size() - 2);
+    }
+    return QDir::cleanPath(QDir::fromNativeSeparators(path));
+}
+} // namespace
+
 bool supported() {
 #if defined(Q_OS_WIN) || defined(Q_OS_MAC) || defined(Q_OS_LINUX)
     return true;
@@ -21,7 +44,13 @@ bool isEnabled() {
 #if defined(Q_OS_WIN)
     QSettings run("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
                   QSettings::NativeFormat);
-    return run.contains("OpenEkklesia");
+    const QString stored = run.value("OpenEkklesia").toString();
+    if (stored.isEmpty()) return false;
+    // The Run key can outlive a moved/renamed binary; only treat it as enabled
+    // when it still points at the executable we are running from.
+    return normalizedLaunchPath(stored).compare(
+               normalizedLaunchPath(QCoreApplication::applicationFilePath()),
+               Qt::CaseInsensitive) == 0;
 #elif defined(Q_OS_MAC)
     const QString plist = QDir::homePath() + "/Library/LaunchAgents/org.openekklesia.OpenEkklesia.plist";
     return QFile::exists(plist);
@@ -62,7 +91,7 @@ void setEnabled(bool enabled) {
             stream << "<plist version=\"1.0\"><dict>\n";
             stream << "  <key>Label</key><string>org.openekklesia.OpenEkklesia</string>\n";
             stream << "  <key>ProgramArguments</key>\n";
-            stream << "  <array><string>" << appPath << "</string></array>\n";
+            stream << "  <array><string>" << xmlEscape(appPath) << "</string></array>\n";
             stream << "  <key>RunAtLoad</key><true/>\n";
             stream << "</dict></plist>\n";
             file.close();

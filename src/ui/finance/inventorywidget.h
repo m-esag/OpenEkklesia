@@ -31,9 +31,11 @@ private:
     void setupUI();
     void showAssetDetails(int assetId);
     void refreshHistoryTable(int assetId);
+    bool isReadOnlyRole() const;
 
     QTreeView* m_treeView;
     QStandardItemModel* m_treeModel;
+    QPushButton* m_btnAddAsset = nullptr;
 
     // Details panel elements
     QWidget* m_detailsCard;

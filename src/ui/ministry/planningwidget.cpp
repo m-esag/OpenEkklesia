@@ -69,6 +69,21 @@ void PlanningWidget::applyRole(const QString& role) {
     for (QPushButton* b : {m_btnAddTask, m_btnEditTask, m_btnDeleteTask, m_btnAddEvent, m_btnEditEvent, m_btnDeleteEvent}) {
         if (b) b->setToolTip(tip);
     }
+    // Kanban quick-add buttons create tasks directly; they are not part of the
+    // header button set above, so gate them explicitly.
+    for (QToolButton* b : findChildren<QToolButton*>(QStringLiteral("kanbanQuickAdd"))) {
+        b->setEnabled(canEdit);
+        if (m_readOnly) {
+            b->setToolTip(tip);
+        } else if (QWidget* frame = b->parentWidget()) {
+            QString st = frame->objectName();
+            if (st.startsWith("kanbanCol_")) st = st.mid(10);
+            b->setToolTip("Add task directly into " + st);
+        }
+    }
+    // Kanban cards are rebuilt from the database, so rebuild them now to give
+    // their stage-move arrows the new role's enabled state.
+    if (!m_kanbanColumns.isEmpty()) refreshKanban();
 }
 
 void PlanningWidget::setupUI() {
@@ -236,6 +251,7 @@ void PlanningWidget::setupRoadmapTab(QTabWidget* tabs) {
     m_roadmapTable->setContextMenuPolicy(Qt::CustomContextMenu);
 
     connect(m_roadmapTable, &QTableWidget::cellDoubleClicked, this, [this](int r, int) {
+        if (m_readOnly) return;
         if (r < 0 || !m_roadmapTable->item(r, 0)) return;
         int taskId = m_roadmapTable->item(r, 0)->data(Qt::UserRole).toInt();
         if (taskId > 0) openTaskDialog(taskId);
@@ -374,6 +390,7 @@ void PlanningWidget::setupEventsTab(QTabWidget* tabs) {
     m_eventsTable->setContextMenuPolicy(Qt::CustomContextMenu);
 
     connect(m_eventsTable, &QTableWidget::cellDoubleClicked, this, [this](int r, int) {
+        if (m_readOnly) return;
         if (r < 0 || !m_eventsTable->item(r, 0)) return;
         int evId = m_eventsTable->item(r, 0)->data(Qt::UserRole).toInt();
         if (evId > 0) openEventDialog(evId);
@@ -489,6 +506,7 @@ void PlanningWidget::setupKanbanTab(QTabWidget* tabs) {
         colHeader->addStretch();
 
         QToolButton* btnQuickAdd = new QToolButton(colFrame);
+        btnQuickAdd->setObjectName("kanbanQuickAdd");
         btnQuickAdd->setIcon(IconManager::instance().getIcon("plus", tok.accentPrimary, 12));
         btnQuickAdd->setToolTip("Add task directly into " + st);
         connect(btnQuickAdd, &QToolButton::clicked, this, [this, st]() {
@@ -581,6 +599,7 @@ void PlanningWidget::setupGanttTab(QTabWidget* tabs) {
     m_ganttTable->setContextMenuPolicy(Qt::CustomContextMenu);
 
     connect(m_ganttTable, &QTableWidget::cellDoubleClicked, this, [this](int r, int) {
+        if (m_readOnly) return;
         if (r < 0 || !m_ganttTable->item(r, 0)) return;
         int taskId = m_ganttTable->item(r, 0)->data(Qt::UserRole).toInt();
         if (taskId > 0) openTaskDialog(taskId);
@@ -1093,7 +1112,10 @@ void PlanningWidget::refreshKanban() {
         if (stageIdx > 0) {
             QToolButton* btnLeft = new QToolButton(card);
             btnLeft->setText("◀");
-            btnLeft->setToolTip("Move to " + stages[stageIdx - 1]);
+            btnLeft->setEnabled(!m_readOnly);
+            btnLeft->setToolTip(m_readOnly
+                ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+                : "Move to " + stages[stageIdx - 1]);
             connect(btnLeft, &QToolButton::clicked, this, [this, id, stages, stageIdx]() {
                 moveTaskStage(id, stages[stageIdx - 1]);
             });
@@ -1102,7 +1124,10 @@ void PlanningWidget::refreshKanban() {
         if (stageIdx < stages.size() - 1) {
             QToolButton* btnRight = new QToolButton(card);
             btnRight->setText("▶");
-            btnRight->setToolTip("Move to " + stages[stageIdx + 1]);
+            btnRight->setEnabled(!m_readOnly);
+            btnRight->setToolTip(m_readOnly
+                ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+                : "Move to " + stages[stageIdx + 1]);
             connect(btnRight, &QToolButton::clicked, this, [this, id, stages, stageIdx]() {
                 moveTaskStage(id, stages[stageIdx + 1]);
             });
@@ -1485,6 +1510,7 @@ void PlanningWidget::onExportSchedule() {
 }
 
 void PlanningWidget::moveTaskStage(int taskId, const QString& newStatus) {
+    if (m_readOnly) return;
     if (taskId <= 0 || newStatus.isEmpty()) return;
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
@@ -1517,6 +1543,7 @@ int PlanningWidget::selectedEventId() const {
 }
 
 void PlanningWidget::openTaskDialog(int editId, const QString& defaultStatus) {
+    if (m_readOnly) return;
     QSqlDatabase db = DatabaseManager::instance().database();
 
     QString curTeam, curTitle, curOwner, curStatus = defaultStatus;
@@ -1763,6 +1790,7 @@ void PlanningWidget::openTaskDialog(int editId, const QString& defaultStatus) {
 }
 
 void PlanningWidget::openEventDialog(int editId) {
+    if (m_readOnly) return;
     QSqlDatabase db = DatabaseManager::instance().database();
 
     QString curTitle, curType = "Outreach", curFacility, curStatus = "Confirmed", curDesc;
@@ -1965,25 +1993,101 @@ void PlanningWidget::openEventDialog(int editId) {
         q.addBindValue(desc);
         if (editId > 0) q.addBindValue(editId);
 
-        if (q.exec()) {
-            // Optional: auto-book room in facility_reservations
-            if (chkBookFacility->isChecked() && !facility.isEmpty()) {
+        if (startEdit->dateTime() >= endEdit->dateTime()) {
+            QMessageBox::warning(this, "Validation Error",
+                                 "The event end time must be after its start time.");
+            return;
+        }
+
+        const bool bookFacility = chkBookFacility->isChecked() && !facility.isEmpty();
+        const QString resDate = startEdit->date().toString("yyyy-MM-dd");
+        const QString resStart = startEdit->time().toString("HH:mm");
+        const QString resEnd = endEdit->time().toString("HH:mm");
+        const QString resBy = coordCombo->currentText();
+
+        // Save the event and its facility reservation atomically: a booking
+        // clash (or a failed insert) must not leave a half-applied event.
+        if (!db.transaction()) {
+            QMessageBox::critical(this, "Save Error",
+                                  "Failed to save church event: " + db.lastError().text());
+            return;
+        }
+        bool ok = q.exec();
+        QString failMsg = q.lastError().text();
+
+        // Editing: remove this event's own previous reservation first, so the
+        // room is either re-booked with the new values or released when the
+        // booking box is unchecked — never duplicated.
+        if (ok && editId > 0 && !curFacility.isEmpty()) {
+            QDateTime prevStart = QDateTime::fromString(curStart, "yyyy-MM-dd HH:mm");
+            QDateTime prevEnd = QDateTime::fromString(curEnd, "yyyy-MM-dd HH:mm");
+            if (!prevStart.isValid()) prevStart = QDateTime::fromString(curStart, Qt::ISODate);
+            if (!prevEnd.isValid()) prevEnd = QDateTime::fromString(curEnd, Qt::ISODate);
+            QSqlQuery del(db);
+            del.prepare("DELETE FROM facility_reservations WHERE facility_name = ? AND event_name = ? "
+                        "AND reservation_date = ? AND start_time = ? AND end_time = ?");
+            del.addBindValue(curFacility);
+            del.addBindValue(curTitle);
+            del.addBindValue(prevStart.date().toString("yyyy-MM-dd"));
+            del.addBindValue(prevStart.time().toString("HH:mm"));
+            del.addBindValue(prevEnd.time().toString("HH:mm"));
+            if (!del.exec()) {
+                ok = false;
+                failMsg = del.lastError().text();
+            }
+        }
+
+        if (ok && bookFacility) {
+            // Same overlap rule the Facilities matrix uses: half-open
+            // [start, end) windows on the same facility and date.
+            QSqlQuery conflict(db);
+            conflict.prepare("SELECT event_name, start_time, end_time FROM facility_reservations "
+                             "WHERE facility_name = ? AND reservation_date = ? "
+                             "  AND NOT (end_time <= ? OR start_time >= ?)");
+            conflict.addBindValue(facility);
+            conflict.addBindValue(resDate);
+            conflict.addBindValue(resStart);
+            conflict.addBindValue(resEnd);
+            if (!conflict.exec()) {
+                ok = false;
+                failMsg = conflict.lastError().text();
+            } else if (conflict.next()) {
+                ok = false;
+                failMsg = QString("'%1' is already reserved in %2 from %3 to %4.")
+                              .arg(conflict.value(0).toString(), facility,
+                                   conflict.value(1).toString(), conflict.value(2).toString());
+            }
+
+            if (ok) {
                 QSqlQuery bk(db);
                 bk.prepare("INSERT INTO facility_reservations (facility_name, event_name, reservation_date, start_time, end_time, reserved_by) "
                            "VALUES (?, ?, ?, ?, ?, ?)");
                 bk.addBindValue(facility);
                 bk.addBindValue(title);
-                bk.addBindValue(startEdit->date().toString("yyyy-MM-dd"));
-                bk.addBindValue(startEdit->time().toString("HH:mm"));
-                bk.addBindValue(endEdit->time().toString("HH:mm"));
-                bk.addBindValue(coordCombo->currentText());
-                bk.exec();
+                bk.addBindValue(resDate);
+                bk.addBindValue(resStart);
+                bk.addBindValue(resEnd);
+                bk.addBindValue(resBy);
+                if (!bk.exec()) {
+                    ok = false;
+                    failMsg = bk.lastError().text();
+                }
             }
+        }
 
+        if (ok && !db.commit()) {
+            ok = false;
+            failMsg = db.lastError().text();
+            db.rollback();
+        } else if (!ok) {
+            db.rollback();
+        }
+
+        if (ok) {
             refreshEvents();
             refreshKPIs();
         } else {
-            QMessageBox::critical(this, "Save Error", "Failed to save church event: " + q.lastError().text());
+            QMessageBox::critical(this, "Save Error", "Failed to save church event: " + failMsg);
         }
     }
 }

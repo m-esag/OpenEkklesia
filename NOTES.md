@@ -156,10 +156,11 @@ identical across them.
   `.portable` marker next to the binary keeps the database beside the
   launch binary instead of in the XDG user-data location — for USB
   deployments.
-- **iCalendar.** `src/common/icalgenerator.*` holds the RFC 5545 service
-  volunteer generator; the Service Builder delegates to it. The Shepherd
-  and Facilities modules still have their own copies — consolidating them
-  is the obvious next step.
+- **iCalendar.** `src/common/icalgenerator.*` is the single RFC 5545 writer:
+  UTF-8-safe 75-octet folding, escaping, stable per-event UIDs, all-day and
+  overnight handling. The Service Builder, Shepherd and Facilities modules all
+  delegate to `eventIcal()` / `volunteerServiceIcal()` (Facilities adds a
+  15-minute display alarm). Covered by `ical_generator_rfc_compliance`.
 - **Sanitizer build.** `cmake -DOE_ENABLE_SANITIZERS=ON` wires ASan/UBSan
   on GCC/Clang and `/fsanitize=address` on MSVC. Off by default.
 - **Qt 6.4 / MSVC 14.44 portability.** The `QCheckBox::checkStateChanged`
@@ -174,8 +175,21 @@ identical across them.
 
 ### 6.3 Still open
 
-- Consolidate the Shepherd and Facilities iCal generators into
-  `src/common/icalgenerator.cpp` and add a single test for it.
+- **Ledger entry UI is not exposed.** `accounts`/`transactions`/`splits` and
+  `TransactionDialog` exist but nothing in the shipped UI opens the dialog, so
+  the dashboard "Total Assets" KPI (SUM of ASSET-account splits) stays 0 until
+  transaction entry is wired up. Giving is tracked in `funds`/`contributions`.
+- **Planning Center designations.** Donations are imported with real amounts
+  and dates, but designation→fund mapping still falls back to
+  "Imported (Unmapped)" until the sync requests `&include=designations`.
+- **Unsaved-edit prompt scope.** The People module prompts on person switch,
+  roster refresh and Add Person, but a search/status filter change still
+  resets the model and clears the selection without prompting (prompting per
+  keystroke would be worse). Cancel on the refresh prompt cannot stop
+  MainWindow's drill-through re-filter.
+- **Hard-coded seed identities.** The seeded admin/pastor/finance/readonly
+  users and the demo household ids are fixed product seed data; don't build
+  assumptions about "household 1" into new features.
 - A native Windows toast (Start Menu shortcut carrying the AppUserModelID).
 - macOS notification delivery needs a signed bundle.
 - `member_history` and `audit_log` grow without pruning.

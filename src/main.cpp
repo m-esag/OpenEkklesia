@@ -21,9 +21,6 @@ int main(int argc, char *argv[]) {
 #if defined(Q_OS_WIN)
     SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
 #endif
-#if defined(Q_OS_WIN)
-    SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
-#endif
     QApplication app(argc, argv);
     TouchHelper::installAppWide();
     app.setApplicationName("OpenEkklesia");

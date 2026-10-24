@@ -159,7 +159,9 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
                 "<td style='padding: 6px 8px; border-bottom: 1px solid #d0d7de; font-size: 11px;'>%4</td>"
                 "<td style='padding: 6px 8px; border-bottom: 1px solid #d0d7de; font-size: 11px; text-align: right;'><b>%5</b></td>"
                 "</tr>\n"
-            ).arg(cDate, fund, methodCol, note.isEmpty() ? "—" : note, formattedDollars);
+            ).arg(cDate.toHtmlEscaped(), fund.toHtmlEscaped(), methodCol.toHtmlEscaped(),
+                  note.isEmpty() ? QString("—") : note.toHtmlEscaped(),
+                  formattedDollars.toHtmlEscaped());
         }
     }
 
@@ -183,10 +185,10 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
     html += "<div style='margin-top: 16px; margin-bottom: 16px; padding: 12px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;'>"
             "<table style='width: 100%; border-collapse: collapse; border: none; font-size: 12px;'>"
             "<tr>" +
-            QString("<td style='padding: 3px 0; border: none;'><b>Donor Name:</b> %1%2</td>").arg(donorDisplayName, isJoint ? " <i>(Joint Household)</i>" : "") +
-            QString("<td style='padding: 3px 0; border: none; text-align: right;'><b>Statement Date:</b> %1</td>").arg(AppDateFormatter::formatDate(QDate::currentDate())) +
+            QString("<td style='padding: 3px 0; border: none;'><b>Donor Name:</b> %1%2</td>").arg(donorDisplayName.toHtmlEscaped(), isJoint ? QString(" <i>(Joint Household)</i>") : QString()) +
+            QString("<td style='padding: 3px 0; border: none; text-align: right;'><b>Statement Date:</b> %1</td>").arg(AppDateFormatter::formatDate(QDate::currentDate()).toHtmlEscaped()) +
             "</tr><tr>" +
-            QString("<td style='padding: 3px 0; border: none;'><b>Address:</b> %1</td>").arg(mailingAddress) +
+            QString("<td style='padding: 3px 0; border: none;'><b>Address:</b> %1</td>").arg(mailingAddress.toHtmlEscaped()) +
             QString("<td style='padding: 3px 0; border: none; text-align: right;'><b>Tax Period:</b> Jan 1, %1 – Dec 31, %1</td>").arg(taxYear) +
             "</tr></table></div>\n";
 
@@ -194,7 +196,7 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
     html += "<div style='margin-bottom: 16px; padding: 10px 14px; background-color: #eef9fd; border-left: 4px solid #1e66f5; border-radius: 4px;'>"
             "<table style='width: 100%; border: none; font-size: 13px;'>"
             "<tr>" +
-            QString("<td style='border: none;'><b>Total Eligible Contributions Recorded:</b> <span style='font-size: 16px; font-weight: bold; color: #1e66f5;'>%1</span></td>").arg(formattedTotal) +
+            QString("<td style='border: none;'><b>Total Eligible Contributions Recorded:</b> <span style='font-size: 16px; font-weight: bold; color: #1e66f5;'>%1</span></td>").arg(formattedTotal.toHtmlEscaped()) +
             QString("<td style='border: none; text-align: right; color: #57606a;'>Number of Gifts: <b>%1</b></td>").arg(giftCount) +
             "</tr></table></div>\n";
 
@@ -214,11 +216,11 @@ QString GivingStatementGenerator::generateHtmlStatement(int personId, int taxYea
             "<td colspan='4' style='padding: 8px; text-align: right; border-top: 2px solid #afb8c1; font-size: 12px;'>Total Contributions:</td>"
             "<td style='padding: 8px; text-align: right; border-top: 2px solid #afb8c1; font-size: 13px; color: #1e66f5;'>%1</td>"
             "</tr></tfoot></table>\n"
-        ).arg(formattedTotal);
+        ).arg(formattedTotal.toHtmlEscaped());
     } else {
         html += QString("<p style='padding: 20px; text-align: center; color: #6e7781; background-color: #f6f8fa; border-radius: 6px;'>"
                         "No contributions recorded on file for %1 in calendar year %2.</p>\n")
-                    .arg(donorDisplayName, QString::number(taxYear));
+                    .arg(donorDisplayName.toHtmlEscaped(), QString::number(taxYear));
     }
 
     // Official tax and ecclesiastical disclosure

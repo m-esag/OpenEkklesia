@@ -77,18 +77,26 @@ protected:
     void dropEvent(QDropEvent* event) override {
         QTreeWidgetItem* dragged = currentItem();
         if (!dragged) { QTreeWidget::dropEvent(event); return; }
+        // Only group rows may be reparented. Person rows carry a person id in the
+        // same Qt::UserRole slot, so a person drag must never reach onReparent().
+        if (dragged->data(0, Qt::UserRole + 1).toString() != "Group") { event->ignore(); return; }
         const int draggedId = dragged->data(0, Qt::UserRole).toInt();
         if (draggedId <= 0) { event->ignore(); return; }
 
         QTreeWidgetItem* target = itemAt(event->position().toPoint());
+        if (target && target->data(0, Qt::UserRole + 1).toString() != "Group") {
+            target = target->parent(); // dropped on a member row -> use its group
+        }
         const DropIndicatorPosition pos = dropIndicatorPosition();
         int newParentId = 0;
-        if (target) {
+        if (target && target->data(0, Qt::UserRole + 1).toString() == "Group") {
             const int targetId = target->data(0, Qt::UserRole).toInt();
             if (pos == OnItem) {
                 newParentId = targetId; // dropped onto a group -> its child
             } else if (QTreeWidgetItem* tParent = target->parent()) {
-                newParentId = tParent->data(0, Qt::UserRole).toInt(); // sibling
+                if (tParent->data(0, Qt::UserRole + 1).toString() == "Group") {
+                    newParentId = tParent->data(0, Qt::UserRole).toInt(); // sibling
+                }
             }
         }
         if (newParentId == draggedId) { event->ignore(); return; }
@@ -230,13 +238,9 @@ MainWindow::MainWindow(QWidget *parent)
     applyRolePermissions();
     applyModuleVisibility();
 
-    QShortcut* searchShortcut = new QShortcut(QKeySequence("Ctrl+K"), this);
-    connect(searchShortcut, &QShortcut::activated, this, [this]() {
-        setWindowOpacity(0.95);
-        CommandPaletteDialog palette(this);
-        palette.exec();
-        setWindowOpacity(1.0);
-    });
+    // NOTE: Ctrl+K, Ctrl+1..Ctrl+5, F1 and Ctrl+T are registered exactly once,
+    // on their QActions in setupMenuBar(). Duplicate QShortcuts here would make
+    // Qt report "Ambiguous shortcut overload" and fire neither handler.
 
     QShortcut* zoomInShortcut = new QShortcut(QKeySequence::ZoomIn, this);
     connect(zoomInShortcut, &QShortcut::activated, this, []() {
@@ -248,23 +252,8 @@ MainWindow::MainWindow(QWidget *parent)
         ThemeManager::instance().zoomOut();
     });
 
-    QShortcut* shortcutDash = new QShortcut(QKeySequence("Ctrl+1"), this);
-    connect(shortcutDash, &QShortcut::activated, this, &MainWindow::onDashboardClicked);
-
     QShortcut* shortcutDashD = new QShortcut(QKeySequence("Ctrl+D"), this);
     connect(shortcutDashD, &QShortcut::activated, this, &MainWindow::onDashboardClicked);
-
-    QShortcut* shortcutMem = new QShortcut(QKeySequence("Ctrl+2"), this);
-    connect(shortcutMem, &QShortcut::activated, this, &MainWindow::onMembersClicked);
-
-    QShortcut* shortcutGrp = new QShortcut(QKeySequence("Ctrl+3"), this);
-    connect(shortcutGrp, &QShortcut::activated, this, &MainWindow::onGroupsClicked);
-
-    QShortcut* shortcutCont = new QShortcut(QKeySequence("Ctrl+4"), this);
-    connect(shortcutCont, &QShortcut::activated, this, &MainWindow::onContributionsClicked);
-
-    QShortcut* shortcutSrv = new QShortcut(QKeySequence("Ctrl+5"), this);
-    connect(shortcutSrv, &QShortcut::activated, this, &MainWindow::onServiceClicked);
 }
 
 MainWindow::~MainWindow() {
@@ -282,13 +271,15 @@ void MainWindow::setupMenuBar() {
     actSearch->setIcon(IconManager::instance().getIcon("search", tok.textPrimary, 14));
     actSearch->setShortcut(QKeySequence("Ctrl+K"));
     connect(actSearch, &QAction::triggered, this, [this]() {
+        setWindowOpacity(0.95);
         CommandPaletteDialog palette(this);
         palette.exec();
+        setWindowOpacity(1.0);
     });
 
-    QAction* actKiosk = fileMenu->addAction("Nursery Kiosk Portal");
-    actKiosk->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
-    connect(actKiosk, &QAction::triggered, this, &MainWindow::launchKiosk);
+    m_actKiosk = fileMenu->addAction("Nursery Kiosk Portal");
+    m_actKiosk->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
+    connect(m_actKiosk, &QAction::triggered, this, &MainWindow::launchKiosk);
 
     fileMenu->addSeparator();
 
@@ -599,9 +590,8 @@ void MainWindow::setupUI() {
     setMinimumSize(1000, 620);
     setWindowTitle("OpenEkklesia - Church Management System");
 
-    // Global Help Shortcut (F1) & Theme Toggle (Ctrl+T)
-    new QShortcut(QKeySequence("F1"), this, [this]() { onShowUserManual(); });
-    new QShortcut(QKeySequence("Ctrl+T"), this, [this]() { toggleTheme(); });
+    // F1 (User Manual) and Ctrl+T (Theme Toggle) are registered once, on the
+    // Help/View menu QActions in setupMenuBar().
 
     // Central widget
     QWidget* centralWidget = new QWidget(this);
@@ -827,7 +817,7 @@ void MainWindow::setupUI() {
     connect(m_btnAnalytics, &QPushButton::clicked, this, &MainWindow::onAnalyticsClicked);
     connect(m_btnPlanning, &QPushButton::clicked, this, &MainWindow::onPlanningClicked);
     connect(m_btnShepherd, &QPushButton::clicked, this, &MainWindow::onShepherdClicked);
-    connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
+    // m_btnKiosk is already connected where it is created (bottom dock).
 }
 
 void MainWindow::setupModels() {
@@ -974,10 +964,10 @@ void MainWindow::populatePages() {
     });
     grpFilterLayout->addWidget(m_chkShowMembersInTree);
 
-    QPushButton* btnAddGroup = new QPushButton(" Add Group", this);
-    btnAddGroup->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
-    btnAddGroup->setObjectName("primaryBtn");
-    connect(btnAddGroup, &QPushButton::clicked, this, [this]() {
+    m_btnAddGroup = new QPushButton(" Add Group", this);
+    m_btnAddGroup->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    m_btnAddGroup->setObjectName("primaryBtn");
+    connect(m_btnAddGroup, &QPushButton::clicked, this, [this]() {
         int defaultParentId = 0;
         QTreeWidgetItem* item = m_groupsTreeWidget ? m_groupsTreeWidget->currentItem() : nullptr;
         if (item) {
@@ -997,7 +987,7 @@ void MainWindow::populatePages() {
         }
         showGroupDialog(0, false, defaultParentId);
     });
-    grpHeaderLayout->addWidget(btnAddGroup);
+    grpHeaderLayout->addWidget(m_btnAddGroup);
 
     m_btnEditGroup = new QPushButton(" Edit Group", this);
     m_btnEditGroup->setIcon(IconManager::instance().getIcon("pencil", QColor(), 14));
@@ -1052,6 +1042,7 @@ void MainWindow::populatePages() {
     m_groupsTreeWidget->setAlternatingRowColors(true);
     m_groupsTreeWidget->setAnimated(true);
     m_groupsTreeWidget->onReparent = [this](int groupId, int newParentId) {
+        if (isReadOnlyRole()) return; // guests must not restructure ministries
         // Cycle guard: never move a group under its own descendant.
         QSqlQuery cyc;
         cyc.prepare(
@@ -1159,13 +1150,16 @@ void MainWindow::populatePages() {
             return;
         }
         bool isRoot = current->data(0, Qt::UserRole + 3).toBool();
+        const bool readOnly = isReadOnlyRole();
         if (m_btnDeleteGroup) {
-            m_btnDeleteGroup->setEnabled(!isRoot);
-            m_btnDeleteGroup->setToolTip(isRoot ? "Top-level Ministry Blueprints are system-locked and cannot be deleted." : "");
+            m_btnDeleteGroup->setEnabled(!isRoot && !readOnly);
+            m_btnDeleteGroup->setToolTip(readOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+                                                   : (isRoot ? "Top-level Ministry Blueprints are system-locked and cannot be deleted." : ""));
         }
         if (m_btnArchiveGroup) {
-            m_btnArchiveGroup->setEnabled(!isRoot);
-            m_btnArchiveGroup->setToolTip(isRoot ? "Top-level Ministry Blueprints are system-locked and cannot be archived." : "");
+            m_btnArchiveGroup->setEnabled(!isRoot && !readOnly);
+            m_btnArchiveGroup->setToolTip(readOnly ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+                                                   : (isRoot ? "Top-level Ministry Blueprints are system-locked and cannot be archived." : ""));
         }
 
         QString type = current->data(0, Qt::UserRole + 1).toString();
@@ -1228,6 +1222,10 @@ void MainWindow::populatePages() {
     m_btnAddRosterMember->setObjectName("primaryBtn");
     m_btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
     connect(m_btnAddRosterMember, &QPushButton::clicked, this, [this]() {
+        if (isReadOnlyRole()) {
+            QMessageBox::warning(this, "Read-Only Mode", "Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify.");
+            return;
+        }
         if (m_selectedGroupId <= 0) {
             QMessageBox::warning(this, "No Selection", "Please select a group first.");
             return;
@@ -1333,11 +1331,15 @@ void MainWindow::populatePages() {
     });
     rosterHeaderRow->addWidget(m_btnAddRosterMember);
 
-    QPushButton* btnSuggest = new QPushButton(" Suggest People", m_groupDetailCard);
-    btnSuggest->setIcon(IconManager::instance().getIcon("sparkles", tok.accentPrimary, 14));
-    btnSuggest->setObjectName("secondaryBtn");
-    btnSuggest->setStyleSheet("padding: 4px 10px; font-size: 11px;");
-    connect(btnSuggest, &QPushButton::clicked, this, [this]() {
+    m_btnSuggestPeople = new QPushButton(" Suggest People", m_groupDetailCard);
+    m_btnSuggestPeople->setIcon(IconManager::instance().getIcon("sparkles", tok.accentPrimary, 14));
+    m_btnSuggestPeople->setObjectName("secondaryBtn");
+    m_btnSuggestPeople->setStyleSheet("padding: 4px 10px; font-size: 11px;");
+    connect(m_btnSuggestPeople, &QPushButton::clicked, this, [this]() {
+        if (isReadOnlyRole()) {
+            QMessageBox::warning(this, "Read-Only Mode", "Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify.");
+            return;
+        }
         if (m_selectedGroupId <= 0) {
             QMessageBox::warning(this, "No Selection", "Please select a group first.");
             return;
@@ -1351,7 +1353,7 @@ void MainWindow::populatePages() {
             if (m_graphWidget) m_graphWidget->loadGraph();
         }
     });
-    rosterHeaderRow->addWidget(btnSuggest);
+    rosterHeaderRow->addWidget(m_btnSuggestPeople);
     detailLayout->addLayout(rosterHeaderRow);
 
     m_groupRosterTable = new QTableWidget(m_groupDetailCard);
@@ -1594,11 +1596,11 @@ QWidget* MainWindow::createDashboardPage() {
     QHBoxLayout* alertsTitleRow = new QHBoxLayout();
     QLabel* alertsCardTitle = new QLabel("Member Inactivity & Care Alerts", alertsCard);
     alertsCardTitle->setStyleSheet("font-size: 12px; font-weight: bold; text-transform: uppercase; color: " + ThemeManager::instance().currentTokens().accentDanger.name() + ";");
-    QPushButton* btnQuickNote = new QPushButton(" Quick Note", alertsCard);
-    btnQuickNote->setIcon(IconManager::instance().getPrimaryIcon("pencil", 14));
-    btnQuickNote->setObjectName("primaryBtn");
-    btnQuickNote->setStyleSheet("padding: 2px 8px; font-size: 11px;");
-    connect(btnQuickNote, &QPushButton::clicked, this, [this]() {
+    m_btnQuickNote = new QPushButton(" Quick Note", alertsCard);
+    m_btnQuickNote->setIcon(IconManager::instance().getPrimaryIcon("pencil", 14));
+    m_btnQuickNote->setObjectName("primaryBtn");
+    m_btnQuickNote->setStyleSheet("padding: 2px 8px; font-size: 11px;");
+    connect(m_btnQuickNote, &QPushButton::clicked, this, [this]() {
         int pid = -1;
         if (m_lstPastoralAlerts->currentItem()) pid = m_lstPastoralAlerts->currentItem()->data(Qt::UserRole).toInt();
         else if (m_lstVisitorFollowup->currentItem()) pid = m_lstVisitorFollowup->currentItem()->data(Qt::UserRole).toInt();
@@ -1606,7 +1608,7 @@ QWidget* MainWindow::createDashboardPage() {
     });
     alertsTitleRow->addWidget(alertsCardTitle);
     alertsTitleRow->addStretch();
-    alertsTitleRow->addWidget(btnQuickNote);
+    alertsTitleRow->addWidget(m_btnQuickNote);
     alertsCardLayout->addLayout(alertsTitleRow);
 
     m_lstPastoralAlerts = new QListWidget(alertsCard);
@@ -1846,6 +1848,10 @@ void MainWindow::onConfigureKpiCards() {
 }
 
 void MainWindow::onLogQuickPastoralNote(int prefillPersonId) {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot log pastoral care notes. Sign in with the Admin PIN (1234) to record care interactions.");
+        return;
+    }
     QDialog dlg(this);
     dlg.setWindowTitle("Log Quick Pastoral Note");
     dlg.resize(440, 380);
@@ -2042,10 +2048,11 @@ void MainWindow::updateDashboardStats() {
     m_lstPastoralAlerts->clear();
 
     // 1. Pastoral Care & Lapsed Giver Alerts
-    // 'Inactivity threshold' from Settings (default 30 days) drives who counts
-    // as a lapsed giver / inactive attender.
+    // 'Inactivity threshold' from Settings (default 90 days, matching the
+    // Settings page default) drives who counts as a lapsed giver / inactive
+    // attender.
     QSettings set("OpenEkklesia", "CHMS");
-    const int inactivityDays = qBound(7, set.value("inactivityDays", 30).toInt(), 365);
+    const int inactivityDays = qBound(7, set.value("inactivityDays", 90).toInt(), 365);
     const QString inactivityExpr = QString("date('now', '-%1 days')").arg(inactivityDays);
 
     QSqlQuery qAlerts;
@@ -2057,9 +2064,9 @@ void MainWindow::updateDashboardStats() {
         "  AND ( "
         "        ( NOT EXISTS (SELECT 1 FROM contributions WHERE person_id = people.id AND contribution_date >= " + inactivityExpr + ") "
         "          AND NOT EXISTS (SELECT 1 FROM attendance WHERE person_id = people.id AND timestamp >= " + inactivityExpr + ") ) "
-        "        OR care_flag = 'At-Risk' "
+        "        OR care_flag IN ('At-Risk', 'Needs Contact') "
         "      ) "
-        "ORDER BY (care_flag = 'At-Risk') DESC, last_name "
+        "ORDER BY (care_flag IN ('At-Risk', 'Needs Contact')) DESC, last_name "
         "LIMIT 10");
     if (qAlerts.exec()) {
         while (qAlerts.next()) {
@@ -2070,8 +2077,8 @@ void MainWindow::updateDashboardStats() {
             QString lastGive = qAlerts.value(4).toString();
 
             QString label;
-            if (careFlag == "At-Risk") {
-                label = QString("[At-Risk] %1").arg(name);
+            if (careFlag == "At-Risk" || careFlag == "Needs Contact") {
+                label = QString("[%1] %2").arg(careFlag, name);
             } else if (!lastGive.isEmpty() && QDate::fromString(lastGive, "yyyy-MM-dd").daysTo(QDate::currentDate()) > 60) {
                 label = QString("[Lapsed Giver] %1 (Last give: %2)").arg(name, lastGive);
             } else {
@@ -2083,17 +2090,39 @@ void MainWindow::updateDashboardStats() {
         }
     }
 
-    QSqlQuery qMilestones(
-        "SELECT id, first_name || ' ' || last_name, date_of_birth "
-        "FROM people WHERE strftime('%m-%d', date_of_birth) BETWEEN strftime('%m-%d', 'now') AND strftime('%m-%d', 'now', '+7 days') "
-        "LIMIT 5");
+    // Birthday window ("next 7 days") is computed in C++ so a Dec -> Jan wrap
+    // does not silently drop matches: the old SQL BETWEEN over strftime('%m-%d')
+    // compared e.g. '12-28' > '01-03' as strings and matched nothing.
+    QStringList birthdayDays;
+    for (int i = 0; i <= 7; ++i) {
+        birthdayDays << QDate::currentDate().addDays(i).toString("MM-dd");
+    }
+    QStringList birthdayPlaceholders;
+    for (qsizetype i = 0; i < birthdayDays.size(); ++i) birthdayPlaceholders << "?";
+    QMap<int, QList<QPair<int, QString>>> birthdaysByDay; // days away -> (person id, label)
+    QSqlQuery qMilestones;
+    qMilestones.prepare(QString(
+        "SELECT id, first_name || ' ' || last_name, date_of_birth, strftime('%m-%d', date_of_birth) "
+        "FROM people WHERE date_of_birth IS NOT NULL AND date_of_birth != '' "
+        "AND strftime('%m-%d', date_of_birth) IN (%1)").arg(birthdayPlaceholders.join(", ")));
+    for (const QString& day : birthdayDays) qMilestones.addBindValue(day);
     if (qMilestones.exec()) {
         while (qMilestones.next()) {
-            int id = qMilestones.value(0).toInt();
-            QString name = qMilestones.value(1).toString();
-            QString dob = qMilestones.value(2).toString();
-            QListWidgetItem* item = new QListWidgetItem(QString("[Birthday This Week] %1 (%2)").arg(name, dob), m_lstPastoralAlerts);
-            item->setData(Qt::UserRole, id);
+            const int daysAway = static_cast<int>(birthdayDays.indexOf(qMilestones.value(3).toString()));
+            if (daysAway < 0) continue;
+            birthdaysByDay[daysAway].append(qMakePair(
+                qMilestones.value(0).toInt(),
+                QString("[Birthday This Week] %1 (%2)").arg(qMilestones.value(1).toString(),
+                                                             qMilestones.value(2).toString())));
+        }
+    }
+    int birthdaysShown = 0;
+    for (auto it = birthdaysByDay.cbegin(); it != birthdaysByDay.cend() && birthdaysShown < 5; ++it) {
+        for (const auto& birthday : it.value()) {
+            if (birthdaysShown >= 5) break;
+            QListWidgetItem* item = new QListWidgetItem(birthday.second, m_lstPastoralAlerts);
+            item->setData(Qt::UserRole, birthday.first);
+            ++birthdaysShown;
         }
     }
 
@@ -2415,6 +2444,7 @@ void MainWindow::launchKiosk() {
 
 void MainWindow::selectPerson(int personId) {
     if (!m_peopleWidget) onMembersClicked();
+    if (!m_peopleWidget) return; // module disabled: nothing to navigate to
     m_peopleWidget->selectPerson(personId);
     switchPage(1);
     setActiveNav(m_btnMembers);
@@ -2457,6 +2487,7 @@ void MainWindow::selectAsset(int assetId) {
     query.addBindValue(assetId);
     if (query.exec() && query.next()) {
         onInventoryClicked();
+        if (!m_inventoryWidget) return; // module disabled: nothing to navigate to
         m_inventoryWidget->selectAssetByBarcode(query.value(0).toString());
     }
 }
@@ -2471,11 +2502,44 @@ void MainWindow::applyRolePermissions() {
     if (m_planningWidget) m_planningWidget->applyRole(m_userRole);
     if (m_facilitiesWidget) m_facilitiesWidget->applyRole(m_userRole);
     if (m_shepherdWidget) m_shepherdWidget->applyRole(m_userRole);
+    if (m_settingsWidget) m_settingsWidget->applyRole(m_userRole);
+
+    // Groups module write controls: guest (read-only) sessions may browse
+    // ministries and rosters but must not change them. Handlers additionally
+    // guard themselves, so keyboard/context-menu paths cannot bypass this.
+    const bool readOnly = isReadOnlyRole();
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
+    auto gateButton = [readOnly, &roTooltip](QPushButton* btn) {
+        if (!btn) return;
+        btn->setEnabled(!readOnly);
+        btn->setToolTip(readOnly ? roTooltip : QString());
+    };
+    gateButton(m_btnAddGroup);
+    gateButton(m_btnEditGroup);
+    gateButton(m_btnDuplicateGroup);
+    gateButton(m_btnArchiveGroup);
+    gateButton(m_btnDeleteGroup);
+    gateButton(m_btnAddRosterMember);
+    gateButton(m_btnCreateSubTeam);
+    gateButton(m_btnSuggestPeople);
+    gateButton(m_btnDefineBlueprint);
+    gateButton(m_btnQuickNote);
+    if (m_groupsTreeWidget) m_groupsTreeWidget->setDragEnabled(!readOnly);
+
+    // Re-render the dynamically built role-dependent controls (roster combos and
+    // blueprint card buttons are created on refresh, so they must follow the
+    // signed-in role without waiting for the next manual refresh).
+    if (m_blueprintsGridContainer) refreshMinistryBlueprintsTab();
+    if (m_groupRosterTable && m_selectedGroupId > 0) refreshGroupDetailPanel(m_selectedGroupId);
 
     if (statusBar()) {
         statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
     }
     updateTopBarRoleBadge();
+}
+
+bool MainWindow::isReadOnlyRole() const {
+    return m_userRole == "readonly" || m_userRole == "guest";
 }
 
 void MainWindow::applyModuleVisibility() {
@@ -2539,6 +2603,7 @@ void MainWindow::applyModuleVisibility() {
     if (m_actCont) m_actCont->setVisible(modGiving);
     if (m_actInventory) m_actInventory->setVisible(modInventory);
     if (m_actVault) m_actVault->setVisible(modVault);
+    if (m_actKiosk) m_actKiosk->setVisible(modKiosk);
 }
 
 bool MainWindow::isModuleEnabled(const QString& moduleKey, bool defaultValue) const {
@@ -2586,6 +2651,7 @@ void MainWindow::refreshGroupsTree() {
 
     QMap<int, QList<QVariantMap>> childrenMap;
     QList<QVariantMap> topLevelGroups;
+    QMap<int, bool> fetchedGroupIds;
 
     QString queryStr = "SELECT g.id, g.name, g.category, g.description, g.parent_id, p.name AS parent_name, g.is_archived, "
                        "g.is_hidden, g.meeting_day, g.meeting_time, g.location, "
@@ -2622,10 +2688,26 @@ void MainWindow::refreshGroupsTree() {
         row["member_count"] = qAll.value(11).toInt();
 
         int pId = row["parent_id"].toInt();
+        fetchedGroupIds.insert(row["id"].toInt(), true);
         if (pId > 0) {
             childrenMap[pId].append(row);
         } else {
             topLevelGroups.append(row);
+        }
+    }
+
+    // Promote live sub-groups whose parent was filtered out (archived/hidden)
+    // to the top level. Without this, hiding or archiving a parent silently
+    // dropped its still-active descendants from the tree.
+    for (auto it = childrenMap.begin(); it != childrenMap.end(); ) {
+        if (!fetchedGroupIds.contains(it.key())) {
+            for (QVariantMap orphan : it.value()) {
+                orphan["promoted_orphan"] = true;
+                topLevelGroups.append(orphan);
+            }
+            it = childrenMap.erase(it);
+        } else {
+            ++it;
         }
     }
 
@@ -2666,18 +2748,28 @@ void MainWindow::refreshGroupsTree() {
             item->setData(0, Qt::UserRole + 3, false); // Child group
         } else {
             item = new QTreeWidgetItem(m_groupsTreeWidget);
-            QString displayTitle = name;
-            if (!displayTitle.startsWith("🏛️") && !displayTitle.startsWith("📋")) {
-                displayTitle = QString("🏛️ %1").arg(displayTitle);
-            }
-            item->setText(0, displayTitle);
-            if (isArchived) {
-                item->setForeground(0, QBrush(tok.textMuted));
+            if (groupData.value("promoted_orphan").toBool()) {
+                // A normal sub-group whose parent is filtered out of the tree:
+                // show it at top level, but keep its non-root semantics (no
+                // blueprint emoji, archive/delete/roster rules still apply).
+                item->setText(0, name);
+                item->setForeground(0, QBrush(isArchived ? tok.textMuted : tok.accentPrimary));
+                item->setFont(0, QFont("Segoe UI", 9, QFont::DemiBold));
+                item->setData(0, Qt::UserRole + 3, false); // Child group
             } else {
-                item->setForeground(0, QBrush(tok.accentWarning)); // Bold highlight for fixed ministries
+                QString displayTitle = name;
+                if (!displayTitle.startsWith("🏛️") && !displayTitle.startsWith("📋")) {
+                    displayTitle = QString("🏛️ %1").arg(displayTitle);
+                }
+                item->setText(0, displayTitle);
+                if (isArchived) {
+                    item->setForeground(0, QBrush(tok.textMuted));
+                } else {
+                    item->setForeground(0, QBrush(tok.accentWarning)); // Bold highlight for fixed ministries
+                }
+                item->setFont(0, QFont("Segoe UI", 10, QFont::Bold));
+                item->setData(0, Qt::UserRole + 3, true); // Root ministry blueprint
             }
-            item->setFont(0, QFont("Segoe UI", 10, QFont::Bold));
-            item->setData(0, Qt::UserRole + 3, true); // Root ministry blueprint
         }
 
         item->setText(1, cat.isEmpty() ? "Ministry Blueprint" : cat);
@@ -2724,6 +2816,12 @@ void MainWindow::refreshGroupsTree() {
                     pItem->setData(0, Qt::UserRole, pId);
                     pItem->setData(0, Qt::UserRole + 1, "Person");
                     pItem->setData(0, Qt::UserRole + 2, id);
+                    // Member rows are read-only in the drag & drop tree: they must
+                    // never be dragged or used as a drop target for reparenting.
+                    Qt::ItemFlags pFlags = pItem->flags();
+                    pFlags.setFlag(Qt::ItemIsDragEnabled, false);
+                    pFlags.setFlag(Qt::ItemIsDropEnabled, false);
+                    pItem->setFlags(pFlags);
                 }
             }
         }
@@ -2786,24 +2884,13 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     QString recruitStatus = qGrp.value(10).toString().trimmed();
     if (recruitStatus.isEmpty()) recruitStatus = "Open";
     int parentId = qGrp.value(11).toInt();
-    int contactPersonId = qGrp.value(12).toInt();
+    const bool readOnly = isReadOnlyRole();
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
 
-    // Ensure the designated primary contact/leader is enrolled in the group roster
-    if (contactPersonId > 0) {
-        QSqlQuery checkRel(db);
-        checkRel.prepare("SELECT id FROM entity_relationships WHERE source_type = 'Person' AND source_id = ? AND target_type = 'Group' AND target_id = ?");
-        checkRel.addBindValue(contactPersonId);
-        checkRel.addBindValue(groupId);
-        if (checkRel.exec() && !checkRel.next()) {
-            QSqlQuery insRel(db);
-            insRel.prepare("INSERT INTO entity_relationships (source_type, source_id, target_type, target_id, relationship_type, status, connection_source, joined_date) "
-                           "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
-            insRel.addBindValue(contactPersonId);
-            insRel.addBindValue(groupId);
-            insRel.exec();
-            DatabaseManager::bumpDataGeneration();
-        }
-    }
+    // NOTE: the primary contact/leader enrollment is persisted by
+    // showGroupDialog()'s save path. Viewing a group must stay read-only, so no
+    // INSERTs happen here.
+
 
     // Check if this group has child sub-teams (making it a top-level Ministry Blueprint / Folder)
     QList<int> childGroupIds;
@@ -2956,6 +3043,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             roleCombo->setStyleSheet(QString("QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 4px; }")
                                      .arg(tok.bgInput.name(), tok.textPrimary.name(), tok.borderColor.name()));
             connect(roleCombo, &QComboBox::currentTextChanged, this, [this, relId](const QString& newRole) {
+                if (isReadOnlyRole()) return;
                 QSqlQuery up;
                 up.prepare("UPDATE entity_relationships SET relationship_type = ? WHERE id = ?");
                 up.addBindValue(newRole);
@@ -2964,6 +3052,10 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
                 refreshGroupDetailPanel(m_selectedGroupId);
                 refreshGroupsTree();
             });
+            if (readOnly) {
+                roleCombo->setEnabled(false);
+                roleCombo->setToolTip(roTooltip);
+            }
             m_groupRosterTable->setCellWidget(r, 1, roleCombo);
 
             int statusCol = 2;
@@ -2994,6 +3086,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             statusCombo->setStyleSheet(QString("QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 4px; }")
                                        .arg(tok.bgInput.name(), tok.textPrimary.name(), tok.borderColor.name()));
             connect(statusCombo, &QComboBox::currentTextChanged, this, [this, relId](const QString& newStatus) {
+                if (isReadOnlyRole()) return;
                 QSqlQuery up;
                 up.prepare("UPDATE entity_relationships SET status = ? WHERE id = ?");
                 up.addBindValue(newStatus);
@@ -3002,6 +3095,10 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
                 refreshGroupDetailPanel(m_selectedGroupId);
                 refreshGroupsTree();
             });
+            if (readOnly) {
+                statusCombo->setEnabled(false);
+                statusCombo->setToolTip(roTooltip);
+            }
             m_groupRosterTable->setCellWidget(r, statusCol, statusCombo);
 
             // Action Button (Remove)
@@ -3010,6 +3107,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             btnRemove->setToolTip("Remove member from group");
             btnRemove->setStyleSheet(QString("border: none; color: %1; font-weight: bold; background: transparent;").arg(tok.accentDanger.name()));
             connect(btnRemove, &QPushButton::clicked, this, [this, relId, memName]() {
+                if (isReadOnlyRole()) return;
                 auto confirm = QMessageBox::question(this, "Remove Member", QString("Remove '%1' from this group?").arg(memName), QMessageBox::Yes | QMessageBox::No);
                 if (confirm == QMessageBox::Yes) {
                     QSqlQuery del;
@@ -3023,6 +3121,10 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
                     }
                 }
             });
+            if (readOnly) {
+                btnRemove->setEnabled(false);
+                btnRemove->setToolTip(roTooltip);
+            }
             m_groupRosterTable->setCellWidget(r, statusCol + 1, btnRemove);
         }
     }
@@ -3136,6 +3238,10 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
 }
 
 void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParentId) {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot create or edit groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     QSqlDatabase db = QSqlDatabase::database();
     ThemeTokens tok = ThemeManager::instance().currentTokens();
     QString currentName, currentCat, currentDesc, currentDay, currentTime, currentLoc, currentNotes, currentSkills, currentRecruitStatus = "Open";
@@ -3616,7 +3722,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                             QSqlQuery upRel(db);
                             upRel.prepare("UPDATE entity_relationships SET relationship_type = 'Leader', status = 'Active' WHERE id = ?");
                             upRel.addBindValue(relId);
-                            upRel.exec();
+                            if (upRel.exec()) DatabaseManager::bumpDataGeneration();
                         }
                     } else {
                         QSqlQuery insRel(db);
@@ -3624,7 +3730,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                                        "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
                         insRel.addBindValue(contactId);
                         insRel.addBindValue(groupId);
-                        insRel.exec();
+                        if (insRel.exec()) DatabaseManager::bumpDataGeneration();
                     }
                 }
                 refreshGroupsTree();
@@ -3664,7 +3770,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                                    "VALUES ('Person', ?, 'Group', ?, 'Leader', 'Active', 'manual', date('now','localtime'))");
                     insRel.addBindValue(contactId);
                     insRel.addBindValue(newId);
-                    insRel.exec();
+                    if (insRel.exec()) DatabaseManager::bumpDataGeneration();
                 }
                 if (isDuplicate && chkCopyMembers && chkCopyMembers->isChecked()) {
                     QSqlQuery copyMems(db);
@@ -3718,6 +3824,10 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
 // --- Groups-tree context-menu actions (right-click on a group) ---
 
 void MainWindow::onEditGroup() {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot edit groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     if (m_selectedGroupId > 0) {
         showGroupDialog(m_selectedGroupId, false);
     } else {
@@ -3726,10 +3836,18 @@ void MainWindow::onEditGroup() {
 }
 
 void MainWindow::onAddGroup(int defaultParentId) {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot create groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     showGroupDialog(0, false, defaultParentId);
 }
 
 void MainWindow::onArchiveGroup() {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot archive groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     if (m_selectedGroupId <= 0) {
         QMessageBox::warning(this, "No Selection", "Please select a group first.");
         return;
@@ -3752,15 +3870,21 @@ void MainWindow::onArchiveGroup() {
     const QString action = (target == 1) ? "archive" : "unarchive";
 
     if (QMessageBox::question(this, "Confirm Action",
-                              QString("Are you sure you want to %1 this group?").arg(action),
+                              QString("Are you sure you want to %1 this group and all of its sub-groups?").arg(action),
                               QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
         return;
     }
 
+    // Cascade to the whole subtree so archiving a ministry also archives its
+    // teams (mirrors Hide/Unhide) and its live sub-teams keep a visible parent.
     QSqlQuery q;
-    q.prepare("UPDATE groups SET is_archived = ? WHERE id = ?");
-    q.addBindValue(target);
+    q.prepare("WITH RECURSIVE subtree(id) AS ("
+              "  SELECT id FROM groups WHERE id = ? "
+              "  UNION ALL "
+              "  SELECT g.id FROM groups g JOIN subtree s ON g.parent_id = s.id"
+              ") UPDATE groups SET is_archived = ? WHERE id IN (SELECT id FROM subtree)");
     q.addBindValue(m_selectedGroupId);
+    q.addBindValue(target);
     if (q.exec()) {
         DatabaseManager::bumpDataGeneration();
         refreshGroupsTree();
@@ -3772,6 +3896,10 @@ void MainWindow::onArchiveGroup() {
 }
 
 void MainWindow::onDeleteGroup() {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot delete groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     if (m_selectedGroupId <= 0) {
         QMessageBox::warning(this, "No Selection", "Please select a group first.");
         return;
@@ -3834,6 +3962,10 @@ void MainWindow::onDeleteGroup() {
 }
 
 void MainWindow::onToggleHiddenGroup() {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot hide groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        return;
+    }
     if (m_selectedGroupId <= 0) {
         QMessageBox::warning(this, "No Selection", "Please select a group first.");
         return;
@@ -3895,14 +4027,15 @@ void MainWindow::setupMinistryBlueprintsTab(QWidget* container) {
     connect(m_chkShowArchivedBlueprints, &QCheckBox::toggled, this, &MainWindow::refreshMinistryBlueprintsTab);
     headerRow->addWidget(m_chkShowArchivedBlueprints);
 
-    QPushButton* btnDefine = new QPushButton(" Define New Blueprint", container);
-    btnDefine->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
-    btnDefine->setObjectName("primaryBtn");
-    btnDefine->setStyleSheet("padding: 6px 12px; font-size: 12px; font-weight: bold;");
-    connect(btnDefine, &QPushButton::clicked, this, [this]() {
+    m_btnDefineBlueprint = new QPushButton(" Define New Blueprint", container);
+    m_btnDefineBlueprint->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    m_btnDefineBlueprint->setObjectName("primaryBtn");
+    m_btnDefineBlueprint->setStyleSheet("padding: 6px 12px; font-size: 12px; font-weight: bold;");
+    connect(m_btnDefineBlueprint, &QPushButton::clicked, this, [this]() {
+        if (isReadOnlyRole()) return;
         showBlueprintDialog(0);
     });
-    headerRow->addWidget(btnDefine);
+    headerRow->addWidget(m_btnDefineBlueprint);
     rootLay->addLayout(headerRow);
 
     QScrollArea* scroll = new QScrollArea(container);
@@ -3927,25 +4060,29 @@ void MainWindow::refreshMinistryBlueprintsTab() {
 
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 
-    // Clear previous contents. Widgets go via deleteLater and the old
-    // layout via deleteLater too: both are still installed on the live
-    // container while events can be in flight (deleting them synchronously
-    // is the churn pattern that corrupted the graph's Smart Bridge panel).
-    if (QLayout* oldGrid = m_blueprintsGridContainer->layout()) {
+    // Clear previous contents by reusing the container's grid layout. Creating a
+    // second QGridLayout on the same widget while the old one is still installed
+    // (deleteLater only runs later) makes Qt warn "already has a layout", and the
+    // card widgets' churn is the pattern that corrupted the Smart Bridge panel,
+    // so widgets are still deleted via deleteLater.
+    QGridLayout* grid = qobject_cast<QGridLayout*>(m_blueprintsGridContainer->layout());
+    if (grid) {
         QLayoutItem* item;
-        while ((item = oldGrid->takeAt(0)) != nullptr) {
+        while ((item = grid->takeAt(0)) != nullptr) {
             if (item->widget()) item->widget()->deleteLater();
             delete item;
         }
-        oldGrid->deleteLater();
+    } else {
+        delete m_blueprintsGridContainer->layout(); // stale non-grid layout, if any
+        grid = new QGridLayout(m_blueprintsGridContainer);
     }
-
-    QGridLayout* grid = new QGridLayout(m_blueprintsGridContainer);
     grid->setContentsMargins(5, 5, 5, 5);
     grid->setSpacing(12);
 
     bool showArchived = m_chkShowArchivedBlueprints && m_chkShowArchivedBlueprints->isChecked();
     const auto blueprints = MinistryArchetypeRegistry::allBlueprints(showArchived);
+    const bool readOnly = isReadOnlyRole();
+    const QString roTooltip = "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.";
     int row = 0, col = 0;
 
     for (const auto& bp : blueprints) {
@@ -4038,8 +4175,10 @@ void MainWindow::refreshMinistryBlueprintsTab() {
         btnCreate->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
         btnCreate->setObjectName("primaryBtn");
         btnCreate->setStyleSheet("font-size: 11px; padding: 4px 10px;");
-        btnCreate->setEnabled(!bp.isArchived);
+        btnCreate->setEnabled(!bp.isArchived && !readOnly);
+        if (readOnly) btnCreate->setToolTip(roTooltip);
         connect(btnCreate, &QPushButton::clicked, this, [this, bp]() {
+            if (isReadOnlyRole()) return;
             int rootId = 0;
             QSqlQuery qRoot;
             qRoot.prepare("SELECT id FROM groups WHERE (name = ? OR category = ? OR name LIKE ? OR category LIKE ?) AND (parent_id IS NULL OR parent_id = 0) ORDER BY id ASC LIMIT 1");
@@ -4059,7 +4198,10 @@ void MainWindow::refreshMinistryBlueprintsTab() {
             btnEdit->setIcon(IconManager::instance().getIcon("edit-3", tok.textPrimary, 12));
             btnEdit->setObjectName("secondaryBtn");
             btnEdit->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+            btnEdit->setEnabled(!readOnly);
+            if (readOnly) btnEdit->setToolTip(roTooltip);
             connect(btnEdit, &QPushButton::clicked, this, [this, bp]() {
+                if (isReadOnlyRole()) return;
                 showBlueprintDialog(bp.id);
             });
             actionsRow->addWidget(btnEdit);
@@ -4069,7 +4211,10 @@ void MainWindow::refreshMinistryBlueprintsTab() {
                 btnArchive->setIcon(IconManager::instance().getDangerIcon("trash-2", 12));
                 btnArchive->setObjectName("secondaryBtn");
                 btnArchive->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+                btnArchive->setEnabled(!readOnly);
+                if (readOnly) btnArchive->setToolTip(roTooltip);
                 connect(btnArchive, &QPushButton::clicked, this, [this, bp]() {
+                    if (isReadOnlyRole()) return;
                     int ret = QMessageBox::question(this, "Archive Blueprint",
                         QString("Are you sure you want to archive the blueprint '%1'?\n\n"
                                 "This will also archive its top-level ministry group heading and ALL child sub-teams, "
@@ -4088,7 +4233,10 @@ void MainWindow::refreshMinistryBlueprintsTab() {
                 btnRestore->setIcon(IconManager::instance().getIcon("refresh-cw", tok.accentSuccess, 12));
                 btnRestore->setObjectName("secondaryBtn");
                 btnRestore->setStyleSheet("font-size: 11px; padding: 4px 10px;");
+                btnRestore->setEnabled(!readOnly);
+                if (readOnly) btnRestore->setToolTip(roTooltip);
                 connect(btnRestore, &QPushButton::clicked, this, [this, bp]() {
+                    if (isReadOnlyRole()) return;
                     DatabaseManager::archiveBlueprint(bp.id, false);
                     refreshMinistryBlueprintsTab();
                     refreshGroupsTree();
@@ -4110,6 +4258,10 @@ void MainWindow::refreshMinistryBlueprintsTab() {
 }
 
 void MainWindow::showBlueprintDialog(int blueprintId) {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot create or edit ministry blueprints. Sign in with the Admin PIN (1234) to modify.");
+        return;
+    }
     QSqlDatabase db = QSqlDatabase::database();
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 

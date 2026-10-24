@@ -28,6 +28,7 @@ class TrayManager : public QObject {
     Q_OBJECT
 public:
     explicit TrayManager(MainWindow* window, QObject* parent = nullptr);
+    ~TrayManager() override;
 
     bool initialize();
     static bool isSystemTrayAvailable();

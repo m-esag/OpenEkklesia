@@ -27,7 +27,14 @@ cmake --build build-macos -j"$(sysctl -n hw.ncpu)"
 APP=OpenEkklesia.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp build-macos/OpenEkklesia "$APP/Contents/MacOS/"
+# CMake builds a MACOSX_BUNDLE (see CMakeLists.txt), so the executable lives
+# inside the generated .app, not at the build root.
+BUNDLE_EXE=build-macos/OpenEkklesia.app/Contents/MacOS/OpenEkklesia
+if [ ! -f "$BUNDLE_EXE" ]; then
+  echo "ERROR: expected bundle executable not found: $BUNDLE_EXE"
+  exit 1
+fi
+cp "$BUNDLE_EXE" "$APP/Contents/MacOS/"
 
 # Optional icon (convert a 1024x1024 PNG with `sips`/`iconutil` first if you
 # have one; otherwise the app uses the default icon).
@@ -42,7 +49,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <dict>
   <key>CFBundleName</key><string>OpenEkklesia</string>
   <key>CFBundleDisplayName</key><string>OpenEkklesia</string>
-  <key>CFBundleIdentifier</key><string>org.openekklesia.app</string>
+  <key>CFBundleIdentifier</key><string>org.openekklesia.OpenEkklesia</string>
   <key>CFBundleVersion</key><string>0.8.0</string>
   <key>CFBundleShortVersionString</key><string>0.8.0</string>
   <key>CFBundleExecutable</key><string>OpenEkklesia</string>

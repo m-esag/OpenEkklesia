@@ -299,8 +299,28 @@ QString UserManualDialog::getFullManualHtml() {
     QString iconFinance = getLucideDataUri("hand-coins", tok.accentPrimary, 20);
     QString iconVault = getLucideDataUri("shield-check", tok.accentPrimary, 20);
     QString iconSettings = getLucideDataUri("settings", tok.accentPrimary, 20);
-    QString iconAlert = getLucideDataUri("alert-triangle", QColor("#f9e2af"), 18);
-    QString iconTip = getLucideDataUri("sparkles", QColor("#a6e3a1"), 18);
+    // Alert/tip icons follow the active theme's accents instead of fixed
+    // Catppuccin pastels (which vanish on light themes).
+    QString iconAlert = getLucideDataUri("alert-triangle", tok.accentWarning, 18);
+    QString iconTip = getLucideDataUri("sparkles", tok.accentSuccess, 18);
+
+    // Archetype badges: filled with a theme accent and a textOn() foreground so
+    // the label stays readable in both palettes (no hardcoded pastel text).
+    auto badgeRule = [](const char* cls, const QColor& fill) {
+        return QString("    .%1 { background-color: %2; color: %3; border: 1px solid %2; }\n")
+            .arg(QString::fromLatin1(cls), fill.name(), ThemeManager::textOn(fill).name());
+    };
+    const QString badgeCss =
+        badgeRule("badge-catalyst", tok.accentWarning) +
+        badgeRule("badge-shepherd", tok.accentSuccess) +
+        badgeRule("badge-architect", tok.accentPrimary) +
+        badgeRule("badge-spark", tok.accentDanger) +
+        badgeRule("badge-anchor", tok.textSecondary);
+    // Inline emphasis colors (Smart Bridge scoring, graph legend) are token
+    // accents too, so they remain legible on light themes.
+    const QString spanSuccess = tok.accentSuccess.name();
+    const QString spanDanger = tok.accentDanger.name();
+    const QString spanWarning = tok.accentWarning.name();
 
     return QString(R"rawhtml(
 <!DOCTYPE html>
@@ -358,11 +378,7 @@ QString UserManualDialog::getFullManualHtml() {
         font-weight: bold;
         margin-right: 4px;
     }
-    .badge-catalyst { background-color: rgba(250, 179, 135, 0.2); color: #fab387; border: 1px solid #fab387; }
-    .badge-shepherd { background-color: rgba(166, 227, 161, 0.2); color: #a6e3a1; border: 1px solid #a6e3a1; }
-    .badge-architect { background-color: rgba(137, 180, 250, 0.2); color: #89b4fa; border: 1px solid #89b4fa; }
-    .badge-spark { background-color: rgba(249, 226, 175, 0.2); color: #f9e2af; border: 1px solid #f9e2af; }
-    .badge-anchor { background-color: rgba(203, 166, 247, 0.2); color: #cba6f7; border: 1px solid #cba6f7; }
+%22
     
     .alert-card {
         background-color: %4;
@@ -373,14 +389,14 @@ QString UserManualDialog::getFullManualHtml() {
     }
     .alert-warning {
         background-color: rgba(249, 226, 175, 0.1);
-        border-left: 4px solid #f9e2af;
+        border-left: 4px solid %25;
         border-radius: 6px;
         padding: 12px 16px;
         margin: 14px 0;
     }
     .alert-tip {
         background-color: rgba(166, 227, 161, 0.1);
-        border-left: 4px solid #a6e3a1;
+        border-left: 4px solid %23;
         border-radius: 6px;
         padding: 12px 16px;
         margin: 14px 0;
@@ -604,8 +620,8 @@ QString UserManualDialog::getFullManualHtml() {
 
 <h3>Chemistry Scoring (0–100, clamped to 15–98):</h3>
 <ol>
-    <li><b>Void Law (+30 / +25 / +20):</b> Awarded when a candidate fills a critical missing role — <span style="color:#a6e3a1;">+30</span> for an Anchor/Architect joining a team with zero execution backbone, <span style="color:#a6e3a1;">+25</span> for a Shepherd joining a team with no relational care, and <span style="color:#a6e3a1;">+20</span> for a strong secondary-archetype complement.</li>
-    <li><b>Clash Law (<span style="color:#f38ba8;">−20 / −15 Penalty</span>):</b> Applied when the team is over-saturated with competing visionaries (&ge;3 Catalysts, −20) or high-energy surges (half or more of the roster as Energizers, −15) without sufficient grounding.</li>
+    <li><b>Void Law (+30 / +25 / +20):</b> Awarded when a candidate fills a critical missing role — <span style="color:%23;">+30</span> for an Anchor/Architect joining a team with zero execution backbone, <span style="color:%23;">+25</span> for a Shepherd joining a team with no relational care, and <span style="color:%23;">+20</span> for a strong secondary-archetype complement.</li>
+    <li><b>Clash Law (<span style="color:%24;">−20 / −15 Penalty</span>):</b> Applied when the team is over-saturated with competing visionaries (&ge;3 Catalysts, −20) or high-energy surges (half or more of the roster as Energizers, −15) without sufficient grounding.</li>
     <li><b>Equilibrium Law:</b> Measures the Euclidean distance delta between the current team's relational vector and the canonical target blueprint (&times;50 pts). Positive delta indicates improved balance.</li>
     <li><b>Gifts &amp; Interests Match (&le; +35 Boost):</b> Proportional bonus for matching required spiritual gifts (max +20) and declared ministry interests (max +15).</li>
     <li><b>Co-Leadership Pairing (+15 Boost):</b> High-synergy pairing bonus for complementary leadership models (Catalyst + Architect, Shepherd + Spark, or Spark + Anchor).</li>
@@ -646,11 +662,11 @@ QString UserManualDialog::getFullManualHtml() {
     <li><b>Node Interaction:</b> Click on any Person or Group to inspect relational ties and open the Smart Bridge match panel.</li>
     <li><b>Relational Edge Legend:</b>
         <ul>
-            <li><span style="color:#f9e2af;">Gold Solid</span>: Verified household family relationships.</li>
-            <li><span style="color:#89b4fa;">Cyan Solid</span>: Ministry leadership ties (e.g. group Leader).</li>
-            <li><span style="color:#a6adc8;">Gray Dashed</span>: General member-to-group connections.</li>
-            <li><span style="color:#f38ba8;">Red Dashed</span>: Burnout-risk links.</li>
-            <li><span style="color:#89b4fa;">Cyan Dashed</span>: Algorithmic Smart Bridge synergy match recommendations.</li>
+            <li><span style="color:%25;">Gold Solid</span>: Verified household family relationships.</li>
+            <li><span style="color:%1;">Cyan Solid</span>: Ministry leadership ties (e.g. group Leader).</li>
+            <li><span style="color:%3;">Gray Dashed</span>: General member-to-group connections.</li>
+            <li><span style="color:%24;">Red Dashed</span>: Burnout-risk links.</li>
+            <li><span style="color:%1;">Cyan Dashed</span>: Algorithmic Smart Bridge synergy match recommendations.</li>
         </ul>
     </li>
     <li><b>1-Click "⚡ Connect":</b> Instant group placement with automated audit logging (<code>connection_source = 'smart_bridge'</code>, fit score, and timestamp).</li>
@@ -732,7 +748,7 @@ QString UserManualDialog::getFullManualHtml() {
 <ul>
     <li><b>Document Categories:</b> Membership, Meeting Minutes, Legal, Financial, Sign-up Sheets, or Other — each document can be linked to a person, a group, or neither.</li>
     <li><b>Database Backup &amp; Restore:</b> Create full WAL-aware SQLite snapshots (manual export, or scheduled daily / weekly / monthly with retention pruning) or export portable JSON archives. Restore replaces the working database from a chosen backup.</li>
-    <li><b>Purge Demo Data:</b> Reset all sample/test data with 1 click while safely preserving your core structural Chart of Accounts and Ministry Blueprints.</li>
+    <li><b>Erase All Ministry Records (Factory Reset):</b> There is no demo/sample data in the database. This action permanently erases every ministry and operational record — people, households, groups, services, giving batches and contributions, ledger transactions, assets, vault documents, events, tasks, reservations, board motions, and care logs — and keeps only the structural scaffold: chart of accounts, funds, login users, ministry blueprints, the service library, and the audit trail. It requires the Administrator role and a typed <kbd>ERASE</kbd> confirmation, and a database backup should be exported first — the action cannot be undone.</li>
 </ul>
 
 <hr>
@@ -748,7 +764,7 @@ QString UserManualDialog::getFullManualHtml() {
             <tr><td><b>Administrator</b></td><td><kbd>1234</kbd></td><td>Full access to every module — People, Shepherd's Workbench, Groups, Services, Planning, Facilities, Inventory, Giving &amp; Ledger, Vault, and Settings.</td></tr>
             <tr><td><b>Pastor</b></td><td><kbd>5555</kbd></td><td>Full access to People, Shepherd's Workbench, Groups, Services, and Care Logs, plus the financial ledger and giving module.</td></tr>
             <tr><td><b>Finance</b></td><td><kbd>7777</kbd></td><td>Full access to contributions, batches, funds, and the double-entry ledger, alongside the other ministry modules.</td></tr>
-            <tr><td><b>Guest</b></td><td><kbd>0000</kbd></td><td>Read-only access across the whole application — every Save, Delete, and edit action is disabled.</td></tr>
+            <tr><td><b>Guest</b></td><td><kbd>0000</kbd></td><td>Read-only mode: record-editing and destructive controls are disabled across the application (create, edit, delete, restore, JSON import, erase, and PIN changes). Viewing, searching, and local theme/view preferences remain available; changing data requires an Administrator sign-in.</td></tr>
         </table>
     </li>
     <li><b>Theme Contrast Guardian:</b> Targets WCAG 2.1 AA color-contrast standards across dark and light palettes (with AAA-level contrast on body text where practical).</li>
@@ -766,5 +782,10 @@ QString UserManualDialog::getFullManualHtml() {
     .arg(accent, textCol, secText, surface, border, bgBase)
     .arg(iconCompass, iconCommand, iconUsers, iconLayers, iconSparkles, iconNetwork, iconShepherd)
     .arg(iconMusic, iconCalendar, iconLandmark, iconFinance, iconVault, iconSettings, iconAlert)
-    .arg(iconTip);
+    .arg(iconTip)
+    // Theme-derived badge rules and inline emphasis colors (computed above).
+    .arg(badgeCss)
+    .arg(spanSuccess)
+    .arg(spanDanger)
+    .arg(spanWarning);
 }

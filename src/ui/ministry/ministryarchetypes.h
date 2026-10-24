@@ -303,6 +303,9 @@ public:
 
     static MinistryBlueprint getBlueprint(const QString& categoryKey) {
         QString key = categoryKey.trimmed().toLower();
+        // No category (e.g. a group with an empty path) must fall back to
+        // "Other": an empty needle matches every display name below.
+        if (key.isEmpty()) return canonicalBlueprints().last();
         for (const auto& bp : allBlueprints(true)) {
             if (key.contains(bp.categoryKey.toLower()) || bp.displayName.toLower().contains(key)) {
                 return bp;

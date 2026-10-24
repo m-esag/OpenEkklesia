@@ -294,6 +294,13 @@ private:
     int m_currentPersonId = 0;
     bool m_isDirty = false;
     bool m_isReadOnly = false;
+    bool m_suppressUnsavedPrompt = false;
+
+    // One-shot drill-through filters pushed in from Pastoral Analytics. They are
+    // applied through reapplyFilter() so they compose with the user's own
+    // filters, and are cleared on every roster refresh (never persistent).
+    QString m_drillCareFlag;
+    QString m_drillSpecialFilter;
 
     // Models & Mapping
     QSqlRelationalTableModel* m_peopleModel = nullptr;

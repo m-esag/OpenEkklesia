@@ -1,5 +1,6 @@
 #include "shepherdwidget.h"
 #include "../../common/tableutil.h"
+#include "../../common/icalgenerator.h"
 #include "../database/databasemanager.h"
 #include "../core/thememanager.h"
 #include "../core/iconmanager.h"
@@ -16,6 +17,7 @@
 #include <QDateEdit>
 #include <QDate>
 #include <QDateTime>
+#include <QTime>
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QSettings>
@@ -417,7 +419,7 @@ void ShepherdWidget::refreshStats() {
     if (q.exec("SELECT COUNT(*) FROM pastoral_activities WHERE follow_up_date IS NOT NULL AND follow_up_date <= date('now', 'localtime') AND follow_up_done = 0") && q.next()) {
         m_lblDueCount->setText(QString::number(q.value(0).toInt()));
     }
-    if (q.exec("SELECT COUNT(*) FROM people WHERE care_flag IN ('At-Risk', 'Follow-up')") && q.next()) {
+    if (q.exec("SELECT COUNT(*) FROM people WHERE care_flag IN ('At-Risk', 'Needs Contact')") && q.next()) {
         m_lblAtRiskCount->setText(QString::number(q.value(0).toInt()));
     }
     if (q.exec("SELECT COUNT(*) FROM pastoral_activities WHERE activity_type = 'Prayer' AND follow_up_done = 0") && q.next()) {
@@ -646,34 +648,25 @@ void ShepherdWidget::onExportCalendarEvent() {
         QMessageBox::Ok | QMessageBox::Cancel);
     if (warn != QMessageBox::Ok) return;
 
+    const QDate followUpDate = QDate::fromString(dueDate, "yyyy-MM-dd");
+    const QString description = QString("Pastoral Follow-up with %1.\nType: %2\nNotes: %3")
+                                    .arg(memberName, type, notes);
+    const QString ics = ICalGenerator::eventIcal(
+        followUpDate, QTime(), QTime(),
+        QString("Pastoral Care: %1 (%2)").arg(memberName, type), description);
+    if (ics.isEmpty()) {
+        QMessageBox::warning(this, "Export Failed",
+                             "The follow-up date could not be read; nothing was exported.");
+        return;
+    }
+
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::critical(this, "File Error", "Could not create calendar file: " + file.errorString());
         return;
     }
-
-    QString dateStamp = QDateTime::currentDateTimeUtc().toString("yyyyMMddThhmmssZ");
-    QString startDate = cleanDate;
-
     QTextStream out(&file);
-    out << "BEGIN:VCALENDAR\n";
-    out << "VERSION:2.0\n";
-    out << "PRODID:-//OpenEkklesia//Shepherd Workbench//EN\n";
-    out << "CALSCALE:GREGORIAN\n";
-    out << "BEGIN:VEVENT\n";
-    out << QString("UID:oe-pastoral-%1@openekklesia.local\n").arg(id);
-    out << QString("DTSTAMP:%1\n").arg(dateStamp);
-    out << QString("DTSTART;VALUE=DATE:%1\n").arg(startDate);
-    out << QString("SUMMARY:Pastoral Care: %1 (%2)\n").arg(memberName, type);
-    out << QString("DESCRIPTION:Pastoral Follow-up with %1.\\nType: %2\\nNotes: %3\n").arg(memberName, type, notes);
-    out << "STATUS:CONFIRMED\n";
-    out << "BEGIN:VALARM\n";
-    out << "TRIGGER:-PT15M\n";
-    out << "ACTION:DISPLAY\n";
-    out << QString("DESCRIPTION:Reminder: Pastoral follow-up with %1\n").arg(memberName);
-    out << "END:VALARM\n";
-    out << "END:VEVENT\n";
-    out << "END:VCALENDAR\n";
+    out << ics;
     file.close();
 
     DatabaseManager::logAudit("exports", id, "pastoral_ics", memberName, fileName, "shepherd");

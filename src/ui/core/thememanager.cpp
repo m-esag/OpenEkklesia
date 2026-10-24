@@ -40,17 +40,12 @@ void ThemeManager::initialize() {
 #endif
 
     QSettings settings("OpenEkklesia", "CHMS");
-    // Capture BEFORE loadTheme, which clears the custom flag.
-    const bool restoreCustom = settings.value("themeIsCustom", false).toBool();
     QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
+    // loadTheme() itself re-applies interactive color tweaks persisted for this
+    // exact theme (customThemeBaseId), so a previous session's customization is
+    // restored there and a genuine preset switch discards it.
     if (!loadTheme(savedTheme)) {
         loadTheme("catppuccin_mocha");
-    }
-    // Restore a previous session's interactive color tweaks on top of the
-    // active preset (only at startup — selecting a preset in-session shows the
-    // preset's true colors).
-    if (restoreCustom) {
-        restoreColorCustomization();
     }
 }
 
@@ -75,6 +70,12 @@ void ThemeManager::restoreColorCustomization() {
     m_currentTokens.borderColor = QColor(obj.value("borderColor").toString());
     m_currentTokens.borderRadiusMd = obj.value("borderRadiusMd").toInt(m_currentTokens.borderRadiusMd);
 
+    // Record which preset this customization belongs to so it survives
+    // re-applying that same preset (e.g. Settings "Save All Changes"). Legacy
+    // saves predate this key, so assume the currently active preset.
+    if (!s.contains("customThemeBaseId") && !m_activeThemeId.isEmpty()) {
+        s.setValue("customThemeBaseId", m_activeThemeId);
+    }
     s.setValue("themeIsCustom", true);
     if (qApp) {
         qApp->setPalette(generateQPalette());
@@ -742,6 +743,20 @@ ThemeTokens ThemeManager::currentTokens() const {
 bool ThemeManager::loadTheme(const QString& themeId) {
     if (!m_registeredThemes.contains(themeId)) return false;
 
+    QSettings settings("OpenEkklesia", "CHMS");
+    // Interactive color tweaks belong to the preset they were created on, so
+    // re-applying that preset (e.g. every Settings save) must preserve them.
+    // Only a genuine switch to a different preset abandons them.
+    const QString customJson = settings.value("customThemeJson").toString();
+    const bool hasCustomization =
+        settings.value("themeIsCustom", false).toBool() &&
+        !customJson.isEmpty() &&
+        !QJsonDocument::fromJson(customJson.toUtf8()).object().isEmpty();
+    const QString customizationOwner =
+        settings.value("customThemeBaseId",
+                       settings.value("activeThemeId").toString()).toString();
+    const bool keepCustomization = hasCustomization && customizationOwner == themeId;
+
     m_activeThemeId = themeId;
     if (themeId == "system_auto") {
         bool dark = isSystemDark();
@@ -751,15 +766,25 @@ bool ThemeManager::loadTheme(const QString& themeId) {
         m_currentTokens = m_registeredThemes.value(themeId);
     }
 
-    QSettings settings("OpenEkklesia", "CHMS");
     // Restore the user's font-size preference, which is theme-independent and
     // should survive both restarts and theme switches.
     m_currentTokens.fontSizePx = qBound(11, settings.value("fontSizePx", 13).toInt(), 18);
 
-    // Selecting a preset shows that preset's true colors: abandon any saved
-    // interactive color tweaks (they are only restored at startup).
-    settings.setValue("themeIsCustom", false);
     settings.setValue("activeThemeId", themeId);
+
+    if (keepCustomization) {
+        // Re-apply the saved tweaks on top of the preset. restoreColorCustomization()
+        // also persists themeIsCustom=true and refreshes palette/QSS/signal.
+        restoreColorCustomization();
+        settings.setValue("isDarkMode", m_currentTokens.isDark);
+        return true;
+    }
+
+    // Selecting a different preset shows that preset's true colors: abandon any
+    // saved interactive color tweaks.
+    settings.setValue("themeIsCustom", false);
+    settings.remove("customThemeJson");
+    settings.remove("customThemeBaseId");
     settings.setValue("isDarkMode", m_currentTokens.isDark);
 
     if (qApp) {
@@ -793,6 +818,11 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
     QSettings s("OpenEkklesia", "CHMS");
     s.setValue("customThemeJson", QJsonDocument(obj).toJson(QJsonDocument::Compact));
     s.setValue("themeIsCustom", true);
+    // Remember which preset these tweaks were applied to, so re-applying that
+    // preset keeps them (and switching to another one discards them).
+    if (!m_activeThemeId.isEmpty()) {
+        s.setValue("customThemeBaseId", m_activeThemeId);
+    }
 
     if (qApp) {
         qApp->setPalette(generateQPalette());
@@ -806,6 +836,7 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
 void ThemeManager::clearCustomizationOverride() {
     QSettings s("OpenEkklesia", "CHMS");
     s.remove("customThemeJson");
+    s.remove("customThemeBaseId");
     s.remove("themeIsCustom");
 }
 
@@ -908,7 +939,13 @@ QString ThemeManager::contrastRating(double ratio) {
 }
 
 QColor ThemeManager::textOn(const QColor& c) {
-    return c.lightness() > 140 ? QColor("#11111b") : QColor("#ffffff");
+    // Pick whichever canonical text color has the higher measured contrast.
+    // A single lightness threshold misjudges saturated accents: orange
+    // #f97316, teal #06b6d4 and lime #00ff00 all read as "light" by
+    // QColor::lightness() yet need dark text to clear WCAG AA.
+    const QColor dark("#11111b");
+    const QColor light("#ffffff");
+    return contrastRatio(c, dark) >= contrastRatio(c, light) ? dark : light;
 }
 
 QString ThemeManager::generateGlobalQSS() const {

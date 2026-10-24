@@ -90,7 +90,7 @@ protected:
             QPainter p(viewport());
             p.setPen(QPalette().placeholderText().color());
             p.drawText(viewport()->rect(), Qt::AlignCenter,
-                       "No volunteers scheduled yet â€” assign roles for this date.");
+                       "No volunteers scheduled yet — assign roles for this date.");
         }
     }
 };
@@ -188,7 +188,7 @@ void ServiceBuilderWidget::setupUI() {
 
     m_librarySearch = new QLineEdit(this);
     m_librarySearch->setObjectName("serviceLibrarySearch");
-    m_librarySearch->setPlaceholderText("Search elementsâ€¦");
+    m_librarySearch->setPlaceholderText("Search elements…");
     m_librarySearch->setClearButtonEnabled(true);
     connect(m_librarySearch, &QLineEdit::textChanged, this, &ServiceBuilderWidget::applyLibraryFilter);
     libFilterRow->addWidget(m_librarySearch, 1);
@@ -232,7 +232,7 @@ void ServiceBuilderWidget::setupUI() {
 
     // Color-blind-safe legend: icons (not color) identify the type; the tint
     // is only a hint, so the run sheet stays readable in grayscale.
-    m_lblTypeLegend = new QLabel("Type Legend: Songs Â· Scripture Â· Media Â· Liturgy Text", this);
+    m_lblTypeLegend = new QLabel("Type Legend: Songs · Scripture · Media · Liturgy Text", this);
     m_lblTypeLegend->setObjectName("serviceTypeLegend");
     m_lblTypeLegend->setWordWrap(true);
     m_lblTypeLegend->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
@@ -451,7 +451,7 @@ void ServiceBuilderWidget::setupUI() {
         QTime defTime = QTime::fromString(s.value("defaultServiceTime", "10:00").toString(), "HH:mm");
         m_serviceTimeEdit->setTime(defTime.isValid() ? defTime : QTime(10, 0));
     }
-    m_serviceTimeEdit->setToolTip("Service starts at â€” the run sheet shows each item's start time");
+    m_serviceTimeEdit->setToolTip("Service starts at — the run sheet shows each item's start time");
     dateLayout->addWidget(new QLabel("at:", this));
     dateLayout->addWidget(m_serviceTimeEdit);
     volunteerLayout->addLayout(dateLayout);
@@ -461,7 +461,7 @@ void ServiceBuilderWidget::setupUI() {
         updateTimeline();
     });
 
-    // Service plan details (title & leader) â€” auto-saved on focus loss; the
+    // Service plan details (title & leader) — auto-saved on focus loss; the
     // run sheet itself auto-saves too, so there is exactly ONE save action
     // (none). The file/template buttons are backups, not saves.
     QFormLayout* serviceForm = new QFormLayout();
@@ -475,7 +475,7 @@ void ServiceBuilderWidget::setupUI() {
     m_leaderEdit->setObjectName("serviceLeaderEdit");
     m_leaderEdit->setEditable(true);
     m_leaderEdit->setInsertPolicy(QComboBox::NoInsert);
-    m_leaderEdit->setPlaceholderText("Pick a leader or type a nameâ€¦");
+    m_leaderEdit->setPlaceholderText("Pick a leader or type a name…");
     QSqlQuery qPeople("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name",
                       DatabaseManager::instance().database());
     while (qPeople.next()) m_leaderEdit->addItem(qPeople.value(1).toString(), qPeople.value(0).toInt());
@@ -600,7 +600,7 @@ void ServiceBuilderWidget::loadLibrary() {
         item->setData(Qt::UserRole, type);
         item->setData(Qt::UserRole + 1, mins);
         item->setData(Qt::UserRole + 2, id);
-        item->setData(Qt::ToolTipRole, QString("Type: %1 Â· %2 min Â· double-click to add to the run sheet").arg(type).arg(mins));
+        item->setData(Qt::ToolTipRole, QString("Type: %1 · %2 min · double-click to add to the run sheet").arg(type).arg(mins));
         QColor tint = tintForType(type);
         tint.setAlpha(60);
         item->setBackground(tint);
@@ -782,6 +782,9 @@ void ServiceBuilderWidget::loadPlaylistFromJson(const QJsonArray& array) {
 // selected date.
 void ServiceBuilderWidget::persistRunSheet() {
     if (m_readOnly) return;
+    // Suppressed while loadServiceDetails() restores a date: writing here would
+    // overwrite the row that is about to be read.
+    if (property("suppressRunSheetAutosave").toBool()) return;
     QSqlDatabase db = DatabaseManager::instance().database();
     if (!db.isOpen()) return;
     QSqlQuery q(db);
@@ -910,6 +913,16 @@ void ServiceBuilderWidget::loadServiceDetails() {
     QString dateStr = m_serviceDateEdit->date().toString("yyyy-MM-dd");
 
     QSqlDatabase db = DatabaseManager::instance().database();
+
+    // Restoring a date is a read-only operation, but both the start-time edit
+    // and the playlist model autosave their state on change. Without
+    // suppression the *previous* date's run sheet/start time would be written
+    // into this date's services row before it is read, silently destroying the
+    // saved arrangement. Suppress the autosave hook while loading (the playlist
+    // model keeps emitting, so the view still updates), then refresh the
+    // derived UI once.
+    setProperty("suppressRunSheetAutosave", true);
+
     QSqlQuery query(db);
     query.prepare("SELECT title, leader, start_time FROM services WHERE date = ?");
     query.addBindValue(dateStr);
@@ -927,6 +940,9 @@ void ServiceBuilderWidget::loadServiceDetails() {
     }
 
     loadRunSheetFromDb(m_serviceDateEdit->date());
+    updateDurationCalculator();
+
+    setProperty("suppressRunSheetAutosave", false);
 }
 
 // Auto-save hook for title/leader (called on editingFinished). Silent: the
@@ -1095,7 +1111,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
     layout->addRow("Assign Role:", roleCombo);
 
     QComboBox* teamFilterCombo = new QComboBox(&dlg);
-    teamFilterCombo->addItem("â€” Relevant Ministry Team (Auto) â€”", 0);
+    teamFilterCombo->addItem("— Relevant Ministry Team (Auto) —", 0);
     teamFilterCombo->addItem("All Church Members", -1);
     QSqlQuery qGroups("SELECT id, name FROM groups WHERE is_archived = 0 ORDER BY name", db);
     while (qGroups.next()) {
@@ -1195,7 +1211,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
                 }
             }
             if (personCombo->count() == 0 && filterByTeam) {
-                personCombo->addItem("â€” No members enrolled in this ministry team yet â€”", 0);
+                personCombo->addItem("— No members enrolled in this ministry team yet —", 0);
             }
             return;
         }
@@ -1203,12 +1219,12 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
         for (const MatchResult& r : ranked) {
             if (filterByTeam && !teamMemberIds.contains(r.personId)) continue;
             QString label = QString("%1  [%2%]").arg(r.name).arg(r.score);
-            if (!r.reasons.isEmpty()) label += "  Â· " + r.reasons.join(" Â· ");
+            if (!r.reasons.isEmpty()) label += "  · " + r.reasons.join(" · ");
             personCombo->addItem(label, r.personId);
         }
 
         if (personCombo->count() == 0 && filterByTeam) {
-            personCombo->addItem("â€” No team members match this specific role (Switch to All Church Members) â€”", 0);
+            personCombo->addItem("— No team members match this specific role (Switch to All Church Members) —", 0);
         }
     };
     connect(roleCombo, &QComboBox::currentIndexChanged, &dlg, [&](int) { populatePeople(); });
@@ -1216,7 +1232,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
     populatePeople();
     layout->addRow("Select Volunteer:", personCombo);
 
-    QLabel* smartHint = new QLabel("Smart Suggestions: ranked by skill fit (match %), penalized for team load and repeated service â€” best fit first.", &dlg);
+    QLabel* smartHint = new QLabel("Smart Suggestions: ranked by skill fit (match %), penalized for team load and repeated service — best fit first.", &dlg);
     smartHint->setWordWrap(true);
     smartHint->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
     layout->addRow(smartHint);
@@ -1261,7 +1277,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
             QString familyMemberName = qFamily.value(0).toString();
             QString familyMemberRole = qFamily.value(1).toString();
             QMessageBox::information(this, "Family Schedule Match",
-                                     QString("â„¹ï¸ Family Note: Household member %1 is also serving as [%2] on %3.").arg(familyMemberName, familyMemberRole, dateStr));
+                                     QString("ℹ️ Family Note: Household member %1 is also serving as [%2] on %3.").arg(familyMemberName, familyMemberRole, dateStr));
         }
 
         // Insert assignment
@@ -1312,13 +1328,13 @@ void ServiceBuilderWidget::updateDurationCalculator() {
     const int overrun = totalMins - maxDuration;
     const ThemeTokens tokDur = ThemeManager::instance().currentTokens();
     if (overrun > 0) {
-        m_lblTotalDuration->setText(QString("Total: %1 mins â€” overruns by %2 min (limit %3)")
+        m_lblTotalDuration->setText(QString("Total: %1 mins — overruns by %2 min (limit %3)")
                                         .arg(totalMins)
                                         .arg(overrun)
                                         .arg(maxDuration));
         m_lblTotalDuration->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tokDur.accentDanger.name()));
     } else if (totalMins > targetDuration) {
-        m_lblTotalDuration->setText(QString("Total: %1 mins (aim â‰¤ %2 min)")
+        m_lblTotalDuration->setText(QString("Total: %1 mins (aim ≤ %2 min)")
                                         .arg(totalMins)
                                         .arg(targetDuration));
         m_lblTotalDuration->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tokDur.accentWarning.name()));
@@ -1335,7 +1351,7 @@ void ServiceBuilderWidget::updateDurationCalculator() {
 void ServiceBuilderWidget::updateTimeline() {
     if (!m_lblTimeline) return;
     if (m_playlist->count() == 0) {
-        m_lblTimeline->setText(QString("â–¶ Starts %1 â€” add elements to see the timeline.")
+        m_lblTimeline->setText(QString("▶ Starts %1 — add elements to see the timeline.")
                                    .arg(m_serviceTimeEdit->time().toString("h:mm AP")));
         return;
     }
@@ -1350,9 +1366,9 @@ void ServiceBuilderWidget::updateTimeline() {
         cursor = cursor.addSecs(mins * 60);
     }
     if (m_playlist->count() > kMaxLines) {
-        lines << QString("â€¦ +%1 more").arg(m_playlist->count() - kMaxLines);
+        lines << QString("… +%1 more").arg(m_playlist->count() - kMaxLines);
     }
-    m_lblTimeline->setText("â–¶ " + lines.join("\n"));
+    m_lblTimeline->setText("▶ " + lines.join("\n"));
 }
 
 QStringList ServiceBuilderWidget::collectCoverageIssues() const {
@@ -1385,12 +1401,20 @@ QStringList ServiceBuilderWidget::collectCoverageIssues() const {
     if (itemCount == 0 && volCount > 0) issues << "Run sheet is empty but volunteers are scheduled.";
     if (itemCount > 0 && volCount == 0) issues << "No volunteers scheduled for this service.";
 
-    // 4. Overrun beyond the 90-minute guard.
+    // 4. Overrun beyond the same settings-derived guard the header shows
+    // (targetServiceDuration + 15), so the two warnings cannot disagree.
     int totalMins = 0;
     for (int i = 0; i < itemCount; ++i) {
         totalMins += qMax(0, m_playlist->item(i)->data(Qt::UserRole + 1).toInt());
     }
-    if (totalMins > 90) issues << QString("Run sheet overruns by %1 min (90-min guard).").arg(totalMins - 90);
+    const QSettings covSettings("OpenEkklesia", "CHMS");
+    const int targetDuration = covSettings.value("targetServiceDuration", 75).toInt();
+    const int maxDuration = targetDuration + 15;
+    if (totalMins > maxDuration) {
+        issues << QString("Run sheet overruns by %1 min (%2-min guard).")
+                      .arg(totalMins - maxDuration)
+                      .arg(maxDuration);
+    }
 
     return issues;
 }
@@ -1398,10 +1422,10 @@ QStringList ServiceBuilderWidget::collectCoverageIssues() const {
 void ServiceBuilderWidget::onCoverageCheck() {
     const QStringList issues = collectCoverageIssues();
     if (issues.isEmpty()) {
-        QMessageBox::information(this, "Coverage Check", "No coverage issues â€” the run sheet looks complete.");
+        QMessageBox::information(this, "Coverage Check", "No coverage issues — the run sheet looks complete.");
     } else {
         QMessageBox::warning(this, "Coverage Check",
-                             "Coverage issues found:\n\nâ€¢ " + issues.join("\nâ€¢ "));
+                             "Coverage issues found:\n\n• " + issues.join("\n• "));
     }
 }
 
@@ -1562,7 +1586,7 @@ void ServiceBuilderWidget::onElementUsage() {
     dlg.resize(620, 440);
     auto* lay = new QVBoxLayout(&dlg);
 
-    QLabel* note = new QLabel("How often each element appears across saved service run sheets â€” "
+    QLabel* note = new QLabel("How often each element appears across saved service run sheets — "
                               "use the most-reused items to guide worship planning.", &dlg);
     note->setWordWrap(true);
     lay->addWidget(note);
@@ -1606,7 +1630,7 @@ void ServiceBuilderWidget::onExportRunSheet() {
     const QStringList issues = collectCoverageIssues();
     if (!issues.isEmpty()) {
         auto res = QMessageBox::question(this, "Coverage Check",
-                                         "Coverage issues found:\n\nâ€¢ " + issues.join("\nâ€¢ ") +
+                                         "Coverage issues found:\n\n• " + issues.join("\n• ") +
                                          "\n\nExport anyway?",
                                          QMessageBox::Yes | QMessageBox::No);
         if (res != QMessageBox::Yes) return;
@@ -1628,9 +1652,9 @@ void ServiceBuilderWidget::onExportRunSheet() {
     const QString timeStr = m_serviceTimeEdit->time().toString("h:mm AP");
 
     // Church profile header (logo, name, address) via the shared ChurchProfile
-    // helper â€” no Tax ID on run sheets (team decision Q3).
+    // helper — no Tax ID on run sheets (team decision Q3).
     const QString churchHeaderHtml = ChurchProfile::renderHtmlHeader(
-        QString("%1 Â· %2 Â· Starts %3").arg(title, dateStr, timeStr), QString(), false);
+        QString("%1 · %2 · Starts %3").arg(title, dateStr, timeStr), QString(), false);
 
     // Run sheet with per-item start times computed from the service start.
     QTime cursor = m_serviceTimeEdit->time();
@@ -1638,7 +1662,7 @@ void ServiceBuilderWidget::onExportRunSheet() {
     for (int i = 0; i < m_playlist->count(); ++i) {
         QListWidgetItem* item = m_playlist->item(i);
         const int mins = qMax(0, item->data(Qt::UserRole + 1).toInt());
-        itemsHtml += QString("<li><b>%1</b> â€” %2</li>").arg(cursor.toString("h:mm AP"), item->text());
+        itemsHtml += QString("<li><b>%1</b> — %2</li>").arg(cursor.toString("h:mm AP"), item->text());
         cursor = cursor.addSecs(mins * 60);
     }
     itemsHtml += "</ol>";

@@ -64,6 +64,7 @@ private:
     void refreshFundPills();
     void applyBatchDefaultsToEntry();
     void updateTabOrder();
+    bool isReadOnlyRole() const;
 
     static constexpr int kAnonymousIndex = 0;
 
@@ -71,6 +72,7 @@ private:
     int m_currentBatchId = -1;
     QString m_batchStatus = "In Progress";
     QString m_userRole;
+    bool m_roleApplied = false;
     QList<QPair<int, QString>> m_peopleList; // id, name
     QList<QPair<int, QString>> m_fundsList;  // id, name
     QList<FundSplitRow> m_splitRows;

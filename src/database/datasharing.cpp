@@ -26,7 +26,7 @@ QStringList allTables() {
         "member_skills", "attendance", "member_history", "care_logs",
         "pastoral_activities", "service_volunteers", "account_budgets", "assets",
         "checkout_logs", "vault_documents", "board_motions", "ministry_tasks",
-        "facility_reservations", "graph_layout"
+        "ministry_events", "facility_reservations", "graph_layout"
     };
 }
 
@@ -51,8 +51,9 @@ QStringList tablesForScope(const QString& scope) {
     }
     if (scope == "membership") {
         // Congregation directory: families, people, groups, relationships,
-        // skills, attendance and the pastoral/care trail tied to people.
-        return {"households", "groups", "people", "entity_relationships",
+        // skills, attendance, checkout log (plus its assets FK target) and the
+        // pastoral/care trail tied to people.
+        return {"households", "groups", "people", "assets", "entity_relationships",
                 "member_skills", "attendance", "member_history", "care_logs",
                 "pastoral_activities", "checkout_logs"};
     }
@@ -61,14 +62,18 @@ QStringList tablesForScope(const QString& scope) {
         return {"care_logs", "member_history", "pastoral_activities"};
     }
     if (scope == "schedules") {
-        // Worship services, volunteers, room bookings, and ministry roadmap.
-        return {"services", "service_volunteers", "facility_reservations",
-                "ministry_tasks"};
+        // Worship services, volunteers, church events, room bookings, and the
+        // ministry roadmap.
+        return {"services", "service_volunteers", "ministry_events",
+                "facility_reservations", "ministry_tasks"};
     }
     if (scope == "finance") {
-        // Double-entry accounting: chart of accounts, funds, ledger, giving, budgets.
-        return {"accounts", "funds", "transactions", "splits", "contributions",
-                "account_budgets"};
+        // Double-entry accounting: chart of accounts, funds, giving batches,
+        // ledger, giving, budgets. giving_batches must travel with contributions:
+        // contributions.batch_id is an FK, so importing giving rows without their
+        // batch rows fails the whole import's foreign-key check.
+        return {"accounts", "funds", "giving_batches", "transactions", "splits",
+                "contributions", "account_budgets"};
     }
     if (scope == "governance") {
         // Board minutes/motions, document vault metadata, and the ministry
@@ -164,10 +169,10 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
         // Validate identifiers and intersect with the live schema so crafted
         // archives cannot inject SQL or unknown columns.
         {
-            QSqlQuery pragma(db);
-            pragma.exec(QString("PRAGMA table_info(%1)").arg(table));
+            QSqlQuery schemaQ(db);
+            schemaQ.exec(QString("PRAGMA table_info(%1)").arg(table));
             QSet<QString> liveCols;
-            while (pragma.next()) liveCols.insert(pragma.value(1).toString());
+            while (schemaQ.next()) liveCols.insert(schemaQ.value(1).toString());
             QStringList kept;
             for (const QString& c : columns) {
                 if (isValidIdentifier(c) && liveCols.contains(c)) kept << c;
@@ -237,7 +242,12 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
     }
 
     if (success) {
-        db.commit();
+        if (!db.commit()) {
+            qWarning() << "[DataSharing] import commit failed; rolling back:"
+                       << db.lastError().text();
+            db.rollback();
+            success = false;
+        }
     } else {
         db.rollback();
     }

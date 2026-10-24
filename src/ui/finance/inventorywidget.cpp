@@ -40,13 +40,13 @@ void InventoryWidget::setupUI() {
     QHBoxLayout* titleRow = new QHBoxLayout();
     QLabel* treeLabel = new QLabel("Equipment Inventory", this);
     treeLabel->setObjectName("detailHeader");
-    QPushButton* btnAddAsset = new QPushButton(" Add Asset", this);
-    btnAddAsset->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
-    btnAddAsset->setObjectName("primaryBtn");
-    connect(btnAddAsset, &QPushButton::clicked, this, &InventoryWidget::onAddAsset);
+    m_btnAddAsset = new QPushButton(" Add Asset", this);
+    m_btnAddAsset->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
+    m_btnAddAsset->setObjectName("primaryBtn");
+    connect(m_btnAddAsset, &QPushButton::clicked, this, &InventoryWidget::onAddAsset);
     titleRow->addWidget(treeLabel);
     titleRow->addStretch();
-    titleRow->addWidget(btnAddAsset);
+    titleRow->addWidget(m_btnAddAsset);
     leftLayout->addLayout(titleRow);
 
     m_treeView = new QTreeView(this);
@@ -119,11 +119,45 @@ void InventoryWidget::setupUI() {
                                   .arg(m_lblName->text(), m_lblLocation->text(), m_lblSerial->text(), m_selectedAssetBarcode);
             QGuiApplication::clipboard()->setText(details);
         } else if (sel == actDelete && !isReadOnly) {
-            if (QMessageBox::question(this, "Confirm Decommission", "Are you sure you want to delete this asset from inventory?") == QMessageBox::Yes) {
-                QSqlQuery dq;
-                dq.prepare("DELETE FROM assets WHERE id = ?");
-                dq.addBindValue(assetId);
-                dq.exec();
+            if (QMessageBox::question(this, "Confirm Decommission",
+                                      "Are you sure you want to delete this asset from inventory?\n\n"
+                                      "Its checkout history will be removed as well.") == QMessageBox::Yes) {
+                // checkout_logs.asset_id is NOT NULL with a FK to assets, so the
+                // asset row cannot be deleted while checkout history exists.
+                // Remove the history and the asset atomically.
+                QSqlDatabase db = DatabaseManager::instance().database();
+                if (!db.transaction()) {
+                    QMessageBox::critical(this, "Database Error",
+                                          "Could not start asset deletion: " + db.lastError().text());
+                    return;
+                }
+                QSqlQuery delLogs(db);
+                delLogs.prepare("DELETE FROM checkout_logs WHERE asset_id = ?");
+                delLogs.addBindValue(assetId);
+                if (!delLogs.exec()) {
+                    const QString err = delLogs.lastError().text();
+                    db.rollback();
+                    QMessageBox::critical(this, "Database Error",
+                                          "Failed to remove checkout history: " + err);
+                    return;
+                }
+                QSqlQuery delAsset(db);
+                delAsset.prepare("DELETE FROM assets WHERE id = ?");
+                delAsset.addBindValue(assetId);
+                if (!delAsset.exec()) {
+                    const QString err = delAsset.lastError().text();
+                    db.rollback();
+                    QMessageBox::critical(this, "Database Error",
+                                          "Failed to delete asset: " + err);
+                    return;
+                }
+                if (!db.commit()) {
+                    const QString err = db.lastError().text();
+                    db.rollback();
+                    QMessageBox::critical(this, "Database Error",
+                                          "Failed to commit asset deletion: " + err);
+                    return;
+                }
                 refreshTree();
                 showAssetDetails(-1);
             }
@@ -273,6 +307,7 @@ void InventoryWidget::showAssetDetails(int assetId) {
         m_lblStatus->setText("-");
         m_lblStatus->setProperty("state", "empty");
         m_lblStatus->style()->polish(m_lblStatus);
+        m_selectedAssetIsCheckedOut = false;
         m_btnCheckout->setEnabled(false);
         m_btnCheckin->setEnabled(false);
         m_historyModel->clear();
@@ -308,13 +343,13 @@ void InventoryWidget::showAssetDetails(int assetId) {
             m_lblStatus->style()->polish(m_lblStatus);
             m_selectedAssetIsCheckedOut = true;
             m_btnCheckout->setEnabled(false);
-            m_btnCheckin->setEnabled(true);
+            m_btnCheckin->setEnabled(!isReadOnlyRole());
         } else {
             m_lblStatus->setText("Available in Location");
             m_lblStatus->setProperty("state", "available");
             m_lblStatus->style()->polish(m_lblStatus);
             m_selectedAssetIsCheckedOut = false;
-            m_btnCheckout->setEnabled(true);
+            m_btnCheckout->setEnabled(!isReadOnlyRole());
             m_btnCheckin->setEnabled(false);
         }
 
@@ -336,6 +371,7 @@ void InventoryWidget::refreshHistoryTable(int assetId) {
 }
 
 void InventoryWidget::onCheckoutClicked() {
+    if (isReadOnlyRole()) return;
     if (m_selectedAssetId == -1 || m_selectedAssetIsCheckedOut) return;
 
     QDialog dlg(this);
@@ -392,7 +428,7 @@ void InventoryWidget::onCheckoutClicked() {
         QString notes = notesEdit->text().trimmed();
 
         QSqlQuery insert(db);
-        insert.prepare("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, notes) VALUES (?, ?, date('now'), ?)");
+        insert.prepare("INSERT INTO checkout_logs (asset_id, person_id, checkout_date, notes) VALUES (?, ?, date('now','localtime'), ?)");
         insert.addBindValue(m_selectedAssetId);
         insert.addBindValue(personId);
         insert.addBindValue(notes);
@@ -412,11 +448,12 @@ void InventoryWidget::onCheckoutClicked() {
 }
 
 void InventoryWidget::onCheckinClicked() {
+    if (isReadOnlyRole()) return;
     if (m_selectedAssetId == -1 || !m_selectedAssetIsCheckedOut) return;
 
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery query(db);
-    query.prepare("UPDATE checkout_logs SET return_date = date('now') WHERE asset_id = ? AND return_date IS NULL");
+    query.prepare("UPDATE checkout_logs SET return_date = date('now','localtime') WHERE asset_id = ? AND return_date IS NULL");
     query.addBindValue(m_selectedAssetId);
     
     if (query.exec()) {
@@ -455,13 +492,30 @@ void InventoryWidget::selectAssetByBarcode(const QString& barcode) {
     }
 }
 
+bool InventoryWidget::isReadOnlyRole() const {
+    // Roles only gate full-access vs read-only (Guest); modules gate features.
+    return m_userRole.compare("readonly", Qt::CaseInsensitive) == 0 ||
+           m_userRole.compare("guest", Qt::CaseInsensitive) == 0;
+}
+
 void InventoryWidget::applyRole(const QString& role) {
     m_userRole = role;
-    if (role == "readonly" || role == "guest") {
-        m_btnCheckout->setEnabled(false);
-        m_btnCheckin->setEnabled(false);
-        m_btnCheckout->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
-        m_btnCheckin->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
+    const bool readOnly = isReadOnlyRole();
+    const QString tip = readOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : QString();
+
+    if (m_btnAddAsset) {
+        m_btnAddAsset->setEnabled(!readOnly);
+        m_btnAddAsset->setToolTip(tip);
+    }
+    if (m_btnCheckout) {
+        m_btnCheckout->setEnabled(!readOnly && m_selectedAssetId > 0 && !m_selectedAssetIsCheckedOut);
+        m_btnCheckout->setToolTip(tip);
+    }
+    if (m_btnCheckin) {
+        m_btnCheckin->setEnabled(!readOnly && m_selectedAssetId > 0 && m_selectedAssetIsCheckedOut);
+        m_btnCheckin->setToolTip(tip);
     }
 }
 
@@ -510,6 +564,7 @@ void InventoryWidget::onHistoryContextMenu(const QPoint& pos) {
 }
 
 void InventoryWidget::onAddAsset() {
+    if (isReadOnlyRole()) return;
     QDialog dlg(this);
     dlg.setWindowTitle("Register New Asset");
     dlg.resize(360, 280);

@@ -516,6 +516,10 @@ void ContributionsWidget::refreshContributions() {
     }
     m_personCombo->blockSignals(false);
     m_personCombo->insertItem(kAnonymousIndex, "— Anonymous (plate offering) —");
+    // Inserting at index 0 shifts the previously-current item, so the combo
+    // would otherwise silently land on the first real person and credit plate
+    // offerings to them. Select the anonymous entry explicitly.
+    m_personCombo->setCurrentIndex(kAnonymousIndex);
 
     // Completer for person
     QCompleter* completer = new QCompleter(this);
@@ -676,7 +680,7 @@ void ContributionsWidget::refreshBatchesList() {
         int firstId = m_batchesList->item(0)->data(Qt::UserRole).toInt();
         loadBatch(firstId);
     } else {
-        if (showInProgress) {
+        if (showInProgress && m_roleApplied && !isReadOnlyRole()) {
             // Auto-create initial batch silently in DB without blocking popup
             QDate date = QDate::currentDate();
             int defaultFundId = m_fundsList.isEmpty() ? 1 : m_fundsList[0].first;
@@ -698,7 +702,7 @@ void ContributionsWidget::refreshBatchesList() {
         } else {
             m_currentBatchId = -1;
             if (m_txtBatchName) m_txtBatchName->clear();
-            if (m_lblBatchMeta) m_lblBatchMeta->setText("No committed batches found.");
+            if (m_lblBatchMeta) m_lblBatchMeta->setText(showInProgress ? "No batches yet." : "No committed batches found.");
             if (m_historyModel) m_historyModel->clear();
             if (m_lblBatchTotalSummary) m_lblBatchTotalSummary->setText("0 donations");
         }
@@ -766,8 +770,12 @@ void ContributionsWidget::loadBatch(int batchId) {
         }
 
         if (m_entryCard) {
-            m_entryCard->setEnabled(!isCommitted && m_userRole != "readonly");
+            m_entryCard->setEnabled(!isCommitted && !isReadOnlyRole());
         }
+        // Keep the entry actions in sync with the batch lock so reopening a
+        // batch (Committed -> In Progress) re-enables the admin's save path.
+        if (m_btnSave) m_btnSave->setEnabled(!isCommitted && !isReadOnlyRole());
+        if (m_btnAddSplit) m_btnAddSplit->setEnabled(!isCommitted && !isReadOnlyRole());
 
         // Apply defaults to entry card
         if (m_dateEdit && m_batchDateEdit) {
@@ -887,6 +895,12 @@ void ContributionsWidget::refreshFundPills() {
 }
 
 void ContributionsWidget::onSaveContribution() {
+    if (isReadOnlyRole()) {
+        QMessageBox::warning(this, "Read-Only Mode",
+            "Donations cannot be recorded in Guest (Read-Only) mode.\n"
+            "Sign in with Admin PIN (1234) to modify.");
+        return;
+    }
     if (m_currentBatchId <= 0) {
         QMessageBox::warning(this, "No Batch Selected", "Please select or create a batch first.");
         return;
@@ -990,7 +1004,8 @@ void ContributionsWidget::onSaveContribution() {
 
 void ContributionsWidget::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
-        onSaveContribution();
+        // Guest (read-only) must never reach the save path, even by keyboard.
+        if (!isReadOnlyRole()) onSaveContribution();
         event->accept();
     } else if (event->key() == Qt::Key_Escape) {
         onResetDonationForm();
@@ -1001,6 +1016,7 @@ void ContributionsWidget::keyPressEvent(QKeyEvent *event) {
 }
 
 void ContributionsWidget::onNewBatchClicked() {
+    if (isReadOnlyRole()) return;
     bool ok;
     QString name = QInputDialog::getText(this, "New Giving Batch", "Batch name:", QLineEdit::Normal,
                                          "Sunday Morning Service", &ok).trimmed();
@@ -1027,6 +1043,7 @@ void ContributionsWidget::onNewBatchClicked() {
 }
 
 void ContributionsWidget::onDeleteBatchClicked() {
+    if (isReadOnlyRole()) return;
     if (m_currentBatchId <= 0) return;
     auto res = QMessageBox::question(this, "Delete Batch",
                                      QString("Are you sure you want to delete Batch #%1 ('%2')?\n\nAll donations in this batch will be permanently deleted (not orphaned).")
@@ -1066,6 +1083,7 @@ void ContributionsWidget::onDeleteBatchClicked() {
 }
 
 void ContributionsWidget::onToggleBatchCommit() {
+    if (isReadOnlyRole()) return;
     if (m_currentBatchId <= 0) return;
     const bool willCommit = (m_batchStatus == "In Progress");
 
@@ -1091,6 +1109,7 @@ void ContributionsWidget::onToggleBatchCommit() {
 }
 
 void ContributionsWidget::onSaveBatchHeaderDetails() {
+    if (isReadOnlyRole()) return;
     if (m_currentBatchId <= 0 || m_batchStatus == "Committed" || !m_txtBatchName || !m_batchDateEdit) return;
     QSqlQuery q;
     q.prepare("UPDATE giving_batches SET batch_name = ?, batch_date = ? WHERE id = ?");
@@ -1101,6 +1120,7 @@ void ContributionsWidget::onSaveBatchHeaderDetails() {
 }
 
 void ContributionsWidget::onBatchDefaultsClicked() {
+    if (isReadOnlyRole()) return;
     if (m_currentBatchId <= 0 || !m_batchDateEdit || !m_methodCombo) return;
     QDialog dlg(this);
     dlg.setWindowTitle("Batch Defaults");
@@ -1294,6 +1314,7 @@ void ContributionsWidget::onHistoryContextMenu(const QPoint& pos) {
 }
 
 void ContributionsWidget::onManageFunds() {
+    if (isReadOnlyRole()) return;
     QDialog dlg(this);
     dlg.setWindowTitle("Manage Giving Funds");
     dlg.resize(420, 360);
@@ -1422,9 +1443,18 @@ void ContributionsWidget::onExportGnuCashCsv() {
         return;
     }
 
+    // RFC 4180 quoting (comma, quote, CR or LF) plus spreadsheet formula-
+    // injection neutralisation: a leading =, +, - or @ is prefixed with an
+    // apostrophe so spreadsheet apps import the cell as text instead of
+    // evaluating it as a formula. Only data fields go through this helper.
     auto csv = [](const QString& s) {
         QString v = s;
-        if (v.contains(',') || v.contains('"') || v.contains('\n'))
+        if (!v.isEmpty()) {
+            const QChar first = v.at(0);
+            if (first == '=' || first == '+' || first == '-' || first == '@')
+                v.prepend('\'');
+        }
+        if (v.contains(',') || v.contains('"') || v.contains('\n') || v.contains('\r'))
             v = '"' + v.replace('"', "\"\"") + '"';
         return v;
     };
@@ -1446,10 +1476,10 @@ void ContributionsWidget::onExportGnuCashCsv() {
             while (q.next()) {
                 QString fund = q.value(0).toString();
                 const qint64 cents = q.value(1).toLongLong();
-                out << to->date().toString("yyyy-MM-dd") << ','
+                out << csv(to->date().toString("yyyy-MM-dd")) << ','
                     << csv(QString("Giving — %1 (%2 to %3)")
                                .arg(fund, from->date().toString("yyyy-MM-dd"), to->date().toString("yyyy-MM-dd")))
-                    << ',' << QString::number(cents / 100.0, 'f', 2) << '\n';
+                    << ',' << csv(QString::number(cents / 100.0, 'f', 2)) << '\n';
                 totalCents += cents;
                 rowCount++;
             }
@@ -1475,9 +1505,9 @@ void ContributionsWidget::onExportGnuCashCsv() {
                 const qint64 cents = q.value(4).toLongLong();
                 QString donorLabel = donor.isEmpty() ? "Anonymous" : donor;
                 if (method.isEmpty()) method = "—";
-                out << date << ','
+                out << csv(date) << ','
                     << csv(QString("Giving — %1 — %2 (%3)").arg(fund, donorLabel, method))
-                    << ',' << QString::number(cents / 100.0, 'f', 2) << '\n';
+                    << ',' << csv(QString::number(cents / 100.0, 'f', 2)) << '\n';
                 totalCents += cents;
                 rowCount++;
             }
@@ -1491,17 +1521,51 @@ void ContributionsWidget::onExportGnuCashCsv() {
             .arg(QString::number(rowCount), appCurrencySymbol(), QString::number(totalCents / 100.0, 'f', 2)));
 }
 
+bool ContributionsWidget::isReadOnlyRole() const {
+    // Roles only gate full-access vs read-only (Guest); modules gate features.
+    return m_userRole.compare("readonly", Qt::CaseInsensitive) == 0 ||
+           m_userRole.compare("guest", Qt::CaseInsensitive) == 0;
+}
+
 void ContributionsWidget::applyRole(const QString& role) {
     m_userRole = role;
-    const bool readOnly = (role == "readonly");
-    if (m_btnSave) m_btnSave->setEnabled(!readOnly && m_batchStatus != "Committed");
-    if (m_btnAddSplit) m_btnAddSplit->setEnabled(!readOnly && m_batchStatus != "Committed");
+    m_roleApplied = true;
+
+    const bool readOnly = isReadOnlyRole();
+    const bool canEditBatch = !readOnly && m_batchStatus != "Committed";
+
+    // Entry card: gate the whole donation-entry form (donor, splits, save).
+    if (m_entryCard) m_entryCard->setEnabled(canEditBatch);
+    if (m_btnSave) m_btnSave->setEnabled(canEditBatch);
+    if (m_btnAddSplit) m_btnAddSplit->setEnabled(canEditBatch);
+    // Clearing a locally-typed form is not a database write; keep it usable.
+    if (m_btnClearForm) m_btnClearForm->setEnabled(true);
+
+    // Batch and fund management actions.
     if (m_btnManageFunds) m_btnManageFunds->setEnabled(!readOnly);
     if (m_btnGnuCashExport) m_btnGnuCashExport->setEnabled(!readOnly);
     if (m_btnNewBatch) m_btnNewBatch->setEnabled(!readOnly);
     if (m_btnDeleteBatch) m_btnDeleteBatch->setEnabled(!readOnly);
     if (m_btnCommitBatch) m_btnCommitBatch->setEnabled(!readOnly);
     if (m_btnBatchDefaults) m_btnBatchDefaults->setEnabled(!readOnly);
+
+    // Batch header editors.
     if (m_txtBatchName) m_txtBatchName->setReadOnly(readOnly);
     if (m_batchDateEdit) m_batchDateEdit->setEnabled(!readOnly);
+
+    const QString tip = readOnly
+        ? "Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify."
+        : QString();
+    const QList<QPushButton*> gatedButtons = {
+        m_btnSave, m_btnAddSplit, m_btnManageFunds, m_btnGnuCashExport,
+        m_btnNewBatch, m_btnDeleteBatch, m_btnCommitBatch, m_btnBatchDefaults
+    };
+    for (QPushButton* btn : gatedButtons) {
+        if (btn) btn->setToolTip(tip);
+    }
+
+    // Construction defers the initial auto-create until the real role is known,
+    // so a read-only session never creates a batch. For an admin session with no
+    // batch loaded yet, materialise the working batch now.
+    if (m_currentBatchId <= 0) refreshBatchesList();
 }

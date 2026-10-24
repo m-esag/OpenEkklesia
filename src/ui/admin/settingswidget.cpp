@@ -28,6 +28,19 @@
 #include <QIcon>
 #include <QListView>
 #include <QLineEdit>
+#include <QList>
+
+namespace {
+// A PIN is exactly four ASCII digits. Zero is a valid PIN ("0000" is the
+// shipped Guest PIN), so `toULongLong()` must not be used as the validity test.
+bool isValidPin(const QString& pin) {
+    if (pin.size() != 4) return false;
+    for (const QChar ch : pin) {
+        if (ch.unicode() < u'0' || ch.unicode() > u'9') return false;
+    }
+    return true;
+}
+} // namespace
 
 SettingsWidget::SettingsWidget(QWidget *parent)
     : QWidget(parent)
@@ -781,6 +794,7 @@ void SettingsWidget::setupUI() {
     m_btnRestoreDb->setIcon(IconManager::instance().getIcon("upload", QColor(), 14));
     m_btnRestoreDb->setObjectName("secondaryBtn");
     connect(m_btnRestoreDb, &QPushButton::clicked, this, [this]() {
+        if (!requireAdmin("Restoring a database backup")) return;
         QString openPath = QFileDialog::getOpenFileName(this, "Restore Database from Backup", QString(), "SQLite Database (*.db)");
         if (openPath.isEmpty()) return;
 
@@ -878,6 +892,10 @@ void SettingsWidget::setupUI() {
         btnImport->setIcon(IconManager::instance().getIcon("upload", QColor(), 14));
         btnExport->setObjectName("primaryBtn");
         btnImport->setObjectName("secondaryBtn");
+        // Import writes records into the live database; gate it by role.
+        btnImport->setEnabled(isAdminRole());
+        if (!isAdminRole())
+            btnImport->setToolTip("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.");
         btnRow->addWidget(btnExport);
         btnRow->addWidget(btnImport);
         v->addLayout(btnRow);
@@ -906,7 +924,8 @@ void SettingsWidget::setupUI() {
             }
         });
 
-        connect(btnImport, &QPushButton::clicked, &dlg, [&dlg]() {
+        connect(btnImport, &QPushButton::clicked, &dlg, [this, &dlg]() {
+            if (!requireAdmin("Importing a JSON data scope")) return;
             QString path = QFileDialog::getOpenFileName(&dlg, "Import Data Scope", "", "JSON Files (*.json)");
             if (!path.isEmpty()) {
                 QFile f(path);
@@ -999,6 +1018,7 @@ void SettingsWidget::setupUI() {
     m_btnPinUpdate->setObjectName("primaryBtn");
     m_btnPinUpdate->setIcon(IconManager::instance().getIcon("key-round", QColor(), 14));
     connect(m_btnPinUpdate, &QPushButton::clicked, this, [this]() {
+        if (!requireAdmin("Changing a login PIN")) return;
         const int userId = m_cmbPinUser->currentData().toInt();
         if (userId <= 0) {
             QMessageBox::information(this, "No User", "Select a user first.");
@@ -1011,8 +1031,8 @@ void SettingsWidget::setupUI() {
             QMessageBox::warning(this, "Missing PIN", "Enter the current PIN and the new PIN.");
             return;
         }
-        if (next.length() != 4 || !next.toULongLong()) {
-            QMessageBox::warning(this, "Invalid PIN", "The new PIN must be exactly 4 digits.");
+        if (!isValidPin(next)) {
+            QMessageBox::warning(this, "Invalid PIN", "The new PIN must be exactly 4 numeric digits.");
             return;
         }
         if (next != confirm) {
@@ -1065,40 +1085,57 @@ void SettingsWidget::setupUI() {
     lblDangerNotice->setStyleSheet(QString("color: %1; font-size: 13px;").arg(tokDanger.accentDanger.name()));
     dangerLay->addWidget(lblDangerNotice);
 
-    // Purge Demo Data
+    // Erase All Ministry Records (factory reset). There is no demo data in the
+    // schema: this operation permanently erases every ministry/operational
+    // record and keeps only the structural scaffold.
     QHBoxLayout* rowPurge = new QHBoxLayout();
     QVBoxLayout* purgeText = new QVBoxLayout();
-    QLabel* lblPurgeTitle = new QLabel("Purge Demo / Sample Records", pageDanger);
+    QLabel* lblPurgeTitle = new QLabel("Erase All Ministry Records (Factory Reset)", pageDanger);
     lblPurgeTitle->setStyleSheet("font-weight: bold; font-size: 14px;");
-    QLabel* lblPurgeDesc = new QLabel("Clears sample members, transactions, groups, and plans so your church starts with a clean database.", pageDanger);
+    QLabel* lblPurgeDesc = new QLabel(
+        "Permanently erases every ministry and operational record — people, households, groups, "
+        "services, giving batches, contributions, ledger transactions, assets, vault documents, "
+        "events, tasks, reservations, board motions, and care logs. Kept: chart of accounts, funds, "
+        "login users, ministry blueprints, the service library, and the audit trail. "
+        "Export a database backup first — this cannot be undone.", pageDanger);
+    lblPurgeDesc->setWordWrap(true);
     lblPurgeDesc->setStyleSheet("color: palette(placeholderText); font-size: 12px;");
     purgeText->addWidget(lblPurgeTitle);
     purgeText->addWidget(lblPurgeDesc);
     rowPurge->addLayout(purgeText);
     rowPurge->addStretch();
 
-    m_btnPurgeDemoData = new QPushButton(" Purge Demo Data", pageDanger);
+    m_btnPurgeDemoData = new QPushButton(" Erase All Ministry Records", pageDanger);
     m_btnPurgeDemoData->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnPurgeDemoData->setObjectName("dangerBtn");
     m_btnPurgeDemoData->setMinimumHeight(36);
     connect(m_btnPurgeDemoData, &QPushButton::clicked, this, [this]() {
+        if (!requireAdmin("Erasing all ministry records")) return;
         bool ok;
         QString input = QInputDialog::getText(
             this,
-            "Confirm Demo Data Purge",
-            "This action clears all demo member, financial, and ministry records.\n\nType 'PURGE' to proceed:",
+            "Confirm Factory Reset",
+            "This permanently erases all ministry and operational records: people, households, "
+            "groups, services, giving, ledger transactions, assets, vault documents, events, "
+            "tasks, and care logs.\n\n"
+            "Kept: chart of accounts, funds, login users, ministry blueprints, the service "
+            "library, and the audit trail.\n\n"
+            "Export a database backup before continuing. Type 'ERASE' to proceed:",
             QLineEdit::Normal,
             "",
             &ok
         );
-        if (ok && input.trimmed() == "PURGE") {
+        if (ok && input.trimmed() == "ERASE") {
             if (DatabaseManager::instance().purgeDemoData()) {
-                QMessageBox::information(this, "Purge Complete", "All sample demo records have been cleared. Database is ready for church deployment.");
+                QMessageBox::information(this, "Factory Reset Complete",
+                    "All ministry and operational records have been erased. The database now "
+                    "contains only structural data: chart of accounts, funds, login users, "
+                    "ministry blueprints, the service library, and the audit trail.");
             } else {
-                QMessageBox::critical(this, "Error", "Failed to purge sample demo data.");
+                QMessageBox::critical(this, "Error", "Failed to erase the ministry records.");
             }
         } else if (ok) {
-            QMessageBox::warning(this, "Cancelled", "Confirmation text did not match 'PURGE'. No data was modified.");
+            QMessageBox::warning(this, "Cancelled", "Confirmation text did not match 'ERASE'. No data was modified.");
         }
     });
     rowPurge->addWidget(m_btnPurgeDemoData);
@@ -1121,6 +1158,7 @@ void SettingsWidget::setupUI() {
     m_btnResetAppDefaults->setObjectName("dangerBtn");
     m_btnResetAppDefaults->setMinimumHeight(36);
     connect(m_btnResetAppDefaults, &QPushButton::clicked, this, [this]() {
+        if (!requireAdmin("Resetting all settings")) return;
         auto res = QMessageBox::question(this, "Reset Settings", "Are you sure you want to reset all preferences to application defaults?", QMessageBox::Yes | QMessageBox::No);
         if (res == QMessageBox::Yes) {
             QSettings s("OpenEkklesia", "CHMS");
@@ -1214,6 +1252,68 @@ void SettingsWidget::selectCategory(int index) {
     }
 }
 
+bool SettingsWidget::isAdminRole() const {
+    return m_userRole.compare("admin", Qt::CaseInsensitive) == 0;
+}
+
+bool SettingsWidget::requireAdmin(const QString& action) {
+    if (isAdminRole()) return true;
+    QMessageBox::warning(
+        this, "Administrator Required",
+        QString("%1 requires the Administrator role. Sign in with the Admin PIN (1234) to continue.")
+            .arg(action));
+    return false;
+}
+
+void SettingsWidget::applyRole(const QString& role) {
+    m_userRole = role.trimmed().toLower();
+    const bool isReadOnly = (m_userRole == "readonly" || m_userRole == "guest");
+    const bool canAdminister = isAdminRole();
+    const QString tip = isReadOnly
+        ? QString("Disabled in Guest (Read-Only) mode. Sign in with Admin PIN (1234) to modify.")
+        : (canAdminister ? QString() : QString("Requires the Administrator role."));
+
+    // Destructive database/settings operations and the PIN manager.
+    const QList<QPushButton*> gatedButtons = {
+        m_btnRestoreDb, m_btnPurgeDemoData, m_btnResetAppDefaults, m_btnPinUpdate
+    };
+    for (QPushButton* btn : gatedButtons) {
+        if (!btn) continue;
+        btn->setEnabled(canAdminister);
+        btn->setToolTip(tip);
+    }
+
+    // Access-PIN / login-user management controls.
+    const QList<QWidget*> pinControls = {
+        m_cmbPinUser, m_edtPinCurrent, m_edtPinNew, m_edtPinConfirm
+    };
+    for (QWidget* w : pinControls) {
+        if (!w) continue;
+        w->setEnabled(canAdminister);
+        w->setToolTip(tip);
+    }
+
+    // Module enable/disable switches.
+    const QList<QCheckBox*> moduleSwitches = {
+        m_chkModPeople, m_chkModGroups, m_chkModGiving, m_chkModService,
+        m_chkModGraph, m_chkModInventory, m_chkModVault, m_chkModFacilities,
+        m_chkModPlanning, m_chkModAnalytics, m_chkModShepherd, m_chkModKiosk
+    };
+    for (QCheckBox* chk : moduleSwitches) {
+        if (!chk) continue;
+        chk->setEnabled(canAdminister);
+        chk->setToolTip(tip);
+    }
+
+    // The module page also hosts the quick-preset buttons; the Danger Zone page
+    // hosts every destructive control (including graph-layout reset). Disabling
+    // the page containers keeps those shortcuts in lockstep with the switches.
+    if (m_stackPages) {
+        if (QWidget* modulesPage = m_stackPages->widget(2)) modulesPage->setEnabled(canAdminister);
+        if (QWidget* dangerPage = m_stackPages->widget(8)) dangerPage->setEnabled(canAdminister);
+    }
+}
+
 void SettingsWidget::onSearchTextChanged(const QString& text) {
     QString q = text.trimmed().toLower();
     for (int i = 0; i < m_navList->count(); ++i) {
@@ -1231,7 +1331,7 @@ void SettingsWidget::onSearchTextChanged(const QString& text) {
             if (i == 5 && (q.contains("graph") || q.contains("burnout") || q.contains("pastoral") || q.contains("care") || q.contains("dominance") || q.contains("inactivity") || q.contains("smart bridge") || q.contains("physics"))) matches = true;
             if (i == 6 && (q.contains("kiosk") || q.contains("nursery") || q.contains("checkin") || q.contains("pin") || q.contains("timeout") || q.contains("security") || q.contains("child"))) matches = true;
             if (i == 7 && (q.contains("backup") || q.contains("compact") || q.contains("vacuum") || q.contains("audit") || q.contains("share") || q.contains("export") || q.contains("database") || q.contains("pco") || q.contains("retention") || q.contains("planning center"))) matches = true;
-            if (i == 8 && (q.contains("danger") || q.contains("purge") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
+            if (i == 8 && (q.contains("danger") || q.contains("purge") || q.contains("erase") || q.contains("factory") || q.contains("delete") || q.contains("demo") || q.contains("reset"))) matches = true;
             item->setHidden(!matches);
         }
     }
@@ -1241,7 +1341,7 @@ void SettingsWidget::onMarkDirty() {
     m_isDirty = true;
     m_btnSaveSettings->setText(" Save Changes (Unsaved)");
     const ThemeTokens tok = ThemeManager::instance().currentTokens();
-    const QString txt = tok.accentWarning.lightness() > 140 ? "#11111b" : "#ffffff";
+    const QString txt = ThemeManager::textOn(tok.accentWarning).name();
     m_btnSaveSettings->setStyleSheet(QString("padding: 8px 18px; font-weight: bold; font-size: 13px; background-color: %1; color: %2;")
                                          .arg(tok.accentWarning.name(), txt));
 }
@@ -1309,7 +1409,7 @@ void SettingsWidget::populateThemePresets(int filterIndex) {
 
 void SettingsWidget::updateLivePreview() {
     ThemeTokens t = ThemeManager::instance().currentTokens();
-    const QString onAccent = (t.accentPrimary.lightness() > 128) ? "#11111b" : "#ffffff";
+    const QString onAccent = ThemeManager::textOn(t.accentPrimary).name();
 
     m_previewCard->setStyleSheet(QString(
         "#liveThemePreviewCard { "
@@ -1528,7 +1628,7 @@ void SettingsWidget::updateColorButtonStyles() {
     ThemeTokens t = ThemeManager::instance().currentTokens();
 
     auto applyBtnStyle = [](QPushButton* btn, const QColor& col, const QString& label) {
-        const QString textColor = (col.lightness() > 128) ? "#11111b" : "#ffffff";
+        const QString textColor = ThemeManager::textOn(col).name();
         btn->setStyleSheet(QString(
             "QPushButton { background-color: %1; color: %2; border: 1px solid rgba(0,0,0,0.25); "
             "border-radius: 6px; padding: 6px 10px; text-align: left; font-weight: bold; }"
@@ -1546,7 +1646,7 @@ void SettingsWidget::updateColorButtonStyles() {
     // Update WCAG Contrast Guardian meters
     if (m_lblContrastTextBg && m_lblContrastButtonAccent && m_lblContrastWarning) {
         double textRatio = ThemeManager::contrastRatio(t.textPrimary, t.bgBase);
-        QColor onBtnColor = (t.accentPrimary.lightness() > 140) ? QColor("#11111b") : QColor("#ffffff");
+        QColor onBtnColor = ThemeManager::textOn(t.accentPrimary);
         double btnRatio = ThemeManager::contrastRatio(onBtnColor, t.accentPrimary);
 
         m_lblContrastTextBg->setText(QString("%1 (Text vs Background)")
