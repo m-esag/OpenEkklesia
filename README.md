@@ -86,8 +86,20 @@ cmake --build build
 ./build/OpenEkklesia
 ```
 
-On Windows, `build-windows.ps1` does all of the above plus runs the test
-suite, and on Linux `build-linux-appimage.sh` produces the AppImage.
+On Windows, `build-windows.ps1` does all of the above (build, deploy the Qt
+runtime next to the binary, run the test suite):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
+```
+
+With the Visual Studio generator the app lands in
+`build-windows\Release\OpenEkklesia.exe` (`build-windows\Debug\...` for
+`-Config Debug`); single-config generators put it in `build-windows\`. The
+script prints the absolute path as soon as the link step finishes, and
+`windeployqt` copies the Qt DLLs/plugins next to it so it can be started by
+double-click. Optional switches: `-SkipTests`, `-NoDeploy`, `-Run` (launch it
+when done). On Linux, `build-linux-appimage.sh` produces the AppImage.
 
 ### Running the tests
 

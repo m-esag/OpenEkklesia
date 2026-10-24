@@ -14,6 +14,13 @@
        In the installer tick "Additional Libraries -> Qt Charts" (required).
     3. CMake 3.16+ (winget install Kitware.CMake).
 
+  Output: with the Visual Studio generator the executable lands in
+  build-windows\$Config\OpenEkklesia.exe (for example
+  build-windows\Release\OpenEkklesia.exe). Single-config generators
+  (Ninja/MinGW) put it at build-windows\OpenEkklesia.exe. The script resolves
+  the real path, prints its absolute form, and (unless -NoDeploy) copies the Qt
+  runtime next to it with windeployqt so it can be launched by double-click.
+
 .PARAMETER QtPrefix
   Path to the Qt MSVC kit, e.g. C:\Qt\6.8.3\msvc2022_64. If omitted the script
   checks $env:CMAKE_PREFIX_PATH, then $env:Qt6_DIR, then C:\Qt\6*\msvc*_64.
@@ -21,14 +28,27 @@
 .PARAMETER Config
   Build configuration: Release (default) or Debug.
 
+.PARAMETER SkipTests
+  Build (and deploy) only; do not run the test suite.
+
+.PARAMETER NoDeploy
+  Do not run windeployqt. The executable then needs Qt's bin folder on PATH.
+
+.PARAMETER Run
+  Launch the built executable when the build (and tests) succeed.
+
 .EXAMPLE
   .\build-windows.ps1
   .\build-windows.ps1 -QtPrefix C:\Qt\6.8.3\msvc2022_64
+  .\build-windows.ps1 -Config Debug -SkipTests -Run
 #>
 param(
     [string]$QtPrefix = "",
     [ValidateSet("Release", "Debug")]
-    [string]$Config = "Release"
+    [string]$Config = "Release",
+    [switch]$SkipTests,
+    [switch]$NoDeploy,
+    [switch]$Run
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +75,21 @@ function Find-Qt {
     foreach ($kit in $kits) {
         if (Test-Path (Join-Path $kit.Path "lib\cmake\Qt6\Qt6Config.cmake")) {
             return $kit.Path
+        }
+    }
+    return $null
+}
+
+# Visual Studio is multi-config (exe under build-windows\<Config>), Ninja/Make
+# are single-config (exe under build-windows). Try both, in that order.
+function Resolve-BuildOutput([string]$fileName) {
+    $candidates = @(
+        (Join-Path (Join-Path "build-windows" $Config) $fileName),
+        (Join-Path "build-windows" $fileName)
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return (Resolve-Path -LiteralPath $candidate).Path
         }
     }
     return $null
@@ -91,29 +126,104 @@ if (Test-Path $vswhere) {
 & cmake @cmakeArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-& cmake --build build-windows --config $Config -j $env:NUMBER_OF_PROCESSORS
+$jobs = $env:NUMBER_OF_PROCESSORS
+if (-not $jobs) { $jobs = [Environment]::ProcessorCount }
+& cmake --build build-windows --config $Config -j $jobs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host ""
-Write-Host "Build OK. Running tests (offscreen)..." -ForegroundColor Green
-$env:QT_QPA_PLATFORM = "offscreen"
-$testExe = Join-Path "build-windows" $Config | Join-Path -ChildPath "openekklesia_tests.exe"
-if (-not (Test-Path $testExe)) {
-    # Single-config generators (MinGW/Ninja) drop the exe at the build root.
-    $testExe = Join-Path "build-windows" "openekklesia_tests.exe"
+# Report the executable before doing anything slow (tests, deploy): that way an
+# interrupted or failing test run never leaves you wondering where it is.
+$appExe = Resolve-BuildOutput "OpenEkklesia.exe"
+if (-not $appExe) {
+    Write-Host ""
+    Write-Host "ERROR: the build reported success but OpenEkklesia.exe was not found." -ForegroundColor Red
+    Write-Host "Searched: build-windows\$Config\OpenEkklesia.exe and build-windows\OpenEkklesia.exe"
+    exit 1
 }
-& $testExe
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "TESTS FAILED (see above)." -ForegroundColor Red
-    exit $LASTEXITCODE
+Write-Host ""
+Write-Host "Executable built:" -ForegroundColor Green
+Write-Host "  $appExe" -ForegroundColor Green
+
+if (-not $NoDeploy) {
+    $windeployqt = Join-Path $qtBin "windeployqt.exe"
+    if (Test-Path $windeployqt) {
+        Write-Host "Deploying Qt runtime next to the executable (windeployqt)..."
+        $deployMode = if ($Config -eq "Debug") { "--debug" } else { "--release" }
+        $deployArgs = @("--no-translations", "--no-opengl-sw", "--no-system-d3d-compiler",
+                        "--no-system-dxc-compiler", "--no-compiler-runtime", $deployMode,
+                        "--dir", (Split-Path -Parent $appExe), $appExe)
+        # Native tools write warnings to stderr; with ErrorActionPreference=Stop
+        # that would abort the script even though windeployqt succeeded.
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & $windeployqt @deployArgs 2>&1 | Out-Null
+        $deployExit = $LASTEXITCODE
+        $ErrorActionPreference = $previousEap
+        if ($deployExit -ne 0) {
+            Write-Host "WARNING: windeployqt failed; launch with Qt's bin on PATH or re-run with -NoDeploy." -ForegroundColor Yellow
+        } else {
+            Write-Host "Qt runtime deployed - the executable can be started directly."
+        }
+    } else {
+        Write-Host "WARNING: windeployqt.exe not found in $qtBin; add it to PATH before launching." -ForegroundColor Yellow
+    }
 }
 
-$appExe = Join-Path "build-windows" $Config | Join-Path -ChildPath "OpenEkklesia.exe"
-if (-not (Test-Path $appExe)) {
-    $appExe = Join-Path "build-windows" "OpenEkklesia.exe"
+if (-not $SkipTests) {
+    Write-Host ""
+    Write-Host "Running tests (offscreen)..." -ForegroundColor Green
+    $env:PATH = "$qtBin;$env:PATH"
+    $testExe = Resolve-BuildOutput "openekklesia_tests.exe"
+    if (-not $testExe) {
+        Write-Host "WARNING: openekklesia_tests.exe not found; skipping the test run." -ForegroundColor Yellow
+    } else {
+        # The deployed build only ships the "windows" platform plugin, but the
+        # widget suite needs the "offscreen" one. Point Qt at the kit's plugin
+        # directory for the test run so deployment never breaks the suite.
+        $previousPluginPath = $env:QT_PLUGIN_PATH
+        $env:QT_PLUGIN_PATH = Join-Path $qt "plugins"
+        $env:QT_QPA_PLATFORM = "offscreen"
+        # Capture the test process's two streams separately: Windows PowerShell
+        # turns a native tool's stderr into scary NativeCommandError records,
+        # and the harness legitimately logs to stderr.
+        $testOut = Join-Path $env:TEMP ("oe_tests_" + [guid]::NewGuid().ToString("N") + ".out")
+        $testErr = Join-Path $env:TEMP ("oe_tests_" + [guid]::NewGuid().ToString("N") + ".err")
+        Push-Location (Split-Path -Parent $testExe)
+        try {
+            $testProc = Start-Process -FilePath $testExe -WorkingDirectory (Get-Location).Path `
+                -RedirectStandardOutput $testOut -RedirectStandardError $testErr `
+                -NoNewWindow -Wait -PassThru
+            $testExit = $testProc.ExitCode
+        } finally {
+            Pop-Location
+            $env:QT_PLUGIN_PATH = $previousPluginPath
+        }
+        if (Test-Path -LiteralPath $testOut) { Get-Content -LiteralPath $testOut }
+        if (Test-Path -LiteralPath $testErr) { Get-Content -LiteralPath $testErr }
+        Remove-Item -LiteralPath $testOut, $testErr -ErrorAction SilentlyContinue
+        if ($testExit -ne 0) {
+            Write-Host ""
+            Write-Host "TESTS FAILED (see above). The executable itself is still at:" -ForegroundColor Red
+            Write-Host "  $appExe"
+            exit $testExit
+        }
+    }
 }
+
 Write-Host ""
-Write-Host "All green. Launch with:" -ForegroundColor Green
-Write-Host "  $appExe"
+Write-Host "All green. Executable:" -ForegroundColor Green
+Write-Host "  $appExe" -ForegroundColor Green
+Write-Host ""
+if ($NoDeploy) {
+    Write-Host "Qt's bin folder is not copied next to the exe; launch it from a shell with:"
+    Write-Host "  `$env:PATH = `"$qtBin;`" + `$env:PATH; & `"$appExe`""
+} else {
+    Write-Host "Double-click it, or run: `"$appExe`""
+}
+Write-Host "First run stores data in %APPDATA%\OpenEkklesia."
 Write-Host "First run on the Dell: detach, tap through Graph (pinch-zoom), and check"
 Write-Host "Help -> About / log for 'touchMode' detection if anything feels off."
+
+if ($Run) {
+    Start-Process -FilePath $appExe -WorkingDirectory (Split-Path -Parent $appExe)
+}
