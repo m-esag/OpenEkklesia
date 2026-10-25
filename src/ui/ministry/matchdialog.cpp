@@ -1,4 +1,5 @@
 #include "matchdialog.h"
+#include "appsettings.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -106,7 +107,7 @@ void MatchDialog::setupUI() {
 
     m_spinMaxGroups = new QSpinBox(this);
     m_spinMaxGroups->setRange(1, 15);
-    m_spinMaxGroups->setValue(qMax(1, QSettings("OpenEkklesia", "CHMS").value("maxGroupsServing", 3).toInt()));
+    m_spinMaxGroups->setValue(qMax(1, AppSettings().value("maxGroupsServing", 3).toInt()));
     m_spinMaxGroups->setToolTip("Advisory workload threshold — candidates serving in more groups are flagged for pastor review, never excluded");
     form->addRow("Workload advisory:", m_spinMaxGroups);
 

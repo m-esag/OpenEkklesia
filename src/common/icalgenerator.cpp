@@ -1,4 +1,5 @@
 #include "icalgenerator.h"
+#include "appsettings.h"
 
 #include <QDateTime>
 #include <QSettings>
@@ -152,7 +153,7 @@ QString volunteerServiceIcal(const QDate& date, const QTime& startTime,
     if (durationMinutes <= 0) durationMinutes = 120;
     if (durationMinutes > 24 * 60) durationMinutes = 24 * 60;
 
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const int alarmMins = s.value("volunteerAlarmMinutes", 60).toInt();
     const QString timeSuffix = startTime.isValid() ? startTime.toString("HHmmss")
                                                    : QStringLiteral("allday");

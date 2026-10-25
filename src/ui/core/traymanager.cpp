@@ -1,4 +1,5 @@
 #include "traymanager.h"
+#include "appsettings.h"
 
 #include <QAction>
 #include <QApplication>
@@ -63,7 +64,7 @@ bool TrayManager::initialize() {
 }
 
 bool TrayManager::loadConfig() {
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     m_enabled = settings.value("tray/enabled", true).toBool();
     m_leadMinutes = qBound(1, settings.value("tray/leadMinutes", 30).toInt(), 120);
     return true;
@@ -99,7 +100,7 @@ void TrayManager::showMainWindow() {
 
 void TrayManager::toggleEnabled() {
     m_enabled = !m_toggle->isChecked();
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     settings.setValue("tray/enabled", m_enabled);
     if (!m_enabled)
         m_notified.clear();
@@ -262,7 +263,7 @@ void TrayManager::refreshReminders() {
         return;
 
     const QList<Reminder> reminders =
-        collectReminders(DatabaseManager::instance().database(), QSettings("OpenEkklesia", "CHMS"));
+        collectReminders(DatabaseManager::instance().database(), AppSettings());
     notifyReminders(reminders);
 }
 

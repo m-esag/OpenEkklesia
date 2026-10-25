@@ -141,8 +141,9 @@ identical across them.
   pastoral scope is **off by default** because care data is sensitive.
   Notifications are deduplicated per `type:id:dueAt` so repeated timer
   cycles never re-toast. On Windows the AppUserModelID is set so the
-  Action Center accepts the notification; a native toast still needs a
-  Start Menu shortcut, so it currently falls back to a balloon.
+  Action Center accepts the notification; the installer's Start Menu shortcut
+  carries that ID, so installed builds get native toasts, while a loose
+  (unshortcutted) EXE still falls back to a balloon.
 - **Start at login** (`src/ui/core/startuplaunchmanager.*`) using the
   platform-native mechanism: `HKCU\...\Run` on Windows, a LaunchAgent
   plist on macOS, an XDG autostart `.desktop` on Linux.
@@ -178,9 +179,38 @@ identical across them.
   splits) refreshes immediately. Guest/read-only roles get a disabled button.
   Covered by `ledger_entry_and_total_assets`.
 - **Unsaved-edit prompts beyond person switching.** The People module now also
-  prompts on search/status/pathway filter changes (Save/Discard/Cancel);
-  Cancel restores the previous filter widgets with blocked signals, and
-  programmatic analytics drill-through refreshes do not prompt.
+  prompts on search/status/pathway filter changes and on programmatic
+  drill-through from analytics/dashboard (Save/Discard/Cancel); Cancel restores
+  the previous filter widgets with blocked signals and aborts the navigation.
+  Covered by `people_confirm_discard_edits`.
+- **Planning Center designation → fund mapping.** The Giving sync requests
+  `include=designations,funds` (one retry without `include` if the live API
+  rejects it), parses the to-many designation relationship plus the sideloaded
+  `Designation`/`Fund` names, and maps each imported gift to a real fund:
+  existing `funds.fund_name` matched case-insensitively, unknown non-empty
+  designations create a fund, and only genuinely unknown gifts fall back to
+  "Imported (Unmapped)". Re-syncs stay idempotent (external-id dedupe, no
+  duplicate funds). Covered by `pco_donation_designation_parsing` and
+  `pco_giving_import_designation_funds`.
+- **Windows installer + portable ZIP.** `build-windows-installer.ps1` validates
+  the deployed Release tree and drives Inno Setup 6 (`installer/OpenEkklesia.iss`,
+  exit codes 0/1/2/3); `-Portable` emits a ZIP, `-InstallTool` can fetch the
+  compiler. The installer creates Start Menu/desktop shortcuts carrying the
+  `OpenEkklesia.ChMS` AppUserModelID, an uninstall entry, and ships the whole
+  deployed runtime (tests/benchmarks/PDBs excluded). Icon assets are generated
+  by `installer/make-icon.py` into `assets/openekklesia.ico`.
+- **Hermetic test settings.** `src/common/appsettings.*` is the single
+  preference entry point; `OPENEKKLESIA_SETTINGS_DIR` redirects it to a scratch
+  INI store. The suite now never reads or writes the developer's real registry,
+  so a saved graph filter (e.g. "Isolated") can no longer turn the graph layout
+  tests red, and `graph_filter_persistence` verifies real save/restore without
+  polluting the user profile. The test/benchmark harness also falls back from
+  the OS temp dir to a writable scratch directory when a sandboxed launcher
+  denies temp writes.
+- **Sanitizer verification (2026-10, MSVC ASan+UBSan).** The full suite was
+  rebuilt and run under `-DOE_ENABLE_SANITIZERS=ON`
+  (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`); the CI `asan` job covers the
+  Linux GCC path on every push.
 - **CI sanitizer job.** `ci.yml` has an `asan` job (Ubuntu GCC, ASan + UBSan,
   `-DOE_ENABLE_SANITIZERS=ON`) building and running the suite with
   `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`, in addition to the local
@@ -197,9 +227,11 @@ identical across them.
 
 ### 6.3 Still open
 
-- **Planning Center designations.** Donations are imported with real amounts
-  and dates, but designation→fund mapping still falls back to
-  "Imported (Unmapped)" until the sync requests `&include=designations`.
+- **Installer setup EXE not built in this environment.** Inno Setup 6 is not
+  installed here, so `build-windows-installer.ps1` was verified in `-Portable`
+  mode (ZIP contents, deployed runtime); run the script once on a machine with
+  Inno Setup to produce and smoke-test
+  `dist\OpenEkklesia-0.8.0-win64-setup.exe`.
 - **Hard-coded seed identities.** The seeded admin/pastor/finance/readonly
   users and the demo household ids are fixed product seed data; don't build
   assumptions about "household 1" into new features.
@@ -208,9 +240,6 @@ identical across them.
 - `QSystemTrayIcon` cannot be compiled into the offscreen test target on
   every toolchain; the tray's *queries* are the testable part, and
   `collectReminders()` is public for that reason.
-- `MainWindow`'s analytics drill-through re-filters the People model without
-  asking about unsaved edits; leaving the module through a normal person
-  switch/refresh already prompts.
 
 
 ## 7. Smart features roadmap (agreed 2025 direction)

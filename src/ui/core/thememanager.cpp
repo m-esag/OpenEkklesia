@@ -1,4 +1,5 @@
 #include "thememanager.h"
+#include "appsettings.h"
 #include <QApplication>
 #include <QGuiApplication>
 #include <QStyleHints>
@@ -39,7 +40,7 @@ void ThemeManager::initialize() {
     }
 #endif
 
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
     // loadTheme() itself re-applies interactive color tweaks persisted for this
     // exact theme (customThemeBaseId), so a previous session's customization is
@@ -50,7 +51,7 @@ void ThemeManager::initialize() {
 }
 
 void ThemeManager::restoreColorCustomization() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const QString json = s.value("customThemeJson").toString();
     if (json.isEmpty()) return;
     const QJsonObject obj = QJsonDocument::fromJson(json.toUtf8()).object();
@@ -631,7 +632,7 @@ void ThemeManager::zoomOut() {
 
 void ThemeManager::setFontSize(int px) {
     m_currentTokens.fontSizePx = qBound(11, px, 18);
-    QSettings("OpenEkklesia", "CHMS").setValue("fontSizePx", m_currentTokens.fontSizePx);
+    AppSettings().setValue("fontSizePx", m_currentTokens.fontSizePx);
     applyCustomTokens(m_currentTokens);
 }
 
@@ -743,7 +744,7 @@ ThemeTokens ThemeManager::currentTokens() const {
 bool ThemeManager::loadTheme(const QString& themeId) {
     if (!m_registeredThemes.contains(themeId)) return false;
 
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     // Interactive color tweaks belong to the preset they were created on, so
     // re-applying that preset (e.g. every Settings save) must preserve them.
     // Only a genuine switch to a different preset abandons them.
@@ -815,7 +816,7 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
     obj["accentDanger"] = m_currentTokens.accentDanger.name();
     obj["borderColor"] = m_currentTokens.borderColor.name();
     obj["borderRadiusMd"] = m_currentTokens.borderRadiusMd;
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     s.setValue("customThemeJson", QJsonDocument(obj).toJson(QJsonDocument::Compact));
     s.setValue("themeIsCustom", true);
     // Remember which preset these tweaks were applied to, so re-applying that
@@ -834,7 +835,7 @@ bool ThemeManager::applyCustomTokens(const ThemeTokens& tokens) {
 }
 
 void ThemeManager::clearCustomizationOverride() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     s.remove("customThemeJson");
     s.remove("customThemeBaseId");
     s.remove("themeIsCustom");

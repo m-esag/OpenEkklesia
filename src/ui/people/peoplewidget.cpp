@@ -1,4 +1,5 @@
 #include "peoplewidget.h"
+#include "appsettings.h"
 #include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
 #include <QDesktopServices>
@@ -2437,12 +2438,28 @@ void PeopleWidget::onPathwayFilterChanged(int index) {
 // used to silently throw away typed edits in the profile editor. Ask first,
 // exactly like person switching / roster refreshes do.
 bool PeopleWidget::confirmFilterChange() {
+    return confirmUnsavedEdits(
+        "You have unsaved changes in this member's profile.\n\n"
+        "Save them before changing the directory filter?");
+}
+
+// Programmatic view changes (analytics/dashboard drill-through, profile
+// navigation) also reload the roster. Reuse the same prompt instead of letting
+// the reload silently discard the edits; false means "abort, touch nothing".
+bool PeopleWidget::confirmDiscardEdits() {
+    return confirmUnsavedEdits(
+        "You have unsaved changes in this member's profile.\n\n"
+        "Save them before opening this view of the directory?");
+}
+
+// Shared Save/Discard/Cancel handling: true when there is nothing to lose or
+// the edits were saved/discarded, false on Cancel (or when a requested save
+// fails, so the caller aborts instead of reloading away the failed edits).
+bool PeopleWidget::confirmUnsavedEdits(const QString& question) {
     if (m_suppressUnsavedPrompt || !m_isDirty || m_currentPersonId <= 0) return true;
 
     const QMessageBox::StandardButton answer = QMessageBox::question(
-        this, "Unsaved Changes",
-        "You have unsaved changes in this member's profile.\n\n"
-        "Save them before changing the directory filter?",
+        this, "Unsaved Changes", question,
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
         QMessageBox::Save);
 
@@ -4316,7 +4333,7 @@ void PeopleWidget::applyDrillThroughFilter(const QString& type, const QString& v
     } else if (type == "lapsed_giver") {
         // Givers with a giving history but nothing since the inactivity window
         // (same rule as the dashboard and Pastoral Analytics).
-        const int inactivityDays = qBound(7, QSettings("OpenEkklesia", "CHMS").value("inactivityDays", 30).toInt(), 365);
+        const int inactivityDays = qBound(7, AppSettings().value("inactivityDays", 30).toInt(), 365);
         m_statusFilterGroup->button(0)->setChecked(true);
         m_searchEdit->clear();
         m_drillSpecialFilter = QString(

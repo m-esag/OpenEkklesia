@@ -26,6 +26,7 @@
 #include "../src/database/datasharing.h"
 #include "../src/common/appdateformatter.h"
 #include "../src/common/churchprofile.h"
+#include "../src/common/appsettings.h"
 #include "../src/common/givingstatementgenerator.h"
 #include "../src/common/icalgenerator.h"
 #include "../src/ui/core/thememanager.h"
@@ -41,11 +42,17 @@
 #include "../src/ui/finance/transactiondialog.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
+#include "../src/integrations/planningcenterclient.h"
 #include "../src/ui/core/mainwindow.h"
 
 #include <QStackedLayout>
 #include <QToolButton>
 #include <QSpinBox>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QAbstractButton>
+#include <QTimer>
+#include <QJsonArray>
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -1354,7 +1361,7 @@ bool test_ministryMatchRankByRole() {
 bool test_dashboardKpiConfigAndQuickNotes() {
     ensurePersonOne();
     // 1. Verify QSettings persistence for KPI cards
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     QStringList customKpis = {"members", "shepherd_due", "at_risk", "unconnected", "giving_ytd"};
     s.setValue("dashboardKpis", customKpis);
     QStringList readKpis = s.value("dashboardKpis").toStringList();
@@ -1461,7 +1468,7 @@ bool test_serviceBuilderRunSheetPersistence() {
 // clobber the stored row because setTime() and the playlist-clear autosave ran
 // before the row was read back.
 bool test_serviceBuilderLoadDoesNotClobberSavedSheet() {
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     const QVariant previousDefaultTime = settings.value("defaultServiceTime");
     settings.setValue("defaultServiceTime", "08:00"); // widget default != stored 09:30
     settings.sync();
@@ -2138,7 +2145,7 @@ bool test_contributionsSplitAndAnonymous() {
 }
 
 bool test_comprehensiveSettingsRoundTrip() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
 
     // 1. Service Planning defaults
     s.setValue("defaultServiceTime", "11:15");
@@ -2292,7 +2299,7 @@ bool test_graphHealthFeatures() {
 // The graph's filter toggles (e.g. "🏡 Households") must persist across
 // restarts: what the admin saved is what a fresh widget restores.
 bool test_graphFilterPersistence() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
 
     // Simulate the admin having turned Households OFF (and People ON).
     s.setValue("graphFilters/households", false);
@@ -2851,6 +2858,7 @@ bool test_graphCollisionResolution() {
                  "VALUES ('Person', 9302, 'Group', 9301, 'Member')"));
 
     GraphWidget gw;
+    gw.showAllNodeTypesForTesting(); // user's saved "Isolated" filter must not hide the persons
     NodeItem* n1 = nullptr;
     NodeItem* n2 = nullptr;
     for (QGraphicsItem* item : gw.scene()->items()) {
@@ -2862,6 +2870,7 @@ bool test_graphCollisionResolution() {
     }
     CHECK(n1 && n2);
     if (!n1 || !n2) return true;
+    CHECK(n1->isVisible() && n2->isVisible()); // collision pass only moves visible nodes
 
     gw.pausePhysics();
     // Stack both at an isolated spot away from other scene nodes, then resolve.
@@ -3032,7 +3041,7 @@ bool test_peopleModuleStressAndBreakSuite() {
 // Team decisions from the Settings brief: configurable date format app-wide
 // (Q2), timezone/startOfWeek removed, ChurchProfile letterhead on PDFs (Q3).
 bool test_settingsLocalizationAndChurchProfile() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
 
     // 1. AppDateFormatter honors the configured date format.
     s.setValue("dateFormat", "dd/MM/yyyy");
@@ -3062,7 +3071,7 @@ bool test_settingsLocalizationAndChurchProfile() {
     CHECK(runSheetHeader.contains("Grace Community Church"));
 
     // 4. A configured logo embeds as base64.
-    const QString pngPath = QDir::tempPath() + "/oe_logo_test.png";
+    const QString pngPath = QDir::currentPath() + "/oe_logo_test.png"; // scratch dir is always writable
     QImage logoImg(64, 64, QImage::Format_ARGB32);
     logoImg.fill(Qt::blue);
     CHECK(logoImg.save(pngPath));
@@ -4053,7 +4062,7 @@ bool test_historyRetentionPruning() {
 
 // Settings page retention controls: defaults, persistence and admin gating.
 bool test_settingsRetentionControls() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const QVariant oldAudit = s.value("auditLogRetentionDays");
     const QVariant oldHistory = s.value("memberHistoryRetentionDays");
 
@@ -4109,21 +4118,242 @@ bool test_settingsRetentionControls() {
     return true;
 }
 
+// PCO Giving: the donation->designation relationship is to-many, and the
+// human-readable name may only be on the sideloaded Fund resource. This is the
+// payload half of the designation->fund mapping; importGivingData is covered
+// separately below.
+bool test_pcoDonationDesignationParsing() {
+    const QByteArray payload = R"({
+      "data": [
+        {"id":"501","type":"Donation",
+         "attributes":{"amount_cents":2500,"received_at":"2026-09-01T10:00:00Z","payment_method":"Cash","check_number":""},
+         "relationships":{"person":{"data":{"id":"p1"}},
+                          "designations":{"data":[{"type":"Designation","id":"d1"}]}}},
+        {"id":"502","type":"Donation",
+         "attributes":{"amount_cents":1000,"received_at":"2026-09-02T09:00:00Z"},
+         "relationships":{"person":{"data":{"id":"p2"}},
+                          "designation":{"data":{"type":"Designation","id":"d2"}}}},
+        {"id":"503","type":"Donation",
+         "attributes":{"amount":12.34,"received_at":"2026-09-03T08:00:00Z"},
+         "relationships":{"person":{"data":{"id":"p3"}}}}
+      ],
+      "included": [
+        {"id":"d1","type":"Designation",
+         "attributes":{"name":"General Fund"},
+         "relationships":{"fund":{"data":{"type":"Fund","id":"f1"}}}},
+        {"id":"d2","type":"Designation",
+         "attributes":{},
+         "relationships":{"fund":{"data":{"type":"Fund","id":"f1"}}}},
+        {"id":"f1","type":"Fund","attributes":{"name":"Missions Fund"}}
+      ]
+    })";
+    const QJsonObject root = QJsonDocument::fromJson(payload).object();
+    const QList<PcoDonationRecord> recs = PlanningCenterClient::parseDonationRecords(
+        root.value("data").toArray(), root.value("included").toArray());
+    CHECK_EQ(recs.size(), 3);
+    if (recs.size() != 3) return false;
+
+    CHECK_EQ(recs[0].externalId.toStdString(), std::string("PCO-501"));
+    CHECK_EQ(recs[0].personPcoId.toStdString(), std::string("p1"));
+    CHECK_EQ(recs[0].designation.toStdString(), std::string("General Fund"));
+    CHECK_EQ(recs[0].amountCents, qint64(2500));
+    CHECK_EQ(recs[0].date.toStdString(), std::string("2026-09-01"));
+    CHECK_EQ(recs[0].paymentMethod.toStdString(), std::string("Cash"));
+
+    // No name on the Designation: fall back to the sideloaded Fund's name.
+    CHECK_EQ(recs[1].designation.toStdString(), std::string("Missions Fund"));
+    CHECK_EQ(recs[1].designationFundPcoId.toStdString(), std::string("f1"));
+
+    // Feed carrying only `amount` still produces cents; no designation -> empty.
+    CHECK_EQ(recs[2].amountCents, qint64(1234));
+    CHECK(recs[2].designation.isEmpty());
+    return true;
+}
+
+// PCO Giving: designation names map onto existing funds case-insensitively,
+// unknown names create a fund, missing designations use "Imported (Unmapped)",
+// and re-running the same import neither duplicates funds nor contributions.
+bool test_pcoGivingImportDesignationFunds() {
+    ensurePersonOne(); // household 1 must exist for the scratch donor row
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT OR REPLACE INTO people (id, household_id, first_name, last_name, barcode, membership_status) "
+                 "VALUES (9401, 1, 'Pco', 'Donor', 'PCO-9401', 'Member')"));
+    CHECK(q.exec("INSERT OR REPLACE INTO funds (id, fund_name, is_active) VALUES (9401, 'Designation Test Fund', 1)"));
+    const int fundsBefore = countRows("funds");
+    QSqlQuery unmappedBefore(d);
+    const bool hadUnmappedFund = unmappedBefore.exec("SELECT id FROM funds WHERE fund_name = 'Imported (Unmapped)'")
+                                 && unmappedBefore.next();
+
+    PcoDonationRecord designated;
+    designated.externalId = "PCO-900101";
+    designated.personPcoId = "9401";
+    designated.designation = "designation test fund"; // case-insensitive match to fund 9401
+    designated.amountCents = 2500;
+    designated.date = "2026-09-01";
+
+    PcoDonationRecord unknown;
+    unknown.externalId = "PCO-900102";
+    unknown.personPcoId = "9401";
+    unknown.designation = "Youth Ministry Test 9002";
+    unknown.amountCents = 1500;
+    unknown.date = "2026-09-02";
+
+    PcoDonationRecord unmapped;
+    unmapped.externalId = "PCO-900103";
+    unmapped.personPcoId = "9401";
+    unmapped.amountCents = 700;
+    unmapped.date = "2026-09-03";
+
+    PlanningCenterClient client;
+    const QList<PcoDonationRecord> batch = {designated, unknown, unmapped};
+    const PcoImportSummary first = client.importGivingData(QJsonArray(), batch);
+    CHECK_EQ(first.donationsCount, 3);
+    CHECK_EQ(first.designationsMapped, 2); // the designated + the newly named fund
+    CHECK_EQ(first.fundsCount, 1);         // only the unknown designation created one
+
+    QSqlQuery fundOf(d);
+    fundOf.prepare("SELECT fund_id FROM contributions WHERE external_id = ?");
+    fundOf.addBindValue(QString("PCO-900101"));
+    CHECK(fundOf.exec());
+    CHECK(fundOf.next());
+    if (fundOf.isValid()) CHECK_EQ(fundOf.value(0).toInt(), 9401);
+
+    // The unknown designation creates one fund; the unmapped fallback creates
+    // "Imported (Unmapped)" only when it does not exist yet.
+    const int fundsAfter = countRows("funds");
+    CHECK_EQ(fundsAfter, fundsBefore + 1 + (hadUnmappedFund ? 0 : 1));
+
+    QSqlQuery named(d);
+    named.prepare("SELECT id FROM funds WHERE fund_name = 'Youth Ministry Test 9002'");
+    CHECK(named.exec());
+    CHECK(named.next());
+    const int unknownFundId = named.isValid() ? named.value(0).toInt() : -1;
+    CHECK(unknownFundId > 0);
+
+    QSqlQuery unknownGift(d);
+    unknownGift.prepare("SELECT fund_id FROM contributions WHERE external_id = ?");
+    unknownGift.addBindValue(QString("PCO-900102"));
+    CHECK(unknownGift.exec());
+    CHECK(unknownGift.next());
+    if (unknownGift.isValid()) CHECK_EQ(unknownGift.value(0).toInt(), unknownFundId);
+
+    QSqlQuery unmappedGift(d);
+    unmappedGift.prepare("SELECT f.fund_name FROM contributions c JOIN funds f ON f.id = c.fund_id "
+                         "WHERE c.external_id = ?");
+    unmappedGift.addBindValue(QString("PCO-900103"));
+    CHECK(unmappedGift.exec());
+    CHECK(unmappedGift.next());
+    if (unmappedGift.isValid()) {
+        CHECK_EQ(unmappedGift.value(0).toString().toStdString(), std::string("Imported (Unmapped)"));
+    }
+
+    // Re-sync: dedupe on external_id must skip everything and create no funds.
+    const PcoImportSummary second = client.importGivingData(QJsonArray(), batch);
+    CHECK_EQ(second.donationsCount, 0);
+    CHECK_EQ(second.donationsSkipped, 3);
+    CHECK_EQ(countRows("funds"), fundsAfter);
+
+    // Cleanup (leave the product's structural "Imported (Unmapped)" fund alone).
+    CHECK(q.exec("DELETE FROM contributions WHERE external_id IN ('PCO-900101','PCO-900102','PCO-900103')"));
+    CHECK(q.exec("DELETE FROM funds WHERE id = 9401 OR fund_name = 'Youth Ministry Test 9002'"));
+    CHECK(q.exec("DELETE FROM people WHERE id = 9401"));
+    return true;
+}
+
+// Programmatic view changes (analytics drill-through, dashboard profile
+// navigation) must not silently discard typed edits: clean -> no prompt, dirty
+// + Cancel -> the caller aborts and the typed text survives.
+bool test_peopleConfirmDiscardEdits() {
+    seedDemoFixture();
+    ensurePersonOne();
+    PeopleWidget pw;
+    pw.applyRole("admin");
+    pw.refreshModel();
+    CHECK(pw.confirmDiscardEdits()); // clean: true without asking
+
+    // Person 1's name depends on which earlier test last seeded the DB, so read
+    // it instead of assuming a fixture name.
+    QSqlQuery nameQ(db());
+    nameQ.prepare("SELECT first_name FROM people WHERE id = 1");
+    CHECK(nameQ.exec() && nameQ.next());
+    const QString expectedFirst = nameQ.value(0).toString();
+    CHECK(!expectedFirst.isEmpty());
+
+    pw.selectPerson(1);
+    QLineEdit* firstNameEdit = nullptr;
+    for (QLineEdit* edit : pw.findChildren<QLineEdit*>()) {
+        if (edit->text() == expectedFirst) { firstNameEdit = edit; break; }
+    }
+    CHECK(firstNameEdit != nullptr);
+    if (!firstNameEdit) return true;
+
+    const QString editedFirst = expectedFirst + QStringLiteral("Edited");
+    firstNameEdit->setText(editedFirst);
+    // The dialog is modal; answer it from a zero-delay timer so the headless run
+    // cannot block. A late fallback closes it if the button lookup ever misses.
+    QTimer::singleShot(0, []() {
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            if (auto* box = qobject_cast<QMessageBox*>(w)) {
+                if (QAbstractButton* cancel = box->button(QMessageBox::Cancel)) cancel->click();
+                else box->reject();
+                return;
+            }
+        }
+    });
+    QTimer::singleShot(3000, []() {
+        if (QWidget* modal = QApplication::activeModalWidget()) modal->close();
+    });
+
+    CHECK(!pw.confirmDiscardEdits()); // Cancel -> caller must abort, touch nothing
+    CHECK_EQ(firstNameEdit->text().toStdString(), editedFirst.toStdString()); // edits kept
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("openekklesia_tests");
 
-    // Fresh, unique database file in the temp directory. Move the CWD into a
-    // scratch dir first so DatabaseManager's "adopt legacy CWD database"
-    // fallback never copies the developer's workspace open_ekklesia.db into
-    // the test run (which would also skip the demo seed).
-    QDir workDir(QDir::tempPath() + "/oe_test_work");
-    workDir.mkpath(".");
+
+    // Fresh, unique database file. Move the CWD into a scratch dir first so
+    // DatabaseManager's "adopt legacy CWD database" fallback never copies the
+    // developer's workspace open_ekklesia.db into the test run (which would
+    // also skip the demo seed).
+    //
+    // Prefer the OS temp dir, but some sandboxed/launcher environments deny
+    // writes to it for newly built binaries; fall back to a per-user scratch
+    // dir and finally to the CWD so the suite still runs instead of dying in
+    // DatabaseManager::initialize().
+    auto dirWritable = [](const QString& dirPath) {
+        QDir dir(dirPath);
+        if (!dir.mkpath(".")) return false;
+        QFile probe(dir.absoluteFilePath(".oe_write_probe"));
+        if (!probe.open(QIODevice::WriteOnly)) return false;
+        probe.close();
+        probe.remove();
+        return true;
+    };
+    QString scratchRoot = QDir::tempPath() + "/oe_test_work";
+    if (!dirWritable(scratchRoot)) {
+        scratchRoot = QDir::homePath() + "/.openekklesia-test/oe_test_work";
+        if (!dirWritable(scratchRoot)) {
+            scratchRoot = QDir::currentPath() + "/oe_test_work";
+            dirWritable(scratchRoot);
+        }
+    }
+    QDir workDir(scratchRoot);
     QDir::setCurrent(workDir.absolutePath());
 
-    g_dbPath = QDir::tempPath() + QString("/oe_test_%1.db").arg(QCoreApplication::applicationPid());
+    // Run hermetically: AppSettings sends every preference read/write to an INI
+    // file inside this scratch dir, so the suite neither depends on nor
+    // modifies the developer's real settings store.
+    const QString testSettingsDir = workDir.absoluteFilePath("settings");
+    qputenv("OPENEKKLESIA_SETTINGS_DIR", testSettingsDir.toUtf8());
+    QFile::remove(testSettingsDir + "/OpenEkklesia/CHMS.ini");
+
+    g_dbPath = workDir.absoluteFilePath(QString("oe_test_%1.db").arg(QCoreApplication::applicationPid()));
     QFile::remove(g_dbPath);
 
     if (!DatabaseManager::instance().initialize(g_dbPath)) {
@@ -4201,6 +4431,9 @@ int main(int argc, char** argv) {
         {"ical_generator_rfc_compliance", test_icalGeneratorRfcCompliance},
         {"ledger_entry_and_total_assets", test_ledgerEntryAndTotalAssets},
         {"history_retention_pruning", test_historyRetentionPruning},
+        {"pco_donation_designation_parsing", test_pcoDonationDesignationParsing},
+        {"pco_giving_import_designation_funds", test_pcoGivingImportDesignationFunds},
+        {"people_confirm_discard_edits", test_peopleConfirmDiscardEdits},
         {"settings_retention_controls", test_settingsRetentionControls},
     };
 

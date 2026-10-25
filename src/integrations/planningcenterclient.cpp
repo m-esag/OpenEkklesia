@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QHash>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QProcess>
@@ -375,20 +376,127 @@ void PlanningCenterClient::fetchGivingFunds(const QString& appId, const QString&
     });
 }
 
-void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QString& secret,
-                                                std::function<void(bool, const QJsonArray&, const QString&)> callback)
+QList<PcoDonationRecord> PlanningCenterClient::parseDonationRecords(const QJsonArray& donations,
+                                                                    const QJsonArray& included)
 {
-    auto allDonations = std::make_shared<QJsonArray>();
+    // Index the JSON:API sideloaded resources by id so each donation's
+    // designation id can be resolved to its name. The Giving API keeps the
+    // human-readable name on the Fund resource, so `included` may contain
+    // Designation resources (whose own `attributes.name` can be absent) and
+    // Fund resources; index both.
+    QHash<QString, QJsonObject> includedDesignations;
+    QHash<QString, QString> includedFundNames;
+    for (const QJsonValue& incVal : included) {
+        const QJsonObject inc = incVal.toObject();
+        const QString type = inc.value("type").toString();
+        const QString id = inc.value("id").toString();
+        if (id.isEmpty()) continue;
+        if (type == "Designation") {
+            includedDesignations.insert(id, inc);
+        } else if (type == "Fund") {
+            const QString name = inc.value("attributes").toObject()
+                                     .value("name").toString().trimmed();
+            if (!name.isEmpty()) includedFundNames.insert(id, name);
+        }
+    }
+
+    // A relationship payload is normally a to-one object, but a to-many form
+    // (array) appears for designations in the Giving API. Accept both shapes and
+    // return the first referenced resource id.
+    auto firstRelationshipId = [](const QJsonValue& relationship) -> QString {
+        const QJsonValue data = relationship.toObject().value("data");
+        if (data.isArray()) {
+            const QJsonArray arr = data.toArray();
+            if (arr.isEmpty()) return QString();
+            return arr.at(0).toObject().value("id").toString();
+        }
+        return data.toObject().value("id").toString();
+    };
+
+    QList<PcoDonationRecord> records;
+    for (const QJsonValue& dVal : donations) {
+        const QJsonObject dObj = dVal.toObject();
+        const QString donationId = dObj.value("id").toString();
+        if (donationId.isEmpty()) continue;
+
+        PcoDonationRecord rec;
+        rec.externalId = QString("PCO-%1").arg(donationId);
+
+        const QJsonObject relationships = dObj.value("relationships").toObject();
+        rec.personPcoId = firstRelationshipId(relationships.value("person"));
+
+        // Planning Center exposes this as the to-many `designations`
+        // relationship; accept `designation` too so a to-one payload still maps.
+        QString designationId = firstRelationshipId(relationships.value("designations"));
+        if (designationId.isEmpty()) {
+            designationId = firstRelationshipId(relationships.value("designation"));
+        }
+        const auto desigIt = includedDesignations.constFind(designationId);
+        if (desigIt != includedDesignations.constEnd()) {
+            const QJsonObject desig = desigIt.value();
+            rec.designation = desig.value("attributes").toObject()
+                                  .value("name").toString().trimmed();
+            rec.designationFundPcoId = firstRelationshipId(
+                desig.value("relationships").toObject().value("fund"));
+            // The Designation resource often carries no `name`; fall back to the
+            // name of the Fund it points at when that fund was sideloaded too.
+            if (rec.designation.isEmpty() && !rec.designationFundPcoId.isEmpty()) {
+                rec.designation = includedFundNames.value(rec.designationFundPcoId);
+            }
+        }
+        // Last resort for payloads that inline the fund on the donation itself.
+        if (rec.designationFundPcoId.isEmpty()) {
+            rec.designationFundPcoId = firstRelationshipId(relationships.value("fund"));
+        }
+
+        const QJsonObject attrs = dObj.value("attributes").toObject();
+        qint64 amountCents = attrs.value("amount_cents").toInteger(0);
+        if (amountCents <= 0) {
+            const double amountDollars = attrs.value("amount").toDouble(0.0);
+            amountCents = qRound64(amountDollars * 100.0);
+        }
+        rec.amountCents = amountCents;
+        rec.date = attrs.value("received_at").toString().left(10);
+        rec.paymentMethod = attrs.value("payment_method").toString();
+        rec.checkNumber = attrs.value("check_number").toString();
+
+        records.append(rec);
+    }
+    return records;
+}
+
+void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QString& secret,
+                                                std::function<void(bool, const QList<PcoDonationRecord>&, const QString&)> callback)
+{
+    auto allDonations = std::make_shared<QList<PcoDonationRecord>>();
+    // Sideloading designations (and the funds that name them) is what lets a
+    // gift be attributed to the right fund. If the deployed API rejects the
+    // include parameter, fall back once to a plain donations fetch instead of
+    // failing the whole sync: the import then uses the "Imported (Unmapped)"
+    // fallback, which is the pre-existing behavior.
+    auto includeDesignations = std::make_shared<bool>(true);
 
     auto fetchPage = std::make_shared<std::function<void(int)>>();
-    *fetchPage = [this, appId, secret, allDonations, fetchPage, callback](int offset) {
+    *fetchPage = [this, appId, secret, allDonations, includeDesignations, fetchPage, callback](int offset) {
         QString endpoint = QString("/giving/v2/donations?per_page=100&offset=%1").arg(offset);
-        executeGet(endpoint, appId, secret, [allDonations, fetchPage, callback, offset](int httpCode, const QByteArray& body, const QString& err) mutable {
+        if (*includeDesignations) endpoint += "&include=designations,funds";
+        executeGet(endpoint, appId, secret,
+                   [allDonations, includeDesignations, fetchPage, callback, offset]
+                   (int httpCode, const QByteArray& body, const QString& err) mutable {
+            // A 4xx on the first page usually means the API does not accept the
+            // include parameter: retry the feed once without it.
+            if (*includeDesignations && offset == 0 && err.isEmpty()
+                && (httpCode == 400 || httpCode == 422)) {
+                *includeDesignations = false;
+                allDonations->clear();
+                (*fetchPage)(0);
+                return;
+            }
             if (!err.isEmpty() || httpCode != 200) {
                 // Never report a partially paginated giving run as success. The
                 // importer must not treat a truncated list as the full ledger.
                 fetchPage.reset(); // break the self-reference so the cycle frees
-                callback(false, QJsonArray(), err.isEmpty()
+                callback(false, QList<PcoDonationRecord>(), err.isEmpty()
                     ? QString("HTTP %1 response from Giving API while fetching donations at offset %2").arg(httpCode).arg(offset)
                     : err);
                 return;
@@ -398,15 +506,13 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
             QJsonDocument doc = QJsonDocument::fromJson(body, &dperr);
             if (dperr.error != QJsonParseError::NoError || !doc.isObject()) {
                 fetchPage.reset();
-                callback(false, QJsonArray(), QString("Invalid server response: %1").arg(dperr.errorString()));
+                callback(false, QList<PcoDonationRecord>(), QString("Invalid server response: %1").arg(dperr.errorString()));
                 return;
             }
-            QJsonObject obj = doc.object();
-            QJsonArray data = obj.value("data").toArray();
+            const QJsonObject obj = doc.object();
+            const QJsonArray data = obj.value("data").toArray();
 
-            for (const QJsonValue& v : data) {
-                allDonations->append(v);
-            }
+            allDonations->append(parseDonationRecords(data, obj.value("included").toArray()));
 
             // Check if there are more records to paginate
             QJsonObject links = obj.value("links").toObject();
@@ -484,7 +590,7 @@ PcoImportSummary PlanningCenterClient::importServicesData(const QJsonArray& plan
     return summary;
 }
 
-PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds, const QJsonArray& donations) {
+PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds, const QList<PcoDonationRecord>& donations) {
     PcoImportSummary summary;
     QSqlDatabase db = DatabaseManager::instance().database();
 
@@ -526,18 +632,53 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         pcoPersonIdToLocalId[pcoId] = locId;
     }
 
+    // 2b. Designation name -> local fund resolution. Funds are matched
+    // case-insensitively by name; an unknown non-empty designation creates a
+    // fund with that name (visible and categorisable, instead of hiding the
+    // gift under "Imported (Unmapped)"). The cache is loaded once and updated
+    // with newly created funds so repeated designations and re-syncs stay
+    // idempotent: no duplicate funds and no duplicate contributions.
+    QHash<QString, int> designationFundIds;
+    bool designationFundsLoaded = false;
+    auto fundIdForDesignation = [&](const QString& designation) -> int {
+        const QString name = designation.trimmed();
+        if (name.isEmpty()) return -1;
+        if (!designationFundsLoaded) {
+            QSqlQuery qf(db);
+            if (qf.exec("SELECT id, fund_name FROM funds")) {
+                while (qf.next()) {
+                    const QString fundName = qf.value(1).toString().trimmed();
+                    if (!fundName.isEmpty()) {
+                        designationFundIds.insert(fundName.toCaseFolded(), qf.value(0).toInt());
+                    }
+                }
+            }
+            designationFundsLoaded = true;
+        }
+        const QString key = name.toCaseFolded();
+        const auto existing = designationFundIds.constFind(key);
+        if (existing != designationFundIds.constEnd()) return existing.value();
+
+        QSqlQuery ins(db);
+        ins.prepare("INSERT INTO funds (fund_name, is_active) VALUES (?, 1)");
+        ins.addBindValue(name);
+        if (!ins.exec()) {
+            summary.errors.append(QString("Fund error (designation '%1'): %2").arg(name, ins.lastError().text()));
+            return -1;
+        }
+        const int newId = ins.lastInsertId().toInt();
+        designationFundIds.insert(key, newId);
+        summary.fundsCount++;
+        return newId;
+    };
+
     // 3. Import Donations & Contributions
     // Donations are deduplicated on external_id ("PCO-<id>") so re-running
     // the import is safe. Donations whose donor cannot be matched to a local
     // person are SKIPPED and reported — never silently attributed to an
     // arbitrary person, which would corrupt giving records and tax statements.
-    for (const QJsonValue& dVal : donations) {
-        QJsonObject dObj = dVal.toObject();
-        QJsonObject attrs = dObj.value("attributes").toObject();
-        QJsonObject relationships = dObj.value("relationships").toObject();
-
-        QString externalId = QString("PCO-%1").arg(dObj.value("id").toString());
-        if (externalId == "PCO-") {
+    for (const PcoDonationRecord& donation : donations) {
+        if (donation.externalId.isEmpty() || donation.externalId == "PCO-") {
             summary.donationsSkipped++;
             continue;
         }
@@ -545,60 +686,35 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         // Skip donations we have already imported
         QSqlQuery dup(db);
         dup.prepare("SELECT id FROM contributions WHERE external_id = ?");
-        dup.addBindValue(externalId);
+        dup.addBindValue(donation.externalId);
         if (dup.exec() && dup.next()) {
             summary.donationsSkipped++;
             continue;
         }
 
         // Match donor Person ID
-        QJsonObject personRel = relationships.value("person").toObject().value("data").toObject();
-        QString pcoPersonId = personRel.value("id").toString();
-        if (pcoPersonId.isEmpty() || !pcoPersonIdToLocalId.contains(pcoPersonId)) {
+        if (donation.personPcoId.isEmpty() || !pcoPersonIdToLocalId.contains(donation.personPcoId)) {
             summary.donationsSkipped++;
             summary.errors.append(QString("Donation %1 skipped: donor not found locally. "
                                           "Import people first, or link the donor's barcode to 'PCO-%2'.")
-                                      .arg(dObj.value("id").toString(), pcoPersonId));
+                                      .arg(donation.externalId.mid(4), donation.personPcoId));
             continue;
         }
-        int personId = pcoPersonIdToLocalId.value(pcoPersonId);
+        const int personId = pcoPersonIdToLocalId.value(donation.personPcoId);
 
-        // Match the fund from the donation's designations. `designations` is a
-        // TO-MANY relationship, so its `data` is an ARRAY of Designation
-        // resources — the old code called toObject() on it, always got an empty
-        // object and silently filed every donation under "Imported (Unmapped)".
-        // Resolve the fund through each designation's own `fund` relationship
-        // when the API inlines it, or through a fund relationship on the
-        // donation itself. Never guess by reusing a Designation id as a Fund id:
-        // those are different id spaces and a collision would misattribute
-        // giving to the wrong fund. Unmapped gifts fall back to the explicitly
-        // named "Imported (Unmapped)" fund so the money stays visible.
-        int fundId = -1;
-        const QJsonValue desigData = relationships.value("designations").toObject().value("data");
-        QJsonArray designations;
-        if (desigData.isArray()) {
-            designations = desigData.toArray();
-        } else if (desigData.isObject()) {
-            designations.append(desigData);
-        }
-        for (const QJsonValue& dv : designations) {
-            const QJsonObject desig = dv.toObject();
-            const QString desigFundId = desig.value("relationships").toObject()
-                                            .value("fund").toObject()
-                                            .value("data").toObject()
-                                            .value("id").toString();
-            if (!desigFundId.isEmpty() && pcoFundIdToLocalId.contains(desigFundId)) {
-                fundId = pcoFundIdToLocalId.value(desigFundId);
-                break;
-            }
-        }
-        if (fundId == -1) {
-            const QString relFundId = relationships.value("fund").toObject()
-                                          .value("data").toObject()
-                                          .value("id").toString();
-            if (!relFundId.isEmpty() && pcoFundIdToLocalId.contains(relFundId)) {
-                fundId = pcoFundIdToLocalId.value(relFundId);
-            }
+        // Map the designation to a local fund. Rule (the deferred NOTES 6.3 gap):
+        //  - non-empty designation -> existing fund whose name matches
+        //    case-insensitively, else a new fund named after the designation;
+        //  - empty / unresolvable designation -> "Imported (Unmapped)" fallback.
+        // If the API inlined the Designation but not its name, the Designation's
+        // own fund relationship is used as a last resort before the fallback.
+        int fundId = fundIdForDesignation(donation.designation);
+        if (fundId != -1) {
+            summary.designationsMapped++;
+        } else if (!donation.designationFundPcoId.isEmpty()
+                   && pcoFundIdToLocalId.contains(donation.designationFundPcoId)) {
+            fundId = pcoFundIdToLocalId.value(donation.designationFundPcoId);
+            summary.designationsMapped++;
         }
         if (fundId == -1) {
             QSqlQuery unmapped(db);
@@ -614,39 +730,33 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
             }
             if (fundId == -1) {
                 summary.donationsSkipped++;
-                summary.errors.append(QString("Donation %1 skipped: could not resolve fund.").arg(dObj.value("id").toString()));
+                summary.errors.append(QString("Donation %1 skipped: could not resolve fund.")
+                                          .arg(donation.externalId.mid(4)));
                 continue;
             }
         }
 
-        int amountCents = attrs.value("amount_cents").toInt(0);
-        if (amountCents <= 0) {
-            double amountDollars = attrs.value("amount").toDouble(0.0);
-            amountCents = qRound(amountDollars * 100.0);
-        }
-        if (amountCents <= 0) {
+        if (donation.amountCents <= 0) {
             summary.donationsSkipped++;
             continue;
         }
 
-        QString receivedAt = attrs.value("received_at").toString();
-        QString date = receivedAt.left(10);
+        QString date = donation.date;
         if (date.isEmpty()) date = QDate::currentDate().toString("yyyy-MM-dd");
 
-        QString paymentMethod = attrs.value("payment_method").toString("Online");
+        QString paymentMethod = donation.paymentMethod;
         if (paymentMethod.isEmpty()) paymentMethod = "Online";
-        QString checkNumber = attrs.value("check_number").toString();
 
         QSqlQuery ins(db);
         ins.prepare("INSERT INTO contributions (person_id, fund_id, amount, contribution_date, payment_method, check_number, external_id) "
                     "VALUES (:pid, :fid, :amount, :date, :method, :chk, :ext)");
         ins.bindValue(":pid", personId);
         ins.bindValue(":fid", fundId);
-        ins.bindValue(":amount", amountCents);
+        ins.bindValue(":amount", donation.amountCents);
         ins.bindValue(":date", date);
         ins.bindValue(":method", paymentMethod);
-        ins.bindValue(":chk", checkNumber);
-        ins.bindValue(":ext", externalId);
+        ins.bindValue(":chk", donation.checkNumber);
+        ins.bindValue(":ext", donation.externalId);
 
         if (ins.exec()) {
             summary.donationsCount++;

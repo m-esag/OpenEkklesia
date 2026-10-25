@@ -1,4 +1,5 @@
 #include "servicebuilderwidget.h"
+#include "appsettings.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -456,7 +457,7 @@ void ServiceBuilderWidget::setupUI() {
     m_serviceTimeEdit->setObjectName("serviceTimeEdit");
     m_serviceTimeEdit->setDisplayFormat("h:mm AP");
     {
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         QTime defTime = QTime::fromString(s.value("defaultServiceTime", "10:00").toString(), "HH:mm");
         m_serviceTimeEdit->setTime(defTime.isValid() ? defTime : QTime(10, 0));
     }
@@ -1331,7 +1332,7 @@ void ServiceBuilderWidget::updateDurationCalculator() {
     }
 
     // Overrun guard: dynamically loaded from Settings targetServiceDuration
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const int targetDuration = s.value("targetServiceDuration", 75).toInt();
     const int maxDuration = targetDuration + 15;
     const int overrun = totalMins - maxDuration;
@@ -1416,7 +1417,7 @@ QStringList ServiceBuilderWidget::collectCoverageIssues() const {
     for (int i = 0; i < itemCount; ++i) {
         totalMins += qMax(0, m_playlist->item(i)->data(Qt::UserRole + 1).toInt());
     }
-    const QSettings covSettings("OpenEkklesia", "CHMS");
+    const AppSettings covSettings;
     const int targetDuration = covSettings.value("targetServiceDuration", 75).toInt();
     const int maxDuration = targetDuration + 15;
     if (totalMins > maxDuration) {

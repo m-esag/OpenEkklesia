@@ -282,6 +282,10 @@ public:
     void clearSceneSelection();
     void selectNeighborInDirection(const QPointF& dir);
     void resolveNodeOverlaps(); // test hook: separates stacked visible nodes
+    // Test hook: force the people/household/group filters on and re-apply node
+    // visibility without persisting to QSettings, so layout tests do not
+    // depend on (or overwrite) the developer's saved graph view state.
+    void showAllNodeTypesForTesting();
 
     bool isHygieneActive() const { return m_filterHygieneActive; }
     bool isBridgeActive() const { return m_filterBridgeActive; }
@@ -311,6 +315,7 @@ public slots:
 
 private slots:
     void updatePhysics();
+    void refreshFilterVisibility(); // re-apply filters, no persistence
     void onFilterToggled();
     void onPathfindToggle();
     void onClearPathfind();

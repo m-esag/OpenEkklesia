@@ -1,4 +1,5 @@
 #include "vaultwidget.h"
+#include "appsettings.h"
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
 #include <QDate>
@@ -743,7 +744,7 @@ void VaultWidget::onExportMinutesPDF() {
                                                      "PDF Document (*.pdf)");
     if (savePath.isEmpty()) return;
 
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
     QString churchName = settings.value("churchName", "OpenEkklesia Church").toString();
 
     QString html =

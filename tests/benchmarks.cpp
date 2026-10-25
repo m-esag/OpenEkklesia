@@ -296,7 +296,29 @@ int main(int argc, char** argv) {
               << " 🏛️  OpenEkklesia System Performance & Scalability Benchmarks\n"
               << "========================================================================================\n";
 
-    QString dbPath = QDir::tempPath() + QString("/oe_bench_%1.db").arg(QCoreApplication::applicationPid());
+    // Prefer the OS temp dir, but some sandboxed/launcher environments deny
+    // writes there for newly built binaries; fall back to a per-user then CWD
+    // scratch dir so the benchmark suite still runs.
+    auto benchDirWritable = [](const QString& dirPath) {
+        QDir dir(dirPath);
+        if (!dir.mkpath(".")) return false;
+        QFile probe(dir.absoluteFilePath(".oe_bench_probe"));
+        if (!probe.open(QIODevice::WriteOnly)) return false;
+        probe.close();
+        probe.remove();
+        return true;
+    };
+    QString scratchRoot = QDir::tempPath() + "/oe_bench_work";
+    if (!benchDirWritable(scratchRoot)) {
+        scratchRoot = QDir::homePath() + "/.openekklesia-bench/oe_bench_work";
+        if (!benchDirWritable(scratchRoot)) {
+            scratchRoot = QDir::currentPath() + "/oe_bench_work";
+            benchDirWritable(scratchRoot);
+        }
+    }
+    QDir scratchDir(scratchRoot);
+    QDir::setCurrent(scratchDir.absolutePath());
+    QString dbPath = scratchDir.absoluteFilePath(QString("oe_bench_%1.db").arg(QCoreApplication::applicationPid()));
     QFile::remove(dbPath);
 
     if (!DatabaseManager::instance().initialize(dbPath)) {

@@ -1,8 +1,9 @@
 #include "churchprofile.h"
+#include "appsettings.h"
 #include <QSettings>
 
 namespace {
-QSettings appSettings() { return QSettings("OpenEkklesia", "CHMS"); }
+AppSettings appSettings() { return AppSettings(); }
 }
 #include <QImage>
 #include <QBuffer>

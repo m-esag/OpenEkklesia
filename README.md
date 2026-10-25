@@ -26,6 +26,7 @@ OpenEkklesia/
     ├── main.cpp                # Application Entry Point & Bootstrap
     ├── common/                 # Shared app utilities
     │   ├── appcurrency.h       # Currency symbol helper (Settings → Localization)
+    │   ├── appsettings.h / .cpp # Preference store (native, or INI via OPENEKKLESIA_SETTINGS_DIR)
     │   ├── appdateformatter.h / .cpp   # Date formatting per the date-format setting
     │   ├── churchprofile.h / .cpp       # Church metadata & PDF letterhead
     │   ├── tableutil.h         # Shared table conventions
@@ -101,6 +102,22 @@ script prints the absolute path as soon as the link step finishes, and
 double-click. Optional switches: `-SkipTests`, `-NoDeploy`, `-Run` (launch it
 when done). On Linux, `build-linux-appimage.sh` produces the AppImage.
 
+For a distributable Windows build, `build-windows-installer.ps1` validates the
+deployed Release tree, then produces either an Inno Setup installer or a
+portable ZIP:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-windows-installer.ps1
+#   dist\OpenEkklesia-0.8.0-win64-setup.exe   (requires Inno Setup 6; the
+#   script auto-detects it, or pass -IsccPath)
+powershell -ExecutionPolicy Bypass -File .\build-windows-installer.ps1 -Portable
+#   dist\OpenEkklesia-0.8.0-win64-portable.zip
+```
+
+The installer creates a Start Menu shortcut that carries the app's
+`OpenEkklesia.ChMS` AppUserModelID, which is what lets Windows deliver native
+toasts (running the loose EXE without that shortcut falls back to a balloon).
+
 ### Running the tests
 
 ```bash
@@ -108,7 +125,11 @@ ctest --test-dir build --output-on-failure   # or run the test binary directly
 ```
 
 The suite constructs real widgets, so it needs a display-less Qt platform
-plugin: set `QT_QPA_PLATFORM=offscreen` on a headless machine.
+plugin: set `QT_QPA_PLATFORM=offscreen` on a headless machine. It currently
+runs **1327 checks, 0 failed required**. A run is hermetic: preferences are
+redirected to a scratch INI file (`OPENEKKLESIA_SETTINGS_DIR`) and the database
+lives in a throwaway scratch directory, so your own saved settings and data are
+never read or modified.
 
 ---
 

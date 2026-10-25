@@ -114,6 +114,13 @@ public:
     void onAddPerson();
     void applyDrillThroughFilter(const QString& type, const QString& val);
     void refreshModel();
+    // Programmatic view changes (analytics/dashboard drill-through, profile
+    // navigation) reload the roster and used to discard typed profile edits
+    // silently. Ask the same Save/Discard/Cancel question the user-initiated
+    // filter changes ask. Returns false only when the user cancels or a save
+    // fails; callers must then abort the view change with no filter or editor
+    // state touched.
+    bool confirmDiscardEdits();
 
     static QStringList parseCsvLine(const QString& line);
     static QString generateVCard(const QString& firstName, const QString& lastName, const QString& phone,
@@ -173,6 +180,8 @@ private:
     // bound selection; never let that silently discard typed profile edits.
     // Returns false when the user cancels (caller restores the filter widgets).
     bool confirmFilterChange();
+    // Shared Save/Discard/Cancel handling for the two prompt entry points above.
+    bool confirmUnsavedEdits(const QString& question);
     void restoreFilterWidgets();
     void updateHeader(const QString& name, const QString& status, const QString& careFlag, const QString& household, const QString& joinDate);
 

@@ -8,6 +8,8 @@ build-windows/
 out/
 AppDir/
 dist/
+oe_test_work/
+oe_bench_work/
 deb_package/
 .vs/
 .cache/

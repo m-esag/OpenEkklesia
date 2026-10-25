@@ -1,4 +1,5 @@
 #include "touchhelper.h"
+#include "appsettings.h"
 
 #include <QAbstractScrollArea>
 #include <QApplication>
@@ -28,7 +29,7 @@ bool hasStylus() {
 }
 
 bool touchModeEnabled() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const QString mode = s.value("touchMode", "auto").toString().toLower();
     if (mode == "on" || mode == "1" || mode == "true")
         return true;

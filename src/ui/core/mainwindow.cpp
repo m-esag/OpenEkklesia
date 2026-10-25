@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "appsettings.h"
 #include "../../common/tableutil.h"
 #include "thememanager.h"
 #include "touchhelper.h"
@@ -628,7 +629,7 @@ void MainWindow::setupUI() {
     sidebarLayout->addWidget(logoLabel);
     sidebarLayout->addSpacing(30);
 
-    QSettings settings("OpenEkklesia", "CHMS");
+    AppSettings settings;
 
     // 1. CONGREGATION Section
     m_headerCongregation = new QPushButton(" CONGREGATION", this);
@@ -677,7 +678,7 @@ void MainWindow::setupUI() {
         bool nowVis = !m_secCongregation->isVisible();
         m_secCongregation->setVisible(nowVis);
         m_headerCongregation->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         s.setValue("sidebarSecCongregation", nowVis);
     });
 
@@ -723,7 +724,7 @@ void MainWindow::setupUI() {
         bool nowVis = !m_secMinistry->isVisible();
         m_secMinistry->setVisible(nowVis);
         m_headerMinistry->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         s.setValue("sidebarSecMinistry", nowVis);
     });
 
@@ -764,7 +765,7 @@ void MainWindow::setupUI() {
         bool nowVis = !m_secFinance->isVisible();
         m_secFinance->setVisible(nowVis);
         m_headerFinance->setIcon(IconManager::instance().getIcon(nowVis ? "chevron-down" : "chevron-right", QColor(), 12));
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         s.setValue("sidebarSecFinance", nowVis);
     });
 
@@ -1732,7 +1733,7 @@ void MainWindow::rebuildKpiCards() {
     }
     m_kpiRegistry.clear();
 
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     QStringList defaultKpis = {"members", "visitors", "groups", "shepherd_due", "giving_month", "giving_ytd"};
     m_activeKpis = s.value("dashboardKpis", defaultKpis).toStringList();
     if (m_activeKpis.isEmpty()) m_activeKpis = defaultKpis;
@@ -1850,7 +1851,7 @@ void MainWindow::onConfigureKpiCards() {
             QMessageBox::warning(&dlg, "Selection Limit", "Please select between 2 and 8 KPI cards for optimal layout.");
             return;
         }
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         s.setValue("dashboardKpis", selected);
         m_activeKpis = selected;
         rebuildKpiCards();
@@ -1980,7 +1981,7 @@ void MainWindow::updateDashboardStats() {
     // 1. Dynamic Time-of-Day Welcome Greeting Banner
     int hour = QTime::currentTime().hour();
     QString greeting = (hour < 12) ? "Good Morning" : (hour < 17) ? "Good Afternoon" : "Good Evening";
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     QString churchName = s.value("churchName", "OpenEkklesia Church").toString();
     QString churchSubtitle = s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
     if (m_lblWelcomeHeader) {
@@ -2064,7 +2065,7 @@ void MainWindow::updateDashboardStats() {
     // 'Inactivity threshold' from Settings (default 90 days, matching the
     // Settings page default) drives who counts as a lapsed giver / inactive
     // attender.
-    QSettings set("OpenEkklesia", "CHMS");
+    AppSettings set;
     const int inactivityDays = qBound(7, set.value("inactivityDays", 90).toInt(), 365);
     const QString inactivityExpr = QString("date('now', '-%1 days')").arg(inactivityDays);
 
@@ -2287,7 +2288,7 @@ void MainWindow::onSettingsClicked() {
     if (!m_settingsWidget) {
         m_settingsWidget = new SettingsWidget(this);
         connect(m_settingsWidget, &SettingsWidget::settingsSaved, this, [this]() {
-            QSettings s("OpenEkklesia", "CHMS");
+            AppSettings s;
             QString chName = s.value("churchName", "OpenEkklesia").toString();
             setWindowTitle(QString("%1 - Church Management System").arg(chName));
             m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
@@ -2323,6 +2324,11 @@ void MainWindow::onAnalyticsClicked() {
     if (!m_analyticsWidget) {
         m_analyticsWidget = new PastoralAnalyticsWidget(this);
         connect(m_analyticsWidget, &PastoralAnalyticsWidget::drillThroughRequested, this, [this](const QString& type, const QString& val) {
+            // The drill-through reloads the People roster, which used to discard
+            // typed profile edits silently. Ask first (one prompt per click); on
+            // Cancel keep the analytics view and abort without touching either
+            // the People filter widgets or the profile editor.
+            if (m_peopleWidget && !m_peopleWidget->confirmDiscardEdits()) return;
             onMembersClicked();
             if (m_peopleWidget) {
                 m_peopleWidget->applyDrillThroughFilter(type, val);
@@ -2361,7 +2367,7 @@ void MainWindow::onShepherdClicked() {
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     if (s.value("autoCollapseSidebar", true).toBool()) {
         bool shouldCompact = (width() < 940);
         if (m_isCompactSidebar != shouldCompact) {
@@ -2460,6 +2466,10 @@ void MainWindow::launchKiosk() {
 }
 
 void MainWindow::selectPerson(int personId) {
+    // Dashboard/alerts/palette profile drill-through reloads the People view:
+    // never discard typed profile edits without asking. Cancel aborts the
+    // navigation and leaves the current page, filter and editor untouched.
+    if (personId > 0 && m_peopleWidget && !m_peopleWidget->confirmDiscardEdits()) return;
     if (!m_peopleWidget) onMembersClicked();
     if (!m_peopleWidget) return; // module disabled: nothing to navigate to
     m_peopleWidget->selectPerson(personId);
@@ -2560,7 +2570,7 @@ bool MainWindow::isReadOnlyRole() const {
 }
 
 void MainWindow::applyModuleVisibility() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     bool modPeople = s.value("modules/people", true).toBool();
     bool modGroups = s.value("modules/groups", true).toBool();
     bool modGraph = s.value("modules/graph", true).toBool();
@@ -2624,7 +2634,7 @@ void MainWindow::applyModuleVisibility() {
 }
 
 bool MainWindow::isModuleEnabled(const QString& moduleKey, bool defaultValue) const {
-    return QSettings("OpenEkklesia", "CHMS").value(QString("modules/%1").arg(moduleKey), defaultValue).toBool();
+    return AppSettings().value(QString("modules/%1").arg(moduleKey), defaultValue).toBool();
 }
 
 bool MainWindow::promptLogin() {

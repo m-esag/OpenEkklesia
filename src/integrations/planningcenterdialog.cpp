@@ -1,4 +1,5 @@
 #include "planningcenterdialog.h"
+#include "appsettings.h"
 #include "../ui/core/iconmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -114,13 +115,13 @@ void PlanningCenterDialog::setupUI() {
 }
 
 void PlanningCenterDialog::loadCredentials() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     m_txtAppId->setText(s.value("pco/appId", "").toString());
     m_txtSecret->setText(s.value("pco/secret", "").toString());
 }
 
 void PlanningCenterDialog::onSaveCredentials() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     s.setValue("pco/appId", m_txtAppId->text().trimmed());
     s.setValue("pco/secret", m_txtSecret->text().trimmed());
     s.sync();
@@ -130,7 +131,7 @@ void PlanningCenterDialog::onSaveCredentials() {
 void PlanningCenterDialog::onClearCredentials() {
     m_txtAppId->clear();
     m_txtSecret->clear();
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     s.remove("pco/appId");
     s.remove("pco/secret");
     s.sync();
@@ -262,11 +263,12 @@ void PlanningCenterDialog::onStartImport() {
                 }
 
                 m_txtLog->append("Fetching Giving Donations (/giving/v2/donations)...");
-                m_client.fetchGivingDonations(appId, secret, [this, fData, next](bool dOk, const QJsonArray& dData, const QString& dErr) {
+                m_client.fetchGivingDonations(appId, secret, [this, fData, next](bool dOk, const QList<PcoDonationRecord>& dData, const QString& dErr) {
                     if (dOk) {
                         m_txtLog->append(QString("Received %1 donations from API.").arg(dData.size()));
                         PcoImportSummary sum = m_client.importGivingData(fData, dData);
-                        m_txtLog->append(QString("✅ Synced %1 funds and %2 donations into Contributions.").arg(sum.fundsCount).arg(sum.donationsCount));
+                        m_txtLog->append(QString("✅ Synced %1 funds and %2 donations into Contributions (%3 attributed to a designation fund).")
+                                             .arg(sum.fundsCount).arg(sum.donationsCount).arg(sum.designationsMapped));
                         if (sum.donationsSkipped > 0) {
                             m_txtLog->append(QString("⏭ Skipped %1 donations (already imported or unmatched donor — see warnings above).").arg(sum.donationsSkipped));
                         }

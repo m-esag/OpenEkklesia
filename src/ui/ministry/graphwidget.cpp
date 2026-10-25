@@ -1,4 +1,5 @@
 #include "graphwidget.h"
+#include "appsettings.h"
 #include "iconmanager.h"
 #include "synergyengine.h"
 #include "ministryarchetypes.h"
@@ -826,7 +827,7 @@ GraphWidget::GraphWidget(QWidget* parent)
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &GraphWidget::updatePhysics);
     {
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         m_physicsRunning = s.value("graphPhysicsEnabled", true).toBool();
         // Advisory thresholds from Settings → Pastoral & Graph (live, not hardcoded).
         m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
@@ -2104,7 +2105,7 @@ void GraphWidget::computeSmartBridge(NodeItem* selectedNode) {
     QList<Candidate> candidates;
 
     QSqlDatabase db = QSqlDatabase::database();
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     const int minScore = s.value("smartBridgeMinScore", 40).toInt();
 
     // Bulk-load the whole population once (3 queries total) instead of
@@ -2502,7 +2503,7 @@ void GraphWidget::loadGraph() {
 
     // Re-read advisory thresholds so Settings changes apply without restart.
     {
-        QSettings s("OpenEkklesia", "CHMS");
+        AppSettings s;
         m_burnoutThreshold = qBound(2, s.value("burnoutThreshold", 3).toInt(), 10);
         m_familyDominancePercent = qBound(10, s.value("familyDominancePercent", 40).toInt(), 90);
     }
@@ -3572,7 +3573,7 @@ void GraphWidget::onSpotlightIsolatedClicked() {
     spotlightIsolatedNodes();
 }
 
-void GraphWidget::onFilterToggled() {
+void GraphWidget::refreshFilterVisibility() {
     QSet<int> branchGroupIds;
     QSet<int> branchPersonIds;
     if (m_selectedMinistryParentId > 0) {
@@ -3627,8 +3628,13 @@ void GraphWidget::onFilterToggled() {
         e->setVisible(v);
     }
 
+}
+
+void GraphWidget::onFilterToggled() {
+    refreshFilterVisibility();
+
     // Persist the working view so it survives restarts.
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     s.setValue("graphFilters/people", m_filterPeopleActive);
     s.setValue("graphFilters/households", m_filterHouseholdsActive);
     s.setValue("graphFilters/groups", m_filterGroupsActive);
@@ -3640,6 +3646,20 @@ void GraphWidget::onFilterToggled() {
     s.setValue("graphFilters/layout", (int)m_layoutMode);
 
     resumePhysics(); // visibility changed — let the remaining nodes re-settle
+}
+
+void GraphWidget::showAllNodeTypesForTesting() {
+    m_filterPeopleActive = true;
+    m_filterHouseholdsActive = true;
+    m_filterGroupsActive = true;
+    m_filterBurnoutActive = false;
+    m_filterIsolationActive = false;
+    if (m_btnTogglePeople) m_btnTogglePeople->setChecked(true);
+    if (m_btnToggleHouseholds) m_btnToggleHouseholds->setChecked(true);
+    if (m_btnToggleGroups) m_btnToggleGroups->setChecked(true);
+    if (m_btnToggleBurnout) m_btnToggleBurnout->setChecked(false);
+    if (m_btnToggleIsolation) m_btnToggleIsolation->setChecked(false);
+    refreshFilterVisibility();
 }
 
 void GraphWidget::onGraphSearchChanged(const QString& text) {
@@ -4387,7 +4407,7 @@ void GraphWidget::styleChromeWidgets(const ThemeTokens& tok) {
 // Restores the admin's working view (filter toggles + layout mode) from
 // QSettings — saved by onFilterToggled on every change.
 void GraphWidget::restoreFilterState() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
     m_filterPeopleActive = s.value("graphFilters/people", true).toBool();
     m_filterHouseholdsActive = s.value("graphFilters/households", true).toBool();
     m_filterGroupsActive = s.value("graphFilters/groups", true).toBool();

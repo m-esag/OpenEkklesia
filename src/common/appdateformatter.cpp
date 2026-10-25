@@ -1,11 +1,12 @@
 #include "appdateformatter.h"
+#include "appsettings.h"
 
 #include <QSettings>
 
 namespace {
-QSettings appSettings()
+AppSettings appSettings()
 {
-    return QSettings("OpenEkklesia", "CHMS");
+    return AppSettings();
 }
 }
 

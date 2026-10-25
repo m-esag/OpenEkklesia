@@ -1,4 +1,5 @@
 #include "pastoralanalyticswidget.h"
+#include "appsettings.h"
 #include "../database/databasemanager.h"
 #include "../../common/appdateformatter.h"
 #include <QVBoxLayout>
@@ -476,7 +477,7 @@ PastoralAnalyticsWidget::AnalyticsSnapshot PastoralAnalyticsWidget::computeSnaps
 
     // Lapsed givers: Members/Attenders with a giving history but nothing since
     // the configured inactivity window (same rule as the dashboard).
-    QSettings set("OpenEkklesia", "CHMS");
+    AppSettings set;
     const int inactivityDays = qBound(7, set.value("inactivityDays", 30).toInt(), 365);
     QSqlQuery qLapsed(db);
     qLapsed.prepare(QString(

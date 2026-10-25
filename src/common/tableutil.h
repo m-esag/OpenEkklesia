@@ -2,6 +2,7 @@
 #define TABLEUTIL_H
 
 #include <QTableView>
+#include "appsettings.h"
 #include <QHeaderView>
 #include <QSettings>
 
@@ -11,7 +12,7 @@ namespace TableUtil {
 //   true  (default) = columns stretch to fill the table width
 //   false           = columns size to their contents (interactive)
 inline bool autoColumnSizeEnabled() {
-    return QSettings("OpenEkklesia", "CHMS").value("ui/autoColumnSize", true).toBool();
+    return AppSettings().value("ui/autoColumnSize", true).toBool();
 }
 
 // Apply the app-wide table conventions to a view:

@@ -181,11 +181,25 @@ The QSS engine styles by object name. Use these names — never invent a new
   chart of accounts, funds, login users, ministry archetypes and the 11
   canonical blueprint heading groups. Tests that run after it must tolerate
   those structural rows — assert **containment**, never an exact table size.
-- The harness `chdir`s to `/tmp/oe_test_work` so legacy-DB adoption never
-  copies the workspace `open_ekklesia.db`; run from a clean dir with
-  `XDG_DATA_HOME=$PWD/smoke-data`.
+- The harness `chdir`s into a throwaway scratch dir (OS temp dir when
+  writable, else a per-user then CWD fallback) so legacy-DB adoption never
+  copies the workspace `open_ekklesia.db`. The same fallback applies to the
+  benchmark suite.
   - Keep the suite green before committing (`build/openekklesia_tests`):
-    **currently 1285 checks, must stay 0 failed.**
+    **currently 1327 checks, must stay 0 failed.**
+  - **Settings isolation.** All preference access goes through `AppSettings`
+    (`src/common/appsettings.*`). The harness sets `OPENEKKLESIA_SETTINGS_DIR`
+    so every read/write hits a scratch INI file: a test must never depend on,
+    or overwrite, the developer's real preferences store. Add new preference
+    code via `AppSettings`, not a bare `QSettings("OpenEkklesia", "CHMS")`.
+  - Widgets that persist view/filter state in QSettings (for example the graph
+    filters) must expose a way for a test to force the expected state without
+    mutating the saved preference — `GraphWidget::showAllNodeTypesForTesting()`
+    is the existing example. Do not let a test assume the user's saved view.
+  - Modal confirmations are exercised headlessly by scheduling a zero-delay
+    `QTimer` that answers the `QMessageBox` (see
+    `people_confirm_discard_edits`); keep a late fallback that closes the
+    dialog so a lookup miss can never hang CI.
   - For a focused rerun, `OE_TEST_FILTER=name1,name2` restricts the run to the
     named scenarios (in registration order); the default is still the full
     suite. Do not use it to claim a green commit.
@@ -241,13 +255,19 @@ The QSS engine styles by object name. Use these names — never invent a new
 ---
 
 ## 9. Known inconsistencies (flagged, not yet fixed)
-- A few `DELETE` paths still concatenate numeric ids into SQL instead of
-  binding parameters (`mainwindow.cpp` delete-group path) — do not copy this
-  pattern.
-- Legacy QSettings keys (`pcoAppId` vs `pco/appId`) have fallback readers; new
-  keys are the canonical dotted ones.
-- Some inline styles still carry raw accent hex (`#89b4fa`, `#f38ba8`) for
-  semantic accents — acceptable only for fixed accents, not surfaces/text.
+- **Dynamic SQL identifiers.** Every value is a bound parameter; the only
+  interpolation left is *identifiers* from internal schema maps in
+  `databasemanager.cpp` (`DELETE FROM %1`, `PRAGMA table_info(%1)`) and
+  `datasharing.cpp` (`SELECT * FROM %1`). Never interpolate a user-supplied
+  string into SQL — add a bound parameter or a whitelist lookup instead.
+- **QSettings keys.** Planning Center reads/writes only the canonical dotted
+  `pco/appId`; the old `pcoAppId` fallback is gone. New keys use the dotted
+  `section/key` form.
+- **Raw accent hex.** Fixed hex is allowed in exactly three places: theme
+  token *definitions* (`thememanager.cpp`), deliberate dark/light semantic
+  accent pairs for category colors (graph/analytics/pathway), and
+  self-contained print/HTML documents (vault report). Anything that is a
+  surface, border, or text color elsewhere must come from `ThemeTokens`.
 
 ---
 

@@ -56,6 +56,8 @@ set(SOURCES
     src/common/tableutil.h
     src/common/givingstatementgenerator.h
     src/common/givingstatementgenerator.cpp
+    src/common/appsettings.h
+    src/common/appsettings.cpp
 
     # Database Module
     src/database/databasemanager.h
@@ -174,6 +176,8 @@ add_executable(openekklesia_tests
     src/common/givingstatementgenerator.h
     src/common/icalgenerator.h
     src/common/icalgenerator.cpp
+    src/common/appsettings.h
+    src/common/appsettings.cpp
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp
@@ -253,6 +257,8 @@ add_test(NAME openekklesia_tests COMMAND openekklesia_tests)
 # --- High-Resolution Performance Benchmark Suite ---
 add_executable(openekklesia_benchmarks
     tests/benchmarks.cpp
+    src/common/appsettings.h
+    src/common/appsettings.cpp
     src/database/databasemanager.cpp
     src/database/databasemanager.h
     src/database/datasharing.cpp

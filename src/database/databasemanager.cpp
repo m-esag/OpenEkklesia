@@ -1,4 +1,5 @@
 #include "databasemanager.h"
+#include "appsettings.h"
 #include "ministryarchetypes.h"
 #include <QSqlError>
 #include <QSqlQuery>
@@ -107,7 +108,7 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     // it produced an auto_backup_<date>.db that restoreFromBackup() rightly
     // rejects. The snapshot therefore only runs for a DB that existed before open.
     auto runAutoBackup = [this, &resolvedPath]() {
-    QSettings bSet("OpenEkklesia", "CHMS");
+    AppSettings bSet;
     const QString scheduleRaw = bSet.value("autoBackupSchedule", "weekly").toString();
     const QString schedule = scheduleRaw.toLower();
     const int retention = qMax(1, bSet.value("backupRetentionCount", 10).toInt());
@@ -221,7 +222,7 @@ bool DatabaseManager::initialize(const QString& dbPath) {
     if (dbExists) {
         runAutoBackup();
 
-        QSettings retentionSet("OpenEkklesia", "CHMS");
+        AppSettings retentionSet;
         pruneHistory(retentionSet.value("auditLogRetentionDays", 365).toInt(),
                      retentionSet.value("memberHistoryRetentionDays", 730).toInt());
     }

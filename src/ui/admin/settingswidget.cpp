@@ -1,4 +1,5 @@
 #include "settingswidget.h"
+#include "appsettings.h"
 #include "thememanager.h"
 #include "../core/iconmanager.h"
 #include "../integrations/planningcenterdialog.h"
@@ -1178,7 +1179,7 @@ void SettingsWidget::setupUI() {
         if (!requireAdmin("Resetting all settings")) return;
         auto res = QMessageBox::question(this, "Reset Settings", "Are you sure you want to reset all preferences to application defaults?", QMessageBox::Yes | QMessageBox::No);
         if (res == QMessageBox::Yes) {
-            QSettings s("OpenEkklesia", "CHMS");
+            AppSettings s;
             s.clear();
     s.sync();
             ThemeManager::instance().loadTheme("catppuccin_mocha");
@@ -1480,7 +1481,7 @@ void SettingsWidget::updateLivePreview() {
 }
 
 void SettingsWidget::loadSettings() {
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
 
     m_txtChurchName->setText(s.value("churchName", "OpenEkklesia Church").toString());
     m_txtChurchSubtitle->setText(s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString());
@@ -1584,7 +1585,7 @@ void SettingsWidget::loadSettings() {
 
 void SettingsWidget::saveSettings() {
     const bool wasDirty = m_isDirty;
-    QSettings s("OpenEkklesia", "CHMS");
+    AppSettings s;
 
     s.setValue("churchName", m_txtChurchName->text().trimmed());
     s.setValue("churchSubtitle", m_txtChurchSubtitle->text().trimmed());
@@ -1711,7 +1712,7 @@ void SettingsWidget::onPickLogo() {
         QMessageBox::critical(this, "Error", "Could not copy the selected logo into the app data folder.");
         return;
     }
-    QSettings("OpenEkklesia", "CHMS").setValue("churchLogo", dest);
+    AppSettings().setValue("churchLogo", dest);
 
     QPixmap pix(dest);
     if (!pix.isNull()) {

@@ -1,4 +1,5 @@
 #include "shepherdwidget.h"
+#include "appsettings.h"
 #include "../../common/tableutil.h"
 #include "../../common/icalgenerator.h"
 #include "../database/databasemanager.h"
@@ -768,7 +769,7 @@ bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& pref
 
     QCheckBox* followUpChk = new QCheckBox("Schedule a follow-up", &dlg);
     // Default follow-up window comes from Settings (Pastoral & Graph → followUpDays).
-    QSettings defS("OpenEkklesia", "CHMS");
+    AppSettings defS;
     const int followUpDays = qBound(0, defS.value("followUpDays", 14).toInt(), 365);
     QDateEdit* followUpEdit = new QDateEdit(QDate::currentDate().addDays(followUpDays), &dlg);
     followUpEdit->setCalendarPopup(true);

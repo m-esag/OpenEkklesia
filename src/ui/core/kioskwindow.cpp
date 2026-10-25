@@ -1,4 +1,5 @@
 #include "kioskwindow.h"
+#include "appsettings.h"
 #include "../database/databasemanager.h"
 #include "thememanager.h"
 #include "touchhelper.h"
@@ -31,7 +32,7 @@ KioskWindow::KioskWindow(QWidget* parent)
 
     // Idle lockout from Settings (default 45 s): return to the check-in state
     // after inactivity, so a public kiosk never lingers on someone's screen.
-    const int idleSecs = qBound(5, QSettings("OpenEkklesia", "CHMS").value("kioskTimeoutSeconds", 45).toInt(), 3600);
+    const int idleSecs = qBound(5, AppSettings().value("kioskTimeoutSeconds", 45).toInt(), 3600);
     m_idleTimer = new QTimer(this);
     m_idleTimer->setInterval(idleSecs * 1000);
     m_idleTimer->setSingleShot(true);
@@ -267,7 +268,7 @@ void KioskWindow::flashStatus(const QString& message, bool success) {
 void KioskWindow::onAdminUnlockClicked() {
     // Settings: kioskRequirePin (default true) — internal devices can allow
     // exiting without the admin PIN.
-    const bool requirePin = QSettings("OpenEkklesia", "CHMS").value("kioskRequirePin", true).toBool();
+    const bool requirePin = AppSettings().value("kioskRequirePin", true).toBool();
     if (!requirePin) {
         m_isAdminUnlocked = true;
         accept();
