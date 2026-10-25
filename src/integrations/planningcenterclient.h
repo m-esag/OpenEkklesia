@@ -14,10 +14,10 @@ struct PcoImportSummary {
     int householdsCount = 0;
     int groupsCount = 0;
     int servicesCount = 0;
-    int fundsCount = 0;
+    int fundsCount = 0;        // new funds created by this import (matches are not counted)
     int donationsCount = 0;
     int donationsSkipped = 0;   // already imported (external_id match) or unmatchable
-    int designationsMapped = 0; // donations whose designation resolved to a real fund
+    int designationsMapped = 0; // contributions attributed to a real designation fund
     QStringList errors;
 };
 

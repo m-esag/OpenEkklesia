@@ -195,7 +195,9 @@ identical across them.
   case-insensitively (the same cache serves the sideloaded funds feed), unknown
   non-empty designations create a fund, and only genuinely unknown gifts fall
   back to "Imported (Unmapped)". Amount validation runs before any fund side
-  effect, and re-syncs stay idempotent (external-id dedupe, no duplicate funds).
+  effect; negative per-designation portions are dropped rather than imported,
+  and `fundsCount` counts only funds *created* by the run. Re-syncs stay
+  idempotent (external-id dedupe, no duplicate funds).
   Covered by `pco_donation_designation_parsing`,
   `pco_giving_import_designation_funds` and `pco_split_donation_import`.
 - **Windows installer + portable ZIP.** `build-windows-installer.ps1` validates
@@ -217,7 +219,7 @@ identical across them.
   rebuilt and run under `-DOE_ENABLE_SANITIZERS=ON`
   (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`); the CI `asan` job covers the
   Linux GCC path on every push. Re-verified after the Planning Center split-gift
-  fix (1357 checks, 0 failed, no sanitizer reports).
+  fix (1363 checks, 0 failed, no sanitizer reports).
 - **CI sanitizer job.** `ci.yml` has an `asan` job (Ubuntu GCC, ASan + UBSan,
   `-DOE_ENABLE_SANITIZERS=ON`) building and running the suite with
   `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`, in addition to the local

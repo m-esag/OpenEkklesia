@@ -4349,13 +4349,41 @@ bool test_pcoSplitDonationImport() {
     fundObj.insert("attributes", fundAttrs);
     fundsFeed.append(fundObj);
     const PcoImportSummary feedImport = client.importGivingData(fundsFeed, {});
-    CHECK_EQ(feedImport.fundsCount, 1); // matched, not created
+    CHECK_EQ(feedImport.fundsCount, 0); // matched an existing fund, nothing created
     CHECK(q.exec("SELECT COUNT(*) FROM funds WHERE lower(fund_name) = 'split fund a 9003'"));
     CHECK(q.next());
     CHECK_EQ(q.value(0).toInt(), 1);
 
+    // A split part with a negative/zero portion must not be imported as-is: the
+    // negative part is dropped and only the valid portion is recorded.
+    PcoDonationRecord messy;
+    messy.externalId = "PCO-900202";
+    messy.personPcoId = "9402";
+    messy.amountCents = 1000;
+    messy.date = "2026-09-11";
+    PcoDesignationPart badPart;
+    badPart.designationPcoId = "d-bad";
+    badPart.designation = "Split Fund A 9003";
+    badPart.amountCents = -500;
+    PcoDesignationPart goodPart;
+    goodPart.designationPcoId = "d-good";
+    goodPart.designation = "Split Fund B 9004";
+    goodPart.amountCents = 1000;
+    messy.parts = {badPart, goodPart};
+    const PcoImportSummary messyImport = client.importGivingData(QJsonArray(), {messy});
+    CHECK_EQ(messyImport.donationsCount, 1); // only the valid portion became a row
+    QSqlQuery badRows(d);
+    badRows.prepare("SELECT COUNT(*) FROM contributions WHERE external_id LIKE 'PCO-900202%' AND amount < 0");
+    CHECK(badRows.exec() && badRows.next());
+    CHECK_EQ(badRows.value(0).toInt(), 0);
+    QSqlQuery goodRow(d);
+    goodRow.prepare("SELECT amount FROM contributions WHERE external_id = 'PCO-900202-d-good'");
+    CHECK(goodRow.exec() && goodRow.next());
+    CHECK_EQ(goodRow.value(0).toLongLong(), qint64(1000));
+
     // Cleanup.
     CHECK(q.exec("DELETE FROM contributions WHERE external_id LIKE 'PCO-900201%'"));
+    CHECK(q.exec("DELETE FROM contributions WHERE external_id LIKE 'PCO-900202%'"));
     CHECK(q.exec("DELETE FROM funds WHERE fund_name IN ('Split Fund A 9003','Split Fund B 9004')"));
     CHECK(q.exec("DELETE FROM people WHERE id = 9402"));
     return true;

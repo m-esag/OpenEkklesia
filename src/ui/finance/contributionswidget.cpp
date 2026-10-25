@@ -815,22 +815,32 @@ void ContributionsWidget::refreshHistoryModel() {
         return;
     }
 
-    QString queryStr = QString(
+    // Build the query with bound values rather than string interpolation: both
+    // the currency symbol (a user setting) and the batch id are values, never
+    // identifiers, and must not be paste-built into SQL.
+    QSqlQuery historyQuery(DatabaseManager::instance().database());
+    historyQuery.prepare(
         "SELECT c.id AS \"ID\", "
         "       c.contribution_date AS \"Date\", "
         "       COALESCE(p.first_name || ' ' || p.last_name, '— Anonymous —') AS \"Contributor\", "
         "       f.fund_name AS \"Fund\", "
         "       COALESCE(NULLIF(c.payment_method, ''), '—') AS \"Method\", "
         "       COALESCE(NULLIF(c.check_number, ''), '—') AS \"Check #\", "
-        "       printf('%1%.2f', c.amount / 100.0) AS \"Amount\", "
+        "       printf('%s%.2f', ?, c.amount / 100.0) AS \"Amount\", "
         "       COALESCE(c.note, '') AS \"Note\" "
         "FROM contributions c "
         "LEFT JOIN people p ON c.person_id = p.id "
         "JOIN funds f ON c.fund_id = f.id "
-        "WHERE c.batch_id = %2 "
-        "ORDER BY c.id DESC").arg(appCurrencySymbol(), QString::number(m_currentBatchId));
-
-    m_historyModel->setQuery(queryStr);
+        "WHERE c.batch_id = ? "
+        "ORDER BY c.id DESC");
+    historyQuery.addBindValue(appCurrencySymbol());
+    historyQuery.addBindValue(m_currentBatchId);
+    if (!historyQuery.exec()) {
+        qWarning() << "refreshHistoryModel query failed:" << historyQuery.lastError().text();
+        m_historyModel->clear();
+        return;
+    }
+    m_historyModel->setQuery(historyQuery);
     m_historyTable->hideColumn(0);
 
     QSqlQuery sumQ;

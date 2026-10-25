@@ -666,9 +666,6 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
         const QString fundName = fObj.value("attributes").toObject()
                                      .value("name").toString().trimmed();
         if (fundName.isEmpty()) continue;
-        if (fundIdsByName.contains(fundName.toCaseFolded())) {
-            summary.fundsCount++; // already present locally
-        }
         const int localId = fundIdForName(fundName);
         if (localId != -1) pcoFundIdToLocalId.insert(pcoFundId, localId);
     }
@@ -678,10 +675,18 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
     int unmappedFundId = -2; // -2 = not resolved yet, -1 = could not resolve
     auto importedUnmappedFund = [&]() -> int {
         if (unmappedFundId != -2) return unmappedFundId;
+        // The cache is case-folded and already loaded, so this also reuses a
+        // fallback fund whose stored name differs only by casing.
+        const auto cached = fundIdsByName.constFind(QStringLiteral("imported (unmapped)"));
+        if (cached != fundIdsByName.constEnd()) {
+            unmappedFundId = cached.value();
+            return unmappedFundId;
+        }
         QSqlQuery lookup(db);
         lookup.prepare("SELECT id FROM funds WHERE fund_name = 'Imported (Unmapped)'");
         if (lookup.exec() && lookup.next()) {
             unmappedFundId = lookup.value(0).toInt();
+            fundIdsByName.insert(QStringLiteral("imported (unmapped)"), unmappedFundId);
         } else {
             QSqlQuery createUnmapped(db);
             createUnmapped.prepare("INSERT INTO funds (fund_name, is_active) VALUES ('Imported (Unmapped)', 1)");
@@ -764,6 +769,24 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
             }
         }
 
+        // Bounds-check the split: negative or unusable portions must never be
+        // imported as-is, and a split with no usable amounts is skipped instead
+        // of guessing an attribution.
+        qint64 partsTotal = 0;
+        for (const PcoDesignationPart& part : parts) {
+            if (part.amountCents > 0) partsTotal += part.amountCents;
+        }
+        if (parts.size() > 1 && partsTotal <= 0) {
+            summary.donationsSkipped++;
+            summary.errors.append(QString("Donation %1 skipped: designation amounts are missing or invalid.")
+                                      .arg(donation.externalId.mid(4)));
+            continue;
+        }
+        if (parts.size() > 1 && partsTotal > donation.amountCents) {
+            summary.errors.append(QString("Donation %1: designation amounts (%2) exceed the donation total (%3); imported per-designation amounts.")
+                                      .arg(donation.externalId.mid(4)).arg(partsTotal).arg(donation.amountCents));
+        }
+
         bool hasNewPart = false;
         for (const QString& externalId : partExternalIds) {
             if (!alreadyImported(externalId)) {
@@ -786,9 +809,9 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
             const QString externalId = partExternalIds[i];
             if (alreadyImported(externalId)) continue;
 
-            qint64 partAmount = part.amountCents;
+            qint64 partAmount = qMax<qint64>(0, part.amountCents);
             if (parts.size() == 1 && partAmount <= 0) partAmount = donation.amountCents;
-            if (partAmount <= 0) continue; // zero portion: nothing to record
+            if (partAmount <= 0) continue; // zero/negative portion: nothing to record
 
             // Map the designation to a local fund: existing fund whose name
             // matches case-insensitively, else a new fund named after the
