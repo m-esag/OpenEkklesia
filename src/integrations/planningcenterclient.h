@@ -21,19 +21,30 @@ struct PcoImportSummary {
     QStringList errors;
 };
 
+// One fund split of a donation. A gift given entirely to one fund has a single
+// part; a gift split across funds (Planning Center allows several Designations
+// per donation) has one part per fund, each with its own amount.
+struct PcoDesignationPart {
+    QString designationPcoId;      // Designation resource id (dedup key component)
+    QString designation;           // human-readable fund/designation name (may be empty)
+    QString designationFundPcoId;  // Fund id from the Designation's own fund relationship
+    qint64 amountCents = 0;        // Designation attributes.amount_cents (portion of the gift)
+};
+
 // One donation parsed out of a page of the Planning Center Giving feed.
-// `designation` is the human-readable name of the donation's Designation
-// resource, resolved from the JSON:API `included` array requested with
-// `&include=designations`; it is empty when the donation has no designation or
-// when the API did not return the included resource. Keeping the name on the
-// record is what lets importGivingData map a gift to the matching local fund
-// instead of everything silently landing in "Imported (Unmapped)".
+// `designation`/`designationFundPcoId` mirror the first part for convenience;
+// `parts` carries every fund split of the gift. Names come from the JSON:API
+// `included` array requested with `&include=designations.fund` (the Giving API
+// keeps the display name on the Fund resource). They are empty when the API did
+// not return the included resources, which is what falls back to
+// "Imported (Unmapped)" instead of misattributing a gift.
 struct PcoDonationRecord {
     QString externalId;           // "PCO-<donation id>" — dedup key for contributions
     QString personPcoId;          // Person id from relationships.person
-    QString designation;          // Designation attributes.name (may be empty)
-    QString designationFundPcoId; // Fund id from the Designation's own fund relationship
-    qint64 amountCents = 0;
+    QString designation;          // first part's human-readable name (may be empty)
+    QString designationFundPcoId; // Fund id of the first part's designation
+    QList<PcoDesignationPart> parts; // one entry per Designation (fund split)
+    qint64 amountCents = 0;       // Donation total (sum of all designation amounts)
     QString date;                 // yyyy-MM-dd from attributes.received_at (may be empty)
     QString paymentMethod;
     QString checkNumber;
@@ -65,9 +76,9 @@ public:
                               std::function<void(bool success, const QList<PcoDonationRecord>& donations, const QString& error)> callback);
 
     // Parse one page of the Giving donations feed. `donations` is the page's
-    // `data` array and `included` its JSON:API `included` array (Designation
-    // resources requested via &include=designations). Pure function, no I/O, so
-    // the payload → record mapping is directly testable.
+    // `data` array and `included` its JSON:API `included` array (Designation and
+    // Fund resources requested via &include=designations.fund). Pure function,
+    // no I/O, so the payload → record mapping is directly testable.
     static QList<PcoDonationRecord> parseDonationRecords(const QJsonArray& donations,
                                                          const QJsonArray& included);
 

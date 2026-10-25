@@ -4135,23 +4135,32 @@ bool test_pcoDonationDesignationParsing() {
                           "designation":{"data":{"type":"Designation","id":"d2"}}}},
         {"id":"503","type":"Donation",
          "attributes":{"amount":12.34,"received_at":"2026-09-03T08:00:00Z"},
-         "relationships":{"person":{"data":{"id":"p3"}}}}
+         "relationships":{"person":{"data":{"id":"p3"}}}},
+        {"id":"504","type":"Donation",
+         "attributes":{"amount_cents":1500,"received_at":"2026-09-04T08:00:00Z"},
+         "relationships":{"person":{"data":{"id":"p4"}},
+                          "designations":{"data":[{"type":"Designation","id":"d1"},
+                                                   {"type":"Designation","id":"d3"}]}}}
       ],
       "included": [
         {"id":"d1","type":"Designation",
-         "attributes":{"name":"General Fund"},
+         "attributes":{"name":"General Fund","amount_cents":500},
          "relationships":{"fund":{"data":{"type":"Fund","id":"f1"}}}},
         {"id":"d2","type":"Designation",
          "attributes":{},
          "relationships":{"fund":{"data":{"type":"Fund","id":"f1"}}}},
-        {"id":"f1","type":"Fund","attributes":{"name":"Missions Fund"}}
+        {"id":"d3","type":"Designation",
+         "attributes":{"amount_cents":1000},
+         "relationships":{"fund":{"data":{"type":"Fund","id":"f2"}}}},
+        {"id":"f1","type":"Fund","attributes":{"name":"Missions Fund"}},
+        {"id":"f2","type":"Fund","attributes":{"name":"Building Fund"}}
       ]
     })";
     const QJsonObject root = QJsonDocument::fromJson(payload).object();
     const QList<PcoDonationRecord> recs = PlanningCenterClient::parseDonationRecords(
         root.value("data").toArray(), root.value("included").toArray());
-    CHECK_EQ(recs.size(), 3);
-    if (recs.size() != 3) return false;
+    CHECK_EQ(recs.size(), 4);
+    if (recs.size() != 4) return false;
 
     CHECK_EQ(recs[0].externalId.toStdString(), std::string("PCO-501"));
     CHECK_EQ(recs[0].personPcoId.toStdString(), std::string("p1"));
@@ -4167,6 +4176,18 @@ bool test_pcoDonationDesignationParsing() {
     // Feed carrying only `amount` still produces cents; no designation -> empty.
     CHECK_EQ(recs[2].amountCents, qint64(1234));
     CHECK(recs[2].designation.isEmpty());
+
+    // A gift split across two funds keeps both parts and their own amounts; the
+    // legacy single-designation fields mirror the first part.
+    CHECK_EQ(recs[3].amountCents, qint64(1500));
+    CHECK_EQ(recs[3].parts.size(), 2);
+    if (recs[3].parts.size() == 2) {
+        CHECK_EQ(recs[3].parts[0].designation.toStdString(), std::string("General Fund"));
+        CHECK_EQ(recs[3].parts[0].amountCents, qint64(500));
+        CHECK_EQ(recs[3].parts[1].designation.toStdString(), std::string("Building Fund"));
+        CHECK_EQ(recs[3].parts[1].amountCents, qint64(1000));
+    }
+    CHECK_EQ(recs[3].designation.toStdString(), std::string("General Fund"));
     return true;
 }
 
@@ -4258,6 +4279,85 @@ bool test_pcoGivingImportDesignationFunds() {
     CHECK(q.exec("DELETE FROM contributions WHERE external_id IN ('PCO-900101','PCO-900102','PCO-900103')"));
     CHECK(q.exec("DELETE FROM funds WHERE id = 9401 OR fund_name = 'Youth Ministry Test 9002'"));
     CHECK(q.exec("DELETE FROM people WHERE id = 9401"));
+    return true;
+}
+
+// A gift split across two funds imports one contribution row per designation
+// with the per-fund amounts; re-syncs stay idempotent and funds are reused
+// case-insensitively across the funds feed and designation mapping.
+bool test_pcoSplitDonationImport() {
+    ensurePersonOne();
+    QSqlDatabase d = db();
+    QSqlQuery q(d);
+    CHECK(q.exec("INSERT OR REPLACE INTO people (id, household_id, first_name, last_name, barcode, membership_status) "
+                 "VALUES (9402, 1, 'Split', 'Donor', 'PCO-9402', 'Member')"));
+    const int contributionsBefore = countRows("contributions");
+
+    PcoDonationRecord split;
+    split.externalId = "PCO-900201";
+    split.personPcoId = "9402";
+    split.amountCents = 3000; // 30.00 total, split 20.00 / 10.00
+    split.date = "2026-09-10";
+    PcoDesignationPart general;
+    general.designationPcoId = "d-general";
+    general.designation = "Split Fund A 9003";
+    general.amountCents = 2000;
+    PcoDesignationPart missions;
+    missions.designationPcoId = "d-missions";
+    missions.designation = "Split Fund B 9004";
+    missions.amountCents = 1000;
+    split.parts = {general, missions};
+
+    PlanningCenterClient client;
+    const PcoImportSummary first = client.importGivingData(QJsonArray(), {split});
+    CHECK_EQ(first.donationsCount, 2);      // one row per fund split
+    CHECK_EQ(first.designationsMapped, 2);
+    CHECK_EQ(first.fundsCount, 2);          // both funds created
+    CHECK_EQ(countRows("contributions"), contributionsBefore + 2);
+
+    QSqlQuery rows(d);
+    rows.prepare("SELECT c.external_id, c.amount, f.fund_name FROM contributions c "
+                 "JOIN funds f ON f.id = c.fund_id WHERE c.external_id LIKE 'PCO-900201%' "
+                 "ORDER BY c.amount DESC");
+    CHECK(rows.exec());
+    CHECK(rows.next());
+    if (rows.isValid()) {
+        CHECK_EQ(rows.value(0).toString().toStdString(), std::string("PCO-900201-d-general"));
+        CHECK_EQ(rows.value(1).toLongLong(), qint64(2000));
+        CHECK_EQ(rows.value(2).toString().toStdString(), std::string("Split Fund A 9003"));
+    }
+    CHECK(rows.next());
+    if (rows.isValid()) {
+        CHECK_EQ(rows.value(0).toString().toStdString(), std::string("PCO-900201-d-missions"));
+        CHECK_EQ(rows.value(1).toLongLong(), qint64(1000));
+    }
+
+    // Re-sync: both rows exist, so the gift is skipped and no funds are created.
+    const int fundsAfter = countRows("funds");
+    const PcoImportSummary second = client.importGivingData(QJsonArray(), {split});
+    CHECK_EQ(second.donationsCount, 0);
+    CHECK_EQ(second.donationsSkipped, 1);
+    CHECK_EQ(countRows("funds"), fundsAfter);
+
+    // A sideloaded PCO fund whose name differs only by case must reuse the local
+    // fund rather than create a duplicate.
+    QJsonArray fundsFeed;
+    QJsonObject fundObj;
+    fundObj.insert("id", QStringLiteral("pco-split-a"));
+    QJsonObject fundAttrs;
+    fundAttrs.insert("name", QStringLiteral("SPLIT FUND A 9003"));
+    fundObj.insert("attributes", fundAttrs);
+    fundsFeed.append(fundObj);
+    const PcoImportSummary feedImport = client.importGivingData(fundsFeed, {});
+    CHECK_EQ(feedImport.fundsCount, 1); // matched, not created
+    CHECK(q.exec("SELECT COUNT(*) FROM funds WHERE lower(fund_name) = 'split fund a 9003'"));
+    CHECK(q.next());
+    CHECK_EQ(q.value(0).toInt(), 1);
+
+    // Cleanup.
+    CHECK(q.exec("DELETE FROM contributions WHERE external_id LIKE 'PCO-900201%'"));
+    CHECK(q.exec("DELETE FROM funds WHERE fund_name IN ('Split Fund A 9003','Split Fund B 9004')"));
+    CHECK(q.exec("DELETE FROM people WHERE id = 9402"));
     return true;
 }
 
@@ -4433,6 +4533,7 @@ int main(int argc, char** argv) {
         {"history_retention_pruning", test_historyRetentionPruning},
         {"pco_donation_designation_parsing", test_pcoDonationDesignationParsing},
         {"pco_giving_import_designation_funds", test_pcoGivingImportDesignationFunds},
+    {"pco_split_donation_import", test_pcoSplitDonationImport},
         {"people_confirm_discard_edits", test_peopleConfirmDiscardEdits},
         {"settings_retention_controls", test_settingsRetentionControls},
     };

@@ -126,7 +126,7 @@ ctest --test-dir build --output-on-failure   # or run the test binary directly
 
 The suite constructs real widgets, so it needs a display-less Qt platform
 plugin: set `QT_QPA_PLATFORM=offscreen` on a headless machine. It currently
-runs **1327 checks, 0 failed required**. A run is hermetic: preferences are
+runs **1357 checks, 0 failed required**. A run is hermetic: preferences are
 redirected to a scratch INI file (`OPENEKKLESIA_SETTINGS_DIR`) and the database
 lives in a throwaway scratch directory, so your own saved settings and data are
 never read or modified.

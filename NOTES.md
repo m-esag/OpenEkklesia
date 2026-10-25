@@ -184,14 +184,20 @@ identical across them.
   the previous filter widgets with blocked signals and aborts the navigation.
   Covered by `people_confirm_discard_edits`.
 - **Planning Center designation → fund mapping.** The Giving sync requests
-  `include=designations,funds` (one retry without `include` if the live API
-  rejects it), parses the to-many designation relationship plus the sideloaded
-  `Designation`/`Fund` names, and maps each imported gift to a real fund:
-  existing `funds.fund_name` matched case-insensitively, unknown non-empty
-  designations create a fund, and only genuinely unknown gifts fall back to
-  "Imported (Unmapped)". Re-syncs stay idempotent (external-id dedupe, no
-  duplicate funds). Covered by `pco_donation_designation_parsing` and
-  `pco_giving_import_designation_funds`.
+  `include=designations.fund` — the only form the Giving API accepts, and the
+  one that sideloads both `Designation` and `Fund` resources (one retry without
+  `include` if an older API rejects it). A donation can carry **several
+  designations** (a gift split across funds), each with its own `amount_cents`;
+  the import writes one contribution row per designation with that portion, and
+  a single-designation gift keeps the historical `PCO-<id>` dedup key while
+  split rows use `PCO-<id>-<designation-id>`. Names come from the Fund resource
+  (the Designation usually has none); existing `funds.fund_name` is matched
+  case-insensitively (the same cache serves the sideloaded funds feed), unknown
+  non-empty designations create a fund, and only genuinely unknown gifts fall
+  back to "Imported (Unmapped)". Amount validation runs before any fund side
+  effect, and re-syncs stay idempotent (external-id dedupe, no duplicate funds).
+  Covered by `pco_donation_designation_parsing`,
+  `pco_giving_import_designation_funds` and `pco_split_donation_import`.
 - **Windows installer + portable ZIP.** `build-windows-installer.ps1` validates
   the deployed Release tree and drives Inno Setup 6 (`installer/OpenEkklesia.iss`,
   exit codes 0/1/2/3); `-Portable` emits a ZIP, `-InstallTool` can fetch the
@@ -210,7 +216,8 @@ identical across them.
 - **Sanitizer verification (2026-10, MSVC ASan+UBSan).** The full suite was
   rebuilt and run under `-DOE_ENABLE_SANITIZERS=ON`
   (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`); the CI `asan` job covers the
-  Linux GCC path on every push.
+  Linux GCC path on every push. Re-verified after the Planning Center split-gift
+  fix (1357 checks, 0 failed, no sanitizer reports).
 - **CI sanitizer job.** `ci.yml` has an `asan` job (Ubuntu GCC, ASan + UBSan,
   `-DOE_ENABLE_SANITIZERS=ON`) building and running the suite with
   `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`, in addition to the local
