@@ -75,7 +75,7 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 - `dateFormat`, `startOfWeek`, `timezone` — stored, not applied app-wide.
 - `followUpDays` — stored; the Shepherd queue uses follow-up dates but does not
   yet auto-suggest the configured window.
-- `churchLogo` — stored + previewed; not yet rendered on printed documents.
+- `churchLogo` — stored + previewed + rendered as base64 on printed document headers via ChurchProfile::renderHtmlHeader() (covered by settingsLocalizationAndChurchProfile).
 - `fiscalYearStart` was **removed** (was dead); calendar-year YTD is current.
   A real July–June fiscal year would require budget-schema changes — decide
   whether to add it.
@@ -100,7 +100,7 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 
 ## 6. Misc / polish backlog
 
-- Command palette (Ctrl+K) is not module-aware (disabled modules still appear).
+- ~~Command palette module-aware.~~ Command palette filters navigation commands by enabled modules (NOTE: 2026-10).
 - A few hard-coded colors remain in the graph side panels (legend, details,
   roster) — migrate to tokens when convenient.
 - `-Wconversion` warnings under strict audit flags (cosmetic).

@@ -2,6 +2,7 @@
 #include "mainwindow.h"
 #include "iconmanager.h"
 #include "../database/databasemanager.h"
+#include "appsettings.h"
 #include <QVBoxLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QGraphicsOpacityEffect>
@@ -156,24 +157,41 @@ void CommandPaletteDialog::addPaletteItem(const QString& text, const QString& ty
 void CommandPaletteDialog::populateItems() {
     m_listWidget->clear();
 
+    // Module-aware filtering (issue NOTES.md §6): read the same enabled-module
+    // setting the sidebar does (Modules → Settings). Disabled modules do not
+    // contribute navigation commands, so the palette matches the visible UI.
+    AppSettings modSet;
+    const bool modPeople     = modSet.value("modules/people", true).toBool();
+    const bool modGroups     = modSet.value("modules/groups", true).toBool();
+    const bool modGraph      = modSet.value("modules/graph", true).toBool();
+    const bool modShepherd   = modSet.value("modules/shepherd", true).toBool();
+    const bool modService    = modSet.value("modules/service", true).toBool();
+    const bool modPlanning   = modSet.value("modules/planning", true).toBool();
+    const bool modGiving     = modSet.value("modules/giving",
+                                            modSet.value("modules/finance", true).toBool()).toBool();
+    const bool modFacilities = modSet.value("modules/facilities", true).toBool();
+    const bool modInventory  = modSet.value("modules/inventory", true).toBool();
+    const bool modVault      = modSet.value("modules/vault", true).toBool();
+    const bool modKiosk      = modSet.value("modules/kiosk", true).toBool();
+
     // 1. Navigation Actions
     addPaletteItem("Go to Dashboard", "Command", 1, "bar-chart-3");
-    addPaletteItem("Go to People Directory (CRM)", "Command", 2, "users");
-    addPaletteItem("Go to Small Groups / Ministries List", "Command", 3, "layers");
-    addPaletteItem("Go to Giving & Sunday Batches", "Command", 4, "hand-coins");
-    addPaletteItem("Go to Sunday Service Run-Sheet Builder", "Command", 5, "list-music");
-    addPaletteItem("Go to Connections Relationship Graph", "Command", 6, "network");
-    addPaletteItem("Go to Asset Inventory & Checkouts", "Command", 8, "package");
-    addPaletteItem("Go to Elder Board Document Vault", "Command", 9, "shield-check");
-    addPaletteItem("Go to Shepherd's Care Workbench", "Command", 12, "heart-handshake");
-    addPaletteItem("Go to Ministry Planning & Roadmaps", "Command", 13, "calendar");
-    addPaletteItem("Go to Facilities & Room Reservations", "Command", 14, "landmark");
+    if (modPeople)     addPaletteItem("Go to People Directory (CRM)", "Command", 2, "users");
+    if (modGroups)     addPaletteItem("Go to Small Groups / Ministries List", "Command", 3, "layers");
+    if (modGiving)     addPaletteItem("Go to Giving & Sunday Batches", "Command", 4, "hand-coins");
+    if (modService)    addPaletteItem("Go to Sunday Service Run-Sheet Builder", "Command", 5, "list-music");
+    if (modGraph)      addPaletteItem("Go to Connections Relationship Graph", "Command", 6, "network");
+    if (modInventory)  addPaletteItem("Go to Asset Inventory & Checkouts", "Command", 8, "package");
+    if (modVault)      addPaletteItem("Go to Elder Board Document Vault", "Command", 9, "shield-check");
+    if (modKiosk)      addPaletteItem("Launch Child Nursery Check-In Screen", "Command", 11, "user-check");
+    if (modShepherd)   addPaletteItem("Go to Shepherd's Care Workbench", "Command", 12, "heart-handshake");
+    if (modPlanning)   addPaletteItem("Go to Ministry Planning & Roadmaps", "Command", 13, "calendar");
+    if (modFacilities) addPaletteItem("Go to Facilities & Room Reservations", "Command", 14, "landmark");
     addPaletteItem("Go to Settings & Preferences", "Command", 15, "settings");
-
-    // 2. Control Commands
     addPaletteItem("Open User Manual & Help Center (F1)", "Command", 16, "book-open");
     addPaletteItem("Toggle Light / Dark Theme Mode", "Command", 10, "sparkles");
-    addPaletteItem("Launch Child Nursery Check-In Screen", "Command", 11, "user-check");
+
+    // 2. (control commands already registered above)
 
     // 3. Database entities (People, Groups, Assets)
     QSqlDatabase db = DatabaseManager::instance().database();

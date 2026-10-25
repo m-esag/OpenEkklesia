@@ -358,16 +358,22 @@ void InventoryWidget::showAssetDetails(int assetId) {
 }
 
 void InventoryWidget::refreshHistoryTable(int assetId) {
-    QString qStr = QString(
+    QSqlQuery historyQuery(DatabaseManager::instance().database());
+    historyQuery.prepare(
         "SELECT p.first_name || ' ' || p.last_name AS \"Borrower\", "
         "       c.checkout_date AS \"Checkout Date\", "
         "       COALESCE(c.return_date, 'Active') AS \"Return Date\", "
         "       c.notes AS \"Notes\" "
         "FROM checkout_logs c "
         "JOIN people p ON c.person_id = p.id "
-        "WHERE c.asset_id = %1 "
-        "ORDER BY c.checkout_date DESC, c.id DESC").arg(assetId);
-    m_historyModel->setQuery(qStr);
+        "WHERE c.asset_id = ? "
+        "ORDER BY c.checkout_date DESC, c.id DESC");
+    historyQuery.addBindValue(assetId);
+    if (!historyQuery.exec()) {
+        m_historyModel->clear();
+        return;
+    }
+    m_historyModel->setQuery(historyQuery);
 }
 
 void InventoryWidget::onCheckoutClicked() {

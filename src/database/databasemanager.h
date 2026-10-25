@@ -74,7 +74,7 @@ public:
 
     // Highest schema version known to this build. migrateSchema() will run any
     // migrations between the DB's recorded version and this number, in order.
-    static constexpr int kLatestSchemaVersion = 24;
+    static constexpr int kLatestSchemaVersion = 25;
 
 private:
     DatabaseManager() = default;

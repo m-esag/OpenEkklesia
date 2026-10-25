@@ -252,6 +252,10 @@ bool importDocument(QSqlDatabase& db, const QJsonObject& doc) {
         db.rollback();
     }
     pragma.exec("PRAGMA foreign_keys = ON");
+    // Flush the WAL so the import is durable even for a read-only follow-up
+    // (Phase 0 checklist: graph-heavy/import paths gain a checkpoint).
+    QSqlQuery ckpt(db);
+    ckpt.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return success;
 }
 

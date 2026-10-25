@@ -2386,6 +2386,35 @@ bool DatabaseManager::migrateSchema() {
         qInfo() << "Schema migration 24 applied successfully.";
     }
 
+    // --- Schema Migration 25: audit-log composite index (Phase 0) ---
+    // The audit trail is browsed newest-first and filtered by table/record in
+    // at least two places. (table_name, record_id, changed_at) keeps those
+    // lookups cheap and avoids scanning at multi-year scale. Insertion is
+    // IF NOT EXISTS so older backups upgraded in-place remain consistent.
+    if (current < 25) {
+        qInfo() << "Applying schema migration 25: audit-log composite index";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 25: failed to start transaction";
+            return false;
+        }
+        QSqlQuery migQ(m_db);
+        if (!migQ.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_table_record_changed "
+                       "ON audit_log(table_name, record_id, changed_at);")) {
+            qCritical() << "Migration 25: index creation failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 25: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(25)) {
+            return false;
+        }
+        qInfo() << "Schema migration 25 applied successfully.";
+    }
+
     return true;
 }
 
