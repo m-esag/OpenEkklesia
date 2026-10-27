@@ -93,6 +93,8 @@ set(SOURCES
     src/ui/people/peoplewidget.h
     src/ui/people/peoplecardutils.h
     src/ui/people/peoplecardutils.cpp
+    src/ui/people/tagchiputils.h
+    src/ui/people/tagchiputils.cpp
     src/ui/people/givingsummaryservice.h
     src/ui/people/givingsummaryservice.cpp
     src/ui/people/pastoralhistoryservice.h
@@ -231,6 +233,8 @@ add_executable(openekklesia_tests
     src/ui/people/peoplewidget.h
     src/ui/people/peoplecardutils.h
     src/ui/people/peoplecardutils.cpp
+    src/ui/people/tagchiputils.h
+    src/ui/people/tagchiputils.cpp
     src/ui/people/givingsummaryservice.h
     src/ui/people/givingsummaryservice.cpp
     src/ui/people/pastoralhistoryservice.h

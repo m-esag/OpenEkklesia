@@ -2,6 +2,7 @@
 #include "peoplecardutils.h"
 #include "givingsummaryservice.h"
 #include "pastoralhistoryservice.h"
+#include "tagchiputils.h"
 #include "appsettings.h"
 #include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
@@ -1615,19 +1616,18 @@ void PeopleWidget::updateGiftsFromChips() {
             selected << btn->property("rawName").toString();
         }
     }
-    m_giftsEdit->setText(selected.join(", "));
+    m_giftsEdit->setText(TagChipUtils::joinTags(selected));
 }
 
 void PeopleWidget::updateChipsFromGiftsText(const QString& giftsText) {
-    QStringList gifts = giftsText.split(",", Qt::SkipEmptyParts);
-    for (int i = 0; i < gifts.size(); ++i) gifts[i] = gifts[i].trimmed();
+    QStringList gifts = TagChipUtils::splitTags(giftsText);
 
     for (QPushButton* btn : m_giftChips) {
         QString rawText = btn->property("rawName").toString();
         bool isSel = gifts.contains(rawText, Qt::CaseInsensitive);
         btn->blockSignals(true);
         btn->setChecked(isSel);
-        btn->setText(isSel ? QString("✓ %1").arg(rawText) : rawText);
+        btn->setText(TagChipUtils::displayTag(rawText, isSel));
         btn->blockSignals(false);
     }
 }
@@ -1639,19 +1639,18 @@ void PeopleWidget::updateStylesFromChips() {
             selected << btn->property("rawName").toString();
         }
     }
-    m_styleEdit->setText(selected.join(", "));
+    m_styleEdit->setText(TagChipUtils::joinTags(selected));
 }
 
 void PeopleWidget::updateChipsFromStyleText(const QString& styleText) {
-    QStringList styles = styleText.split(",", Qt::SkipEmptyParts);
-    for (int i = 0; i < styles.size(); ++i) styles[i] = styles[i].trimmed();
+    QStringList styles = TagChipUtils::splitTags(styleText);
 
     for (QPushButton* btn : m_styleChips) {
         QString rawText = btn->property("rawName").toString();
         bool isSel = styles.contains(rawText, Qt::CaseInsensitive);
         btn->blockSignals(true);
         btn->setChecked(isSel);
-        btn->setText(isSel ? QString("✓ %1").arg(rawText) : rawText);
+        btn->setText(TagChipUtils::displayTag(rawText, isSel));
         btn->blockSignals(false);
     }
 }
@@ -1670,8 +1669,7 @@ void PeopleWidget::renderTagChips() {
         lay->setSpacing(6);
     }
 
-    QStringList tags = m_tagsEdit->text().split(",", Qt::SkipEmptyParts);
-    for (int i = 0; i < tags.size(); ++i) tags[i] = tags[i].trimmed();
+    QStringList tags = TagChipUtils::splitTags(m_tagsEdit->text());
 
     // Synchronize popular tag chips
     for (QPushButton* pChip : m_popularTagChips) {
@@ -1679,7 +1677,7 @@ void PeopleWidget::renderTagChips() {
         bool isSelected = tags.contains(raw, Qt::CaseInsensitive);
         pChip->blockSignals(true);
         pChip->setChecked(isSelected);
-        pChip->setText(isSelected ? QString("✓ %1").arg(raw) : raw);
+        pChip->setText(TagChipUtils::displayTag(raw, isSelected));
         pChip->blockSignals(false);
     }
 
@@ -1710,8 +1708,7 @@ void PeopleWidget::addInterestTag(const QString& tag) {
     QString clean = tag.trimmed();
     if (clean.isEmpty()) return;
 
-    QStringList current = m_tagsEdit->text().split(",", Qt::SkipEmptyParts);
-    for (int i = 0; i < current.size(); ++i) current[i] = current[i].trimmed();
+    QStringList current = TagChipUtils::splitTags(m_tagsEdit->text());
 
     if (!current.contains(clean, Qt::CaseInsensitive)) {
         current << clean;
