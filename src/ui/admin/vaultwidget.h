@@ -5,6 +5,7 @@
 #include <QTableView>
 #include <QSqlQueryModel>
 #include <QPushButton>
+#include <QTimer>
 
 class VaultWidget : public QWidget {
     Q_OBJECT
@@ -28,6 +29,7 @@ private slots:
     void onOpenClicked();
     void onDeleteClicked();
     void onSearchChanged(const QString& text);
+    void doVaultSearch(const QString& text);
     void onSweepOrphans();
     void onAddBoardMinutes();
     void onDeleteMinutes();
@@ -37,6 +39,8 @@ private:
     void setupUI();
 
     QLineEdit* m_searchEdit;
+    QTimer* m_searchTimer = nullptr;
+    QString m_pendingSearch;
     QTableView* m_tableView;
     QSqlQueryModel* m_queryModel;
 

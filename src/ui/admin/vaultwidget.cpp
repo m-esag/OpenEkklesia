@@ -615,6 +615,19 @@ void VaultWidget::applyRole(const QString& role) {
 }
 
 void VaultWidget::onSearchChanged(const QString& text) {
+    if (!m_searchTimer) {
+        m_searchTimer = new QTimer(this);
+        m_searchTimer->setSingleShot(true);
+        connect(m_searchTimer, &QTimer::timeout, this, [this]() {
+            doVaultSearch(m_pendingSearch);
+        });
+    }
+    m_pendingSearch = text;
+    m_searchTimer->stop();
+    m_searchTimer->start(150);
+}
+
+void VaultWidget::doVaultSearch(const QString& text) {
     QString filter = "%" + text.trimmed() + "%";
     QSqlQuery query(DatabaseManager::instance().database());
     query.prepare("SELECT id AS \"ID\", "
