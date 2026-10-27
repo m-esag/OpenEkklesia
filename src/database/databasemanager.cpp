@@ -2415,6 +2415,34 @@ bool DatabaseManager::migrateSchema() {
         qInfo() << "Schema migration 25 applied successfully.";
     }
 
+    // --- Schema Migration 26: measured hot-query indexes ---
+    // EXPLAIN QUERY PLAN showed `ministry_tasks(team_id)` and
+    // `vault_documents(person_id)` scanning while servicing filtered views and
+    // the profile's attachment lookup. Only these two proven columns get an index.
+    if (current < 26) {
+        qInfo() << "Applying schema migration 26: hot-path filter indexes";
+        if (!m_db.transaction()) {
+            qCritical() << "Migration 26: failed to start transaction";
+            return false;
+        }
+        QSqlQuery migQ(m_db);
+        if (!migQ.exec("CREATE INDEX IF NOT EXISTS idx_ministry_tasks_team ON ministry_tasks(team_id);") ||
+            !migQ.exec("CREATE INDEX IF NOT EXISTS idx_vault_documents_person ON vault_documents(person_id);")) {
+            qCritical() << "Migration 26: index creation failed:" << migQ.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (!m_db.commit()) {
+            qCritical() << "Migration 26: commit failed";
+            m_db.rollback();
+            return false;
+        }
+        if (!recordSchemaVersion(26)) {
+            return false;
+        }
+        qInfo() << "Schema migration 26 applied successfully.";
+    }
+
     return true;
 }
 

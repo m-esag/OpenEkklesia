@@ -660,7 +660,7 @@ bool test_restoreMigrationLogMatchesOutcome() {
     // Case 1: an older backup (schema 23) restores and migrates forward —
     // the informational line must appear and the failure line must not.
     CHECK(QFile::copy(goodBackup, olderBackup));
-    pokeBackup(olderBackup, DatabaseManager::kLatestSchemaVersion - 1, nullptr);
+    pokeBackup(olderBackup, DatabaseManager::kLatestSchemaVersion - 2, nullptr);
     g_capturedLog.clear();
     QtMessageHandler prev = qInstallMessageHandler(captureLogHandler);
     const bool ok1 = mgr.restoreFromBackup(olderBackup);
@@ -679,7 +679,7 @@ bool test_restoreMigrationLogMatchesOutcome() {
     // must never print the success line. This is the exact regression: the
     // pre-fix code printed "migrated older backup forward" HERE, as a warning.
     CHECK(QFile::copy(goodBackup, brokenBackup));
-    pokeBackup(brokenBackup, DatabaseManager::kLatestSchemaVersion - 1, "audit_log");
+    pokeBackup(brokenBackup, DatabaseManager::kLatestSchemaVersion - 2, "audit_log");
     g_capturedLog.clear();
     prev = qInstallMessageHandler(captureLogHandler);
     const bool ok2 = mgr.restoreFromBackup(brokenBackup);
