@@ -1,0 +1,47 @@
+2170 void PeopleWidget::updateHistoryTimeline(int personId) {
+2171     if (!m_historyList) return;
+2172     m_historyList->clear();
+2173 
+2174     QSqlQuery qHist;
+2175     qHist.prepare(
+2176         "SELECT id, timestamp, type, text, follow_up, src FROM ("
+2177         "  SELECT id, timestamp, activity_type AS type, details AS text, 0 AS follow_up, 'member_history' AS src "
+2178         "  FROM member_history WHERE person_id = ? "
+2179         "  UNION ALL "
+2180         "  SELECT id, timestamp, care_type AS type, notes AS text, follow_up, 'care_logs' AS src "
+2181         "  FROM care_logs WHERE person_id = ?"
+2182         ") ORDER BY timestamp DESC LIMIT 20");
+2183     qHist.addBindValue(personId);
+2184     qHist.addBindValue(personId);
+2185     if (qHist.exec()) {
+2186         while (qHist.next()) {
+2187             int logId = qHist.value(0).toInt();
+2188             QString ts = qHist.value(1).toString();
+2189             QString type = qHist.value(2).toString();
+2190             QString text = qHist.value(3).toString();
+2191             bool followUp = qHist.value(4).toInt() != 0;
+2192             QString srcTable = qHist.value(5).toString();
+2193 
+2194             QString badge = "🕊️ " + type;
+2195             if (type == "Counseling") badge = "💬 " + type;
+2196             else if (type == "Visitation" || type == "Hospital Visit") badge = "🏥 " + type;
+2197             else if (type == "Prayer") badge = "🙏 " + type;
+2198             else if (type == "Follow-up Call") badge = "📞 " + type;
+2199             else if (type == "Benevolence") badge = "🤝 " + type;
+2200 
+2201             QString itemStr = QString("%1  [%2]%3\n%4")
+2202                 .arg(badge, ts, (followUp ? "  [🔔 Follow-up Needed]" : ""), text);
+2203 
+2204             QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
+2205             item->setData(Qt::UserRole, logId);
+2206             item->setData(Qt::UserRole + 1, srcTable);
+2207             item->setData(Qt::UserRole + 2, text);
+2208             if (followUp) {
+2209                 item->setForeground(QColor("#fab387"));
+2210             }
+2211         }
+2212     }
+2213     if (m_historyList->count() == 0) {
+2214         m_historyList->addItem("No pastoral care entries logged yet.");
+2215     }
+2216 }

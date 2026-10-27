@@ -95,6 +95,8 @@ set(SOURCES
     src/ui/people/peoplecardutils.cpp
     src/ui/people/givingsummaryservice.h
     src/ui/people/givingsummaryservice.cpp
+    src/ui/people/pastoralhistoryservice.h
+    src/ui/people/pastoralhistoryservice.cpp
     src/ui/people/peoplewidget.cpp
     src/ui/people/pastoralanalyticswidget.h
     src/ui/people/pastoralanalyticswidget.cpp
@@ -231,6 +233,8 @@ add_executable(openekklesia_tests
     src/ui/people/peoplecardutils.cpp
     src/ui/people/givingsummaryservice.h
     src/ui/people/givingsummaryservice.cpp
+    src/ui/people/pastoralhistoryservice.h
+    src/ui/people/pastoralhistoryservice.cpp
     src/ui/admin/settingswidget.cpp
     src/ui/admin/settingswidget.h
     src/ui/admin/vaultwidget.cpp

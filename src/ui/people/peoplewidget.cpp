@@ -1,6 +1,7 @@
 #include "peoplewidget.h"
 #include "peoplecardutils.h"
 #include "givingsummaryservice.h"
+#include "pastoralhistoryservice.h"
 #include "appsettings.h"
 #include "ministryarchetypes.h"
 #include "../database/databasemanager.h"
@@ -2171,45 +2172,21 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
     if (!m_historyList) return;
     m_historyList->clear();
 
-    QSqlQuery qHist;
-    qHist.prepare(
-        "SELECT id, timestamp, type, text, follow_up, src FROM ("
-        "  SELECT id, timestamp, activity_type AS type, details AS text, 0 AS follow_up, 'member_history' AS src "
-        "  FROM member_history WHERE person_id = ? "
-        "  UNION ALL "
-        "  SELECT id, timestamp, care_type AS type, notes AS text, follow_up, 'care_logs' AS src "
-        "  FROM care_logs WHERE person_id = ?"
-        ") ORDER BY timestamp DESC LIMIT 20");
-    qHist.addBindValue(personId);
-    qHist.addBindValue(personId);
-    if (qHist.exec()) {
-        while (qHist.next()) {
-            int logId = qHist.value(0).toInt();
-            QString ts = qHist.value(1).toString();
-            QString type = qHist.value(2).toString();
-            QString text = qHist.value(3).toString();
-            bool followUp = qHist.value(4).toInt() != 0;
-            QString srcTable = qHist.value(5).toString();
+    const QList<PastoralHistoryEntry> entries = PastoralHistoryService::fetch(personId, DatabaseManager::instance().database());
+    for (const PastoralHistoryEntry& e : entries) {
+        QString badge = PastoralHistoryService::badge(e.type);
+        QString itemStr = QString("%1  [%2]%3\n%4")
+            .arg(badge, e.timestamp, (e.followUp ? "  🔔 Follow-up Needed" : ""), e.text);
 
-            QString badge = "🕊️ " + type;
-            if (type == "Counseling") badge = "💬 " + type;
-            else if (type == "Visitation" || type == "Hospital Visit") badge = "🏥 " + type;
-            else if (type == "Prayer") badge = "🙏 " + type;
-            else if (type == "Follow-up Call") badge = "📞 " + type;
-            else if (type == "Benevolence") badge = "🤝 " + type;
-
-            QString itemStr = QString("%1  [%2]%3\n%4")
-                .arg(badge, ts, (followUp ? "  [🔔 Follow-up Needed]" : ""), text);
-
-            QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
-            item->setData(Qt::UserRole, logId);
-            item->setData(Qt::UserRole + 1, srcTable);
-            item->setData(Qt::UserRole + 2, text);
-            if (followUp) {
-                item->setForeground(QColor("#fab387"));
-            }
+        QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
+        item->setData(Qt::UserRole, e.id);
+        item->setData(Qt::UserRole + 1, e.sourceTable);
+        item->setData(Qt::UserRole + 2, e.text);
+        if (e.followUp) {
+            item->setForeground(QColor("#fab387"));
         }
     }
+
     if (m_historyList->count() == 0) {
         m_historyList->addItem("No pastoral care entries logged yet.");
     }
