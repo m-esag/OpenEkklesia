@@ -783,14 +783,26 @@ void PlanningWidget::refreshRoadmap() {
     const QString filterStatus = m_roadmapStatusFilter ? m_roadmapStatusFilter->currentText() : "All Statuses";
     const QString searchText = m_roadmapSearch ? m_roadmapSearch->text().trimmed() : "";
 
+    // Bind values (not string interpolation) so user-controlled filters can never
+    // become SQL. Priority/status/search text are all externally influenced.
     QStringList conditions;
-    if (filterTeamId > 0) conditions << QString("t.team_id = %1").arg(filterTeamId);
-    if (filterPriority != "All Priorities") conditions << QString("t.priority = '%1'").arg(filterPriority);
-    if (filterStatus != "All Statuses") conditions << QString("t.status = '%1'").arg(filterStatus);
+    QList<QVariant> bindValues;
+    if (filterTeamId > 0) {
+        conditions << "t.team_id = ?";
+        bindValues << filterTeamId;
+    }
+    if (filterPriority != "All Priorities") {
+        conditions << "t.priority = ?";
+        bindValues << filterPriority;
+    }
+    if (filterStatus != "All Statuses") {
+        conditions << "t.status = ?";
+        bindValues << filterStatus;
+    }
     if (!searchText.isEmpty()) {
-        QString escaped = searchText;
-        escaped.replace("'", "''");
-        conditions << QString("(t.title LIKE '%%1%' OR t.team LIKE '%%1%' OR t.owner LIKE '%%1%' OR g.name LIKE '%%1%')").arg(escaped);
+        conditions << "(t.title LIKE ? OR t.team LIKE ? OR t.owner LIKE ? OR g.name LIKE ?)";
+        const QString pat = "%" + searchText + "%";
+        for (int i = 0; i < 4; ++i) bindValues << pat;
     }
     if (horizon == 2) { // Milestones only
         conditions << "(t.category = 'Milestone' OR t.priority = 'Urgent')";
@@ -809,12 +821,14 @@ void PlanningWidget::refreshRoadmap() {
         m_roadmapTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         m_roadmapTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
-        QSqlQuery qFetch(
-            QString("SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_date, t.end_date, "
-                    "       COALESCE(t.status, 'In-Progress'), COALESCE(t.priority, 'Medium') "
-                    "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
-                    "%1 "
-                    "ORDER BY COALESCE(g.name, t.team), t.start_date").arg(whereSql), db);
+        QSqlQuery qFetch(db);
+        qFetch.prepare(QString("SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_date, t.end_date, "
+                              "       COALESCE(t.status, 'In-Progress'), COALESCE(t.priority, 'Medium') "
+                              "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
+                              "%1 "
+                              "ORDER BY COALESCE(g.name, t.team), t.start_date").arg(whereSql));
+        for (const QVariant &bv : std::as_const(bindValues)) qFetch.addBindValue(bv);
+        qFetch.exec();
 
         int row = 0;
         while (qFetch.next()) {
@@ -855,12 +869,14 @@ void PlanningWidget::refreshRoadmap() {
         m_roadmapTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         m_roadmapTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
-        QSqlQuery qFetch(
-            QString("SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_date, t.end_date, "
-                    "       COALESCE(t.status, 'In-Progress') "
-                    "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
-                    "%1 "
-                    "ORDER BY COALESCE(g.name, t.team), t.start_date").arg(whereSql), db);
+        QSqlQuery qFetch(db);
+        qFetch.prepare(QString("SELECT t.id, COALESCE(g.name, t.team), t.title, t.start_date, t.end_date, "
+                              "       COALESCE(t.status, 'In-Progress') "
+                              "FROM ministry_tasks t LEFT JOIN groups g ON g.id = t.team_id "
+                              "%1 "
+                              "ORDER BY COALESCE(g.name, t.team), t.start_date").arg(whereSql));
+        for (const QVariant &bv : std::as_const(bindValues)) qFetch.addBindValue(bv);
+        qFetch.exec();
 
         int row = 0;
         while (qFetch.next()) {
@@ -897,15 +913,17 @@ void PlanningWidget::refreshRoadmap() {
         m_roadmapTable->setHorizontalHeaderLabels({"Initiative / Milestone", "Ministry / Team", "Target Due Date", "Lead Owner", "Priority", "Progress", "Status"});
         m_roadmapTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
-        QSqlQuery qFetch(
-            QString("SELECT t.id, t.title, COALESCE(g.name, t.team), t.end_date, "
-                    "       COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
-                    "       COALESCE(t.priority, 'Medium'), COALESCE(t.progress_pct, 0), "
-                    "       COALESCE(t.status, 'In-Progress') "
-                    "FROM ministry_tasks t "
-                    "LEFT JOIN groups g ON g.id = t.team_id "
-                    "LEFT JOIN people p ON p.id = t.owner_id "
-                    "%1 ORDER BY t.end_date ASC").arg(whereSql), db);
+        QSqlQuery qFetch(db);
+        qFetch.prepare(QString("SELECT t.id, t.title, COALESCE(g.name, t.team), t.end_date, "
+                              "       COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
+                              "       COALESCE(t.priority, 'Medium'), COALESCE(t.progress_pct, 0), "
+                              "       COALESCE(t.status, 'In-Progress') "
+                              "FROM ministry_tasks t "
+                              "LEFT JOIN groups g ON g.id = t.team_id "
+                              "LEFT JOIN people p ON p.id = t.owner_id "
+                              "%1 ORDER BY t.end_date ASC").arg(whereSql));
+        for (const QVariant &bv : std::as_const(bindValues)) qFetch.addBindValue(bv);
+        qFetch.exec();
 
         int row = 0;
         while (qFetch.next()) {
@@ -1220,13 +1238,20 @@ void PlanningWidget::refreshGanttChart() {
         m_ganttTable->setColumnWidth(i, 40);
     }
 
-    QString whereSql = (teamId > 0) ? QString("WHERE t.team_id = %1").arg(teamId) : "";
+    QList<QVariant> ganttBind;
+    QString whereSql;
+    if (teamId > 0) {
+        whereSql = "WHERE t.team_id = ?";
+        ganttBind << teamId;
+    }
 
-    QSqlQuery qFetch(
-        QString("SELECT t.id, t.title, COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
-                "       t.start_date, t.end_date, COALESCE(t.status, 'In-Progress') "
-                "FROM ministry_tasks t LEFT JOIN people p ON p.id = t.owner_id "
-                "%1 ORDER BY t.start_date").arg(whereSql), db);
+    QSqlQuery qFetch(db);
+    qFetch.prepare(QString("SELECT t.id, t.title, COALESCE(p.first_name || ' ' || p.last_name, t.owner), "
+                          "       t.start_date, t.end_date, COALESCE(t.status, 'In-Progress') "
+                          "FROM ministry_tasks t LEFT JOIN people p ON p.id = t.owner_id "
+                          "%1 ORDER BY t.start_date").arg(whereSql));
+    for (const QVariant &bv : std::as_const(ganttBind)) qFetch.addBindValue(bv);
+    qFetch.exec();
 
     m_ganttTable->setRowCount(0);
     int row = 0;

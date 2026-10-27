@@ -17,6 +17,7 @@ struct PersonGivingSummary {
     QString lastDate = QStringLiteral("—");
     int spouseId = 0;
     double householdTotal = 0.0;
+    bool householdTotalAvailable = false;
     QList<PersonGiftRecent> recent;
 };
 

@@ -38,6 +38,7 @@ PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase
         hq.addBindValue(spouseId);
         if (hq.exec() && hq.next()) {
             summary.householdTotal = hq.value(0).toDouble() / 100.0;
+            summary.householdTotalAvailable = true;
         }
     }
 

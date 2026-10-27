@@ -1857,7 +1857,7 @@ void PeopleWidget::updateGivingSummary(int personId) {
     // Household view: couples usually give jointly under one spouse's record.
     if (m_lblGivingHousehold) {
         QString householdText = QStringLiteral("—");
-        if (summ.spouseId > 0) {
+        if (summ.spouseId > 0 && summ.householdTotalAvailable) {
             double household = summ.householdTotal;
             householdText = QString("%1 %2").arg(appCurrencySymbol(), QString::number(household, 'f', 2));
         }
@@ -2173,7 +2173,7 @@ void PeopleWidget::updateHistoryTimeline(int personId) {
     for (const PastoralHistoryEntry& e : entries) {
         QString badge = PastoralHistoryService::badge(e.type);
         QString itemStr = QString("%1  [%2]%3\n%4")
-            .arg(badge, e.timestamp, (e.followUp ? "  🔔 Follow-up Needed" : ""), e.text);
+            .arg(badge, e.timestamp, (e.followUp ? "  [🔔 Follow-up Needed]" : ""), e.text);
 
         QListWidgetItem* item = new QListWidgetItem(itemStr, m_historyList);
         item->setData(Qt::UserRole, e.id);
