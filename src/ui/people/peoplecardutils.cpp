@@ -33,7 +33,7 @@ QString PersonCardUtils::generateVCard(const QString& firstName, const QString& 
     vcf += "BEGIN:VCARD\r\n";
     vcf += "VERSION:3.0\r\n";
     vcf += QString("N:%1;%2;;;\r\n").arg(lastName, firstName);
-    vcf += QString("FN:%1 %2\r\n").arg(firstName, lastName).trimmed();
+    vcf += QString("FN:%1 %2\r\n").arg(firstName.trimmed(), lastName.trimmed());
     if (!phone.isEmpty()) {
         vcf += QString("TEL;TYPE=CELL,VOICE:%1\r\n").arg(phone);
     }

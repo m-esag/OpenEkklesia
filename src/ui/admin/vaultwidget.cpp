@@ -630,14 +630,18 @@ void VaultWidget::onSearchChanged(const QString& text) {
 void VaultWidget::doVaultSearch(const QString& text) {
     QString filter = "%" + text.trimmed() + "%";
     QSqlQuery query(DatabaseManager::instance().database());
-    query.prepare("SELECT id AS \"ID\", "
-                  "       title AS \"Document Title\", "
-                  "       meeting_date AS \"Date\", "
-                  "       category AS \"Category\", "
-                  "       file_path AS \"Filename\" "
-                  "FROM vault_documents "
-                  "WHERE title LIKE ? OR category LIKE ? "
-                  "ORDER BY meeting_date DESC");
+    query.prepare("SELECT v.id AS \"ID\", "
+                  "       v.title AS \"Document Title\", "
+                  "       v.meeting_date AS \"Date\", "
+                  "       v.category AS \"Category\", "
+                  "       COALESCE(p.first_name || ' ' || p.last_name, \"\u2014\") AS \"Person\", "
+                  "       COALESCE(g.name, \"\u2014\") AS \"Group\", "
+                  "       v.file_path AS \"Filename\" "
+                  "FROM vault_documents v "
+                  "LEFT JOIN people p ON v.person_id = p.id "
+                  "LEFT JOIN groups g ON v.group_id = g.id "
+                  "WHERE v.title LIKE ? OR v.category LIKE ? "
+                  "ORDER BY v.meeting_date DESC");
     query.addBindValue(filter);
     query.addBindValue(filter);
     if (query.exec()) {

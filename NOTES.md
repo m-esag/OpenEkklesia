@@ -67,6 +67,10 @@ Three options were proposed:
 **Option B** if/when the feature set grows substantially (multi-user sync,
 expanded reports, mobile/API). Do not do a big-bang restructure.
 
+Phase 1 status (2026-10-27): helper/service extraction seams and measured
+ indexes are done; actual widget decomposition (peoplewidget, mainwindow,
+ graphwidget) has *not* started. See git log cd74901..7b145e4.
+
 ## 3. Dead / pending settings (stored but not yet wired)
 
 - `churchDenomination`, `churchAddress` (partially wired into tax statements),

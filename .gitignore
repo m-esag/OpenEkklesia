@@ -49,3 +49,8 @@ squashfs-root/
 # NOTE: openekklesia.png is intentionally NOT ignored. The AppImage build
 # copies it into the AppDir as the application icon
 # (see build-linux-appimage.sh), so a fresh clone must contain it.
+
+# --- Agent/reviewer scratch ---
+*_out.txt
+patch_*.py
+

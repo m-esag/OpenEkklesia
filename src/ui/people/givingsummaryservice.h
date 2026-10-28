@@ -14,7 +14,7 @@ struct PersonGiftRecent {
 struct PersonGivingSummary {
     double total = 0.0;
     int count = 0;
-    QString lastDate = QStringLiteral("—");
+    QString lastDate = QStringLiteral("None recorded");
     int spouseId = 0;
     double householdTotal = 0.0;
     bool householdTotalAvailable = false;
@@ -25,5 +25,6 @@ struct PersonGivingSummary {
 // it can be unit-tested headlessly without the PeopleWidget chrome.
 class GivingSummaryService {
 public:
-    static PersonGivingSummary fetch(int personId, const QSqlDatabase& db);
+    static PersonGivingSummary fetch(int personId, const QSqlDatabase& db,
+                                    bool includeHousehold = true);
 };

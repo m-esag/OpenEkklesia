@@ -42,6 +42,10 @@
 #include "../src/ui/finance/transactiondialog.h"
 #include "../src/ui/people/pastoralanalyticswidget.h"
 #include "../src/ui/people/peoplewidget.h"
+#include "../src/ui/people/peoplecardutils.h"
+#include "../src/ui/people/tagchiputils.h"
+#include "../src/ui/people/givingsummaryservice.h"
+#include "../src/ui/people/pastoralhistoryservice.h"
 #include "../src/integrations/planningcenterclient.h"
 #include "../src/ui/core/mainwindow.h"
 
@@ -159,13 +163,56 @@ bool test_expectedTablesExist() {
     return true;
 }
 
+bool test_person_card_utils_round_trip() {
+    CHECK_EQ(PersonCardUtils::parseCsvLine("a,\"b,c\"").size(), 2);
+    CHECK(PersonCardUtils::parseCsvLine("a,\"b,c\"")[1] == QString("b,c"));
+    CHECK_EQ(PersonCardUtils::parseCsvLine("x,,y").size(), 3);
+
+    const QString vcf = PersonCardUtils::generateVCard("John", "Doe", "555-1", "john@example.com",
+                                                      "1985-05-15", "Member", "", "");
+    CHECK(vcf.contains("BEGIN:VCARD", Qt::CaseInsensitive));
+    CHECK(vcf.contains("FN:John Doe\r\n"));
+    CHECK(vcf.contains("TEL;TYPE=CELL,VOICE:555-1\r\n"));
+    CHECK(vcf.contains("EMAIL;TYPE=INTERNET,PREF:john@example.com\r\n"));
+    CHECK(vcf.contains("END:VCARD\r\n"));
+    return true;
+}
+
+bool test_tag_chip_utils() {
+    CHECK_EQ(TagChipUtils::splitTags("a, b ,  ").size(), 2);
+    CHECK(TagChipUtils::splitTags("a, b ,  ")[0] == "a");
+    CHECK(TagChipUtils::joinTags(QStringList() << "x" << "y") == QString("x, y"));
+    CHECK(TagChipUtils::displayTag("Foo", true) ==	QString("\u2713 Foo"));
+    CHECK(TagChipUtils::displayTag("Foo", false) == QString("Foo"));
+    return true;
+}
+
+bool test_pastoral_history_service_badges() {
+    CHECK(PastoralHistoryService::badge("Counseling") == QString("\U0001F4AC Counseling"));
+    CHECK(PastoralHistoryService::badge("UnknownType") == QString("\U0001F54A UnknownType"));
+    const QList<PastoralHistoryEntry> empty = PastoralHistoryService::fetch(0, db());
+    CHECK(empty.isEmpty());
+    return true;
+}
+
+bool test_givingsummaryservice_empty() {
+    const PersonGivingSummary s = GivingSummaryService::fetch(9999999, db());
+    CHECK_EQ(s.total, 0.0);
+    CHECK_EQ(s.count, 0);
+    CHECK(s.lastDate == QString("None recorded"));
+    CHECK(s.recent.isEmpty());
+    CHECK(!s.householdTotalAvailable);
+    return true;
+}
+
 bool test_expectedIndexesExist() {
     const QStringList indexes = {
         "idx_contributions_date", "idx_contributions_person", "idx_people_gender",
         "idx_people_household", "idx_people_name", "idx_people_status",
         "idx_relationships", "idx_relationships_src", "idx_relationships_tgt",
         "idx_splits_account", "idx_splits_tx", "idx_transactions_date",
-        "idx_volunteers_person"
+        "idx_volunteers_person", "idx_audit_log_changed",
+        "idx_ministry_tasks_team", "idx_vault_documents_person"
     };
     QSqlQuery q(db());
     for (const QString& idx : indexes) {

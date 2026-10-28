@@ -1852,7 +1852,7 @@ void PeopleWidget::updateGivingSummary(int personId) {
 
     m_lblGivingYTD->setText(QString("%1 %2").arg(appCurrencySymbol(), QString::number(summ.total, 'f', 2)));
     m_lblGivingCount->setText(QString::number(summ.count));
-    m_lblGivingLastDate->setText(summ.lastDate.isEmpty() ? QStringLiteral("None recorded") : summ.lastDate);
+    m_lblGivingLastDate->setText(summ.lastDate);
 
     // Household view: couples usually give jointly under one spouse's record.
     if (m_lblGivingHousehold) {

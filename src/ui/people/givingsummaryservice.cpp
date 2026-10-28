@@ -1,9 +1,8 @@
 #include "givingsummaryservice.h"
 #include <QSqlQuery>
-#include <QSqlError>
-#include <QDebug>
 
-PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase& db) {
+PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase& db,
+                                                   bool includeHousehold) {
     PersonGivingSummary summary;
     if (!db.isValid()) return summary;
 
@@ -14,13 +13,14 @@ PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase
         summary.total = q.value(0).toDouble() / 100.0;
         summary.count = q.value(1).toInt();
         QString last = q.value(2).toString();
-        summary.lastDate = last.isEmpty() ? QStringLiteral("None recorded") : last;
+        summary.lastDate = last.isEmpty() ? summary.lastDate : last;
     }
 
-    // Household view: spouse lookup both directions.
+    // Household view (only when the widget asks for it).
     int spouseId = 0;
     QSqlQuery spouse(db);
-    spouse.prepare("SELECT CASE WHEN source_type = 'Person' AND source_id = :me THEN target_id "
+    if (includeHousehold) {
+   ("SELECT CASE WHEN source_type = 'Person' AND source_id = :me THEN target_id "
                    "        ELSE source_id END AS other "
                    "FROM entity_relationships "
                    "WHERE relationship_type = 'Spouse' "
@@ -31,6 +31,7 @@ PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase
         spouseId = spouse.value(0).toInt();
     }
     summary.spouseId = spouseId;
+    } // includeHousehold
     if (spouseId > 0) {
         QSqlQuery hq(db);
         hq.prepare("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE person_id IN (?, ?)");
@@ -58,6 +59,5 @@ PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase
             summary.recent.append(item);
         }
     }
-    if (summary.lastDate == QStringLiteral("—")) {}
     return summary;
 }
