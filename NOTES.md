@@ -3,7 +3,7 @@
 > **Version:** `v0.8.0` (pre-release beta — re-versioned from `v1.5` language on
 > 2026-09-10; `1.x` implied production readiness we do not claim yet).
 > App version (`CMake PROJECT VERSION 0.8.0`) is independent of DB schema
-> version (`kLatestSchemaVersion = 24`).
+> version (`kLatestSchemaVersion = 26`).
 
 Status notes for future development sessions. Items here are intentionally
 **not** part of the current sprint; they are reminders and decision points.
@@ -72,7 +72,10 @@ expanded reports, mobile/API). Do not do a big-bang restructure.
 - `churchDenomination`, `churchAddress` (partially wired into tax statements),
   `churchPhone`, `churchEmail`, `churchWebsite`, `churchTaxId` — should appear
   on the printed directory and vault report headers.
-- `dateFormat`, `startOfWeek`, `timezone` — stored, not applied app-wide.
+- `dateFormat` — applied in several places (giving statements, vault, pastoral
+  analytics, people). `startOfWeek` and `timezone` remain stored-only for this
+  offline, single-locale app; see `AppDateFormatter` for the reader. Finish
+  remaining direct date formatting as modules are touched.
 - `followUpDays` — stored; the Shepherd queue uses follow-up dates but does not
   yet auto-suggest the configured window.
 - `churchLogo` — stored + previewed + rendered as base64 on printed document headers via ChurchProfile::renderHtmlHeader() (covered by settingsLocalizationAndChurchProfile).
