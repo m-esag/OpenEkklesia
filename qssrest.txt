@@ -1,0 +1,163 @@
+1079 QPushButton#ghostDangerBtn, QPushButton#dangerGhostBtn {
+1080   background: transparent; color: var(--accent-danger); border: none; font-weight: bold;
+1081 }
+1082 QPushButton#ghostDangerBtn:hover, QPushButton#dangerGhostBtn:hover { text-decoration: underline; }
+1083 QPushButton#ghostDangerBtn:disabled, QPushButton#dangerGhostBtn:disabled { color: var(--text-muted); text-decoration: none; }
+1084 QPushButton#accentBtnCyan   { background-color: var(--accent-cyan); color: var(--text-on-cyan); border: none; }
+1085 QPushButton#accentBtnCyan:hover   { background-color: var(--cyan-hover); }
+1086 QPushButton#accentBtnCyan:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
+1087 QPushButton#accentBtnOrange { background-color: var(--accent-orange); color: var(--text-on-orange); border: none; }
+1088 QPushButton#accentBtnOrange:hover { background-color: var(--orange-hover); }
+1089 QPushButton#accentBtnOrange:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
+1090 QPushButton#accentBtnPink   { background-color: var(--accent-pink); color: var(--text-on-pink); border: none; }
+1091 QPushButton#accentBtnPink:hover   { background-color: var(--pink-hover); }
+1092 QPushButton#accentBtnPink:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
+1093 QPushButton#navButton {
+1094   background: transparent; border: none; text-align: left; padding: 9px 12px; border-radius: 6px; color: var(--text-primary); font-weight: 500;
+1095 }
+1096 QPushButton#navButton:hover { background-color: var(--bg-surface); }
+1097 QPushButton#navButton[active="true"] { background-color: var(--nav-active-bg); color: var(--accent-primary); font-weight: bold; }
+1098 QPushButton#checkinBtn {
+1099   background-color: var(--accent-success); color: var(--text-on-success); border: none; border-radius: 10px; font-size: 18px;
+1100 }
+1101 QPushButton#checkinBtn:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
+1102 QPushButton#unlockBtn {
+1103   background-color: var(--accent-danger); color: var(--text-on-danger); border: none; border-radius: 8px; font-size: 15px;
+1104 }
+1105 QPushButton#unlockBtn:disabled { background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color); }
+1106 QPushButton#sectionHeaderBtn {
+1107   font-size: 11px; font-weight: bold; color: var(--accent-primary); text-align: left; background: transparent; border: none; padding: 4px 0px;
+1108 }
+1109 QGroupBox {
+1110   background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 12px; font-weight: bold; color: var(--accent-primary);
+1111 }
+1112 QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: var(--accent-primary); }
+1113 QTableView, QTableWidget, QListView, QListWidget, QTreeWidget {
+1114   background-color: var(--bg-input); alternate-background-color: var(--bg-base); border: 1px solid var(--border-color); gridline-color: var(--border-color); color: var(--text-primary); border-radius: var(--radius-md); font-size: var(--font-size);
+1115 }
+1116 QHeaderView::section {
+1117   background-color: var(--bg-surface); color: var(--text-primary); font-weight: bold; border: none; border-bottom: 2px solid var(--accent-primary); padding: 6px; font-size: var(--font-size);
+1118 }
+1119 /* Table consistency: unify font sizing across modules regardless of
+1120    per-widget font-size overrides embedded in code; keep header slightly
+1121    smaller than body for hierarchy without a different family/weight. */
+1122 QTableView, QTableWidget { font-size: var(--font-size); }
+1123 QTableView QHeaderView::section, QTableWidget QHeaderView::section { font-size: calc(var(--font-size) - 1px); }
+1124 QTableView::item, QTableWidget::item { padding: 4px 6px; }
+1125 QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
+1126 QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
+1127 QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }
+1128 QFrame#cardWidget, QFrame#hintPanel {
+1129   background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+1130 }
+1131 QCheckBox, QRadioButton {
+1132   color: var(--text-primary); font-weight: bold; font-size: var(--font-size);
+1133 }
+1134 QComboBox {
+1135   padding: 6px 28px 6px 10px;
+1136 }
+1137 QComboBox:hover {
+1138   border: 1px solid var(--accent-primary);
+1139 }
+1140 QComboBox:on {
+1141   border: 1px solid var(--accent-primary);
+1142 }
+1143 QComboBox:disabled {
+1144   background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
+1145 }
+1146 QComboBox::drop-down {
+1147   subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border: none;
+1148 }
+1149 QComboBox::down-arrow {
+1150   image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--text-secondary); width: 0px; height: 0px; margin-right: 8px;
+1151 }
+1152 QComboBox::down-arrow:hover {
+1153   border-top: 5px solid var(--text-primary);
+1154 }
+1155 QComboBox::down-arrow:on {
+1156   border-top: none; border-bottom: 5px solid var(--accent-primary);
+1157 }
+1158 QComboBox::down-arrow:disabled {
+1159   border-top: 5px solid var(--text-muted);
+1160 }
+1161 QComboBox QAbstractItemView {
+1162   background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); border-radius: var(--radius-md); padding: 4px; outline: none;
+1163 }
+1164 QComboBox QAbstractItemView::item {
+1165   min-height: 24px; padding: 4px 8px; border-radius: 4px;
+1166 }
+1167 QComboBox QAbstractItemView::item:selected {
+1168   background-color: var(--accent-primary); color: var(--text-on-primary);
+1169 }
+1170 QDateEdit::drop-down {
+1171   subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border: none;
+1172 }
+1173 QDateEdit::down-arrow {
+1174   image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--text-secondary); width: 0px; height: 0px; margin-right: 8px;
+1175 }
+1176 QDateEdit::down-arrow:hover {
+1177   border-top: 5px solid var(--text-primary);
+1178 }
+1179 QDateEdit::down-arrow:disabled {
+1180   border-top: 5px solid var(--text-muted);
+1181 }
+1182 QSpinBox::up-button, QDoubleSpinBox::up-button {
+1183   subcontrol-origin: border; subcontrol-position: top right; width: 18px; border-left: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); background: var(--bg-surface); border-top-right-radius: var(--radius-md);
+1184 }
+1185 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+1186   background: var(--surface-hover);
+1187 }
+1188 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+1189   image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 4px solid var(--text-secondary); width: 0px; height: 0px;
+1190 }
+1191 QSpinBox::down-button, QDoubleSpinBox::down-button {
+1192   subcontrol-origin: border; subcontrol-position: bottom right; width: 18px; border-left: 1px solid var(--border-color); background: var(--bg-surface); border-bottom-right-radius: var(--radius-md);
+1193 }
+1194 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+1195   background: var(--surface-hover);
+1196 }
+1197 QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+1198   image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid var(--text-secondary); width: 0px; height: 0px;
+1199 }
+1200 QCalendarWidget QWidget { alternate-background-color: var(--bg-surface); background-color: var(--bg-surface); }
+1201 QCalendarWidget QAbstractItemView:enabled { color: var(--text-primary); selection-background-color: var(--accent-primary); selection-color: var(--text-on-primary); }
+1202 QCalendarWidget QMenu { background-color: var(--bg-surface); color: var(--text-primary); }
+1203 QCalendarWidget QSpinBox { background-color: var(--bg-input); color: var(--text-primary); }
+1204 QMenuBar {
+1205   background-color: var(--bg-base); color: var(--text-primary); padding: 2px 6px; border-bottom: 1px solid var(--border-color); font-size: var(--font-size);
+1206 }
+1207 QMenuBar::item {
+1208   background: transparent; padding: 5px 10px; border-radius: var(--radius-sm); color: var(--text-primary); font-weight: 500;
+1209 }
+1210 QMenuBar::item:selected {
+1211   background-color: var(--bg-surface); color: var(--accent-primary);
+1212 }
+1213 QMenuBar::item:pressed {
+1214   background-color: var(--surface-pressed); color: var(--accent-primary);
+1215 }
+1216 QMenu {
+1217   background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 4px; font-size: var(--font-size);
+1218 }
+1219 QMenu::item {
+1220   color: var(--text-primary); padding: 6px 24px 6px 26px; border-radius: var(--radius-sm);
+1221 }
+1222 QMenu::item:selected {
+1223   background-color: var(--accent-primary); color: var(--text-on-primary);
+1224 }
+1225 QMenu::item:disabled {
+1226   color: var(--text-muted);
+1227 }
+1228 QMenu::icon {
+1229   padding-left: 6px;
+1230 }
+1231 QMenu::separator {
+1232   height: 1px; background-color: var(--border-color); margin: 4px 8px;
+1233 }
+1234 )";
+1235 
+1236     for (auto it = tokenMap.cbegin(); it != tokenMap.cend(); ++it) {
+1237         qss.replace(QString("var(%1)").arg(it.key()), it.value());
+1238     }
+1239     return qss;
+1240 }
+1241 

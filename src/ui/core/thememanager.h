@@ -82,6 +82,9 @@ public:
     static double contrastRatio(const QColor& c1, const QColor& c2);
     static QString contrastRating(double ratio);
     static QColor textOn(const QColor& c);
+    static QColor hoverOn(const QColor& c);
+    static QColor pressedOn(const QColor& c);
+    static QColor disabledTextOn(const QColor& c);
 
 signals:
     void themeChanged(const ThemeTokens& tokens);

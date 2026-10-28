@@ -956,6 +956,18 @@ QColor ThemeManager::textOn(const QColor& c) {
     return contrastRatio(c, dark) >= contrastRatio(c, light) ? dark : light;
 }
 
+QColor ThemeManager::hoverOn(const QColor& c) {
+    return (c.lightness() > 128) ? c.darker(112) : c.lighter(115);
+}
+
+QColor ThemeManager::pressedOn(const QColor& c) {
+    return (c.lightness() > 128) ? c.darker(122) : c.lighter(125);
+}
+
+QColor ThemeManager::disabledTextOn(const QColor& c) {
+    return textOn(c).lighter(150);
+}
+
 QString ThemeManager::generateGlobalQSS() const {
     const auto& t = m_currentTokens;
 
@@ -1231,6 +1243,23 @@ QMenu::icon {
 QMenu::separator {
   height: 1px; background-color: var(--border-color); margin: 4px 8px;
 }
+QToolTip {
+  background-color: var(--bg-overlay); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 6px 8px; font-size: var(--font-size);
+}
+QProgressBar {
+  background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); text-align: center;
+}
+QProgressBar::chunk {
+  background-color: var(--accent-primary); border-radius: var(--radius-md);
+}
+QSplitter::handle { background-color: var(--border-color); }
+QSplitter::handle:hover { background-color: var(--accent-primary); }
+QDialogButtonBox QPushButton { min-width: 80px; }
+QScrollBar:vertical, QScrollBar:horizontal { background-color: var(--bg-base); border: none; margin: 0; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background-color: var(--bg-input); border-radius: var(--radius-sm); min-height: 24px; min-width: 24px; }
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background-color: var(--surface-hover); }
+QScrollBar::add-line, QScrollBar::sub-line { border: none; background: none; width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
 )";
 
     for (auto it = tokenMap.cbegin(); it != tokenMap.cend(); ++it) {
