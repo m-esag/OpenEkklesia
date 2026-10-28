@@ -186,7 +186,7 @@ The QSS engine styles by object name. Use these names — never invent a new
   copies the workspace `open_ekklesia.db`. The same fallback applies to the
   benchmark suite.
   - Keep the suite green before committing (`build/openekklesia_tests`):
-    **currently 1363 checks, must stay 0 failed.**
+    **currently 1369 checks, must stay 0 failed.**
   - **Settings isolation.** All preference access goes through `AppSettings`
     (`src/common/appsettings.*`). The harness sets `OPENEKKLESIA_SETTINGS_DIR`
     so every read/write hits a scratch INI file: a test must never depend on,

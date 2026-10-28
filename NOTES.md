@@ -226,7 +226,7 @@ identical across them.
   rebuilt and run under `-DOE_ENABLE_SANITIZERS=ON`
   (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`); the CI `asan` job covers the
   Linux GCC path on every push. Re-verified after the Planning Center split-gift
-  fix (1363 checks, 0 failed, no sanitizer reports).
+  fix (1369 checks, 0 failed, no sanitizer reports).
 - **CI sanitizer job.** `ci.yml` has an `asan` job (Ubuntu GCC, ASan + UBSan,
   `-DOE_ENABLE_SANITIZERS=ON`) building and running the suite with
   `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`, in addition to the local
