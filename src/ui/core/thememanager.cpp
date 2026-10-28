@@ -636,10 +636,12 @@ void ThemeManager::setFontSize(int px) {
     applyCustomTokens(m_currentTokens);
 }
 
-bool ThemeManager::generateChurchBrandTheme(const QColor& brandColor, bool darkBase) {
+bool ThemeManager::generateBrandTheme(const QColor& brandColor, bool darkBase, const QString& label) {
+    const bool isChurch = label.isEmpty() || label == QStringLiteral("Church Brand Theme");
+    const QString displayLabel = isChurch ? QStringLiteral("Church Brand Theme") : label;
     ThemeTokens tok;
-    tok.id = "church_brand";
-    tok.name = "🏛️ Church Brand Theme";
+    tok.id = isChurch ? QStringLiteral("church_brand") : QStringLiteral("brand_theme");
+    tok.name = displayLabel;
     tok.isDark = darkBase;
     tok.isCustom = true;
 
@@ -668,7 +670,12 @@ bool ThemeManager::generateChurchBrandTheme(const QColor& brandColor, bool darkB
         tok.borderColor = brandColor.lighter(170);
     }
     tok.borderRadiusMd = 8;
-    return saveCustomPreset("Church Brand Theme", tok);
+    return saveCustomPreset(displayLabel, tok);
+}
+
+bool ThemeManager::generateChurchBrandTheme(const QColor& brandColor, bool darkBase) {
+    // Product-specific alias retained for binary/source compatibility.
+    return generateBrandTheme(brandColor, darkBase, QStringLiteral("Church Brand Theme"));
 }
 
 void ThemeManager::reloadCustomThemesFromDisk() {

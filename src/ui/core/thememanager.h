@@ -57,6 +57,9 @@ public:
     // Drop any persisted color/radius customization (used by "Reset" actions).
     void clearCustomizationOverride();
 
+    bool generateBrandTheme(const QColor& brandColor, bool darkBase = true,
+                             const QString& label = QString());
+    // Backwards-compatible alias (product-specific naming; prefer generateBrandTheme).
     bool generateChurchBrandTheme(const QColor& brandColor, bool darkBase = true);
 
     QString activeThemeId() const;
