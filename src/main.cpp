@@ -45,6 +45,16 @@ int main(int argc, char *argv[]) {
     app.setApplicationName("OpenEkklesia");
     app.setOrganizationName("OpenEkklesia");
 
+#if defined(Q_OS_WIN)
+    // Normalize the working directory to the executable's folder. When the
+    // app is launched from a terminal sitting in a junction/symlinked path
+    // (e.g. a workspace alias like C:\home\manuel), QSettings writes fail
+    // with AccessError and QSQLITE opens the database read-only — settings
+    // and all module saves silently no-op. Launching from Explorer is
+    // unaffected, but a normalized CWD makes every launch path equal.
+    QDir::setCurrent(QCoreApplication::applicationDirPath());
+#endif
+
     ThemeManager::instance().initialize();
 
     // Initialize Database. Passing an empty path lets DatabaseManager resolve

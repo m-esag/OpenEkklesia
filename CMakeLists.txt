@@ -301,8 +301,56 @@ target_link_libraries(openekklesia_benchmarks PRIVATE
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
 
-# Temporary crash-hunt driver (ASan diagnosis) — remove after investigation
-
-# temporary persistence probe
-add_executable(persist_probe EXCLUDE_FROM_ALL tests/persist_probe.cpp)
-target_link_libraries(persist_probe PRIVATE Qt6::Core Qt6::Widgets Qt6::Sql)
+# temporary save-path probe (diagnosing Settings persistence)
+add_executable(settings_save_probe EXCLUDE_FROM_ALL
+    tests/settings_save_probe.cpp
+    src/common/appsettings.cpp
+    src/common/appsettings.h
+    src/database/databasemanager.cpp
+    src/database/datasharing.cpp
+    src/common/appdateformatter.cpp
+    src/common/churchprofile.cpp
+    src/common/givingstatementgenerator.cpp
+    src/common/icalgenerator.cpp
+    src/ui/core/mainwindow.cpp
+    src/ui/core/thememanager.cpp
+    src/ui/core/iconmanager.cpp
+    src/ui/core/usermanualdialog.cpp
+    src/ui/core/touchhelper.cpp
+    src/ui/core/kioskwindow.cpp
+    src/ui/core/commandpalette.cpp
+    src/ui/core/traymanager.cpp
+    src/ui/core/startuplaunchmanager.cpp
+    src/ui/admin/settingswidget.cpp
+    src/ui/admin/vaultwidget.cpp
+    src/ui/people/peoplewidget.cpp
+    src/ui/people/pastoralanalyticswidget.cpp
+    src/ui/people/tagchiputils.cpp
+    src/ui/people/givingsummaryservice.cpp
+    src/ui/people/pastoralhistoryservice.cpp
+    src/ui/ministry/graphwidget.cpp
+    src/ui/ministry/shepherdwidget.cpp
+    src/ui/ministry/servicebuilderwidget.cpp
+    src/ui/ministry/planningwidget.cpp
+    src/ui/ministry/facilitieswidget.cpp
+    src/ui/ministry/matchdialog.cpp
+    src/ui/ministry/ministrymatch.cpp
+    src/ui/ministry/synergyengine.cpp
+    src/ui/finance/contributionswidget.cpp
+    src/ui/finance/inventorywidget.cpp
+    src/ui/finance/transactiondialog.cpp
+    src/ui/people/peoplecardutils.cpp
+    src/ui/people/peoplecardutils.h
+    src/integrations/planningcenterclient.cpp
+    src/integrations/planningcenterdialog.cpp)
+target_include_directories(settings_save_probe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/database)
+target_link_libraries(settings_save_probe PRIVATE Qt6::Core Qt6::Widgets Qt6::Sql Qt6::PrintSupport Qt6::Charts)
