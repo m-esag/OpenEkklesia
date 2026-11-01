@@ -4574,7 +4574,7 @@ void GraphWidget::refreshHierarchyTree() {
     // Map group_id -> list of members
     QMap<int, QList<QVariantMap>> groupMembers;
     QSqlQuery qMem(
-        "SELECT er.target_id, p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone, p.email, p.status, p.care_flag "
+        "SELECT er.target_id, p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone_number AS phone, p.email, p.membership_status AS status, p.care_flag "
         "FROM entity_relationships er JOIN people p ON p.id = er.source_id "
         "WHERE er.target_type = 'Group' AND er.source_type = 'Person' "
         "ORDER BY CASE WHEN er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher') THEN 0 ELSE 1 END, p.first_name", db);

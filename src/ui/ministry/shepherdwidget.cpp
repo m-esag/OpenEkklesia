@@ -156,7 +156,7 @@ void ShepherdWidget::setupUI() {
     QHBoxLayout* memberTop = new QHBoxLayout();
     m_personCombo = new QComboBox(tabMember);
     m_personCombo->setMinimumWidth(280);
-    connect(m_personCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ShepherdWidget::onPersonChanged);
+    connect(m_personCombo, QOverload<int>::of(&QComboBox::activated), this, &ShepherdWidget::onPersonChanged);
     m_btnLogActivity = new QPushButton(" Log Activity", tabMember);
     m_btnLogActivity->setIcon(IconManager::instance().getPrimaryIcon("plus", 14));
     m_btnLogActivity->setObjectName("primaryBtn");

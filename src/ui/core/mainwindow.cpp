@@ -2668,7 +2668,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 
 void MainWindow::refreshGroupsTree() {
     if (!m_groupsTreeWidget) return;
-    m_groupsTreeWidget->clear();
+    // Suppress currentItemChanged while clearing/repopulating: clear() emits
+    // a null-current signal whose handler wipes the detail panel (and can
+    // re-enter refreshes) before we get the chance to restore the selection.
+    m_groupsTreeWidget->blockSignals(true);
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 
     bool showArchived = m_chkShowArchivedGroups && m_chkShowArchivedGroups->isChecked();
@@ -2864,6 +2867,21 @@ void MainWindow::refreshGroupsTree() {
     for (const auto& topData : topLevelGroups) {
         addGroupNode(nullptr, topData);
     }
+
+    // Restore the previous selection (if its group survived the rebuild), so
+    // the detail panel the caller just refreshed isn't wiped by a null-current
+    // signal, then unblock.
+    if (m_selectedGroupId > 0) {
+        QTreeWidgetItemIterator it(m_groupsTreeWidget);
+        while (*it) {
+            if ((*it)->data(0, Qt::UserRole).toInt() == m_selectedGroupId) {
+                m_groupsTreeWidget->setCurrentItem(*it);
+                break;
+            }
+            ++it;
+        }
+    }
+    m_groupsTreeWidget->blockSignals(false);
 }
 
 void MainWindow::refreshGroupDetailPanel(int groupId) {
@@ -3069,15 +3087,20 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             roleCombo->setCurrentText(role);
             roleCombo->setStyleSheet(QString("QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 4px; }")
                                      .arg(tok.bgInput.name(), tok.textPrimary.name(), tok.borderColor.name()));
-            connect(roleCombo, &QComboBox::currentTextChanged, this, [this, relId](const QString& newRole) {
+            // activated(), not currentTextChanged: the latter fires on every
+            // arrow-key highlight while the popup is open, which rebuilt the
+            // roster (destroying the open popup), rewrote the tree, and
+            // persisted browsed-but-uncommitted roles to the DB.
+            connect(roleCombo, QOverload<int>::of(&QComboBox::activated), this, [this, relId, role, roleCombo](int idx) {
                 if (isReadOnlyRole()) return;
+                const QString newRole = roleCombo->itemText(idx);
+                if (newRole == role) return;
                 QSqlQuery up;
                 up.prepare("UPDATE entity_relationships SET relationship_type = ? WHERE id = ?");
                 up.addBindValue(newRole);
                 up.addBindValue(relId);
                 up.exec();
                 refreshGroupDetailPanel(m_selectedGroupId);
-                refreshGroupsTree();
             });
             if (readOnly) {
                 roleCombo->setEnabled(false);
@@ -3112,15 +3135,16 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             statusCombo->setCurrentText(displayStatus);
             statusCombo->setStyleSheet(QString("QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 4px; }")
                                        .arg(tok.bgInput.name(), tok.textPrimary.name(), tok.borderColor.name()));
-            connect(statusCombo, &QComboBox::currentTextChanged, this, [this, relId](const QString& newStatus) {
+            connect(statusCombo, QOverload<int>::of(&QComboBox::activated), this, [this, relId, status, statusCombo](int idx) {
                 if (isReadOnlyRole()) return;
+                const QString newStatus = statusCombo->itemText(idx);
+                if (newStatus == status) return;
                 QSqlQuery up;
                 up.prepare("UPDATE entity_relationships SET status = ? WHERE id = ?");
                 up.addBindValue(newStatus);
                 up.addBindValue(relId);
                 up.exec();
                 refreshGroupDetailPanel(m_selectedGroupId);
-                refreshGroupsTree();
             });
             if (readOnly) {
                 statusCombo->setEnabled(false);

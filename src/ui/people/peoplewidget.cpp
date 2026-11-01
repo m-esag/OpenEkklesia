@@ -382,7 +382,8 @@ void PeopleWidget::setupUI() {
     m_cmbSortBy->addItem("Join Date (Oldest)");
     m_cmbSortBy->addItem("Birth Date");
     m_cmbSortBy->addItem("Gender");
-    connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PeopleWidget::onSortByChanged);
+    // activated() only (not also currentIndexChanged): the combo was
+    // double-connected, re-sorting the whole table twice per selection.
     connect(m_cmbSortBy, QOverload<int>::of(&QComboBox::activated), this, &PeopleWidget::onSortByChanged);
 
     searchSortRow->addWidget(m_searchEdit, 3);

@@ -786,6 +786,10 @@ PcoImportSummary PlanningCenterClient::importGivingData(const QJsonArray& funds,
             summary.errors.append(QString("Donation %1: designation amounts (%2) exceed the donation total (%3); imported per-designation amounts.")
                                       .arg(donation.externalId.mid(4)).arg(partsTotal).arg(donation.amountCents));
         }
+        if (parts.size() > 1 && partsTotal > 0 && partsTotal < donation.amountCents) {
+            summary.errors.append(QString("Donation %1: designation amounts (%2) total less than the donation total (%3); imported per-designation amounts only — reconcile in Planning Center.")
+                                      .arg(donation.externalId.mid(4)).arg(partsTotal).arg(donation.amountCents));
+        }
 
         bool hasNewPart = false;
         for (const QString& externalId : partExternalIds) {

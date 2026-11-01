@@ -20,7 +20,7 @@ PersonGivingSummary GivingSummaryService::fetch(int personId, const QSqlDatabase
     int spouseId = 0;
     QSqlQuery spouse(db);
     if (includeHousehold) {
-   ("SELECT CASE WHEN source_type = 'Person' AND source_id = :me THEN target_id "
+        spouse.prepare("SELECT CASE WHEN source_type = 'Person' AND source_id = :me THEN target_id "
                    "        ELSE source_id END AS other "
                    "FROM entity_relationships "
                    "WHERE relationship_type = 'Spouse' "

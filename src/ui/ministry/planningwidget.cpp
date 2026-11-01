@@ -206,7 +206,7 @@ void PlanningWidget::setupRoadmapTab(QTabWidget* tabs) {
     QLabel* lblH = new QLabel("Horizon:", tab);
     m_horizonCombo = new QComboBox(tab);
     m_horizonCombo->addItems({"Annual (Jan - Dec)", "Quarterly (Q1 - Q4)", "Milestones & Critical Path"});
-    connect(m_horizonCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshRoadmap(); });
+    connect(m_horizonCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshRoadmap(); });
     bar->addWidget(lblH);
     bar->addWidget(m_horizonCombo);
 
@@ -217,21 +217,21 @@ void PlanningWidget::setupRoadmapTab(QTabWidget* tabs) {
     while (qGroups.next()) {
         m_roadmapTeamFilter->addItem(qGroups.value(1).toString(), qGroups.value(0).toInt());
     }
-    connect(m_roadmapTeamFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshRoadmap(); });
+    connect(m_roadmapTeamFilter, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshRoadmap(); });
     bar->addWidget(lblT);
     bar->addWidget(m_roadmapTeamFilter);
 
     QLabel* lblP = new QLabel("Priority:", tab);
     m_roadmapPriorityFilter = new QComboBox(tab);
     m_roadmapPriorityFilter->addItems({"All Priorities", "Urgent", "High", "Medium", "Low"});
-    connect(m_roadmapPriorityFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshRoadmap(); });
+    connect(m_roadmapPriorityFilter, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshRoadmap(); });
     bar->addWidget(lblP);
     bar->addWidget(m_roadmapPriorityFilter);
 
     QLabel* lblS = new QLabel("Status:", tab);
     m_roadmapStatusFilter = new QComboBox(tab);
     m_roadmapStatusFilter->addItems({"All Statuses", "Planned", "In-Progress", "Under Review", "Completed"});
-    connect(m_roadmapStatusFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshRoadmap(); });
+    connect(m_roadmapStatusFilter, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshRoadmap(); });
     bar->addWidget(lblS);
     bar->addWidget(m_roadmapStatusFilter);
 
@@ -354,7 +354,7 @@ void PlanningWidget::setupEventsTab(QTabWidget* tabs) {
     QLabel* lblT = new QLabel("Event Type:", tab);
     m_eventTypeFilter = new QComboBox(tab);
     m_eventTypeFilter->addItems({"All Event Types", "Worship / Service", "Outreach", "Youth / Children", "Conference / Retreat", "Training", "Fellowship"});
-    connect(m_eventTypeFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshEvents(); });
+    connect(m_eventTypeFilter, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshEvents(); });
     bar->addWidget(lblT);
     bar->addWidget(m_eventTypeFilter);
 
@@ -573,7 +573,7 @@ void PlanningWidget::setupGanttTab(QTabWidget* tabs) {
     m_ganttSpanCombo->addItem("14-Day Sprint", 14);
     m_ganttSpanCombo->addItem("30-Day Month", 30);
     m_ganttSpanCombo->addItem("60-Day Horizon", 60);
-    connect(m_ganttSpanCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshGanttChart(); });
+    connect(m_ganttSpanCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshGanttChart(); });
     bar->addWidget(lblSpan);
     bar->addWidget(m_ganttSpanCombo);
 
@@ -584,7 +584,7 @@ void PlanningWidget::setupGanttTab(QTabWidget* tabs) {
     while (qGroups.next()) {
         m_ganttTeamFilter->addItem(qGroups.value(1).toString(), qGroups.value(0).toInt());
     }
-    connect(m_ganttTeamFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { refreshGanttChart(); });
+    connect(m_ganttTeamFilter, QOverload<int>::of(&QComboBox::activated), this, [this](int) { refreshGanttChart(); });
     bar->addWidget(lblTeam);
     bar->addWidget(m_ganttTeamFilter);
     bar->addStretch();
