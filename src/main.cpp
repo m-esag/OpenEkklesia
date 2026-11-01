@@ -1,6 +1,8 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QMessageBox>
+#include <QFile>
+#include <QDir>
 #if defined(Q_OS_WIN)
 #include <windows.h>
 #include <shobjidl.h>
@@ -20,6 +22,23 @@ int main(int argc, char *argv[]) {
 
 #if defined(Q_OS_WIN)
     SetCurrentProcessExplicitAppUserModelID(L"OpenEkklesia.ChMS");
+
+    // MSYS/Git-Bash environments export POSIX-style HOME/TMP/TEMP ("/home/...",
+    // "/tmp"). Qt resolves QSettings, temp files and the SQLite journal/wal
+    // sidecars through these, and a non-drive path silently breaks every
+    // write: QSettings reports AccessError and the database opens read-only.
+    // Restore real Windows paths before anything touches the filesystem.
+    const QString userProfile = qEnvironmentVariable("USERPROFILE");
+    if (!userProfile.isEmpty()) {
+        for (const char* var : {"TMP", "TEMP", "TMPDIR", "HOME"}) {
+            const QString val = qEnvironmentVariable(var);
+            if (!val.isEmpty() && !val.contains(':')) {
+                qputenv(var, var == QString("HOME")
+                                  ? QFile::encodeName(userProfile)
+                                  : QFile::encodeName(userProfile + "\AppData\Local\Temp"));
+            }
+        }
+    }
 #endif
     QApplication app(argc, argv);
     TouchHelper::installAppWide();

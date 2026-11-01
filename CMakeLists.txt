@@ -302,3 +302,7 @@ target_link_libraries(openekklesia_benchmarks PRIVATE
 )
 
 # Temporary crash-hunt driver (ASan diagnosis) — remove after investigation
+
+# temporary persistence probe
+add_executable(persist_probe EXCLUDE_FROM_ALL tests/persist_probe.cpp)
+target_link_libraries(persist_probe PRIVATE Qt6::Core Qt6::Widgets Qt6::Sql)
