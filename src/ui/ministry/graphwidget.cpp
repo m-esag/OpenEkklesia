@@ -613,7 +613,10 @@ GraphCanvasView::GraphCanvasView(QGraphicsScene* scene, QWidget* parent)
     // eliminating dirty-rect striations / ghost edge trails during physics
     // simulation, dragging, and panning. The physics layout auto-freezes once
     // settled, so this incurs zero idle CPU overhead.
-    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    // Minimal: only dirty regions repaint. With 100+ nodes and the 33 ms
+    // physics timer, FullViewportUpdate repainted the entire canvas every
+    // tick — the largest CPU/GPU draw while the graph page is open.
+    setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     // Keep zoom centered under the cursor and stable on resize.

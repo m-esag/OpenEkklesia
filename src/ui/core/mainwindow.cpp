@@ -25,6 +25,7 @@
 #include "../integrations/planningcenterdialog.h"
 #include <QApplication>
 #include <QGuiApplication>
+#include <QHash>
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
@@ -3065,6 +3066,17 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
     QMap<QString, int> stylesCount;
     QStringList burnoutAlerts;
 
+    // Burnout counts for the whole roster in ONE grouped query (was one
+    // COUNT per member per panel refresh).
+    QHash<int, int> leaderCounts;
+    {
+        QSqlQuery qBurnAll(db);
+        qBurnAll.exec("SELECT source_id, COUNT(*) FROM entity_relationships "
+                      "WHERE source_type = 'Person' AND relationship_type IN ('Leader', 'Co-Leader') "
+                      "GROUP BY source_id");
+        while (qBurnAll.next()) leaderCounts.insert(qBurnAll.value(0).toInt(), qBurnAll.value(1).toInt());
+    }
+
     if (qRoster.exec()) {
         while (qRoster.next()) {
             int relId = qRoster.value(0).toInt();
@@ -3079,11 +3091,8 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             totalCount++;
 
             // Leadership Burnout Check (serving in 3+ leader roles)
-            QSqlQuery qBurn(db);
-            qBurn.prepare("SELECT COUNT(*) FROM entity_relationships WHERE source_type = 'Person' AND source_id = ? AND relationship_type IN ('Leader', 'Co-Leader')");
-            qBurn.addBindValue(personId);
-            if (qBurn.exec() && qBurn.next()) {
-                int leaderRoleCount = qBurn.value(0).toInt();
+            const int leaderRoleCount = leaderCounts.value(personId, 0);
+            {
                 if (leaderRoleCount >= 3) {
                     burnoutAlerts.append(QString("<b>%1</b> (%2 leadership teams)").arg(memName).arg(leaderRoleCount));
                 }
