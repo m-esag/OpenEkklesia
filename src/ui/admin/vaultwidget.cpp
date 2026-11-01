@@ -376,11 +376,17 @@ void VaultWidget::onUploadClicked() {
             }
         }
 
+        // Track already-added ids in a set: findData() per person is O(N^2)
+        // on a few-hundred-member directory.
+        QSet<int> addedIds;
+        for (int i = 0; i < personCombo->count(); ++i)
+            addedIds.insert(personCombo->itemData(i).toInt());
         QSqlQuery pqAll("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name");
         while (pqAll.next()) {
             int pid = pqAll.value(0).toInt();
-            if (personCombo->findData(pid) < 0) {
+            if (!addedIds.contains(pid)) {
                 personCombo->addItem(pqAll.value(1).toString(), pid);
+                addedIds.insert(pid);
             }
         }
 

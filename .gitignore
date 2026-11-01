@@ -54,3 +54,7 @@ squashfs-root/
 *_out.txt
 patch_*.py
 
+build-qt683/
+build-qt610/
+build-asan/
+test-data/

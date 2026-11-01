@@ -2741,6 +2741,31 @@ void MainWindow::refreshGroupsTree() {
         }
     }
 
+    // Bulk-fetch memberships for every visible group in ONE query (the
+    // per-group query was N+1: one SELECT per group row per tree rebuild).
+    QMap<int, QList<QVariantMap>> membersByGroup;
+    if (m_chkShowMembersInTree && m_chkShowMembersInTree->isChecked()) {
+        QSqlQuery qAllMembers(db);
+        qAllMembers.prepare(
+            "SELECT er.target_id, p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone_number, p.email, COALESCE(er.status, 'Active'), p.care_flag "
+            "FROM entity_relationships er JOIN people p ON p.id = er.source_id "
+            "WHERE er.target_type = 'Group' AND er.source_type = 'Person' "
+            "ORDER BY CASE WHEN er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher') THEN 0 ELSE 1 END, p.first_name");
+        if (qAllMembers.exec()) {
+            while (qAllMembers.next()) {
+                QVariantMap m;
+                m["id"] = qAllMembers.value(1).toInt();
+                m["name"] = qAllMembers.value(2).toString();
+                m["role"] = qAllMembers.value(3).toString();
+                m["phone"] = qAllMembers.value(4).toString();
+                m["email"] = qAllMembers.value(5).toString();
+                m["status"] = qAllMembers.value(6).toString();
+                m["care"] = qAllMembers.value(7).toString();
+                membersByGroup[qAllMembers.value(0).toInt()].append(m);
+            }
+        }
+    }
+
     std::function<void(QTreeWidgetItem*, const QVariantMap&)> addGroupNode;
     addGroupNode = [&](QTreeWidgetItem* parentItem, const QVariantMap& groupData) {
         int id = groupData["id"].toInt();
@@ -2811,23 +2836,17 @@ void MainWindow::refreshGroupsTree() {
         item->setData(0, Qt::UserRole + 1, "Group");
 
         if (m_chkShowMembersInTree && m_chkShowMembersInTree->isChecked()) {
-            QSqlQuery qMembers(db);
-            qMembers.prepare(
-                "SELECT p.id, p.first_name || ' ' || p.last_name, er.relationship_type, p.phone_number, p.email, COALESCE(er.status, 'Active'), p.care_flag "
-                "FROM entity_relationships er JOIN people p ON p.id = er.source_id "
-                "WHERE er.target_type = 'Group' AND er.source_type = 'Person' AND er.target_id = ? "
-                "ORDER BY CASE WHEN er.relationship_type IN ('Leader', 'Co-Leader', 'Teacher') THEN 0 ELSE 1 END, p.first_name");
-            qMembers.addBindValue(id);
-            if (qMembers.exec()) {
-                while (qMembers.next()) {
-                    QTreeWidgetItem* pItem = new QTreeWidgetItem(item);
-                    int pId = qMembers.value(0).toInt();
-                    QString pName = qMembers.value(1).toString();
-                    QString pRole = qMembers.value(2).toString();
-                    QString pPhone = qMembers.value(3).toString();
-                    QString pEmail = qMembers.value(4).toString();
-                    QString pStatus = qMembers.value(5).toString();
-                    QString pCare = qMembers.value(6).toString();
+            for (const QVariantMap& mv : membersByGroup.value(id)) {
+                QTreeWidgetItem* pItem = new QTreeWidgetItem(item);
+                const int pId = mv["id"].toInt();
+                const QString pName = mv["name"].toString();
+                const QString pRole = mv["role"].toString();
+                const QString pPhone = mv["phone"].toString();
+                const QString pEmail = mv["email"].toString();
+                const QString pStatus = mv["status"].toString();
+                const QString pCare = mv["care"].toString();
+                {
+                const QString pCare = mv["care"].toString();
 
                     pItem->setText(0, QString("      %1").arg(pName));
                     pItem->setIcon(0, IconManager::instance().getIcon("users", QColor(), 14));

@@ -33,6 +33,7 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QScrollArea>
+#include <QTimer>
 #include <QRadioButton>
 #include <QCheckBox>
 #include <QPainter>
@@ -2332,7 +2333,6 @@ void PeopleWidget::applyRole(const QString& role) {
 }
 
 void PeopleWidget::onSearchTextChanged(const QString& text) {
-    Q_UNUSED(text);
     if (!confirmFilterChange()) {
         restoreFilterWidgets();
         return;
@@ -2340,7 +2340,16 @@ void PeopleWidget::onSearchTextChanged(const QString& text) {
     // A user-initiated search replaces any analytics drill-through view.
     m_drillCareFlag.clear();
     m_drillSpecialFilter.clear();
-    reapplyFilter();
+    // Debounce: reapplyFilter() runs a full model requery per call, which on
+    // a few-hundred-member directory is visibly laggy per keystroke. 300 ms
+    // of typing idle before the requery (mirrors the vault search pattern).
+    if (!m_searchDebounce) {
+        m_searchDebounce = new QTimer(this);
+        m_searchDebounce->setSingleShot(true);
+        m_searchDebounce->setInterval(300);
+        connect(m_searchDebounce, &QTimer::timeout, this, [this]() { reapplyFilter(); });
+    }
+    m_searchDebounce->start();
 }
 
 void PeopleWidget::onStatusFilterChanged(int id) {

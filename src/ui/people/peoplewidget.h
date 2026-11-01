@@ -20,6 +20,7 @@
 #include <QCache>
 #include <QMouseEvent>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QCheckBox>
 
 // Custom Clickable Avatar Label with Camera Overlay on Hover
@@ -320,6 +321,7 @@ private:
     // Last successfully applied filter values, used to roll the filter widgets
     // back when the user cancels an unsaved-changes prompt mid-filter-change.
     QString m_appliedSearchText;
+    QTimer* m_searchDebounce = nullptr; // keystroke -> 300ms -> requery
     int m_appliedStatusId = -1;
     int m_appliedPathwayIndex = 0;
 
