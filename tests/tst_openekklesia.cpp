@@ -2609,11 +2609,13 @@ bool test_graphViewOptionsAndDockToggle() {
     gw.toggleInspectorDock();
     gw.toggleInspectorDock();
 
-    // 5. Test Canvas Viewport Update Mode (FullViewportUpdate prevents trail/ghosting artifacts)
+    // 5. Test Canvas Viewport Update Mode (Minimal repaints only dirty
+    //    regions: with the 33 ms physics timer a full-viewport repaint of
+    //    the 100+ node canvas was the largest CPU draw on the graph page).
     auto* canvasView = gw.findChild<GraphCanvasView*>();
     CHECK(canvasView);
     if (canvasView) {
-        CHECK_EQ(canvasView->viewportUpdateMode(), QGraphicsView::FullViewportUpdate);
+        CHECK_EQ(canvasView->viewportUpdateMode(), QGraphicsView::MinimalViewportUpdate);
     }
 
     // 6. Test EdgeItem geometry adjust
