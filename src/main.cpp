@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
             if (!val.isEmpty() && !val.contains(':')) {
                 qputenv(var, var == QString("HOME")
                                   ? QFile::encodeName(userProfile)
-                                  : QFile::encodeName(userProfile + "\AppData\Local\Temp"));
+                                  : QFile::encodeName(userProfile + QStringLiteral("/AppData/Local/Temp")));
             }
         }
     }

@@ -448,7 +448,11 @@ bool DatabaseManager::createTables() {
         "  zip_code TEXT"
         ");";
     if (!query.exec(createHouseholds)) {
-        qCritical() << "Failed to create households table:" << query.lastError().text();
+        qCritical() << "Failed to create households table:" << query.lastError().text()
+                    << "| nativeCode:" << query.lastError().nativeErrorCode()
+                    << "| db:" << m_db.databaseName()
+                    << "| cwd:" << QDir::currentPath()
+                    << "| isOpen:" << m_db.isOpen();
         return false;
     }
 
