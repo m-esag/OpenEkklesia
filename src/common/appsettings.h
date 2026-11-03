@@ -34,6 +34,10 @@ public:
 
     void sync() {}
 
+    // Absolute path of the JSON store file, resolved with the same precedence
+    // used for reads/writes. Exposed so Settings can display the location.
+    static QString storagePath();
+
 private:
     struct Store;
     static Store& store();

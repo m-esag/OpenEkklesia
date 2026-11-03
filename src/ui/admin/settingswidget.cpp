@@ -30,6 +30,8 @@
 #include <QListView>
 #include <QLineEdit>
 #include <QList>
+#include <QShortcut>
+#include <QTimer>
 
 namespace {
 // A PIN is exactly four ASCII digits. Zero is a valid PIN ("0000" is the
@@ -80,6 +82,23 @@ void SettingsWidget::setupUI() {
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
     connect(m_btnSaveSettings, &QPushButton::clicked, this, &SettingsWidget::saveSettings);
     topBar->addWidget(m_btnSaveSettings);
+
+    // Transient save confirmation. A modal QMessageBox interrupted every save
+    // for no actionable reason; a fading toast gives the same feedback without
+    // stealing focus or requiring a click to dismiss.
+    m_lblSaveToast = new QLabel("Settings saved ✓", this);
+    m_lblSaveToast->setObjectName("saveToast");
+    m_lblSaveToast->setStyleSheet(
+        "padding: 6px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;"
+        "background-color: rgba(46, 160, 67, 0.18); color: #2ea043;");
+    m_lblSaveToast->hide();
+    topBar->addWidget(m_lblSaveToast);
+
+    // Ctrl+S saves the settings page (scoped to this widget subtree so it
+    // never shadows app-wide shortcuts elsewhere).
+    auto* saveShortcut = new QShortcut(QKeySequence::Save, this);
+    saveShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(saveShortcut, &QShortcut::activated, this, &SettingsWidget::saveSettings);
 
     rootLayout->addLayout(topBar);
 
@@ -747,6 +766,15 @@ void SettingsWidget::setupUI() {
     m_lblDbPath->setWordWrap(true);
     m_lblDbPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: palette(base);");
     grpDbLay->addWidget(m_lblDbPath);
+
+    // Resolved JSON settings-store location (click-selectable for copying).
+    // Made visible after the Windows QSettings write failures: the first
+    // diagnostic step is knowing exactly which file to inspect.
+    m_lblSettingsPath = new QLabel(pageData);
+    m_lblSettingsPath->setWordWrap(true);
+    m_lblSettingsPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_lblSettingsPath->setStyleSheet("font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; background-color: palette(base);");
+    grpDbLay->addWidget(m_lblSettingsPath);
 
     QFormLayout* formLifecycle = new QFormLayout();
     formLifecycle->setSpacing(10);
@@ -1577,6 +1605,7 @@ void SettingsWidget::loadSettings() {
 
     QSqlDatabase db = DatabaseManager::instance().database();
     m_lblDbPath->setText(QString("Active Database Location:\n%1").arg(db.databaseName()));
+    m_lblSettingsPath->setText(QString("Settings Store (JSON):\n%1").arg(AppSettings::storagePath()));
 
     m_isDirty = false;
     m_btnSaveSettings->setText(" Save All Changes");
@@ -1652,7 +1681,9 @@ void SettingsWidget::saveSettings() {
     m_btnSaveSettings->setStyleSheet("padding: 8px 18px; font-weight: bold; font-size: 13px;");
 
     if (wasDirty) {
-        QMessageBox::information(this, "Settings Saved", "Application settings have been updated successfully.");
+        // Non-blocking confirmation: show the toast, fade it out after 2.5s.
+        m_lblSaveToast->show();
+        QTimer::singleShot(2500, m_lblSaveToast, &QLabel::hide);
     }
     emit settingsSaved();
 }

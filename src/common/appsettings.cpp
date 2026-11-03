@@ -152,3 +152,8 @@ void AppSettings::clear()
 {
     JsonSettingsStore::instance().clear();
 }
+
+QString AppSettings::storagePath()
+{
+    return settingsFilePath();
+}

@@ -898,6 +898,23 @@ void MainWindow::switchPage(int index) {
     // (every drag/filter change also resumes it from other pages). Restore
     // on re-entry unless the user manually froze the layout.
     const int leavingIndex = m_stackedWidget->currentIndex();
+
+    // Warn before leaving Settings with unsaved edits. Every sidebar route
+    // funnels through here, and onSettingsClicked reloads stored values on
+    // re-entry, so navigating away would otherwise discard edits silently
+    // (module toggles included). Cancel keeps the current page; because the
+    // nav handlers call setActiveNav() after switchPage(), returning early
+    // also keeps the sidebar highlight on Settings.
+    if (leavingIndex == 8 && m_settingsWidget && m_settingsWidget->isDirty()) {
+        const QMessageBox::StandardButton choice = QMessageBox::question(
+            this, "Unsaved Settings",
+            "You have unsaved changes in Settings.\n\nSave them before leaving?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+        if (choice == QMessageBox::Cancel) return;
+        if (choice == QMessageBox::Save) m_settingsWidget->saveSettings();
+    }
+
     if (leavingIndex == 5 && m_graphWidget && m_graphWidget->physicsRunning()) {
         m_graphWidget->pausePhysics();
         m_graphPausedByPageLeave = true;

@@ -81,11 +81,10 @@ int main(int argc, char* argv[]) {
         qDebug() << "STAGE 2: Minimal button NOT FOUND";
     }
 
-    // Stage 3: click "Save All Changes".
-    QPushButton* save = nullptr;
-    const auto allBtns = mw.findChildren<QPushButton*>();
-    for (QPushButton* b : allBtns)
-        if (b->text().trimmed() == "Save All Changes") { save = b; break; }
+    // Stage 3: click "Save All Changes". Match by objectName, not text: the
+    // label flips to "Save Changes (Unsaved)" once the preset marks the page
+    // dirty.
+    QPushButton* save = mw.findChild<QPushButton*>("saveBtn");
     if (save) {
         qDebug() << "STAGE 3: clicking Save All Changes";
         save->click();

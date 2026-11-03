@@ -22,6 +22,10 @@ public:
 
     void loadSettings();
     void saveSettings();
+    // True when any settings control changed since the last load/save.
+    // MainWindow checks this before navigating away so unsaved edits get a
+    // Save/Discard/Cancel prompt instead of being discarded silently.
+    bool isDirty() const { return m_isDirty; }
     void selectCategory(int index);
     // Gate destructive/settings-mutating controls by signed-in role. MainWindow
     // calls this from applyRolePermissions() on every login.
@@ -62,6 +66,7 @@ private:
     // Header & Actions
     QLabel* m_lblStatus;
     QPushButton* m_btnSaveSettings;
+    QLabel* m_lblSaveToast;   // transient "Settings saved" feedback (non-modal)
     bool m_isDirty;
 
     // --- Page 1: General & Profile ---
@@ -149,6 +154,7 @@ private:
 
     // --- Page 8: Data & Backup ---
     QLabel* m_lblDbPath;
+    QLabel* m_lblSettingsPath;   // resolved settings.json store location
     QComboBox* m_cmbAutoBackupSchedule;
     QSpinBox* m_spnBackupRetention;
     QSpinBox* m_spnAuditRetention;
