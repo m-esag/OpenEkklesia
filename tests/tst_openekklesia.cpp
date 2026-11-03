@@ -226,11 +226,12 @@ bool test_expectedIndexesExist() {
 bool test_seedDataCounts() {
     // Structure-only scaffold: first-run installs ship login users, default
     // funds, and a starter chart of accounts — no demo people/giving/assets.
-    // The 11 canonical ministry blueprints are ensured by
-    // ensureBlueprintHeadings() on every start.
+    // Only the 4 primary ministry blueprints (Worship, Children's, Ushers, AV)
+    // auto-create heading groups; the other canonical blueprints stay in the
+    // registry for Ministry Match until materialized on demand.
     CHECK_EQ(countRows("people"), 0);
     CHECK_EQ(countRows("households"), 0);
-    CHECK_EQ(countRows("groups"), 11); // 11 Canonical Root Ministries, no sample groups
+    CHECK_EQ(countRows("groups"), 4); // Primary four root ministries, no sample groups
     CHECK_EQ(countRows("accounts"), 8);
     CHECK_EQ(countRows("funds"), 3);
     CHECK_EQ(countRows("contributions"), 0);
@@ -617,7 +618,7 @@ bool test_splitSharingRoundTrip() {
     CHECK(DataSharing::importDocument(d, restored));
     CHECK_EQ(countRows("people"), 12);
     CHECK_EQ(countRows("households"), 6);
-    CHECK_EQ(countRows("groups"), 14);
+    CHECK_EQ(countRows("groups"), 7); // 4 primary blueprint headings + 3 fixture groups
     return true;
 }
 
@@ -816,18 +817,23 @@ bool test_purgeDemoData() {
     CHECK_EQ(countRows("vault_documents"), 0);
     CHECK_EQ(countRows("care_logs"), 0);
 
-    // New contract: `groups` is cleared, but the 11 canonical blueprint root
+    // New contract: `groups` is cleared, but the 4 primary blueprint root
     // headings are re-created immediately (no restart) by
     // ensureBlueprintHeadings(); nothing else survives in that table.
-    CHECK_EQ(countRows("groups"), 11);
+    CHECK_EQ(countRows("groups"), 4);
     QSqlQuery rootQ(db());
     CHECK(rootQ.exec("SELECT COUNT(*) FROM groups WHERE parent_id IS NULL OR parent_id = 0"));
     CHECK(rootQ.next());
-    CHECK_EQ(rootQ.value(0).toInt(), 11);
+    CHECK_EQ(rootQ.value(0).toInt(), 4);
     QSqlQuery canonQ(db());
-    CHECK(canonQ.exec("SELECT COUNT(*) FROM groups WHERE name LIKE 'Ujier%'"));
+    CHECK(canonQ.exec("SELECT COUNT(*) FROM groups WHERE name = 'Ushers & Greeters'"));
     CHECK(canonQ.next());
     CHECK(canonQ.value(0).toInt() >= 1);
+    // Non-primary canonical blueprints must NOT spawn headings.
+    QSqlQuery nonPrimaryQ(db());
+    CHECK(nonPrimaryQ.exec("SELECT COUNT(*) FROM groups WHERE name = 'Missions & Outreach' OR name = 'Maintenance'"));
+    CHECK(nonPrimaryQ.next());
+    CHECK_EQ(nonPrimaryQ.value(0).toInt(), 0);
 
     // The audit trail is preserved (non-repudiation) and records the purge.
     QSqlQuery purgeQ(db());
@@ -3626,25 +3632,45 @@ bool test_dynamicBlueprintHeadingsSuite() {
     QSqlDatabase d = db();
     d.transaction();
 
-    // 1. Ensure blueprint headings creates top-level groups for all blueprints
+    // 1. ensureBlueprintHeadings creates Level 0 root groups for the four
+    // primary blueprints (plus custom ones) only — a fresh install opens with
+    // four Groups; the other canonical blueprints stay registry-only.
     CHECK(DatabaseManager::ensureBlueprintHeadings(d));
 
-    // Verify all blueprints now exist as Level 0 root groups
     const auto blueprints = MinistryArchetypeRegistry::allBlueprints(false);
     CHECK(blueprints.size() >= 11);
+    const QStringList primaryKeys = MinistryArchetypeRegistry::primaryBlueprintKeys();
+    int nonPrimaryBpId = 0;
     for (const auto& bp : blueprints) {
         QSqlQuery qCheck(d);
-        qCheck.prepare("SELECT id, name, category, parent_id, ideal_primary_archetype, ideal_secondary_archetype "
-                       "FROM groups WHERE (name = ? OR category = ?) "
+        qCheck.prepare("SELECT id, parent_id FROM groups WHERE (name = ? OR category = ?) "
                        "AND (parent_id IS NULL OR parent_id = 0)");
         qCheck.addBindValue(bp.displayName);
         qCheck.addBindValue(bp.categoryKey);
         CHECK(qCheck.exec());
-        CHECK(qCheck.next());
-        int rootId = qCheck.value(0).toInt();
-        CHECK(rootId > 0);
-        int pId = qCheck.value(3).toInt();
-        CHECK_EQ(pId, 0); // Must be Level 0
+        const bool hasRoot = qCheck.next();
+        // Exactly the primary blueprints carry an auto-created heading.
+        CHECK_EQ(hasRoot, primaryKeys.contains(bp.categoryKey));
+        if (hasRoot) {
+            const int pId = qCheck.value(1).toInt();
+            CHECK_EQ(pId, 0); // Must be Level 0
+        } else if (bp.categoryKey == "Misiones") {
+            nonPrimaryBpId = bp.id;
+        }
+    }
+
+    // 1b. Non-primary canonical blueprints materialize on demand, idempotently.
+    CHECK(nonPrimaryBpId > 0);
+    const int demandRootId = DatabaseManager::ensureBlueprintHeadingGroup(nonPrimaryBpId, d);
+    CHECK(demandRootId > 0);
+    CHECK_EQ(DatabaseManager::ensureBlueprintHeadingGroup(nonPrimaryBpId, d), demandRootId);
+    {
+        QSqlQuery qLevel(d);
+        qLevel.prepare("SELECT parent_id FROM groups WHERE id = ?");
+        qLevel.addBindValue(demandRootId);
+        CHECK(qLevel.exec());
+        CHECK(qLevel.next());
+        CHECK(qLevel.value(0).isNull() || qLevel.value(0).toInt() <= 0);
     }
 
     // 2. Create a new custom blueprint ministry ("Matrimonios / Marriage Ministry")

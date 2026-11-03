@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QSettings>
+#include <QHash>
 #include <QSet>
 #include <QIODevice>
 #include <QDate>
@@ -2109,25 +2110,11 @@ bool DatabaseManager::migrateSchema() {
             backfill.exec("UPDATE entity_relationships SET joined_date = date('now','localtime') WHERE joined_date IS NULL;");
         }
 
-        // 6. Ensure the 11 canonical root ministries exist in groups table (Level 0 Blueprints)
-        for (const auto& bp : MinistryArchetypeRegistry::canonicalBlueprints()) {
-            QSqlQuery checkRoot(m_db);
-            checkRoot.prepare("SELECT id FROM groups WHERE (category = ? OR name = ?) AND (parent_id IS NULL OR parent_id = 0) LIMIT 1;");
-            checkRoot.addBindValue(bp.displayName);
-            checkRoot.addBindValue(bp.displayName);
-            if (checkRoot.exec() && !checkRoot.next()) {
-                QSqlQuery insRoot(m_db);
-                insRoot.prepare("INSERT INTO groups (name, category, description, ideal_primary_archetype, ideal_secondary_archetype, required_skills, recruitment_status) "
-                                "VALUES (?, ?, ?, ?, ?, ?, 'Open');");
-                insRoot.addBindValue(bp.displayName);
-                insRoot.addBindValue(bp.displayName);
-                insRoot.addBindValue(bp.description);
-                insRoot.addBindValue(bp.primaryArchetype);
-                insRoot.addBindValue(bp.secondaryArchetype);
-                insRoot.addBindValue(bp.requiredGifts.join(", "));
-                insRoot.exec();
-            }
-        }
+        // 6. Root-ministry group creation is NOT done here: a fresh database
+        // replays every migration, and heading groups are owned by
+        // ensureBlueprintHeadings() (primary four + custom blueprints only),
+        // which runs immediately after migrations complete. Duplicating it
+        // here made fresh installs open with all 11 canonical headings.
 
         if (!m_db.commit()) {
             qCritical() << "Migration 19: commit failed";
@@ -2859,6 +2846,52 @@ void DatabaseManager::ensureSchemaIntegrity(QSqlDatabase db) {
     }
 }
 
+int DatabaseManager::ensureBlueprintHeadingGroup(int blueprintId, QSqlDatabase db) {
+    // Idempotently materialize a canonical/custom blueprint's Level 0 heading
+    // group. Called by ensureBlueprintHeadings() for the primary four + custom
+    // blueprints, and on demand from the blueprint manager's "+ Create" flow
+    // so sub-teams always land under a real root heading.
+    if (!db.isOpen() || blueprintId <= 0) return -1;
+
+    QSqlQuery qBp(db);
+    qBp.prepare("SELECT category_key, display_name, ideal_primary, ideal_secondary, "
+                "required_gifts, description, COALESCE(is_archived, 0) "
+                "FROM ministry_archetypes WHERE id = ?");
+    qBp.addBindValue(blueprintId);
+    if (!qBp.exec() || !qBp.next()) return -1;
+    const QString catKey = qBp.value(0).toString();
+    const QString dispName = qBp.value(1).toString();
+    const QString priArch = qBp.value(2).toString();
+    const QString secArch = qBp.value(3).toString();
+    const QString gifts = qBp.value(4).toString();
+    const QString desc = qBp.value(5).toString();
+    const int isArch = qBp.value(6).toInt();
+
+    QSqlQuery checkGroup(db);
+    checkGroup.prepare("SELECT id FROM groups WHERE (name = ? OR category = ? OR name = ? OR category = ?) "
+                       "AND (parent_id IS NULL OR parent_id = 0) ORDER BY id ASC LIMIT 1");
+    checkGroup.addBindValue(dispName);
+    checkGroup.addBindValue(dispName);
+    checkGroup.addBindValue(catKey);
+    checkGroup.addBindValue(catKey);
+    if (checkGroup.exec() && checkGroup.next())
+        return checkGroup.value(0).toInt();
+
+    QSqlQuery ins(db);
+    ins.prepare("INSERT INTO groups (name, category, description, ideal_primary_archetype, ideal_secondary_archetype, required_skills, recruitment_status, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'Open', ?)");
+    ins.addBindValue(dispName);
+    ins.addBindValue(dispName);
+    ins.addBindValue(desc);
+    ins.addBindValue(priArch);
+    ins.addBindValue(secArch);
+    ins.addBindValue(gifts);
+    ins.addBindValue(isArch);
+    if (!ins.exec()) return -1;
+    bumpDataGeneration();
+    return ins.lastInsertId().toInt();
+}
+
 bool DatabaseManager::ensureBlueprintHeadings(QSqlDatabase db) {
     if (!db.isOpen()) return false;
 
@@ -2894,38 +2927,59 @@ bool DatabaseManager::ensureBlueprintHeadings(QSqlDatabase db) {
         insBp.exec();
     }
 
-    // 3. For every blueprint in ministry_archetypes, ensure a Level 0 top-level group exists in groups
-    QSqlQuery qBlueprints("SELECT id, category_key, display_name, ideal_primary, ideal_secondary, required_gifts, description, COALESCE(is_archived, 0) FROM ministry_archetypes", db);
+    // 2b. One-time English rename (v0.8.3): canonical blueprint display names
+    // shipped bilingual ("Alabanza / Worship"). Registry-owned rows and their
+    // auto-created root heading groups are synced to the English-only names.
+    // Idempotent: after the first pass nothing matches the old names, and
+    // user renames (name != old value) are never touched.
+    static const QHash<QString, QString> kEnglishRenames = {
+        { "Ujier / Usher & Greeters",            "Ushers & Greeters" },
+        { "Alabanza / Worship",                  "Worship" },
+        { "Infantil / Children's Ministry",      "Children's Ministry" },
+        { "Mantenimiento / Maintenance",         "Maintenance" },
+        { "Jardineria / Gardening",              "Gardening" },
+        { "Misiones / Missions & Outreach",      "Missions & Outreach" },
+        { "Grupos Vida / Life Groups",           "Life Groups" },
+        { "Oracion / Prayer & Intercession",     "Prayer & Intercession" },
+        { "Eventos / Special Events",            "Special Events" }
+    };
+    for (auto it = kEnglishRenames.constBegin(); it != kEnglishRenames.constEnd(); ++it) {
+        QSqlQuery uBp(db);
+        uBp.prepare("UPDATE ministry_archetypes SET display_name = ? "
+                    "WHERE is_custom = 0 AND display_name = ?");
+        uBp.addBindValue(it.value());
+        uBp.addBindValue(it.key());
+        uBp.exec();
+
+        QSqlQuery uGrp(db);
+        uGrp.prepare("UPDATE groups SET name = ?, category = ? "
+                     "WHERE (name = ? OR category = ?) AND (parent_id IS NULL OR parent_id = 0)");
+        uGrp.addBindValue(it.value());
+        uGrp.addBindValue(it.value());
+        uGrp.addBindValue(it.key());
+        uGrp.addBindValue(it.key());
+        uGrp.exec();
+    }
+
+    // 3. Auto-create top-level heading groups — but only for the four
+    // primary blueprints (Worship, Children's, Ushers, AV) and any custom
+    // blueprints. A fresh database opens with exactly four Groups; the other
+    // canonical blueprints stay in the registry for Ministry Match and
+    // materialize on demand via ensureBlueprintHeadingGroup().
+    const QStringList primaryKeys = MinistryArchetypeRegistry::primaryBlueprintKeys();
+    QSqlQuery qBlueprints("SELECT id, is_custom FROM ministry_archetypes", db);
     if (!qBlueprints.exec()) return false;
 
     while (qBlueprints.next()) {
-        QString catKey = qBlueprints.value(1).toString();
-        QString dispName = qBlueprints.value(2).toString();
-        QString priArch = qBlueprints.value(3).toString();
-        QString secArch = qBlueprints.value(4).toString();
-        QString gifts = qBlueprints.value(5).toString();
-        QString desc = qBlueprints.value(6).toString();
-        int isArch = qBlueprints.value(7).toInt();
-
-        QSqlQuery checkGroup(db);
-        checkGroup.prepare("SELECT id FROM groups WHERE (name = ? OR category = ? OR name = ? OR category = ?) AND (parent_id IS NULL OR parent_id = 0) LIMIT 1");
-        checkGroup.addBindValue(dispName);
-        checkGroup.addBindValue(dispName);
-        checkGroup.addBindValue(catKey);
-        checkGroup.addBindValue(catKey);
-        if (checkGroup.exec() && !checkGroup.next()) {
-            QSqlQuery ins(db);
-            ins.prepare("INSERT INTO groups (name, category, description, ideal_primary_archetype, ideal_secondary_archetype, required_skills, recruitment_status, is_archived) "
-                        "VALUES (?, ?, ?, ?, ?, ?, 'Open', ?)");
-            ins.addBindValue(dispName);
-            ins.addBindValue(dispName);
-            ins.addBindValue(desc);
-            ins.addBindValue(priArch);
-            ins.addBindValue(secArch);
-            ins.addBindValue(gifts);
-            ins.addBindValue(isArch);
-            ins.exec();
-        }
+        const int bpId = qBlueprints.value(0).toInt();
+        const bool isCustom = qBlueprints.value(1).toInt() != 0;
+        QSqlQuery qKey(db);
+        qKey.prepare("SELECT category_key FROM ministry_archetypes WHERE id = ?");
+        qKey.addBindValue(bpId);
+        if (!qKey.exec() || !qKey.next()) continue;
+        if (!isCustom && !primaryKeys.contains(qKey.value(0).toString()))
+            continue;
+        ensureBlueprintHeadingGroup(bpId, db);
     }
 
     // 4. Auto-enroll any group primary contact/leader into entity_relationships as Leader

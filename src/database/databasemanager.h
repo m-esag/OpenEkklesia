@@ -52,8 +52,17 @@ public:
     // Ensure all critical columns and indices exist across people, groups, and entity_relationships
     static void ensureSchemaIntegrity(QSqlDatabase db = QSqlDatabase::database());
 
-    // Ensure all blueprint ministries (canonical and custom) have a Level 0 top-level heading group
+    // Ensure the primary four blueprints (MinistryArchetypeRegistry::
+    // primaryBlueprintKeys) plus all custom blueprints have a Level 0
+    // top-level heading group. Non-primary canonical blueprints are registry-
+    // only until materialized on demand.
     static bool ensureBlueprintHeadings(QSqlDatabase db = QSqlDatabase::database());
+
+    // Idempotently create a single blueprint's top-level heading group if it
+    // is missing. Returns the existing or new group id, or -1 on error. Used
+    // by the blueprint manager so "+ Create" can add sub-teams under a real
+    // root heading even for non-primary blueprints.
+    static int ensureBlueprintHeadingGroup(int blueprintId, QSqlDatabase db = QSqlDatabase::database());
 
     // Create a new blueprint ministry and immediately generate its top-level heading group
     static bool createBlueprint(const QString& categoryKey, const QString& displayName,

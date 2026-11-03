@@ -177,11 +177,17 @@ public:
         );
     }
 
-    // All 11 Canonical Ministry Blueprints
+    // All 11 Canonical Ministry Blueprints. category_key is an internal
+    // identifier (stable for existing databases); display_name is user-facing
+    // and ships English-only.
+    //
+    // Only the blueprints listed in primaryBlueprintKeys() auto-create a
+    // top-level Groups heading on a fresh database; the rest materialize on
+    // demand (blueprint manager "+ Create" or a custom blueprint creation).
     static QList<MinistryBlueprint> canonicalBlueprints() {
         return {
             {
-                "Ujier", "Ujier / Usher & Greeters",
+                "Ujier", "Ushers & Greeters",
                 "Spark", "Anchor",
                 RelationalStyleVector(20, 30, 10, 0, 0, 40),
                 {"Hospitality", "Helps"},
@@ -195,56 +201,56 @@ public:
                 "Audio engineering, video streaming, slides, lighting, and technical execution."
             },
             {
-                "Alabanza", "Alabanza / Worship",
+                "Alabanza", "Worship",
                 "Catalyst", "Spark",
                 RelationalStyleVector(15, 30, 25, 30, 0, 0),
                 {"Worship / Music", "Leadership"},
                 "Musical leadership, stage presence, congregational worship, and rehearsal coordination."
             },
             {
-                "Infantil", "Infantil / Children's Ministry",
+                "Infantil", "Children's Ministry",
                 "Shepherd", "Spark",
                 RelationalStyleVector(30, 25, 10, 35, 0, 0),
                 {"Teaching", "Pastoral Care"},
                 "Sunday school teaching, child care, energetic activities, and family check-in."
             },
             {
-                "Mantenimiento", "Mantenimiento / Maintenance",
+                "Mantenimiento", "Maintenance",
                 "Anchor", "Architect",
                 RelationalStyleVector(20, 20, 60, 0, 0, 0),
                 {"Helps"},
                 "Facility upkeep, building repairs, physical setups, and logistical support."
             },
             {
-                "Jardineria", "Jardineria / Gardening",
+                "Jardineria", "Gardening",
                 "Anchor", "Architect",
                 RelationalStyleVector(20, 20, 60, 0, 0, 0),
                 {"Helps"},
                 "Church grounds landscaping, lawn care, plant maintenance, and exterior beauty."
             },
             {
-                "Misiones", "Misiones / Missions & Outreach",
+                "Misiones", "Missions & Outreach",
                 "Spark", "Catalyst",
                 RelationalStyleVector(30, 0, 20, 20, 30, 0),
                 {"Evangelism", "Leadership"},
                 "Community benevolence, local evangelism, regional outreaches, and cross-cultural missions."
             },
             {
-                "Grupos Vida", "Grupos Vida / Life Groups",
+                "Grupos Vida", "Life Groups",
                 "Shepherd", "Catalyst",
                 RelationalStyleVector(20, 40, 0, 10, 0, 30),
                 {"Pastoral Care", "Teaching"},
                 "Relational small groups, host home fellowship, Bible study, and discipleship."
             },
             {
-                "Oracion", "Oracion / Prayer & Intercession",
+                "Oracion", "Prayer & Intercession",
                 "Anchor", "Shepherd",
                 RelationalStyleVector(10, 60, 20, 0, 10, 0),
                 {"Pastoral Care", "Prophecy"},
                 "Weekly prayer vigils, intercessory teams, altar ministry, and pastoral prayer support."
             },
             {
-                "Eventos", "Eventos / Special Events",
+                "Eventos", "Special Events",
                 "Architect", "Spark",
                 RelationalStyleVector(30, 0, 20, 20, 30, 0),
                 {"Administration", "Hospitality"},
@@ -258,6 +264,15 @@ public:
                 "Custom ministry or small group with admin-defined archetype profile."
             }
         };
+    }
+
+    // Blueprints whose top-level heading group is auto-created by
+    // ensureBlueprintHeadings() on every start. A fresh database therefore
+    // opens with exactly these four Groups; the remaining canonical
+    // blueprints stay available for Ministry Match and materialize as groups
+    // on demand. Custom (user-created) blueprints always get a heading.
+    static QStringList primaryBlueprintKeys() {
+        return { "Alabanza", "Infantil", "Multimedia", "Ujier" };
     }
 
     static RelationalStyleVector calculateTargetVector(const QString& priStr, const QString& secStr) {

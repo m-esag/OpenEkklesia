@@ -4313,6 +4313,11 @@ void MainWindow::refreshMinistryBlueprintsTab() {
             qRoot.addBindValue("%" + bp.categoryKey + "%");
             if (qRoot.exec() && qRoot.next()) {
                 rootId = qRoot.value(0).toInt();
+            } else if (bp.id > 0) {
+                // Non-primary canonical blueprints ship without a heading
+                // group; materialize it so the sub-team lands under a real
+                // root instead of becoming an orphan top-level group.
+                rootId = DatabaseManager::ensureBlueprintHeadingGroup(bp.id);
             }
             showGroupDialog(0, false, rootId);
         });
