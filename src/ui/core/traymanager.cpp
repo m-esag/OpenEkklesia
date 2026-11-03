@@ -145,7 +145,7 @@ QList<Reminder> TrayManager::collectReminders(const QSqlDatabase& db,
                     continue;
                 if (!start.isValid())
                     continue;
-                QDateTime due(serviceDate, start.isValid() ? start : QTime(0, 0), QTimeZone::LocalTime);
+                QDateTime due(serviceDate, start.isValid() ? start : QTime(0, 0), Qt::LocalTime);
                 const QString displayName = leader.isEmpty() ? title : title + " (" + leader + ")";
                 reminders.append({"service", id, displayName, due});
             }
@@ -195,7 +195,7 @@ QList<Reminder> TrayManager::collectReminders(const QSqlDatabase& db,
                 const QDate dueDate = QDate::fromString(q.value(4).toString(), Qt::ISODate);
                 if (!dueDate.isValid())
                     continue;
-                const QDateTime due(dueDate, QTime(0, 0), QTimeZone::LocalTime);
+                const QDateTime due(dueDate, QTime(0, 0), Qt::LocalTime);
                 const QString displayName = owner.isEmpty() ? title : title + " (" + owner + ")";
                 reminders.append({"ministry_task", id, displayName, due});
             }
@@ -217,7 +217,7 @@ QList<Reminder> TrayManager::collectReminders(const QSqlDatabase& db,
                 const QTime start = QTime::fromString(q.value(2).toString(), "HH:mm");
                 if (!resDate.isValid())
                     continue;
-                const QDateTime due(resDate, start.isValid() ? start : QTime(0, 0), QTimeZone::LocalTime);
+                const QDateTime due(resDate, start.isValid() ? start : QTime(0, 0), Qt::LocalTime);
                 const QString eventName = q.value(4).toString().trimmed();
                 const QString facility = q.value(5).toString().trimmed();
                 const QString displayName = facility.isEmpty() ? eventName : eventName + " - " + facility;
@@ -247,7 +247,7 @@ QList<Reminder> TrayManager::collectReminders(const QSqlDatabase& db,
                 const QString displayName = type + " follow-up: " + q.value(3).toString().trimmed()
                                             + " " + q.value(4).toString().trimmed();
                 reminders.append({"pastoral_followup", id, displayName,
-                                 QDateTime(followDate, QTime(0, 0), QTimeZone::LocalTime)});
+                                 QDateTime(followDate, QTime(0, 0), Qt::LocalTime)});
             }
         }
     }

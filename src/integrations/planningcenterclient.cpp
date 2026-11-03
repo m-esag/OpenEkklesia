@@ -187,7 +187,11 @@ void PlanningCenterClient::fetchServicePlans(const QString& appId, const QString
     auto failed = std::make_shared<bool>(false);
     auto fetchPage = std::make_shared<std::function<void()>>();
 
-    *fetchPage = [this, appId, secret, types, plans, index, failed, fetchPage, callback]() {
+    // mutable: the inner executeGet callback below captures fetchPage from
+    // this closure; without mutable this closure's member is const, and the
+    // inner lambda inherits a const shared_ptr whose reset() is ill-formed
+    // (GCC rejects it; MSVC does not).
+    *fetchPage = [this, appId, secret, types, plans, index, failed, fetchPage, callback]() mutable {
         if (*failed) return;
         if (*index >= types->size()) {
             callback(true, *plans, QString());
@@ -507,7 +511,7 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
     auto includeDesignations = std::make_shared<bool>(true);
 
     auto fetchPage = std::make_shared<std::function<void(int)>>();
-    *fetchPage = [this, appId, secret, allDonations, includeDesignations, fetchPage, callback](int offset) {
+    *fetchPage = [this, appId, secret, allDonations, includeDesignations, fetchPage, callback](int offset) mutable {
         QString endpoint = QString("/giving/v2/donations?per_page=100&offset=%1").arg(offset);
         if (*includeDesignations) endpoint += "&include=designations.fund";
         executeGet(endpoint, appId, secret,
