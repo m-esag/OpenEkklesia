@@ -94,7 +94,9 @@ private:
     QWidget* createTablePage(const QString& title, QTableView* view);
 
     TrayManager* m_trayManager = nullptr;
-    QStackedLayout* m_stackedWidget; // IgnoreMinStackedLayout — see mainwindow.cpp
+    QStackedLayout* m_stackedWidget;
+    QPushButton* m_btnToggleSidebar = nullptr; // top-bar panel toggle (hide/reopen sidebar)
+    QLabel* m_footerUserChip = nullptr;        // bottom-left signed-in user chip // IgnoreMinStackedLayout — see mainwindow.cpp
     
     QPushButton* m_btnDashboard;
     QPushButton* m_btnMembers;

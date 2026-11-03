@@ -279,6 +279,20 @@ void MainWindow::setupMenuBar() {
     QMenuBar* mb = menuBar();
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 
+    // Sidebar panel toggle (ZCode-style): lives at the TopLeftCorner of the
+    // menu bar so it stays reachable when the sidebar itself is hidden.
+    m_btnToggleSidebar = new QPushButton(mb);
+    m_btnToggleSidebar->setIcon(IconManager::instance().getIcon("panel-left", tok.textPrimary, 16));
+    m_btnToggleSidebar->setFlat(true);
+    m_btnToggleSidebar->setFixedSize(28, 24);
+    m_btnToggleSidebar->setCursor(Qt::PointingHandCursor);
+    m_btnToggleSidebar->setToolTip("Toggle navigation panel");
+    connect(m_btnToggleSidebar, &QPushButton::clicked, this, [this]() {
+        if (!m_sidebar) return;
+        m_sidebar->setVisible(!m_sidebar->isVisible());
+    });
+    mb->setCornerWidget(m_btnToggleSidebar, Qt::TopLeftCorner);
+
     // 1. File / Application Menu
     QMenu* fileMenu = mb->addMenu("&File");
     
@@ -522,7 +536,7 @@ void MainWindow::setupMenuBar() {
 
         QLabel* lblTitle = new QLabel("<h3>OpenEkklesia ChMS</h3>", &dlg);
         QLabel* lblDesc = new QLabel(
-            "<b>Version 0.8.0</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
+            "<b>Version 0.8.2</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
             "Features double-entry fund accounting, relational connection graph visualization, "
             "Smart Bridge v2.0 group dynamics synergy engine, service liturgy flow builder, "
             "facilities management, document vault, and nursery kiosk check-in portal.", &dlg);
@@ -622,13 +636,13 @@ void MainWindow::setupUI() {
     sidebar->setFixedWidth(220);
 
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(15, 30, 15, 30);
-    sidebarLayout->setSpacing(10);
+    sidebarLayout->setContentsMargins(12, 14, 12, 10);
+    sidebarLayout->setSpacing(8);
 
     QLabel* logoLabel = new QLabel("OpenEkklesia", this);
     logoLabel->setObjectName("logoLabel");
     sidebarLayout->addWidget(logoLabel);
-    sidebarLayout->addSpacing(30);
+    sidebarLayout->addSpacing(10);
 
     AppSettings settings;
 
@@ -770,38 +784,51 @@ void MainWindow::setupUI() {
         s.setValue("sidebarSecFinance", nowVis);
     });
 
-    m_btnSettings = new QPushButton("Settings", this);
-    m_btnSettings->setObjectName("navButton");
-    m_btnSettings->setToolTip("Settings: Configure church details, responsive layout rules, graph thresholds & backups.");
-    sidebarLayout->addWidget(m_btnSettings);
-
     refreshSidebarIcons();
 
     sidebarLayout->addStretch();
 
-    // Bottom Dock (Kiosk Portal & Help Center)
-    QVBoxLayout* bottomDock = new QVBoxLayout();
-    bottomDock->setSpacing(6);
+    // Bottom footer (ZCode-style): compact utility row pinned to the bottom —
+    // Kiosk, Help, Settings gear and the signed-in user chip. The version
+    // lives in Help -> About.
+    QFrame* sidebarFooter = new QFrame(sidebar);
+    sidebarFooter->setObjectName("sidebarFooter");
+    QHBoxLayout* footerLayout = new QHBoxLayout(sidebarFooter);
+    footerLayout->setContentsMargins(4, 6, 4, 6);
+    footerLayout->setSpacing(4);
 
-    m_btnKiosk = new QPushButton(" Kiosk Portal", this);
-    m_btnKiosk->setIcon(IconManager::instance().getIcon("user-check", QColor(), 14));
-    m_btnKiosk->setObjectName("navButton");
-    m_btnKiosk->setToolTip("Kiosk: Launch full-screen self-checkin nursery portal.");
+    auto footerBtn = [this, footerLayout](QPushButton* btn, const QString& icon, const QString& tip) {
+        btn->setIcon(IconManager::instance().getIcon(icon, QColor(), 16));
+        btn->setIconSize(QSize(16, 16));
+        btn->setObjectName("navButton");
+        btn->setToolTip(tip);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setFixedSize(34, 34);
+        footerLayout->addWidget(btn);
+    };
+
+    m_btnKiosk = new QPushButton(sidebarFooter);
+    footerBtn(m_btnKiosk, "user-check", "Kiosk: Launch full-screen self-checkin portal.");
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 
-    QPushButton* btnManual = new QPushButton(" Help & Manual (F1)", this);
-    btnManual->setIcon(IconManager::instance().getIcon("book-open", QColor(), 14));
-    btnManual->setObjectName("navButton");
-    btnManual->setToolTip("User Manual: Open interactive documentation and system guide (F1).");
+    QPushButton* btnManual = new QPushButton(sidebarFooter);
+    footerBtn(btnManual, "book-open", "User Manual: Open interactive documentation (F1).");
     connect(btnManual, &QPushButton::clicked, this, [this]() { onShowUserManual(); });
 
-    bottomDock->addWidget(m_btnKiosk);
-    bottomDock->addWidget(btnManual);
-    sidebarLayout->addLayout(bottomDock);
+    m_btnSettings = new QPushButton(sidebarFooter);
+    footerBtn(m_btnSettings, "settings", "Settings: Configure church details, themes, modules & backups.");
+    connect(m_btnSettings, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
 
-    QLabel* footerLabel = new QLabel("v0.8.0", this);
-    footerLabel->setObjectName("footerLabel");
-    sidebarLayout->addWidget(footerLabel);
+    footerLayout->addStretch();
+
+    m_footerUserChip = new QLabel(sidebarFooter);
+    m_footerUserChip->setObjectName("footerUserChip");
+    m_footerUserChip->setToolTip("Signed-in user — click to switch user / sign in with PIN.");
+    m_footerUserChip->setCursor(Qt::PointingHandCursor);
+    connect(m_footerUserChip, &QLabel::linkActivated, this, [this]() { promptLogin(); });
+    footerLayout->addWidget(m_footerUserChip);
+
+    sidebarLayout->addWidget(sidebarFooter);
 
     m_sidebar = sidebar;
     m_logoLabel = logoLabel;
@@ -2562,6 +2589,8 @@ void MainWindow::applyRolePermissions() {
 
     if (statusBar()) {
         statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
+        if (m_footerUserChip)
+            m_footerUserChip->setText(QString("<b style='color:var(--text-primary)'>%1</b>").arg(m_username.toHtmlEscaped()));
     }
     updateTopBarRoleBadge();
 }
