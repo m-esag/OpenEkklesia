@@ -59,6 +59,10 @@ private:
 
     bool m_enabled;
     QSet<QString> m_notified;
+    QList<Reminder> m_lastReminders;   // last collected set, shown in the tray menu
+    QMenu* m_upcomingMenu = nullptr;   // "Coming up" section fed by m_lastReminders
+
+    void rebuildUpcomingMenu();
     int m_leadMinutes;
 
     bool loadConfig();

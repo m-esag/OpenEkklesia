@@ -14,6 +14,7 @@
 #include <QVariant>
 #include <QSystemTrayIcon>
 #include <QTimeZone>
+#include <algorithm>
 
 #include "databasemanager.h"
 #include "iconmanager.h"
@@ -264,6 +265,8 @@ void TrayManager::refreshReminders() {
 
     const QList<Reminder> reminders =
         collectReminders(DatabaseManager::instance().database(), AppSettings());
+    m_lastReminders = reminders;
+    rebuildUpcomingMenu();
     notifyReminders(reminders);
 }
 
@@ -278,7 +281,9 @@ void TrayManager::notifyReminders(const QList<Reminder>& reminders) {
         if (!reminder.dueAt.isValid())
             continue;
 
-        const QDateTime threshold = reminder.dueAt.addSecs(-leadMinutes * 60);
+        // Calendar events toast a day ahead; other reminders keep the short lead.
+        const int lead = (reminder.type == "ministry_event") ? qMax(leadMinutes, 24 * 60) : leadMinutes;
+        const QDateTime threshold = reminder.dueAt.addSecs(-lead * 60);
         if (now < threshold)
             continue;
         if (now > reminder.dueAt.addSecs(60 * 60)) // max age one hour
@@ -293,11 +298,14 @@ void TrayManager::notifyReminders(const QList<Reminder>& reminders) {
         QString eta;
         if (minutes <= 0)
             eta = "now";
-        else if (minutes < leadMinutes + 1)
+        else if (minutes < 24 * 60)
             eta = "in " + QString::number(minutes) + " min";
         else
-            eta = reminder.dueAt.toString("HH:mm");
+            eta = "in " + QString::number(minutes / (24 * 60)) + " d (" +
+                  reminder.dueAt.toString("ddd HH:mm") + ")";
         dueMessages << eta + " - " + reminder.title;
+        if (m_notified.size() > 300)
+            m_notified.clear();
         m_notified.insert(key);
     }
 
@@ -311,4 +319,33 @@ void TrayManager::notifyReminders(const QList<Reminder>& reminders) {
         title = QString("OpenEkklesia - %1 reminders").arg(dueMessages.size());
     m_tray->showMessage(title, dueMessages.join("\n"),
                         QSystemTrayIcon::Information, 5000);
+}
+
+void TrayManager::rebuildUpcomingMenu() {
+    if (!m_upcomingMenu)
+        return;
+    m_upcomingMenu->clear();
+
+    if (m_lastReminders.isEmpty()) {
+        QAction* empty = m_upcomingMenu->addAction("Nothing scheduled in the next 7 days");
+        empty->setEnabled(false);
+        return;
+    }
+
+    QList<Reminder> sorted = m_lastReminders;
+    std::sort(sorted.begin(), sorted.end(), [](const Reminder& a, const Reminder& b) {
+        return a.dueAt < b.dueAt;
+    });
+
+    const QDateTime now = QDateTime::currentDateTime();
+    for (const Reminder& r : sorted) {
+        const int minutes = static_cast<int>(now.secsTo(r.dueAt) / 60.0);
+        QString eta;
+        if (minutes <= 0) eta = "now";
+        else if (minutes < 24 * 60) eta = QString("in %1 h").arg(QString::number(minutes / 60.0, 'f', 0));
+        else eta = QString("in %1 d").arg(QString::number(minutes / (24 * 60.0), 'f', 0));
+
+        QAction* a = m_upcomingMenu->addAction(eta + "  -  " + r.title);
+        a->setEnabled(false); // informational; "Show OpenEkklesia" opens the app
+    }
 }
