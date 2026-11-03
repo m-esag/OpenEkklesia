@@ -1,6 +1,7 @@
 ﻿#ifndef TRAYMANAGER_H
 #define TRAYMANAGER_H
 
+#include "appsettings.h"
 #include <QObject>
 #include <QDate>
 #include <QDateTime>
@@ -38,7 +39,7 @@ public:
     // Public so the test suite can exercise the reminder queries without a
     // live system tray and without Toast notifications.
     static QList<Reminder> collectReminders(const QSqlDatabase& db,
-                                           const QSettings& settings);
+                                           const AppSettings& settings);
 
 private slots:
     void showMainWindow();

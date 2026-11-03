@@ -111,7 +111,7 @@ void TrayManager::quit() {
 }
 
 QList<Reminder> TrayManager::collectReminders(const QSqlDatabase& db,
-                                              const QSettings& settings) {
+                                              const AppSettings& settings) {
     QList<Reminder> reminders;
     if (!db.isOpen())
         return reminders;
