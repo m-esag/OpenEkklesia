@@ -99,5 +99,19 @@ int main(int argc, char* argv[]) {
     qDebug() << "STAGE 5 store: modules/graph =" << s5.value("modules/graph").toString()
              << "modules/giving =" << s5.value("modules/giving").toString();
 
+    // Stage 6: groups-tree rebuild must replace, not append. Regression for
+    // the "Show Archived duplicates the tree" bug: refreshGroupsTree() had
+    // lost its clear(), so every refresh stacked another full copy.
+    QMetaObject::invokeMethod(&mw, "onGroupsClicked", Qt::DirectConnection);
+    QTreeWidget* tree = mw.findChild<QTreeWidget*>();
+    if (!tree) { qDebug() << "STAGE 6: no groups tree found"; return 1; }
+    QMetaObject::invokeMethod(&mw, "refreshGroupsTree", Qt::DirectConnection);
+    const int n1 = tree->topLevelItemCount();
+    QMetaObject::invokeMethod(&mw, "refreshGroupsTree", Qt::DirectConnection);
+    const int n2 = tree->topLevelItemCount();
+    qDebug() << "STAGE 6: groups roots after 1st refresh =" << n1
+             << "after 2nd =" << n2
+             << (n1 == n2 ? "(OK: stable)" : "(BUG: appending duplicates)");
+
     return 0;
 }

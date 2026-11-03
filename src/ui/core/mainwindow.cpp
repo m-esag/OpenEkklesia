@@ -2719,6 +2719,11 @@ void MainWindow::refreshGroupsTree() {
     // a null-current signal whose handler wipes the detail panel (and can
     // re-enter refreshes) before we get the chance to restore the selection.
     m_groupsTreeWidget->blockSignals(true);
+    // Rebuild from scratch. The population below appends new QTreeWidgetItems;
+    // without this clear every refresh (Show Archived toggle, page re-entry,
+    // post-edit refresh) stacked another full copy of the tree on top of the
+    // previous one.
+    m_groupsTreeWidget->clear();
     ThemeTokens tok = ThemeManager::instance().currentTokens();
 
     bool showArchived = m_chkShowArchivedGroups && m_chkShowArchivedGroups->isChecked();
