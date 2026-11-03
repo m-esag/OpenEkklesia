@@ -41,7 +41,9 @@ void ThemeManager::initialize() {
 #endif
 
     AppSettings settings;
-    QString savedTheme = settings.value("activeThemeId", "catppuccin_mocha").toString();
+    // Default to following the OS light/dark scheme on first run ("system_auto"
+    // resolves to Catppuccin Mocha/Latte in syncSystemTheme()); saved prefs win.
+    QString savedTheme = settings.value("activeThemeId", "system_auto").toString();
     // loadTheme() itself re-applies interactive color tweaks persisted for this
     // exact theme (customThemeBaseId), so a previous session's customization is
     // restored there and a genuine preset switch discards it.

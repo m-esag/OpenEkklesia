@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OpenEkklesia VERSION 0.8.2 LANGUAGES CXX)
+project(OpenEkklesia VERSION 0.8.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -88,6 +88,8 @@ set(SOURCES
     src/ui/core/iconmanager.cpp
     src/ui/core/usermanualdialog.h
     src/ui/core/usermanualdialog.cpp
+    src/ui/core/setupwizard.h
+    src/ui/core/setupwizard.cpp
 
     # UI People & Pastoral Submodule
     src/ui/people/peoplewidget.h
@@ -146,8 +148,8 @@ if(APPLE)
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "OpenEkklesia"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.openekklesia.OpenEkklesia"
-        MACOSX_BUNDLE_BUNDLE_VERSION "0.8.2"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.8.2"
+        MACOSX_BUNDLE_BUNDLE_VERSION "0.8.3"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.8.3"
     )
 endif()
 
@@ -198,6 +200,8 @@ add_executable(openekklesia_tests
     src/ui/core/kioskwindow.h
     src/ui/core/touchhelper.cpp
     src/ui/core/touchhelper.h
+    src/ui/core/setupwizard.cpp
+    src/ui/core/setupwizard.h
     src/ui/core/usermanualdialog.cpp
     src/ui/core/usermanualdialog.h
     src/ui/core/traymanager.h

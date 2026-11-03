@@ -9,8 +9,10 @@
 #endif
 #include "databasemanager.h"
 #include "mainwindow.h"
+#include "setupwizard.h"
 #include "thememanager.h"
 #include "touchhelper.h"
+#include "appsettings.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
@@ -64,6 +66,18 @@ int main(int argc, char *argv[]) {
         QMessageBox::critical(nullptr, "Database Error",
                               "Failed to open or initialize the application database. OpenEkklesia will now exit.");
         return 1;
+    }
+
+    // First run: collect the church profile before anything else. The details
+    // print on giving statements (tax receipts), so ask for them up front
+    // instead of shipping placeholder data that a quick "Save All Changes"
+    // would bake into real receipts. Skippable; re-shown never.
+    {
+        AppSettings settings;
+        if (!settings.contains("profileComplete")) {
+            SetupWizard wizard;
+            wizard.exec();
+        }
     }
 
     MainWindow mainWindow;

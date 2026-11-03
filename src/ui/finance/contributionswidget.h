@@ -86,6 +86,7 @@ private:
 
     // --- Left/Main Batch Workspace ---
     // Batch Header Bar
+    QLabel* m_lblProfileNudge;   // shown until the church profile has an address
     QLineEdit* m_txtBatchName;
     QDateEdit* m_batchDateEdit;
     QLabel* m_lblBatchStatusBadge;

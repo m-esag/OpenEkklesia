@@ -10,10 +10,13 @@ AppSettings appSettings() { return AppSettings(); }
 #include <QPixmap>
 
 QString ChurchProfile::name() {
-    return appSettings().value("churchName", "OpenEkklesia Church").toString();
+    // Neutral fallback: this name prints on giving statements, so never
+    // default to a branded placeholder. Real name comes from the first-run
+    // wizard or Settings -> General.
+    return appSettings().value("churchName", "My Church").toString();
 }
 QString ChurchProfile::subtitle() {
-    return appSettings().value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
+    return appSettings().value("churchSubtitle").toString();
 }
 QString ChurchProfile::address() {
     return appSettings().value("churchAddress").toString().trimmed();

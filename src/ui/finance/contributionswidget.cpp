@@ -2,6 +2,7 @@
 #include "transactiondialog.h"
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
+#include "../common/churchprofile.h"
 #include "../common/givingstatementgenerator.h"
 #include "thememanager.h"
 #include "../core/iconmanager.h"
@@ -58,6 +59,25 @@ void ContributionsWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(mainWorkspace);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(12);
+
+    // Profile-completeness nudge. Giving statements print the church profile,
+    // so remind until an address exists (the first-run wizard may have been
+    // skipped). Hidden once Settings has real contact details.
+    m_lblProfileNudge = new QLabel(mainWorkspace);
+    m_lblProfileNudge->setWordWrap(true);
+    m_lblProfileNudge->setObjectName("profileNudge");
+    {
+        ThemeTokens ntok = ThemeManager::instance().currentTokens();
+        m_lblProfileNudge->setStyleSheet(QString(
+            "QLabel#profileNudge { border-radius: 8px; padding: 10px 14px;"
+            "background-color: %1; color: %2; font-size: 12px; }")
+            .arg(ntok.accentWarning.name(QColor::HexRgb), ntok.textPrimary.name(QColor::HexRgb)));
+    }
+    m_lblProfileNudge->setText(
+        "Giving statements print your church's name and address — complete the "
+        "church profile in Settings → General before issuing receipts.");
+    m_lblProfileNudge->hide();
+    mainLayout->addWidget(m_lblProfileNudge);
 
     // 1. Top Batch Header Bar
     QFrame* headerCard = new QFrame(mainWorkspace);
@@ -634,6 +654,11 @@ void ContributionsWidget::refreshFundCombos() {
 
 void ContributionsWidget::refreshBatchesList() {
     if (!m_batchesList || !m_tabInProgress) return;
+
+    // Nudge visibility follows the live profile: statements need an address.
+    if (m_lblProfileNudge) {
+        m_lblProfileNudge->setVisible(ChurchProfile::address().trimmed().isEmpty());
+    }
 
     m_batchesList->blockSignals(true);
     m_batchesList->clear();

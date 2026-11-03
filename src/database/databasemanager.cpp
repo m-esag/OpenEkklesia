@@ -2600,6 +2600,7 @@ bool DatabaseManager::purgeDemoData() {
         "groups",                // -> people (contact_person_id), self parent_id
         "transactions",
         "services",              // after volunteers/tasks/events
+        "service_templates",     // user-saved run sheets (content, like services)
         "assets",
         "people",                // -> households
         "households"

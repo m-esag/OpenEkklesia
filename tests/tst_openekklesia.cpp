@@ -32,6 +32,7 @@
 #include "../src/ui/core/thememanager.h"
 #include "../src/ui/ministry/graphwidget.h"
 #include "../src/ui/admin/settingswidget.h"
+#include "../src/ui/core/setupwizard.h"
 #include "../src/ui/ministry/ministrymatch.h"
 #include "../src/ui/ministry/ministryarchetypes.h"
 #include "../src/ui/ministry/synergyengine.h"
@@ -245,6 +246,56 @@ bool test_seedDataCounts() {
 // checkbox when the auto-column-size option was introduced).
 bool test_settingsWidgetConstructs() {
     SettingsWidget sw;
+    return true;
+}
+
+// The first-run wizard is user-facing; it must construct offscreen and its
+// save path must write the full profile (with the neutral name fallback) and
+// the profileComplete flag that keeps main() from re-showing it.
+bool test_setupWizardAppliesProfile() {
+    SetupWizard wiz;
+    CHECK(wiz.findChild<QLineEdit*>() != nullptr);  // profile fields exist
+
+    // Simulate typed fields: name empty -> "My Church" fallback; others stored.
+    const auto edits = wiz.findChildren<QLineEdit*>();
+    CHECK_EQ(edits.size(), 8);
+    if (edits.size() >= 8) {
+        edits[0]->setText("");            // church name (tests fallback)
+        edits[1]->setText("Trust in Grace");
+        edits[3]->setText("456 Real St, Fresno, CA");
+        edits[7]->setText("12-3456789");
+    }
+    wiz.applyProfile();
+
+    AppSettings s;
+    // toStdString(): CHECK_EQ streams values on failure and QString is not
+    // streamable into std::cerr.
+    CHECK_EQ(s.value("churchName").toString().toStdString(), std::string("My Church"));
+    CHECK_EQ(s.value("churchSubtitle").toString().toStdString(), std::string("Trust in Grace"));
+    CHECK_EQ(s.value("churchAddress").toString().toStdString(), std::string("456 Real St, Fresno, CA"));
+    CHECK_EQ(s.value("churchTaxId").toString().toStdString(), std::string("12-3456789"));
+    CHECK(s.value("profileComplete").toBool());
+    return true;
+}
+
+// No fake contact data may ship as a settings default: the profile prints on
+// giving statements (tax receipts), and placeholders like "123 Grace Ave,
+// Springfield" were one "Save All Changes" away from real receipts.
+bool test_churchProfileDefaultsAreNotFakeData() {
+    AppSettings s;
+    s.remove("churchName");
+    s.remove("churchSubtitle");
+    s.remove("churchAddress");
+    s.remove("churchPhone");
+    s.remove("churchEmail");
+    s.remove("churchWebsite");
+    s.remove("churchTaxId");
+
+    CHECK_EQ(ChurchProfile::name().toStdString(), std::string("My Church"));
+    CHECK(ChurchProfile::subtitle().isEmpty());
+    CHECK(ChurchProfile::address().isEmpty());
+
+    SettingsWidget sw;   // loadSettings must render blanks, not placeholders
     return true;
 }
 
@@ -4551,6 +4602,8 @@ int main(int argc, char** argv) {
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"settings_widget_constructs", test_settingsWidgetConstructs},
+        {"setup_wizard_applies_profile", test_setupWizardAppliesProfile},
+        {"church_profile_defaults_not_fake_data", test_churchProfileDefaultsAreNotFakeData},
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},

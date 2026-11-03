@@ -1511,14 +1511,17 @@ void SettingsWidget::updateLivePreview() {
 void SettingsWidget::loadSettings() {
     AppSettings s;
 
-    m_txtChurchName->setText(s.value("churchName", "OpenEkklesia Church").toString());
-    m_txtChurchSubtitle->setText(s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString());
-    m_txtDenomination->setText(s.value("churchDenomination", "Non-Denominational / General").toString());
-    m_txtAddress->setText(s.value("churchAddress", "123 Grace Ave, Springfield").toString());
-    m_txtPhone->setText(s.value("churchPhone", "(555) 019-2834").toString());
-    m_txtEmail->setText(s.value("churchEmail", "office@openekklesia.org").toString());
-    m_txtWebsite->setText(s.value("churchWebsite", "https://openekklesia.org").toString());
-    m_txtTaxId->setText(s.value("churchTaxId", "XX-XXXXXXX").toString());
+    // No placeholder contact data: these fields print on giving statements
+    // (tax receipts), so blanks are safer than fake "Springfield" details a
+    // quick Save could bake in. The first-run wizard collects them instead.
+    m_txtChurchName->setText(s.value("churchName", "My Church").toString());
+    m_txtChurchSubtitle->setText(s.value("churchSubtitle").toString());
+    m_txtDenomination->setText(s.value("churchDenomination").toString());
+    m_txtAddress->setText(s.value("churchAddress").toString());
+    m_txtPhone->setText(s.value("churchPhone").toString());
+    m_txtEmail->setText(s.value("churchEmail").toString());
+    m_txtWebsite->setText(s.value("churchWebsite").toString());
+    m_txtTaxId->setText(s.value("churchTaxId").toString());
 
     // Restore the church logo preview if one was uploaded.
     const QString logoPath = s.value("churchLogo").toString();
@@ -1624,6 +1627,10 @@ void SettingsWidget::saveSettings() {
     s.setValue("churchEmail", m_txtEmail->text().trimmed());
     s.setValue("churchWebsite", m_txtWebsite->text().trimmed());
     s.setValue("churchTaxId", m_txtTaxId->text().trimmed());
+
+    // Saving from Settings counts as reviewing/completing the profile, so the
+    // first-run wizard will not reappear next launch.
+    s.setValue("profileComplete", true);
 
     s.setValue("autoCollapseSidebar", m_chkAutoCollapseSidebar->isChecked());
     s.setValue("ui/autoColumnSize", m_chkAutoColumnSize->isChecked());
