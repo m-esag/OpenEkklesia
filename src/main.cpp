@@ -3,6 +3,8 @@
 #include <QMessageBox>
 #include <QFile>
 #include <QDir>
+#include <QSqlDatabase>
+#include <QSqlError>
 #if defined(Q_OS_WIN)
 #include <windows.h>
 #include <shobjidl.h>
@@ -63,8 +65,33 @@ int main(int argc, char *argv[]) {
     // a stable, user-writable location (QStandardPaths::AppDataLocation) so
     // data survives regardless of where the binary is launched from.
     if (!DatabaseManager::instance().initialize(QString())) {
+        // Show the REAL failure reason, not just the fact of failure: the
+        // generic dialog once turned a missing SQLite driver into days of
+        // remote diagnosis ("can not load requested driver qsqlite" never
+        // reached the user's screen).
+        QString detail;
+        {
+            const QSqlDatabase db = DatabaseManager::instance().database();
+            if (!db.isValid()) {
+                detail = "No usable Qt SQLite driver is installed in this build.";
+            } else if (!db.isOpen()) {
+                const QSqlError err = db.lastError();
+                detail = err.isValid()
+                             ? err.text().trimmed()
+                             : "The driver loaded but the connection did not open.";
+            } else {
+                detail = "The connection opened but schema setup failed. "
+                         "See the diagnostic log for details.";
+            }
+            detail += QString("\n\nDatabase location attempted:\n%1")
+                          .arg(db.isValid() && !db.databaseName().isEmpty()
+                                   ? db.databaseName()
+                                   : "(unavailable)");
+        }
         QMessageBox::critical(nullptr, "Database Error",
-                              "Failed to open or initialize the application database. OpenEkklesia will now exit.");
+                              QString("Failed to open or initialize the application "
+                                      "database.\n\n%1\n\nOpenEkklesia will now exit.")
+                                  .arg(detail.toHtmlEscaped()));
         return 1;
     }
 
