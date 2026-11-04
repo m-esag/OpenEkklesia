@@ -101,6 +101,19 @@ NodeItem::NodeItem(int id, const QString& name, Type type)
 
 QRectF NodeItem::boundingRect() const {
     double r = radius() + 30.0;
+    // The hover detail card (paint()) is drawn up to 240px wide and ~90px
+    // tall ABOVE the node — well outside the shape square. While it is
+    // shown, the bounds must cover it or Qt's dirty-region tracking clips
+    // the card to the node square (white patches, clipped text, stale
+    // fragments left on the canvas as the mouse moves between nodes).
+    // prepareGeometryChange() in the hover handlers keeps the scene index
+    // in sync as the bounds grow and shrink.
+    if (m_isHovered) {
+        const double halfW = qMax(r, 120.0);           // card is 240px wide
+        const double top = -(radius() + 90.0);         // cardH(80) + 10 gap
+        const double bottom = r + 40.0;                // name-label area
+        return QRectF(-halfW, top, halfW * 2.0, bottom - top);
+    }
     return QRectF(-r, -r, r * 2.0, r * 2.0 + 40.0);
 }
 
@@ -300,7 +313,12 @@ void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         int cardH = m_burnoutGroupCount > 0 ? 80 : (m_isBridgeBroker ? 75 : 55);
         QRectF hoverCard(-cardW / 2, -r - cardH - 10, cardW, cardH);
 
-        QColor cardBg = tok.isDark ? QColor(30, 30, 46, 235) : QColor(255, 255, 255, 245);
+        // Card background follows the theme instead of hardcoded white: on
+        // tinted light brands the pure-white card read as a glitch patch on
+        // the canvas.
+        QColor cardBg = tok.isDark
+                            ? QColor(30, 30, 46, 235)
+                            : QColor(tok.bgOverlay.red(), tok.bgOverlay.green(), tok.bgOverlay.blue(), 245);
         painter->setBrush(cardBg);
         painter->setPen(QPen(borderCol, 1.5));
         painter->drawRoundedRect(hoverCard, 8, 8);
@@ -387,12 +405,17 @@ void NodeItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
 }
 
 void NodeItem::hoverEnterEvent(QGraphicsSceneHoverEvent* event) {
+    // The bounds grow while hovered (boundingRect covers the detail card);
+    // notify the scene's index BEFORE the state flips so the enlarged area
+    // is actually repainted.
+    prepareGeometryChange();
     m_isHovered = true;
     QGraphicsItem::hoverEnterEvent(event);
     QGraphicsItem::update();
 }
 
 void NodeItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event) {
+    prepareGeometryChange();
     m_isHovered = false;
     QGraphicsItem::hoverLeaveEvent(event);
     QGraphicsItem::update();

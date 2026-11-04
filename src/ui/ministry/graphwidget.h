@@ -89,7 +89,13 @@ public:
     QString adminNotes() const { return m_adminNotes; }
     void setAdminNotes(const QString& notes) { m_adminNotes = notes; }
 
-    void setHovered(bool h) { m_isHovered = h; QGraphicsItem::update(); }
+    void setHovered(bool h) {
+        if (h == m_isHovered) return;
+        // boundingRect() grows while hovered; keep the scene index in sync.
+        prepareGeometryChange();
+        m_isHovered = h;
+        QGraphicsItem::update();
+    }
     bool isHovered() const { return m_isHovered; }
 
     void setThresholdLabeling(bool enabled) { m_thresholdLabeling = enabled; }
