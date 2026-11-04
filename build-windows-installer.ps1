@@ -166,6 +166,17 @@ function Assert-DeployedTree {
         Write-Warning "The deployed tree contains $($emptyFiles.Count) empty file(s): $names"
         Write-Warning "Empty Qt plugins or DLLs break those features at runtime. Re-run .\build-windows.ps1 -SkipTests (without -NoDeploy) before shipping."
     }
+
+    # Local development state (portable marker, dev database, backups, test
+    # settings) lives in this folder during day-to-day work. The installer
+    # excludes it, but surface it so nobody ships a build they did not intend.
+    $devState = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -in @(".portable", "data", "backups") -or $_.Name -like "open_ekklesia.db*" })
+    if ($devState.Count -gt 0) {
+        $names = ($devState | ForEach-Object { $_.Name }) -join ", "
+        Write-Host ""
+        Write-Warning "Dev state present in the Release tree (stripped from artifacts): $names"
+    }
 }
 
 function Resolve-AppIcon {
@@ -303,6 +314,17 @@ function New-PortableZip {
         $dropExtensions = @(".pdb", ".ilk", ".exp", ".lib", ".obj", ".map")
         Get-ChildItem -LiteralPath $stagingApp -Recurse -File |
             Where-Object { $dropExtensions -contains $_.Extension.ToLowerInvariant() } |
+            Remove-Item -Force
+
+        # Never ship local development state: the .portable marker would pin a
+        # copy of the app to writing its data next to the exe (fine for a USB
+        # stick, wrong for anything else), and the dev database / backups /
+        # settings must not leak to other machines.
+        foreach ($name in @(".portable", "data", "backups")) {
+            $stale = Join-Path $stagingApp $name
+            if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Recurse -Force }
+        }
+        Get-ChildItem -LiteralPath $stagingApp -File -Filter "open_ekklesia.db*" -ErrorAction SilentlyContinue |
             Remove-Item -Force
 
         # Short note so a portable user knows where data lives and why toasts

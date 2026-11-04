@@ -28,7 +28,9 @@
 
 #define MyAppName "OpenEkklesia"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.8.0"
+  ; Fallback for direct ISCC runs; the pipeline always passes the version
+  ; parsed from CMakeLists.txt via /DMyAppVersion.
+  #define MyAppVersion "0.8.3"
 #endif
 #ifndef MyAppPublisher
   #define MyAppPublisher "OpenEkklesia"
@@ -91,13 +93,25 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "autostart"; Description: "Start OpenEkklesia when Windows starts"; GroupDescription: "Startup:"; Flags: unchecked
+
+[Registry]
+; Auto-start (task-selected): per-user HKCU Run entry so a non-admin login
+; session can launch the machine-wide install. Removed on uninstall.
+Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
+    ValueType: string; ValueName: "OpenEkklesia.ChMS"; \
+    ValueData: """{app}\{#MyAppExeName}"""; \
+    Flags: uninsdeletevalue; Tasks: autostart
 
 [Files]
 ; The complete windeployqt deployment produced by build-windows.ps1: the
 ; executable, Qt DLLs and the plugin folders (platforms, sqldrivers, styles,
 ; tls, imageformats, ...). Test/benchmark binaries and linker by-products from
-; the shared build folder are deliberately not shipped.
-Source: "..\build-windows\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "openekklesia_tests.exe,openekklesia_benchmarks.exe,*.pdb,*.ilk,*.exp,*.lib,*.obj,*.map"
+; the shared build folder are deliberately not shipped. The dev-state files
+; (.portable marker, local database, WAL/SHM sidecars, data/ and backups/)
+; are excluded too: the installed flavor must run in APPDATA mode, and a dev
+; database must never end up inside Program Files.
+Source: "..\build-windows\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "openekklesia_tests.exe,openekklesia_benchmarks.exe,*.pdb,*.ilk,*.exp,*.lib,*.obj,*.map,.portable,open_ekklesia.db*,data,backups"
 #ifdef HasIcon
 ; Installed so the shortcuts below (and the uninstall entry) can show the
 ; proper artwork even though the executable itself carries no icon resource.
