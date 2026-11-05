@@ -61,3 +61,6 @@ test-data/
 
 # Windows deploy folder (self-contained portable build output)
 dist-windows/
+
+# Linux AppImage deliverable folder
+dist-linux/
