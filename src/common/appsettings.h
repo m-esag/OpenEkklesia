@@ -9,7 +9,7 @@
 //
 // Storage is a JSON document at the first resolvable-writable location:
 //   1. OPENEKKLESIA_SETTINGS_DIR env (test harness hermeticity)
-//   2. <exe dir>/data/settings.ini  when a .portable marker exists
+//   2. <exe dir>/data/settings.json  when a .portable marker exists
 //   3. <APPDATA>/<org>/settings.json otherwise
 //
 // Why not QSettings: on Windows build 26300 both QSettings backends

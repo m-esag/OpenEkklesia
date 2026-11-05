@@ -58,3 +58,6 @@ build-qt683/
 build-qt610/
 build-asan/
 test-data/
+
+# Windows deploy folder (self-contained portable build output)
+dist-windows/

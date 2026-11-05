@@ -1,13 +1,12 @@
 #include "churchprofile.h"
 #include "appsettings.h"
-#include <QSettings>
+#include <QImage>
+#include <QBuffer>
+#include <QPixmap>
 
 namespace {
 AppSettings appSettings() { return AppSettings(); }
 }
-#include <QImage>
-#include <QBuffer>
-#include <QPixmap>
 
 QString ChurchProfile::name() {
     // Neutral fallback: this name prints on giving statements, so never

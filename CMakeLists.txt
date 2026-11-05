@@ -42,10 +42,14 @@ enable_testing()
 
 message(STATUS "Found Qt Version: ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}")
 
-# Define source files organized by module
-set(SOURCES
-    src/main.cpp
-
+# ---------------------------------------------------------------------------
+# Application sources — the single canonical list, shared by the app, the
+# test suite, and diagnostic probes so a new file can never be added to one
+# target and silently missing from another (that gap once let UI-breaking
+# code ship behind green tests because no test binary compiled mainwindow).
+# The entry points (main.cpp / test mains) are appended per target.
+# ---------------------------------------------------------------------------
+set(OE_APP_SOURCES
     # Common utilities (shared, product-neutral)
     src/common/appdateformatter.h
     src/common/appdateformatter.cpp
@@ -58,6 +62,7 @@ set(SOURCES
     src/common/givingstatementgenerator.cpp
     src/common/appsettings.h
     src/common/appsettings.cpp
+    src/common/appcurrency.h
 
     # Database Module
     src/database/databasemanager.h
@@ -141,19 +146,8 @@ set(SOURCES
     src/integrations/planningcenterdialog.cpp
 )
 
-add_executable(OpenEkklesia ${SOURCES})
-
-if(APPLE)
-    set_target_properties(OpenEkklesia PROPERTIES
-        MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "OpenEkklesia"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "org.openekklesia.OpenEkklesia"
-        MACOSX_BUNDLE_BUNDLE_VERSION "0.8.3"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.8.3"
-    )
-endif()
-
-target_include_directories(OpenEkklesia PRIVATE
+# Shared include directories for every OpenEkklesia target.
+set(OE_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database
@@ -166,112 +160,34 @@ target_include_directories(OpenEkklesia PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
 )
 
-target_link_libraries(OpenEkklesia PRIVATE
+set(OE_LINK_LIBS
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
+
+# --- Main application ---
+add_executable(OpenEkklesia src/main.cpp ${OE_APP_SOURCES})
+
+if(APPLE)
+    set_target_properties(OpenEkklesia PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "OpenEkklesia"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.openekklesia.OpenEkklesia"
+        MACOSX_BUNDLE_BUNDLE_VERSION "0.8.3"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.8.3"
+    )
+endif()
+
+target_include_directories(OpenEkklesia PRIVATE ${OE_INCLUDE_DIRS})
+target_link_libraries(OpenEkklesia PRIVATE ${OE_LINK_LIBS})
 
 # --- Test Suite (data layer integration tests) ---
-add_executable(openekklesia_tests
-    tests/tst_openekklesia.cpp
-    src/common/appdateformatter.cpp
-    src/common/appdateformatter.h
-    src/common/churchprofile.cpp
-    src/common/churchprofile.h
-    src/common/tableutil.h
-    src/common/givingstatementgenerator.cpp
-    src/common/givingstatementgenerator.h
-    src/common/icalgenerator.h
-    src/common/icalgenerator.cpp
-    src/common/appsettings.h
-    src/common/appsettings.cpp
-    src/database/databasemanager.cpp
-    src/database/databasemanager.h
-    src/database/datasharing.cpp
-    src/database/datasharing.h
-    src/ui/core/thememanager.cpp
-    src/ui/core/thememanager.h
-    src/ui/core/iconmanager.cpp
-    src/ui/core/iconmanager.h
-    src/ui/core/kioskwindow.cpp
-    src/ui/core/kioskwindow.h
-    src/ui/core/touchhelper.cpp
-    src/ui/core/touchhelper.h
-    src/ui/core/setupwizard.cpp
-    src/ui/core/setupwizard.h
-    src/ui/core/usermanualdialog.cpp
-    src/ui/core/usermanualdialog.h
-    src/ui/core/traymanager.h
-    src/ui/core/traymanager.cpp
-    src/ui/core/startuplaunchmanager.h
-    src/ui/core/startuplaunchmanager.cpp
-    src/ui/finance/contributionswidget.cpp
-    src/ui/finance/contributionswidget.h
-    src/ui/finance/inventorywidget.cpp
-    src/ui/finance/inventorywidget.h
-    src/ui/finance/transactiondialog.cpp
-    src/ui/finance/transactiondialog.h
-    src/ui/ministry/ministrymatch.cpp
-    src/ui/ministry/ministrymatch.h
-    src/ui/ministry/shepherdwidget.cpp
-    src/ui/ministry/shepherdwidget.h
-    src/ui/ministry/servicebuilderwidget.cpp
-    src/ui/ministry/servicebuilderwidget.h
-    src/ui/ministry/planningwidget.cpp
-    src/ui/ministry/planningwidget.h
-    src/ui/ministry/graphwidget.cpp
-    src/ui/ministry/graphwidget.h
-    src/ui/ministry/matchdialog.cpp
-    src/ui/ministry/matchdialog.h
-    src/ui/ministry/ministryarchetypes.h
-    src/ui/ministry/synergyengine.h
-    src/ui/ministry/synergyengine.cpp
-    src/ui/people/pastoralanalyticswidget.cpp
-    src/ui/people/pastoralanalyticswidget.h
-    src/ui/ministry/facilitieswidget.cpp
-    src/ui/ministry/facilitieswidget.h
-    src/ui/people/peoplewidget.cpp
-    src/ui/people/peoplewidget.h
-    src/ui/people/peoplecardutils.h
-    src/ui/people/peoplecardutils.cpp
-    src/ui/people/tagchiputils.h
-    src/ui/people/tagchiputils.cpp
-    src/ui/people/givingsummaryservice.h
-    src/ui/people/givingsummaryservice.cpp
-    src/ui/people/pastoralhistoryservice.h
-    src/ui/people/pastoralhistoryservice.cpp
-    src/ui/admin/settingswidget.cpp
-    src/ui/admin/settingswidget.h
-    src/ui/admin/vaultwidget.cpp
-    src/ui/admin/vaultwidget.h
-    src/integrations/planningcenterclient.cpp
-    src/integrations/planningcenterclient.h
-    src/integrations/planningcenterdialog.cpp
-    src/integrations/planningcenterdialog.h
-)
-
-target_include_directories(openekklesia_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/database
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
-)
-
-target_link_libraries(openekklesia_tests PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Widgets
-    Qt${QT_VERSION_MAJOR}::Sql
-    Qt${QT_VERSION_MAJOR}::Charts
-    Qt${QT_VERSION_MAJOR}::PrintSupport
-)
-
+add_executable(openekklesia_tests tests/tst_openekklesia.cpp ${OE_APP_SOURCES})
+target_include_directories(openekklesia_tests PRIVATE ${OE_INCLUDE_DIRS})
+target_link_libraries(openekklesia_tests PRIVATE ${OE_LINK_LIBS})
 add_test(NAME openekklesia_tests COMMAND openekklesia_tests)
 
 # --- High-Resolution Performance Benchmark Suite ---
@@ -305,56 +221,12 @@ target_link_libraries(openekklesia_benchmarks PRIVATE
     Qt${QT_VERSION_MAJOR}::PrintSupport
 )
 
-
-# temporary module-visibility probe (diagnosing sidebar update bug)
+# --- Diagnostic probes (EXCLUDE_FROM_ALL: built explicitly when needed) ---
+# module_vis_probe: module sidebar visibility end-to-end + groups-tree
+# rebuild-stability regression check (see tests/module_vis_probe.cpp).
 add_executable(module_vis_probe EXCLUDE_FROM_ALL
     tests/module_vis_probe.cpp
-    src/common/appsettings.cpp
-    src/common/appsettings.h
-    src/database/databasemanager.cpp
-    src/database/datasharing.cpp
-    src/common/appdateformatter.cpp
-    src/common/churchprofile.cpp
-    src/common/givingstatementgenerator.cpp
-    src/common/icalgenerator.cpp
-    src/ui/core/mainwindow.cpp
-    src/ui/core/thememanager.cpp
-    src/ui/core/iconmanager.cpp
-    src/ui/core/usermanualdialog.cpp
-    src/ui/core/touchhelper.cpp
-    src/ui/core/kioskwindow.cpp
-    src/ui/core/commandpalette.cpp
-    src/ui/core/traymanager.cpp
-    src/ui/core/startuplaunchmanager.cpp
-    src/ui/admin/settingswidget.cpp
-    src/ui/admin/vaultwidget.cpp
-    src/ui/people/peoplewidget.cpp
-    src/ui/people/pastoralanalyticswidget.cpp
-    src/ui/people/peoplecardutils.cpp
-    src/ui/people/tagchiputils.cpp
-    src/ui/people/givingsummaryservice.cpp
-    src/ui/people/pastoralhistoryservice.cpp
-    src/ui/ministry/graphwidget.cpp
-    src/ui/ministry/shepherdwidget.cpp
-    src/ui/ministry/servicebuilderwidget.cpp
-    src/ui/ministry/planningwidget.cpp
-    src/ui/ministry/facilitieswidget.cpp
-    src/ui/ministry/matchdialog.cpp
-    src/ui/ministry/ministrymatch.cpp
-    src/ui/ministry/synergyengine.cpp
-    src/ui/finance/contributionswidget.cpp
-    src/ui/finance/inventorywidget.cpp
-    src/ui/finance/transactiondialog.cpp
-    src/integrations/planningcenterclient.cpp
-    src/integrations/planningcenterdialog.cpp)
-target_include_directories(module_vis_probe PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/people
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/integrations
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/database)
-target_link_libraries(module_vis_probe PRIVATE Qt6::Core Qt6::Widgets Qt6::Sql Qt6::PrintSupport Qt6::Charts)
+    ${OE_APP_SOURCES}
+)
+target_include_directories(module_vis_probe PRIVATE ${OE_INCLUDE_DIRS})
+target_link_libraries(module_vis_probe PRIVATE ${OE_LINK_LIBS})
