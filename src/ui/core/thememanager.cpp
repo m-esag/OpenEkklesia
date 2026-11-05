@@ -1044,7 +1044,15 @@ QString ThemeManager::generateGlobalQSS() const {
         {"--pink-hover", pinkHover.name()},
         {"--surface-pressed", surfacePressed.name()},
         {"--primary-pressed", primaryPressed.name()},
-        {"--danger-pressed", dangerPressed.name()}
+        {"--danger-pressed", dangerPressed.name()},
+        // Translucent accent used by the item-view ::item:selected rule: an
+        // overlay instead of the opaque palette highlight so custom cell
+        // backgrounds (status chips) stay visible through the selection.
+        {"--selection-overlay", [&t] {
+             QColor overlay = t.accentPrimary;
+             overlay.setAlpha(70);
+             return overlay.name(QColor::HexArgb);
+         }()}
     };
 
     QString qss = R"(
@@ -1136,6 +1144,15 @@ QHeaderView::section {
 QTableView, QTableWidget { font-size: var(--font-size); }
 QTableView QHeaderView::section, QTableWidget QHeaderView::section { font-size: calc(var(--font-size) - 1px); }
 QTableView::item, QTableWidget::item { padding: 4px 6px; }
+/* Selection = translucent accent OVERLAY, not the opaque palette highlight.
+   Cells with custom backgrounds (planning status chips, gantt marks) were
+   hidden behind the flat system blue whenever clicked — the overlay lets the
+   chip color read through while keeping selection obvious. No color rule:
+   selected items keep their own foreground (chips use dark on-color text). */
+QTableView::item:selected, QTableWidget::item:selected, QListView::item:selected,
+QListWidget::item:selected, QTreeView::item:selected, QTreeWidget::item:selected {
+  background-color: var(--selection-overlay);
+}
 QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
 QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
 QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }

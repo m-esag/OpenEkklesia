@@ -11,6 +11,7 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QMap>
+#include <QPoint>
 
 class PlanningWidget : public QWidget {
     Q_OBJECT
@@ -43,6 +44,10 @@ private:
     void setupKanbanTab(QTabWidget* tabs);
     void setupGanttTab(QTabWidget* tabs);
     void setupGoalsTab(QTabWidget* tabs);
+
+    // Kanban drag & drop: one shared filter serves the drag sources (cards)
+    // and the drop targets (stage column containers). See planningwidget.cpp.
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
     void refreshKPIs();
     void refreshRoadmap();
@@ -84,6 +89,13 @@ private:
     QWidget* m_kanbanContainer = nullptr;
     QMap<QString, QVBoxLayout*> m_kanbanColumns;
     QMap<QString, QLabel*> m_kanbanCounters;
+    // Drag state: the pending drop is applied only AFTER QDrag::exec() has
+    // unwound — refreshAll() deletes the card widgets, and the dragged card's
+    // own event handler is still on the stack while the drag loop runs.
+    QPoint m_dragStartPos;
+    int m_dragTaskId = 0;
+    QString m_dragFromStatus;
+    struct PendingDrop { int taskId = 0; QString stage; } m_pendingDrop;
 
     // Tab 3: Gantt Timeline
     QTableWidget* m_ganttTable = nullptr;

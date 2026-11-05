@@ -30,9 +30,25 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QCursor>
+#include <QDrag>
+#include <QMimeData>
+#include <QDropEvent>
 #include "../database/databasemanager.h"
 #include "../core/thememanager.h"
 #include "../core/iconmanager.h"
+
+namespace {
+// Status chip colors follow the active theme instead of hardcoded Catppuccin
+// Mocha pastels, which clashed on light brands and drifted from the design
+// language of the other module tables. Pair with ThemeManager::textOn() for
+// the foreground so contrast holds on every theme.
+QColor statusChipColor(const QString& status) {
+    const ThemeTokens tok = ThemeManager::instance().currentTokens();
+    if (status == "Completed") return tok.accentSuccess;
+    if (status == "Planned") return tok.accentWarning;
+    return tok.accentPrimary;
+}
+} // namespace
 
 // Owner combos render "Name (Role)"; the stored text keeps only the clean name.
 static QString cleanOwnerName(const QString& text) {
@@ -249,6 +265,9 @@ void PlanningWidget::setupRoadmapTab(QTabWidget* tabs) {
     m_roadmapTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_roadmapTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_roadmapTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    // App-wide table conventions (column sizing honoring the user preference).
+    // Sorting stays off: the quarter columns are positional, not sortable data.
+    TableUtil::applyStandardTableSetup(m_roadmapTable, false);
 
     connect(m_roadmapTable, &QTableWidget::cellDoubleClicked, this, [this](int r, int) {
         if (m_readOnly) return;
@@ -525,6 +544,12 @@ void PlanningWidget::setupKanbanTab(QTabWidget* tabs) {
         cardLay->setContentsMargins(2, 2, 2, 2);
         cardLay->setSpacing(8);
         cardLay->addStretch();
+        // Drop target for kanban drag & drop. Cards themselves do not accept
+        // drops, so a card dragged over another card resolves to this
+        // container (Qt walks up to the nearest accepting ancestor).
+        cardContainer->setProperty("kanbanStage", st);
+        cardContainer->setAcceptDrops(true);
+        cardContainer->installEventFilter(this);
         cardScroll->setWidget(cardContainer);
 
         m_kanbanColumns[st] = cardLay;
@@ -597,6 +622,7 @@ void PlanningWidget::setupGanttTab(QTabWidget* tabs) {
     m_ganttTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_ganttTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_ganttTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    TableUtil::applyStandardTableSetup(m_ganttTable, false); // positional columns, not sortable
 
     connect(m_ganttTable, &QTableWidget::cellDoubleClicked, this, [this](int r, int) {
         if (m_readOnly) return;
@@ -852,10 +878,9 @@ void PlanningWidget::refreshRoadmap() {
                     const QDate monthEnd = monthStart.addMonths(1).addDays(-1);
                     if (start <= monthEnd && end >= monthStart) {
                         cell->setText(title);
-                        QColor bg = (status == "Completed") ? QColor(166, 227, 161)
-                                  : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
+                        const QColor bg = statusChipColor(status);
                         cell->setBackground(bg);
-                        cell->setForeground(QColor(17, 17, 27));
+                        cell->setForeground(ThemeManager::textOn(bg));
                     }
                 }
                 m_roadmapTable->setItem(row, m + 1, cell);
@@ -900,8 +925,9 @@ void PlanningWidget::refreshRoadmap() {
                     const QDate qEnd = qStart.addMonths(3).addDays(-1);
                     if (start <= qEnd && end >= qStart) {
                         cell->setText(title + " [" + status + "]");
-                        cell->setBackground((status == "Completed") ? QColor(166, 227, 161) : QColor(137, 180, 250));
-                        cell->setForeground(QColor(17, 17, 27));
+                        const QColor bg = statusChipColor(status);
+                        cell->setBackground(bg);
+                        cell->setForeground(ThemeManager::textOn(bg));
                     }
                 }
                 m_roadmapTable->setItem(row, q + 1, cell);
@@ -1018,10 +1044,12 @@ void PlanningWidget::refreshKanban() {
     for (const QString& st : stages) {
         if (!m_kanbanColumns.contains(st)) continue;
         QVBoxLayout* lay = m_kanbanColumns[st];
-        // Clear old card widgets (leaving spacer)
+        // Clear old card widgets (leaving spacer). deleteLater, not delete:
+        // a refresh can be triggered while a drag that started on one of
+        // these cards is still unwinding on the stack.
         while (lay->count() > 1) {
             QLayoutItem* item = lay->takeAt(0);
-            if (item->widget()) delete item->widget();
+            if (item->widget()) item->widget()->deleteLater();
             delete item;
         }
     }
@@ -1066,6 +1094,12 @@ void PlanningWidget::refreshKanban() {
         card->setStyleSheet(
             "QFrame#kanbanCard { background-color: palette(window); border: 1px solid palette(mid); border-radius: 6px; padding: 8px; }"
             "QFrame#kanbanCard:hover { border: 1px solid palette(highlight); }");
+        // Drag & drop source identity (consumed by the shared eventFilter):
+        // dragging a card between stage columns moves the task's status.
+        card->setProperty("taskId", id);
+        card->setProperty("taskStatus", status);
+        card->setCursor(Qt::SizeAllCursor);
+        card->installEventFilter(this);
 
         QVBoxLayout* cardLay = new QVBoxLayout(card);
         cardLay->setContentsMargins(4, 4, 4, 4);
@@ -1277,10 +1311,9 @@ void PlanningWidget::refreshGanttChart() {
                 QString mark = (status == "Completed") ? " ✔ " : ((status == "Planned") ? " • " : " ⚡ ");
                 cell->setText(mark);
                 cell->setTextAlignment(Qt::AlignCenter);
-                QColor bg = (status == "Completed") ? QColor(166, 227, 161)
-                          : ((status == "Planned") ? QColor(249, 226, 175) : QColor(137, 180, 250));
+                const QColor bg = statusChipColor(status);
                 cell->setBackground(bg);
-                cell->setForeground(QColor(17, 17, 27));
+                cell->setForeground(ThemeManager::textOn(bg));
                 cell->setToolTip(QString("%1\n%2 to %3\nStatus: %4").arg(title, start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"), status));
                 m_ganttTable->setItem(row, d + 2, cell);
             }
@@ -1546,6 +1579,96 @@ void PlanningWidget::moveTaskStage(int taskId, const QString& newStatus) {
     if (q.exec()) {
         refreshAll();
     }
+}
+
+bool PlanningWidget::eventFilter(QObject* watched, QEvent* ev) {
+    // Kanban drag & drop. Cards are plain QFrames inside per-stage layouts, so
+    // both the drag sources (cards carrying taskId/taskStatus properties) and
+    // the drop targets (stage containers carrying kanbanStage) come through
+    // this one filter instead of per-card subclasses.
+    static const QString kMime = "application/x-openekklesia-kanban-task";
+
+    switch (ev->type()) {
+    case QEvent::MouseButtonPress: {
+        QWidget* w = static_cast<QWidget*>(watched);
+        const int taskId = w->property("taskId").toInt();
+        if (taskId > 0 && !m_readOnly) {
+            m_dragTaskId = taskId;
+            m_dragFromStatus = w->property("taskStatus").toString();
+            m_dragStartPos = static_cast<QMouseEvent*>(ev)->pos();
+        }
+        break;
+    }
+    case QEvent::MouseMove: {
+        QWidget* w = static_cast<QWidget*>(watched);
+        if (m_dragTaskId <= 0
+            || !(static_cast<QMouseEvent*>(ev)->buttons() & Qt::LeftButton))
+            break;
+        if ((static_cast<QMouseEvent*>(ev)->pos() - m_dragStartPos).manhattanLength() <= 14)
+            break;
+
+        QDrag drag(w);
+        QMimeData* mime = new QMimeData;
+        mime->setData(kMime, QByteArray::number(m_dragTaskId));
+        drag.setMimeData(mime);
+        drag.setPixmap(w->grab());
+        drag.setHotSpot(QPoint(10, 10));
+        const Qt::DropAction action = drag.exec(Qt::MoveAction);
+
+        // The drop event only recorded the intent (m_pendingDrop); the DB
+        // write and the board rebuild happen here, AFTER QDrag::exec() has
+        // unwound — refreshAll() deletes the card widgets and this dragged
+        // card's handler is still on the stack. The queued call fires once
+        // the entire mouse-event chain has returned to the event loop.
+        const bool moved = (action == Qt::MoveAction)
+                           && m_pendingDrop.taskId == m_dragTaskId
+                           && !m_pendingDrop.stage.isEmpty()
+                           && m_pendingDrop.stage != m_dragFromStatus;
+        const int taskId = m_dragTaskId;
+        const QString targetStage = moved ? m_pendingDrop.stage : QString();
+        m_dragTaskId = 0;
+        m_dragFromStatus.clear();
+        m_pendingDrop = {};
+        if (moved) {
+            QMetaObject::invokeMethod(this, [this, taskId, targetStage]() {
+                moveTaskStage(taskId, targetStage);
+            }, Qt::QueuedConnection);
+        }
+        return true;
+    }
+    case QEvent::MouseButtonRelease:
+        m_dragTaskId = 0;
+        m_dragFromStatus.clear();
+        m_pendingDrop = {};
+        break;
+    case QEvent::DragEnter:
+    case QEvent::DragMove: {
+        QWidget* w = static_cast<QWidget*>(watched);
+        if (w->property("kanbanStage").toString().isEmpty())
+            break;
+        auto* de = static_cast<QDragMoveEvent*>(ev);
+        if (de->mimeData()->hasFormat(kMime)) {
+            de->acceptProposedAction();
+            return true;
+        }
+        break;
+    }
+    case QEvent::Drop: {
+        QWidget* w = static_cast<QWidget*>(watched);
+        const QString stage = w->property("kanbanStage").toString();
+        auto* de = static_cast<QDropEvent*>(ev);
+        if (!stage.isEmpty() && de->mimeData()->hasFormat(kMime)) {
+            m_pendingDrop.taskId = de->mimeData()->data(kMime).toInt();
+            m_pendingDrop.stage = stage;
+            de->acceptProposedAction();
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return QWidget::eventFilter(watched, ev);
 }
 
 int PlanningWidget::selectedTaskId() const {
