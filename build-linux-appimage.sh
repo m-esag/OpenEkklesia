@@ -10,18 +10,30 @@ ARCH="$(uname -m)"
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
 
-# 2. Tooling (downloaded once into tools/, gitignored)
+# 2. Tooling (downloaded once into tools/, gitignored). Seeded from a
+# persistent per-user cache so wiping the repo tree (the usual git-archive
+# export flow) never forces a re-download — GitHub is often unreachable from
+# behind some VM NATs, and curl -s + set -e used to die silently there.
 mkdir -p tools
-if [ ! -x tools/linuxdeploy.AppImage ]; then
-  echo "Downloading AppImage tooling..."
-  curl -sL -o tools/linuxdeploy.AppImage \
-    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage
-  curl -sL -o tools/linuxdeploy-plugin-qt.AppImage \
-    https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH}.AppImage
-  curl -sL -o tools/appimagetool.AppImage \
-    https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${ARCH}.AppImage
-  chmod +x tools/*.AppImage
-fi
+declare -A TOOL_URLS=(
+  [linuxdeploy.AppImage]="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
+  [linuxdeploy-plugin-qt.AppImage]="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH}.AppImage"
+  [appimagetool.AppImage]="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${ARCH}.AppImage"
+)
+TOOL_CACHE="${OE_APPIMAGE_TOOL_CACHE:-$HOME/.cache/oe-appimage-tools}"
+mkdir -p "$TOOL_CACHE"
+for tool in linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage appimagetool.AppImage; do
+  [ -x "tools/$tool" ] && continue
+  if [ -e "$TOOL_CACHE/$tool" ]; then
+    echo "Using cached $tool from $TOOL_CACHE"
+    cp "$TOOL_CACHE/$tool" "tools/$tool"
+  else
+    echo "Downloading AppImage tooling: $tool"
+    curl -fL --retry 3 --connect-timeout 30 -o "tools/$tool" "${TOOL_URLS[$tool]}"
+  fi
+  chmod +x "tools/$tool"
+  cp "tools/$tool" "$TOOL_CACHE/$tool" 2>/dev/null || true
+done
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export PATH="$PWD/tools:$PATH"
