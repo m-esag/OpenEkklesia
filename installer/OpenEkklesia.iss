@@ -30,7 +30,7 @@
 #ifndef MyAppVersion
   ; Fallback for direct ISCC runs; the pipeline always passes the version
   ; parsed from CMakeLists.txt via /DMyAppVersion.
-  #define MyAppVersion "0.8.3"
+  #define MyAppVersion "0.8.4"
 #endif
 #ifndef MyAppPublisher
   #define MyAppPublisher "OpenEkklesia"
