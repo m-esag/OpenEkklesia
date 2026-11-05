@@ -1,3 +1,59 @@
+# Release Notes — OpenEkklesia v0.8.5-rc1
+
+**Tag:** `v0.8.5-rc1`
+**Date:** 2026-11-05
+**Status:** Release candidate. Offline-first desktop for small churches
+(1–2 admins). First public release; licensed GPL-3.0.
+
+## Highlights since v0.8.0-beta.1
+
+### Honesty & first-run experience
+- **First-run setup wizard** collects the church profile before login; the
+  profile prints on giving statements, so no placeholder data ships anymore
+  ("123 Grace Ave, Springfield" and friends are gone — blank fields and a
+  neutral "My Church" fallback instead).
+- Giving page shows a completion nudge until the profile has an address.
+- Theme defaults to **system light/dark** on first run (Catppuccin Mocha/Latte).
+- Database-error dialog now reports the real `QSqlError` text and the attempted
+  database path — no more silent generic failures.
+
+### Resilient settings store
+- QSettings is replaced by a **JSON settings store** with atomic writes
+  (`QSaveFile`), fixing silent preference loss where the Qt backends fail.
+
+### Groups & ministries
+- Fresh installs open with the **four primary ministries** (Worship,
+  Children's, Ushers, AV); the other seven blueprints stay in the registry for
+  Ministry Match and materialize on demand.
+- Blueprint names are **English-only**; existing databases migrate via a
+  one-time idempotent rename.
+- Fixed: Groups tree duplicated on every refresh (lost `clear()` during the
+  bulk-member-fetch rewrite).
+
+### Ministry Planning
+- Strategic Roadmap: fixed the selected-cell washout that hid status chips
+  (item views now use a translucent accent overlay, app-wide).
+- Tables follow the app-wide table conventions; status chip colors derive from
+  the active theme.
+- **Kanban board: drag & drop** between stage columns, persisted to the
+  database (Completed auto-sets progress to 100%).
+
+### Distribution
+- **Windows installer** (Inno Setup): machine-wide install, Start Menu
+  shortcut with toast-capable AppUserModelID, optional desktop icon and
+  auto-start, proper uninstaller. A portable ZIP is built alongside. Neither
+  ships developer state.
+- Linux AppImage built on a glibc 2.35 baseline (Ubuntu 22.04+ / Fedora / Mint
+  21+), SQLite driver bundled.
+- One canonical CMake source list shared by the app, tests, and probes — the
+  test suite now compiles the full app surface (~1370 checks).
+
+### Known limitations (unchanged by design)
+- PIN-based auth only; no data-at-rest encryption; bookkeeping lives in an
+  external package (GnuCash) — see `SECURITY.md`.
+
+---
+
 # Release Notes — OpenEkklesia v0.8.0-beta.1
 
 **Tag:** `v0.8.0-beta.1` → commit `0f175a9` (branch `Testing`)

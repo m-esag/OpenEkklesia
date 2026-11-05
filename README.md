@@ -1,10 +1,39 @@
 # ⛪ OpenEkklesia — Modern Church Management System (ChMS)
 
-> **Version `0.8.0` — pre-release beta.** Offline-first desktop for 1–2 admins.
+> **Version `0.8.5-rc1` — release candidate.** Offline-first desktop for 1–2 admins.
 > No encryption, tax/IRS compliance, or WCAG AAA claims — see in-app manual
 > (current-product only) and `NOTES.md` for the roadmap.
 
 OpenEkklesia is a modern, high-performance C++20 / Qt6 desktop software application designed for church administration, congregation management, financial accounting, worship service planning, and pastoral care tracking.
+
+## 📦 Downloads
+
+Prebuilt, self-contained artifacts are attached to each
+[GitHub Release](../../releases) — no development tools needed to run the app:
+
+| Platform | Artifact | Notes |
+|---|---|---|
+| Windows 10+ (x64) | `OpenEkklesia-<version>-win64-setup.exe` | Installer with Start Menu shortcut + uninstaller; data in `%APPDATA%\OpenEkklesia` |
+| Windows 10+ (x64) | `OpenEkklesia-<version>-win64-portable.zip` | No install; extract and run. Keep the folder together — the exe needs its Qt DLLs |
+| Linux (x86_64) | `OpenEkklesia-x86_64.AppImage` | glibc ≥ 2.35 (Ubuntu 22.04+, Fedora 36+, Mint 21+). Mark executable and run |
+
+Artifacts are unsigned; Windows SmartScreen shows a one-time
+*"More info → Run anyway"* warning.
+
+## 🔐 First-Run Access
+
+Sign-in is PIN-based (personal/small-church scope — see the security notes in
+`SECURITY.md`). A fresh database seeds four accounts, all shipped publicly by
+design and changeable in **Settings → Access PINs**:
+
+| Account | Default PIN | Role |
+|---|---|---|
+| Admin | `1234` | Full access |
+| Pastor | `5555` | Pastoral modules |
+| Finance | `7777` | Giving & finance |
+| Guest | `0000` | Read-only |
+
+**Change these before real use.**
 
 ---
 
@@ -195,4 +224,9 @@ Features a dynamic theme engine (`ThemeManager`) supporting:
 ---
 
 ## 📜 License
-Developed with care for OpenEkklesia.
+
+OpenEkklesia is free software: you can redistribute it and/or modify it under
+the terms of the **GNU General Public License v3.0** — see [LICENSE](LICENSE).
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU GPL v3 for details.
