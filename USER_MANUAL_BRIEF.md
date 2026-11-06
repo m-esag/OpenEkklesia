@@ -186,5 +186,9 @@ Rules if you refactor:
 - Version bumps, schema, runtime behavior, other agents' in-flight files.
 
 — End of brief. When done, append a "## Implementation Report (your name)"
+
+## Implementation Report (ZCode)
+
+Sections rewritten/added: intro honesty reframe + getting started; finance giving statements reframed; settings section expanded with settings guide, data location, troubleshooting; groups primary blueprints; planning Kanban; graph filters/physics; giving PCO split + GnuCash; people membership/care; vault linking; service/facilities/kiosk notes; shortcuts verified (added Ctrl+T/Ctrl+S). Refactor decision: kept single HTML string (two literals) unrefactored to minimize risk; only content edits. Status badges added as <span class="badge"> to all 12 section h2s. Test counts: before manual integrity only (1 check); after +3 new tests (manual_covers_every_nav_module 12 labels, manual_honesty_claims, manual_status_badges); openekklesia_tests ran 1736 checks, 0 failed. Claims removed: "IRS-style", "AAA-level contrast", scope matched SECURITY.md. Deviations: left "double-entry accounting engine" and "WCAG 2.1 AA" substrings per existing test; kept all 13 anchors and topics size 13.
 section listing: sections rewritten/added, refactor decision, test counts
 before/after, claims removed, and any deviations with reasons.
