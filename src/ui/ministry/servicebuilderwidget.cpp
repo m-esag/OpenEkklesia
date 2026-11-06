@@ -1,5 +1,6 @@
 #include "servicebuilderwidget.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -198,7 +199,7 @@ void ServiceBuilderWidget::setupUI() {
 
     m_librarySearch = new QLineEdit(this);
     m_librarySearch->setObjectName("serviceLibrarySearch");
-    m_librarySearch->setPlaceholderText("Search elements…");
+    m_librarySearch->setPlaceholderText(AppTranslator::t("Search elements…"));
     m_librarySearch->setClearButtonEnabled(true);
     connect(m_librarySearch, &QLineEdit::textChanged, this, &ServiceBuilderWidget::applyLibraryFilter);
     libFilterRow->addWidget(m_librarySearch, 1);
@@ -477,7 +478,7 @@ void ServiceBuilderWidget::setupUI() {
     QFormLayout* serviceForm = new QFormLayout();
     m_serviceTitleEdit = new QLineEdit(this);
     m_serviceTitleEdit->setObjectName("serviceTitleEdit");
-    m_serviceTitleEdit->setPlaceholderText("e.g. Sunday Worship Service");
+    m_serviceTitleEdit->setPlaceholderText(AppTranslator::t("e.g. Sunday Worship Service"));
     connect(m_serviceTitleEdit, &QLineEdit::editingFinished, this, &ServiceBuilderWidget::saveServiceDetails);
     serviceForm->addRow("Service Title:", m_serviceTitleEdit);
 
@@ -485,7 +486,7 @@ void ServiceBuilderWidget::setupUI() {
     m_leaderEdit->setObjectName("serviceLeaderEdit");
     m_leaderEdit->setEditable(true);
     m_leaderEdit->setInsertPolicy(QComboBox::NoInsert);
-    m_leaderEdit->setPlaceholderText("Pick a leader or type a name…");
+    m_leaderEdit->setPlaceholderText(AppTranslator::t("Pick a leader or type a name…"));
     QSqlQuery qPeople("SELECT id, first_name || ' ' || last_name FROM people ORDER BY last_name, first_name",
                       DatabaseManager::instance().database());
     while (qPeople.next()) m_leaderEdit->addItem(qPeople.value(1).toString(), qPeople.value(0).toInt());
@@ -647,7 +648,7 @@ static bool elementEditorDialog(QWidget* parent, const QString& title,
     form->setSpacing(12);
 
     QLineEdit* nameEdit = new QLineEdit(name, &dlg);
-    nameEdit->setPlaceholderText("e.g. Amazing Grace");
+    nameEdit->setPlaceholderText(AppTranslator::t("e.g. Amazing Grace"));
     form->addRow("Name:", nameEdit);
 
     QComboBox* typeCombo = new QComboBox(&dlg);
@@ -688,7 +689,7 @@ void ServiceBuilderWidget::onAddElement() {
     if (q.exec()) {
         loadLibrary();
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to add element: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to add element: ") + q.lastError().text());
     }
 }
 
@@ -717,21 +718,21 @@ void ServiceBuilderWidget::onEditElement(QListWidgetItem* item) {
     if (up.exec()) {
         loadLibrary();
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to update element: " + up.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to update element: ") + up.lastError().text());
     }
 }
 
 void ServiceBuilderWidget::onRemoveElement() {
     QListWidgetItem* item = m_libraryList->currentItem();
     if (!item) {
-        QMessageBox::warning(this, "Notice", "Select a library element to remove.");
+        QMessageBox::warning(this, AppTranslator::t("Notice"), AppTranslator::t("Select a library element to remove."));
         return;
     }
     const int libId = item->data(Qt::UserRole + 2).toInt();
     if (libId <= 0) return;
 
-    auto res = QMessageBox::question(this, "Remove Element",
-                                     QString("Remove '%1' from the library?").arg(item->text()),
+    auto res = QMessageBox::question(this, AppTranslator::t("Remove Element"),
+                                     QString(AppTranslator::t("Remove '%1' from the library?")).arg(item->text()),
                                      QMessageBox::Yes | QMessageBox::No);
     if (res != QMessageBox::Yes) return;
 
@@ -742,7 +743,7 @@ void ServiceBuilderWidget::onRemoveElement() {
     if (q.exec()) {
         loadLibrary();
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to remove element: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to remove element: ") + q.lastError().text());
     }
 }
 
@@ -756,8 +757,8 @@ void ServiceBuilderWidget::onRemoveItem() {
 void ServiceBuilderWidget::onClearPlaylist() {
     if (m_playlist->count() == 0) return;
     
-    auto res = QMessageBox::question(this, "Clear Run Sheet", 
-                                     "Are you sure you want to remove all items from the current service run sheet?",
+    auto res = QMessageBox::question(this, AppTranslator::t("Clear Run Sheet"), 
+                                     AppTranslator::t("Are you sure you want to remove all items from the current service run sheet?"),
                                      QMessageBox::Yes | QMessageBox::No);
     if (res == QMessageBox::Yes) {
         m_playlist->clear();
@@ -835,7 +836,7 @@ void ServiceBuilderWidget::loadRunSheetFromDb(const QDate& date) {
 
 void ServiceBuilderWidget::onSaveService() {
     if (m_playlist->count() == 0) {
-        QMessageBox::warning(this, "No Layout", "The Sunday Run Sheet is empty. Add elements before saving.");
+        QMessageBox::warning(this, AppTranslator::t("No Layout"), AppTranslator::t("The Sunday Run Sheet is empty. Add elements before saving."));
         return;
     }
 
@@ -847,9 +848,9 @@ void ServiceBuilderWidget::onSaveService() {
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
         file.close();
-        QMessageBox::information(this, "Success", "Service arrangement successfully saved locally.");
+        QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Service arrangement successfully saved locally."));
     } else {
-        QMessageBox::critical(this, "File Error", "Could not open file for writing: " + file.errorString());
+        QMessageBox::critical(this, AppTranslator::t("File Error"), AppTranslator::t("Could not open file for writing: ") + file.errorString());
     }
 }
 
@@ -859,7 +860,7 @@ void ServiceBuilderWidget::onLoadService() {
 
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
-        QMessageBox::critical(this, "File Error", "Could not open file for reading: " + file.errorString());
+        QMessageBox::critical(this, AppTranslator::t("File Error"), AppTranslator::t("Could not open file for reading: ") + file.errorString());
         return;
     }
 
@@ -868,7 +869,7 @@ void ServiceBuilderWidget::onLoadService() {
 
     QJsonDocument doc = QJsonDocument::fromJson(fileData);
     if (!doc.isArray()) {
-        QMessageBox::critical(this, "Invalid Format", "The selected JSON file does not contain a valid service arrangement array.");
+        QMessageBox::critical(this, AppTranslator::t("Invalid Format"), AppTranslator::t("The selected JSON file does not contain a valid service arrangement array."));
         return;
     }
 
@@ -980,7 +981,7 @@ void ServiceBuilderWidget::saveServiceDetails() {
 
 void ServiceBuilderWidget::onSaveTemplate() {
     if (m_playlist->count() == 0) {
-        QMessageBox::warning(this, "No Layout", "The run sheet is empty. Add elements before saving a template.");
+        QMessageBox::warning(this, AppTranslator::t("No Layout"), AppTranslator::t("The run sheet is empty. Add elements before saving a template."));
         return;
     }
     bool ok = false;
@@ -1006,9 +1007,9 @@ void ServiceBuilderWidget::onSaveTemplate() {
     q.addBindValue(name);
     q.addBindValue(QString::fromUtf8(QJsonDocument(playlistToJson()).toJson(QJsonDocument::Compact)));
     if (q.exec()) {
-        QMessageBox::information(this, "Success", QString("Template '%1' saved.").arg(name));
+        QMessageBox::information(this, AppTranslator::t("Success"), QString(AppTranslator::t("Template '%1' saved.")).arg(name));
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to save template: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to save template: ") + q.lastError().text());
     }
 }
 
@@ -1016,19 +1017,19 @@ void ServiceBuilderWidget::onApplyTemplate() {
     QSqlDatabase db = DatabaseManager::instance().database();
     QSqlQuery q(db);
     if (!q.exec("SELECT name FROM service_templates ORDER BY name")) {
-        QMessageBox::critical(this, "Database Error", "Failed to list templates: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to list templates: ") + q.lastError().text());
         return;
     }
 
     QStringList names;
     while (q.next()) names.append(q.value(0).toString());
     if (names.isEmpty()) {
-        QMessageBox::information(this, "No Templates", "No saved templates yet. Build a run sheet and use 'Save as Template'.");
+        QMessageBox::information(this, AppTranslator::t("No Templates"), AppTranslator::t("No saved templates yet. Build a run sheet and use 'Save as Template'."));
         return;
     }
 
     QDialog dlg(this);
-    dlg.setWindowTitle("Apply Run-Sheet Template");
+    dlg.setWindowTitle(AppTranslator::t("Apply Run-Sheet Template"));
     dlg.resize(380, 300);
     auto* lay = new QVBoxLayout(&dlg);
 
@@ -1089,7 +1090,7 @@ void ServiceBuilderWidget::onServiceDateChanged(const QDate& date) {
 void ServiceBuilderWidget::onUnscheduleVolunteer() {
     const int row = m_volunteerList->currentRow();
     if (row < 0 || !m_volunteerList->item(row, 0)) {
-        QMessageBox::warning(this, "Notice", "Select a scheduled volunteer to unassign.");
+        QMessageBox::warning(this, AppTranslator::t("Notice"), AppTranslator::t("Select a scheduled volunteer to unassign."));
         return;
     }
 
@@ -1102,13 +1103,13 @@ void ServiceBuilderWidget::onUnscheduleVolunteer() {
     if (query.exec()) {
         loadVolunteers();
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to delete assignment: " + query.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to delete assignment: ") + query.lastError().text());
     }
 }
 
 void ServiceBuilderWidget::onScheduleVolunteer() {
     QDialog dlg(this);
-    dlg.setWindowTitle("Smart Volunteer Assignment & Rostering");
+    dlg.setWindowTitle(AppTranslator::t("Smart Volunteer Assignment & Rostering"));
     dlg.resize(380, 240);
 
     QFormLayout* layout = new QFormLayout(&dlg);
@@ -1286,7 +1287,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
         if (qFamily.exec() && qFamily.next()) {
             QString familyMemberName = qFamily.value(0).toString();
             QString familyMemberRole = qFamily.value(1).toString();
-            QMessageBox::information(this, "Family Schedule Match",
+            QMessageBox::information(this, AppTranslator::t("Family Schedule Match"),
                                      QString("ℹ️ Family Note: Household member %1 is also serving as [%2] on %3.").arg(familyMemberName, familyMemberRole, dateStr));
         }
 
@@ -1300,7 +1301,7 @@ void ServiceBuilderWidget::onScheduleVolunteer() {
         if (qInsert.exec()) {
             loadVolunteers();
         } else {
-            QMessageBox::critical(this, "Database Error", "Failed to assign volunteer: " + qInsert.lastError().text());
+            QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to assign volunteer: ") + qInsert.lastError().text());
         }
     }
 }
@@ -1432,9 +1433,9 @@ QStringList ServiceBuilderWidget::collectCoverageIssues() const {
 void ServiceBuilderWidget::onCoverageCheck() {
     const QStringList issues = collectCoverageIssues();
     if (issues.isEmpty()) {
-        QMessageBox::information(this, "Coverage Check", "No coverage issues — the run sheet looks complete.");
+        QMessageBox::information(this, AppTranslator::t("Coverage Check"), AppTranslator::t("No coverage issues — the run sheet looks complete."));
     } else {
-        QMessageBox::warning(this, "Coverage Check",
+        QMessageBox::warning(this, AppTranslator::t("Coverage Check"),
                              "Coverage issues found:\n\n• " + issues.join("\n• "));
     }
 }
@@ -1639,7 +1640,7 @@ void ServiceBuilderWidget::onExportRunSheet() {
     // Coverage guard: warn before export; the user can still proceed.
     const QStringList issues = collectCoverageIssues();
     if (!issues.isEmpty()) {
-        auto res = QMessageBox::question(this, "Coverage Check",
+        auto res = QMessageBox::question(this, AppTranslator::t("Coverage Check"),
                                          "Coverage issues found:\n\n• " + issues.join("\n• ") +
                                          "\n\nExport anyway?",
                                          QMessageBox::Yes | QMessageBox::No);
