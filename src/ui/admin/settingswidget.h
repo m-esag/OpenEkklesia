@@ -138,6 +138,7 @@ private:
     // --- Page 5: Localization & Region ---
     QComboBox* m_cmbCurrency;
     QComboBox* m_cmbDateFormat;
+    QComboBox* m_cmbLanguage;   // ui/language; applies on restart
 
     // --- Page 6: Pastoral & Graph Thresholds ---
     QSpinBox* m_spnInactivityDays;

@@ -1,5 +1,6 @@
 #include "settingswidget.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 #include "thememanager.h"
 #include "../core/iconmanager.h"
 #include "../integrations/planningcenterdialog.h"
@@ -644,10 +645,21 @@ void SettingsWidget::setupUI() {
     m_cmbDateFormat->addItem("DD/MM/YYYY (International - e.g. 18/08/2026)", "dd/MM/yyyy");
     m_cmbDateFormat->addItem("MMM D, YYYY (e.g. Aug 18, 2026)", "MMM d, yyyy");
 
+    // Language (SPANISH_I18N_BRIEF.md §2b). Entries display in their own
+    // language — never through t(). Applied on restart; the save flow below
+    // surfaces the restart notice when the choice actually changes.
+    m_cmbLanguage = new QComboBox(pageLocale);
+    m_cmbLanguage->addItem("English", "en");
+    m_cmbLanguage->addItem("Español", "es");
+    connect(m_cmbLanguage, &QComboBox::activated, this, [this](int) {
+        onMarkDirty();
+    });
+
     // Team decision (Settings brief Q2): timezone + start-of-week removed —
     // this is an offline, single-locale app; Qt already provides locale-aware
     // week starts. Only the date format is honored app-wide.
 
+    formLocale->addRow(AppTranslator::t("Language / Idioma:"), m_cmbLanguage);
     formLocale->addRow("Currency Symbol / Code:", m_cmbCurrency);
     formLocale->addRow("Default Date Format:", m_cmbDateFormat);
 
@@ -1550,6 +1562,9 @@ void SettingsWidget::loadSettings() {
     m_chkModVault->setChecked(s.value("modules/vault", true).toBool());
     m_chkModKiosk->setChecked(s.value("modules/kiosk", true).toBool());
 
+    int langIdx = m_cmbLanguage->findData(s.value("ui/language", "en").toString());
+    m_cmbLanguage->setCurrentIndex(langIdx < 0 ? 0 : langIdx);
+
     int curIdx = m_cmbCurrency->findData(s.value("currencySymbol", "$").toString());
     if (curIdx >= 0) m_cmbCurrency->setCurrentIndex(curIdx);
 
@@ -1651,6 +1666,12 @@ void SettingsWidget::saveSettings() {
 
     s.setValue("currencySymbol", m_cmbCurrency->currentData().toString());
     s.setValue("dateFormat", m_cmbDateFormat->currentData().toString());
+
+    // Language (SPANISH_I18N_BRIEF.md §2b): persisted here; applied on
+    // restart because pages build once and there is no live retranslation.
+    const QString prevLanguage = s.value("ui/language", "en").toString();
+    const QString newLanguage = m_cmbLanguage->currentData().toString();
+    s.setValue("ui/language", newLanguage);
     // Remove the dead timezone/startOfWeek keys (team decision Q2) so the
     // settings registry doesn't accumulate ghosts across versions.
     s.remove("startOfWeek");
@@ -1691,6 +1712,14 @@ void SettingsWidget::saveSettings() {
         // Non-blocking confirmation: show the toast, fade it out after 2.5s.
         m_lblSaveToast->show();
         QTimer::singleShot(2500, m_lblSaveToast, &QLabel::hide);
+    }
+
+    // Rare and important enough to interrupt: the UI language only takes
+    // effect after a restart (no live retranslation in this phase), so a
+    // silent save would look like the choice did nothing.
+    if (newLanguage != prevLanguage) {
+        QMessageBox::information(this, AppTranslator::t("Language Changed"),
+                                 AppTranslator::t("Restart OpenEkklesia to apply the new language."));
     }
     emit settingsSaved();
 }
