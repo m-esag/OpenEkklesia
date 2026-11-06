@@ -217,7 +217,7 @@ void connectCheckBoxToggled(QCheckBox* box, QObject* context, std::function<void
 }
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), m_btnSettings(nullptr), m_sidebar(nullptr), m_logoLabel(nullptr), m_isCompactSidebar(false), m_isDarkMode(true), m_hintsEnabled(true), m_activeNavButton(nullptr)
+    : QMainWindow(parent), m_btnSettings(nullptr), m_sidebar(nullptr), m_logoLabel(nullptr), m_isDarkMode(true), m_hintsEnabled(true), m_activeNavButton(nullptr)
 {
     m_userRole = "admin";
     m_username = "Admin";
@@ -499,11 +499,6 @@ void MainWindow::setupMenuBar() {
     connect(actThemeGallery, &QAction::triggered, this, [this]() { openSettingsCategory(1); });
 
     viewMenu->addSeparator();
-
-    QAction* actCompactSidebar = viewMenu->addAction(AppTranslator::t("Compact Sidebar Mode"));
-    actCompactSidebar->setCheckable(true);
-    actCompactSidebar->setChecked(m_isCompactSidebar);
-    connect(actCompactSidebar, &QAction::toggled, this, &MainWindow::setSidebarCompact);
 
     QAction* actShowHints = viewMenu->addAction(AppTranslator::t("Show Help Hints Panel"));
     actShowHints->setCheckable(true);
@@ -842,7 +837,6 @@ void MainWindow::setupUI() {
 
     m_sidebar = sidebar;
     m_logoLabel = logoLabel;
-    m_isCompactSidebar = false;
 
     mainLayout->addWidget(sidebar);
 
@@ -944,27 +938,6 @@ void MainWindow::switchPage(int index) {
     if (!targetPage) return;
     targetPage->ensurePolished();
     m_stackedWidget->setCurrentIndex(index);
-}
-
-void MainWindow::setSidebarCompact(bool compact) {
-    if (m_isCompactSidebar == compact || !m_sidebar) return;
-    m_isCompactSidebar = compact;
-
-    int startW = m_sidebar->width();
-    int endW = compact ? 70 : 250;
-
-    QPropertyAnimation* anim = new QPropertyAnimation(m_sidebar, "maximumWidth", this);
-    anim->setDuration(200);
-    anim->setStartValue(startW);
-    anim->setEndValue(endW);
-    anim->setEasingCurve(QEasingCurve::OutCubic);
-    anim->start(QAbstractAnimation::DeleteWhenStopped);
-
-    m_sidebar->setMinimumWidth(compact ? 70 : 200);
-
-    if (m_logoLabel) {
-        m_logoLabel->setText(compact ? "" : "OpenEkklesia");
-    }
 }
 
 void MainWindow::populatePages() {
@@ -2420,17 +2393,6 @@ void MainWindow::onShepherdClicked() {
     m_shepherdWidget->refreshAll();
     switchPage(12);
     setActiveNav(m_btnShepherd);
-}
-
-void MainWindow::resizeEvent(QResizeEvent* event) {
-    QMainWindow::resizeEvent(event);
-    AppSettings s;
-    if (s.value("autoCollapseSidebar", true).toBool()) {
-        bool shouldCompact = (width() < 940);
-        if (m_isCompactSidebar != shouldCompact) {
-            setSidebarCompact(shouldCompact);
-        }
-    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {

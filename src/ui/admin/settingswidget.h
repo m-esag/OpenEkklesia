@@ -85,7 +85,6 @@ private:
     QComboBox* m_cmbThemeModeFilter;
     QListWidget* m_themeGallery;   // visual theme card gallery (IconMode)
     QCheckBox* m_chkSyncSystemTheme;
-    QCheckBox* m_chkAutoCollapseSidebar;
     QCheckBox* m_chkAutoColumnSize;
     QPushButton* m_btnBgBaseColor;
     QPushButton* m_btnBgSurfaceColor;

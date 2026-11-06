@@ -71,7 +71,6 @@ public slots:
     void onToggleHiddenGroup();
 protected:
     void keyPressEvent(QKeyEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
@@ -89,7 +88,6 @@ private:
 
     void ensurePageLoaded(int index, std::function<QWidget*()> creator);
     void switchPage(int index);
-    void setSidebarCompact(bool compact);
     QWidget* createDashboardPage();
     QWidget* createTablePage(const QString& title, QTableView* view);
 
@@ -142,7 +140,6 @@ private:
 
     QWidget* m_sidebar;
     QLabel* m_logoLabel;
-    bool m_isCompactSidebar;
 
     QWidget* m_secCongregation;
     QWidget* m_secMinistry;

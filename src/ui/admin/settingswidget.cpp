@@ -302,15 +302,12 @@ void SettingsWidget::setupUI() {
     m_cmbThemeModeFilter = new QComboBox(pageTheme);
     m_cmbThemeModeFilter->addItems({"All Themes", "Dark Themes", "Light Themes"});
     m_chkSyncSystemTheme = new QCheckBox("Follow OS system theme (auto dark/light)", pageTheme);
-    m_chkAutoCollapseSidebar = new QCheckBox("Auto-collapse sidebar on small screens", pageTheme);
     m_chkAutoColumnSize = new QCheckBox("Auto-fit table columns to window width", pageTheme);
     m_chkAutoColumnSize->setToolTip("When on, tables stretch columns to fill the available width. When off, columns size to their content and can be resized by hand. Applies after reopening a module.");
-    m_chkAutoCollapseSidebar->setChecked(true);
     galleryToolbar->addWidget(new QLabel("Show:", pageTheme));
     galleryToolbar->addWidget(m_cmbThemeModeFilter);
     galleryToolbar->addSpacing(18);
     galleryToolbar->addWidget(m_chkSyncSystemTheme);
-    galleryToolbar->addWidget(m_chkAutoCollapseSidebar);
     galleryToolbar->addWidget(m_chkAutoColumnSize);
     galleryToolbar->addStretch();
     presetForm->addLayout(galleryToolbar);
@@ -1293,7 +1290,6 @@ void SettingsWidget::setupUI() {
     connect(m_spnBackupRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnAuditRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
     connect(m_spnHistoryRetention, QOverload<int>::of(&QSpinBox::valueChanged), this, trackChanges);
-    connect(m_chkAutoCollapseSidebar, &QCheckBox::toggled, this, trackChanges);
     connect(m_chkAutoColumnSize, &QCheckBox::toggled, this, trackChanges);
 
     m_navList->setCurrentRow(0);
@@ -1545,7 +1541,6 @@ void SettingsWidget::loadSettings() {
         }
     }
 
-    m_chkAutoCollapseSidebar->setChecked(s.value("autoCollapseSidebar", true).toBool());
     m_chkAutoColumnSize->setChecked(s.value("ui/autoColumnSize", true).toBool());
 
     // Load Modules & Features (default all to true)
@@ -1647,7 +1642,6 @@ void SettingsWidget::saveSettings() {
     // first-run wizard will not reappear next launch.
     s.setValue("profileComplete", true);
 
-    s.setValue("autoCollapseSidebar", m_chkAutoCollapseSidebar->isChecked());
     s.setValue("ui/autoColumnSize", m_chkAutoColumnSize->isChecked());
 
     // Save Module states

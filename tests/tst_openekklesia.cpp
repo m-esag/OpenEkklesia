@@ -269,12 +269,16 @@ bool test_commandPaletteRendersVisible() {
     palette.resize(550, 380);
     palette.show();
 
-    // Run the fade-in to completion (140 ms) plus margin so the effect-removal
-    // finished() handler has executed.
+    // Wait for the fade-in's finished() handler (which removes the effect)
+    // rather than a fixed delay: under a loaded machine the 140 ms animation
+    // can lag, and grabbing mid-fade would see the effect still installed.
     QElapsedTimer t;
     t.start();
-    while (t.elapsed() < 400)
+    while (palette.graphicsEffect() != nullptr && t.elapsed() < 5000)
         QCoreApplication::processEvents();
+    // Effect must be gone (removal is the fix being guarded); the deadline
+    // above only guards against an infinite loop on a pathological failure.
+    CHECK(palette.graphicsEffect() == nullptr);
 
     const QImage img = palette.grab().toImage();
     CHECK(img.width() >= 400);
@@ -287,9 +291,6 @@ bool test_commandPaletteRendersVisible() {
     // A blank translucent render samples nearly zero opaque pixels; the real
     // frame (search field + list + chrome) covers most of the 550x380 dialog.
     CHECK(solid > 2000);
-
-    // The lingering-opacity bug is fixed: no graphics effect may remain.
-    CHECK(palette.graphicsEffect() == nullptr);
     return true;
 }
 
