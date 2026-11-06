@@ -168,6 +168,8 @@
     "Protected Ministry": "Ministerio Protegido",
     "Top-level Ministry Blueprints are system-locked and cannot be archived.": "Las Plantillas de Ministerio de nivel superior están bloqueadas por el sistema y no pueden archivarse.",
     "Confirm Action": "Confirmar Acción",
+    "archive": "archivar",
+    "unarchive": "desarchivar",
     "Are you sure you want to %1 this group and all of its sub-groups?": "¿Está seguro de que desea %1 este grupo y todos sus subgrupos?",
     "Unsaved Settings": "Configuración Sin Guardar",
     "You have unsaved changes in Settings.\n\nSave them before leaving?": "Tiene cambios sin guardar en Configuración.\n\n¿Desea guardarlos antes de salir?",

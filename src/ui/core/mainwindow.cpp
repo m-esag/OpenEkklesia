@@ -38,6 +38,7 @@
 #include <QStatusBar>
 #include "../database/databasemanager.h"
 #include "../common/appcurrency.h"
+#include "../common/apptranslator.h"
 #include "../ministry/matchdialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -110,31 +111,31 @@ protected:
 class LoginDialog : public QDialog {
 public:
     LoginDialog(QWidget* parent = nullptr) : QDialog(parent) {
-        setWindowTitle("OpenEkklesia Authentication");
+        setWindowTitle(AppTranslator::t("OpenEkklesia Authentication"));
         resize(340, 220);
 
         QVBoxLayout* lay = new QVBoxLayout(this);
         lay->setContentsMargins(20, 20, 20, 20);
         lay->setSpacing(12);
 
-        QLabel* header = new QLabel("Enter OpenEkklesia Access PIN:", this);
+        QLabel* header = new QLabel(AppTranslator::t("Enter OpenEkklesia Access PIN:"), this);
         header->setObjectName("detailHeader");
         lay->addWidget(header);
 
         m_pinEdit = new QLineEdit(this);
         m_pinEdit->setEchoMode(QLineEdit::Password);
         m_pinEdit->setMaxLength(16);
-        m_pinEdit->setPlaceholderText("PIN (e.g. 1234 for Admin)");
+        m_pinEdit->setPlaceholderText(AppTranslator::t("PIN (e.g. 1234 for Admin)"));
         m_pinEdit->setFocus();
         connect(m_pinEdit, &QLineEdit::returnPressed, this, &LoginDialog::onLogin);
         lay->addWidget(m_pinEdit);
 
-        QLabel* hint = new QLabel("<small style='color: palette(highlight);'>Default PINs: Admin <b>1234</b> | Pastor <b>5555</b> | Finance <b>7777</b></small>", this);
+        QLabel* hint = new QLabel(AppTranslator::t("<small style='color: palette(highlight);'>Default PINs: Admin <b>1234</b> | Pastor <b>5555</b> | Finance <b>7777</b></small>"), this);
         hint->setTextFormat(Qt::RichText);
         lay->addWidget(hint);
 
         QHBoxLayout* buttons = new QHBoxLayout();
-        QPushButton* btnGuest = new QPushButton("Guest (Read-Only)", this);
+        QPushButton* btnGuest = new QPushButton(AppTranslator::t("Guest (Read-Only)"), this);
         btnGuest->setObjectName("secondaryBtn");
         connect(btnGuest, &QPushButton::clicked, this, [this]() {
             m_role = "readonly";
@@ -142,7 +143,7 @@ public:
             accept();
         });
 
-        QPushButton* btnLogin = new QPushButton("Login", this);
+        QPushButton* btnLogin = new QPushButton(AppTranslator::t("Login"), this);
         btnLogin->setObjectName("primaryBtn");
         btnLogin->setDefault(true);
         connect(btnLogin, &QPushButton::clicked, this, &LoginDialog::onLogin);
@@ -159,7 +160,8 @@ private:
     void onLogin() {
         QString pin = m_pinEdit->text().trimmed();
         if (pin.isEmpty()) {
-            QMessageBox::warning(this, "PIN Required", "Please enter your access PIN (e.g. 1234 for Admin).");
+            QMessageBox::warning(this, AppTranslator::t("PIN Required"),
+                                 AppTranslator::t("Please enter your access PIN (e.g. 1234 for Admin)."));
             m_pinEdit->setFocus();
             return;
         }
@@ -173,7 +175,8 @@ private:
             m_role = query.value(1).toString();
             accept();
         } else {
-            QMessageBox::warning(this, "Invalid PIN", QString("The access PIN '%1' is incorrect.\n\nUse 1234 for Admin access.").arg(pin));
+            QMessageBox::warning(this, AppTranslator::t("Invalid PIN"),
+                                 QString(AppTranslator::t("The access PIN '%1' is incorrect.\n\nUse 1234 for Admin access.")).arg(pin));
             m_pinEdit->clear();
             m_pinEdit->setFocus();
         }
@@ -286,7 +289,7 @@ void MainWindow::setupMenuBar() {
     m_btnToggleSidebar->setFlat(true);
     m_btnToggleSidebar->setFixedSize(28, 24);
     m_btnToggleSidebar->setCursor(Qt::PointingHandCursor);
-    m_btnToggleSidebar->setToolTip("Toggle navigation panel");
+    m_btnToggleSidebar->setToolTip(AppTranslator::t("Toggle navigation panel"));
     connect(m_btnToggleSidebar, &QPushButton::clicked, this, [this]() {
         if (!m_sidebar) return;
         m_sidebar->setVisible(!m_sidebar->isVisible());
@@ -294,9 +297,9 @@ void MainWindow::setupMenuBar() {
     mb->setCornerWidget(m_btnToggleSidebar, Qt::TopLeftCorner);
 
     // 1. File / Application Menu
-    QMenu* fileMenu = mb->addMenu("&File");
-    
-    QAction* actSearch = fileMenu->addAction("Quick Command Search...");
+    QMenu* fileMenu = mb->addMenu(AppTranslator::t("&File"));
+
+    QAction* actSearch = fileMenu->addAction(AppTranslator::t("Quick Command Search..."));
     actSearch->setIcon(IconManager::instance().getIcon("search", tok.textPrimary, 14));
     actSearch->setShortcut(QKeySequence("Ctrl+K"));
     connect(actSearch, &QAction::triggered, this, [this]() {
@@ -306,56 +309,56 @@ void MainWindow::setupMenuBar() {
         setWindowOpacity(1.0);
     });
 
-    m_actKiosk = fileMenu->addAction("Nursery Kiosk Portal");
+    m_actKiosk = fileMenu->addAction(AppTranslator::t("Nursery Kiosk Portal"));
     m_actKiosk->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
     connect(m_actKiosk, &QAction::triggered, this, &MainWindow::launchKiosk);
 
     fileMenu->addSeparator();
 
     // Preferences & Settings Submenu
-    QMenu* prefsMenu = fileMenu->addMenu("Preferences & Settings");
+    QMenu* prefsMenu = fileMenu->addMenu(AppTranslator::t("Preferences & Settings"));
     prefsMenu->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
 
-    QAction* actPrefGeneral = prefsMenu->addAction("Church Branding & Profile");
+    QAction* actPrefGeneral = prefsMenu->addAction(AppTranslator::t("Church Branding & Profile"));
     actPrefGeneral->setIcon(IconManager::instance().getIcon("landmark", tok.textPrimary, 14));
     connect(actPrefGeneral, &QAction::triggered, this, [this]() { openSettingsCategory(0); });
 
-    QAction* actPrefTheme = prefsMenu->addAction("Appearance & Theme Customizer");
+    QAction* actPrefTheme = prefsMenu->addAction(AppTranslator::t("Appearance & Theme Customizer"));
     actPrefTheme->setIcon(IconManager::instance().getIcon("sparkles", tok.textPrimary, 14));
     connect(actPrefTheme, &QAction::triggered, this, [this]() { openSettingsCategory(1); });
 
-    QAction* actPrefModules = prefsMenu->addAction("Module Visibility & Features");
+    QAction* actPrefModules = prefsMenu->addAction(AppTranslator::t("Module Visibility & Features"));
     actPrefModules->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
     connect(actPrefModules, &QAction::triggered, this, [this]() { openSettingsCategory(2); });
 
-    QAction* actPrefLiturgy = prefsMenu->addAction("Service & Liturgy Defaults");
+    QAction* actPrefLiturgy = prefsMenu->addAction(AppTranslator::t("Service & Liturgy Defaults"));
     actPrefLiturgy->setIcon(IconManager::instance().getIcon("list-music", tok.textPrimary, 14));
     connect(actPrefLiturgy, &QAction::triggered, this, [this]() { openSettingsCategory(3); });
 
-    QAction* actPrefLocale = prefsMenu->addAction("Localization & Currency Format");
+    QAction* actPrefLocale = prefsMenu->addAction(AppTranslator::t("Localization & Currency Format"));
     actPrefLocale->setIcon(IconManager::instance().getIcon("calendar", tok.textPrimary, 14));
     connect(actPrefLocale, &QAction::triggered, this, [this]() { openSettingsCategory(4); });
 
-    QAction* actPrefPastoral = prefsMenu->addAction("Pastoral & Graph Thresholds");
+    QAction* actPrefPastoral = prefsMenu->addAction(AppTranslator::t("Pastoral & Graph Thresholds"));
     actPrefPastoral->setIcon(IconManager::instance().getIcon("network", tok.textPrimary, 14));
     connect(actPrefPastoral, &QAction::triggered, this, [this]() { openSettingsCategory(5); });
 
-    QAction* actPrefKiosk = prefsMenu->addAction("Kiosk & Nursery Security");
+    QAction* actPrefKiosk = prefsMenu->addAction(AppTranslator::t("Kiosk & Nursery Security"));
     actPrefKiosk->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
     connect(actPrefKiosk, &QAction::triggered, this, [this]() { openSettingsCategory(6); });
 
-    QAction* actPrefBackup = prefsMenu->addAction("Database Backups & Integrations");
+    QAction* actPrefBackup = prefsMenu->addAction(AppTranslator::t("Database Backups & Integrations"));
     actPrefBackup->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
     connect(actPrefBackup, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
 
     prefsMenu->addSeparator();
 
-    QAction* actAllSettings = prefsMenu->addAction("All Application Settings...");
+    QAction* actAllSettings = prefsMenu->addAction(AppTranslator::t("All Application Settings..."));
     actAllSettings->setIcon(IconManager::instance().getIcon("settings", tok.textPrimary, 14));
     connect(actAllSettings, &QAction::triggered, this, &MainWindow::onSettingsClicked);
 
     if (StartupLaunchManager::supported()) {
-        QAction* actStartAtLogin = prefsMenu->addAction("Start OpenEkklesia at System Login");
+        QAction* actStartAtLogin = prefsMenu->addAction(AppTranslator::t("Start OpenEkklesia at System Login"));
         actStartAtLogin->setIcon(IconManager::instance().getIcon("calendar", tok.textPrimary, 14));
         actStartAtLogin->setCheckable(true);
         actStartAtLogin->setChecked(StartupLaunchManager::isEnabled());
@@ -368,140 +371,140 @@ void MainWindow::setupMenuBar() {
     fileMenu->addSeparator();
 
 
-    QAction* actSwitchUser = fileMenu->addAction("Switch User / Sign In");
+    QAction* actSwitchUser = fileMenu->addAction(AppTranslator::t("Switch User / Sign In"));
     actSwitchUser->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
     connect(actSwitchUser, &QAction::triggered, this, &MainWindow::promptLogin);
 
     fileMenu->addSeparator();
 
-    QAction* actExit = fileMenu->addAction("Exit OpenEkklesia");
+    QAction* actExit = fileMenu->addAction(AppTranslator::t("Exit OpenEkklesia"));
     actExit->setIcon(IconManager::instance().getIcon("log-out", tok.accentDanger, 14));
     actExit->setShortcut(QKeySequence("Ctrl+Q"));
     connect(actExit, &QAction::triggered, this, &QWidget::close);
 
     // 2. Congregation Menu
-    QMenu* congMenu = mb->addMenu("&Congregation");
+    QMenu* congMenu = mb->addMenu(AppTranslator::t("&Congregation"));
 
-    QAction* actDash = congMenu->addAction("Dashboard Overview");
+    QAction* actDash = congMenu->addAction(AppTranslator::t("Dashboard Overview"));
     actDash->setIcon(IconManager::instance().getIcon("bar-chart-3", tok.textPrimary, 14));
     actDash->setShortcut(QKeySequence("Ctrl+1"));
     connect(actDash, &QAction::triggered, this, &MainWindow::onDashboardClicked);
 
-    m_actMembers = congMenu->addAction("People Directory");
+    m_actMembers = congMenu->addAction(AppTranslator::t("People Directory"));
     m_actMembers->setIcon(IconManager::instance().getIcon("users", tok.textPrimary, 14));
     m_actMembers->setShortcut(QKeySequence("Ctrl+2"));
     connect(m_actMembers, &QAction::triggered, this, &MainWindow::onMembersClicked);
 
-    m_actGraph = congMenu->addAction("Connection Graph Map");
+    m_actGraph = congMenu->addAction(AppTranslator::t("Connection Graph Map"));
     m_actGraph->setIcon(IconManager::instance().getIcon("network", tok.textPrimary, 14));
     connect(m_actGraph, &QAction::triggered, this, &MainWindow::onGraphClicked);
 
-    m_actAnalytics = congMenu->addAction("Pastoral Analytics");
+    m_actAnalytics = congMenu->addAction(AppTranslator::t("Pastoral Analytics"));
     m_actAnalytics->setIcon(IconManager::instance().getIcon("bar-chart-3", tok.textPrimary, 14));
     connect(m_actAnalytics, &QAction::triggered, this, &MainWindow::onAnalyticsClicked);
 
-    QAction* actShepherd = congMenu->addAction("Shepherd's Workbench");
+    QAction* actShepherd = congMenu->addAction(AppTranslator::t("Shepherd's Workbench"));
     actShepherd->setIcon(IconManager::instance().getIcon("heart-handshake", tok.textPrimary, 14));
     m_actShepherd = actShepherd;
     connect(actShepherd, &QAction::triggered, this, &MainWindow::onShepherdClicked);
 
     // 3. Ministry & Services Menu
-    QMenu* minMenu = mb->addMenu("&Ministry");
+    QMenu* minMenu = mb->addMenu(AppTranslator::t("&Ministry"));
 
-    m_actGroups = minMenu->addAction("Groups & Ministries");
+    m_actGroups = minMenu->addAction(AppTranslator::t("Groups & Ministries"));
     m_actGroups->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
     m_actGroups->setShortcut(QKeySequence("Ctrl+3"));
     connect(m_actGroups, &QAction::triggered, this, &MainWindow::onGroupsClicked);
 
-    m_actService = minMenu->addAction("Service Liturgy Builder");
+    m_actService = minMenu->addAction(AppTranslator::t("Service Liturgy Builder"));
     m_actService->setIcon(IconManager::instance().getIcon("list-music", tok.textPrimary, 14));
     m_actService->setShortcut(QKeySequence("Ctrl+5"));
     connect(m_actService, &QAction::triggered, this, &MainWindow::onServiceClicked);
 
-    m_actFacilities = minMenu->addAction("Facilities Matrix");
+    m_actFacilities = minMenu->addAction(AppTranslator::t("Facilities Matrix"));
     m_actFacilities->setIcon(IconManager::instance().getIcon("landmark", tok.textPrimary, 14));
     connect(m_actFacilities, &QAction::triggered, this, &MainWindow::onFacilitiesClicked);
 
-    m_actPlanning = minMenu->addAction("Ministry Planning");
+    m_actPlanning = minMenu->addAction(AppTranslator::t("Ministry Planning"));
     m_actPlanning->setIcon(IconManager::instance().getIcon("calendar", tok.textPrimary, 14));
     connect(m_actPlanning, &QAction::triggered, this, &MainWindow::onPlanningClicked);
 
     // 4. Finance & Operations Menu
-    QMenu* finMenu = mb->addMenu("&Finance");
+    QMenu* finMenu = mb->addMenu(AppTranslator::t("&Finance"));
 
-    m_actCont = finMenu->addAction("Donation Contributions");
+    m_actCont = finMenu->addAction(AppTranslator::t("Donation Contributions"));
     m_actCont->setIcon(IconManager::instance().getIcon("hand-coins", tok.textPrimary, 14));
     m_actCont->setShortcut(QKeySequence("Ctrl+4"));
     connect(m_actCont, &QAction::triggered, this, &MainWindow::onContributionsClicked);
 
     finMenu->addSeparator();
 
-    m_actInventory = finMenu->addAction("Asset Inventory");
+    m_actInventory = finMenu->addAction(AppTranslator::t("Asset Inventory"));
     m_actInventory->setIcon(IconManager::instance().getIcon("package", tok.textPrimary, 14));
     connect(m_actInventory, &QAction::triggered, this, &MainWindow::onInventoryClicked);
 
-    m_actVault = finMenu->addAction("Document Vault");
+    m_actVault = finMenu->addAction(AppTranslator::t("Document Vault"));
     m_actVault->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
     connect(m_actVault, &QAction::triggered, this, &MainWindow::onVaultClicked);
 
     // 5. Tools & Database Menu
-    QMenu* toolsMenu = mb->addMenu("&Tools");
+    QMenu* toolsMenu = mb->addMenu(AppTranslator::t("&Tools"));
 
-    QAction* actDbHub = toolsMenu->addAction("Database & Backup Center");
+    QAction* actDbHub = toolsMenu->addAction(AppTranslator::t("Database & Backup Center"));
     actDbHub->setIcon(IconManager::instance().getIcon("shield-check", tok.textPrimary, 14));
     connect(actDbHub, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
 
-    QAction* actPco = toolsMenu->addAction("Planning Center Online Sync...");
+    QAction* actPco = toolsMenu->addAction(AppTranslator::t("Planning Center Online Sync..."));
     actPco->setIcon(IconManager::instance().getIcon("cloud", tok.textPrimary, 14));
     connect(actPco, &QAction::triggered, this, [this]() {
         PlanningCenterDialog dlg(this);
         dlg.exec();
     });
 
-    QAction* actShare = toolsMenu->addAction("Selective Data Sharing...");
+    QAction* actShare = toolsMenu->addAction(AppTranslator::t("Selective Data Sharing..."));
     actShare->setIcon(IconManager::instance().getIcon("share-2", tok.textPrimary, 14));
     connect(actShare, &QAction::triggered, this, [this]() { openSettingsCategory(7); });
 
     toolsMenu->addSeparator();
 
-    QAction* actPastoralRules = toolsMenu->addAction("Pastoral Health & Threshold Rules");
+    QAction* actPastoralRules = toolsMenu->addAction(AppTranslator::t("Pastoral Health & Threshold Rules"));
     actPastoralRules->setIcon(IconManager::instance().getIcon("network", tok.textPrimary, 14));
     connect(actPastoralRules, &QAction::triggered, this, [this]() { openSettingsCategory(5); });
 
-    QAction* actLiturgyDefaults = toolsMenu->addAction("Service Liturgy Defaults");
+    QAction* actLiturgyDefaults = toolsMenu->addAction(AppTranslator::t("Service Liturgy Defaults"));
     actLiturgyDefaults->setIcon(IconManager::instance().getIcon("list-music", tok.textPrimary, 14));
     connect(actLiturgyDefaults, &QAction::triggered, this, [this]() { openSettingsCategory(3); });
 
-    QAction* actKioskSec = toolsMenu->addAction("Kiosk & Nursery Check-In Security");
+    QAction* actKioskSec = toolsMenu->addAction(AppTranslator::t("Kiosk & Nursery Check-In Security"));
     actKioskSec->setIcon(IconManager::instance().getIcon("user-check", tok.textPrimary, 14));
     connect(actKioskSec, &QAction::triggered, this, [this]() { openSettingsCategory(6); });
 
     toolsMenu->addSeparator();
 
-    QAction* actDangerZone = toolsMenu->addAction("Data Maintenance & Reset (Danger Zone)...");
+    QAction* actDangerZone = toolsMenu->addAction(AppTranslator::t("Data Maintenance & Reset (Danger Zone)..."));
     actDangerZone->setIcon(IconManager::instance().getDangerIcon("alert-triangle", 14));
     connect(actDangerZone, &QAction::triggered, this, [this]() { openSettingsCategory(8); });
 
     // 6. View Menu
-    QMenu* viewMenu = mb->addMenu("&View");
+    QMenu* viewMenu = mb->addMenu(AppTranslator::t("&View"));
 
-    QAction* actTheme = viewMenu->addAction("Toggle Dark / Light Theme");
+    QAction* actTheme = viewMenu->addAction(AppTranslator::t("Toggle Dark / Light Theme"));
     actTheme->setIcon(IconManager::instance().getIcon("sparkles", tok.textPrimary, 14));
     actTheme->setShortcut(QKeySequence("Ctrl+T"));
     connect(actTheme, &QAction::triggered, this, &MainWindow::toggleTheme);
 
-    QAction* actThemeGallery = viewMenu->addAction("Theme Gallery & Color Palette...");
+    QAction* actThemeGallery = viewMenu->addAction(AppTranslator::t("Theme Gallery & Color Palette..."));
     actThemeGallery->setIcon(IconManager::instance().getIcon("palette", tok.textPrimary, 14));
     connect(actThemeGallery, &QAction::triggered, this, [this]() { openSettingsCategory(1); });
 
     viewMenu->addSeparator();
 
-    QAction* actCompactSidebar = viewMenu->addAction("Compact Sidebar Mode");
+    QAction* actCompactSidebar = viewMenu->addAction(AppTranslator::t("Compact Sidebar Mode"));
     actCompactSidebar->setCheckable(true);
     actCompactSidebar->setChecked(m_isCompactSidebar);
     connect(actCompactSidebar, &QAction::toggled, this, &MainWindow::setSidebarCompact);
 
-    QAction* actShowHints = viewMenu->addAction("Show Help Hints Panel");
+    QAction* actShowHints = viewMenu->addAction(AppTranslator::t("Show Help Hints Panel"));
     actShowHints->setCheckable(true);
     actShowHints->setChecked(m_hintsEnabled);
     connect(actShowHints, &QAction::toggled, this, [this](bool checked) {
@@ -510,22 +513,22 @@ void MainWindow::setupMenuBar() {
 
     viewMenu->addSeparator();
 
-    QAction* actWorkspaceModules = viewMenu->addAction("Workspace Module Manager...");
+    QAction* actWorkspaceModules = viewMenu->addAction(AppTranslator::t("Workspace Module Manager..."));
     actWorkspaceModules->setIcon(IconManager::instance().getIcon("layers", tok.textPrimary, 14));
     connect(actWorkspaceModules, &QAction::triggered, this, [this]() { openSettingsCategory(2); });
 
     // 7. Help Menu
-    QMenu* helpMenu = mb->addMenu("&Help");
+    QMenu* helpMenu = mb->addMenu(AppTranslator::t("&Help"));
 
-    m_actUserManual = helpMenu->addAction("User Manual");
+    m_actUserManual = helpMenu->addAction(AppTranslator::t("User Manual"));
     m_actUserManual->setIcon(IconManager::instance().getIcon("book-open", tok.textPrimary, 14));
     m_actUserManual->setShortcut(QKeySequence("F1"));
-    m_actUserManual->setToolTip("Open In-App User Manual & Help Center (F1)");
+    m_actUserManual->setToolTip(AppTranslator::t("Open In-App User Manual & Help Center (F1)"));
     connect(m_actUserManual, &QAction::triggered, this, [this]() {
         onShowUserManual();
     });
 
-    QAction* actAbout = helpMenu->addAction("About OpenEkklesia");
+    QAction* actAbout = helpMenu->addAction(AppTranslator::t("About OpenEkklesia"));
     actAbout->setIcon(IconManager::instance().getIcon("landmark", tok.textPrimary, 14));
     connect(actAbout, &QAction::triggered, this, [this]() {
         QDialog dlg(this);
@@ -571,10 +574,10 @@ void MainWindow::setupMenuBar() {
     cornerLayout->setContentsMargins(0, 2, 10, 2);
     cornerLayout->setSpacing(6);
 
-    m_btnTopSearch = new QPushButton(" Search (Ctrl+K)", cornerWidget);
+    m_btnTopSearch = new QPushButton(AppTranslator::t(" Search (Ctrl+K)"), cornerWidget);
     m_btnTopSearch->setIcon(IconManager::instance().getIcon("search", QColor(), 13));
     m_btnTopSearch->setCursor(Qt::PointingHandCursor);
-    m_btnTopSearch->setToolTip("Open Quick Command Palette (Ctrl+K)");
+    m_btnTopSearch->setToolTip(AppTranslator::t("Open Quick Command Palette (Ctrl+K)"));
     m_btnTopSearch->setStyleSheet(
         "QPushButton { background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 3px 10px; font-size: 11px; color: var(--text-secondary); }"
         "QPushButton:hover { border-color: var(--accent-primary); color: var(--text-primary); background-color: var(--surface-hover); }"
@@ -588,7 +591,7 @@ void MainWindow::setupMenuBar() {
     m_btnTopTheme = new QPushButton(cornerWidget);
     m_btnTopTheme->setIcon(IconManager::instance().getIcon(tok.isDark ? "sun" : "moon", QColor(), 14));
     m_btnTopTheme->setCursor(Qt::PointingHandCursor);
-    m_btnTopTheme->setToolTip("Toggle Dark / Light Theme (Ctrl+T)");
+    m_btnTopTheme->setToolTip(AppTranslator::t("Toggle Dark / Light Theme (Ctrl+T)"));
     m_btnTopTheme->setStyleSheet(
         "QPushButton { background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 3px 8px; font-size: 11px; color: var(--text-primary); }"
         "QPushButton:hover { border-color: var(--accent-primary); background-color: var(--surface-hover); }"
@@ -617,7 +620,7 @@ void MainWindow::setupUI() {
     // in the layout setup): fits a 1280px-logical HiDPI desktop with room
     // for window decorations.
     setMinimumSize(1000, 620);
-    setWindowTitle("OpenEkklesia - Church Management System");
+    setWindowTitle(AppTranslator::t("OpenEkklesia - Church Management System"));
 
     // F1 (User Manual) and Ctrl+T (Theme Toggle) are registered once, on the
     // Help/View menu QActions in setupMenuBar().
@@ -647,7 +650,7 @@ void MainWindow::setupUI() {
     AppSettings settings;
 
     // 1. CONGREGATION Section
-    m_headerCongregation = new QPushButton(" CONGREGATION", this);
+    m_headerCongregation = new QPushButton(AppTranslator::t(" CONGREGATION"), this);
     m_headerCongregation->setObjectName("sectionHeaderBtn");
     m_headerCongregation->setCursor(Qt::PointingHandCursor);
     
@@ -658,29 +661,29 @@ void MainWindow::setupUI() {
     layCong->setContentsMargins(0, 0, 0, 0);
     layCong->setSpacing(6);
 
-    m_btnDashboard = new QPushButton("Dashboard", this);
+    m_btnDashboard = new QPushButton(AppTranslator::t("Dashboard"), this);
     m_btnDashboard->setObjectName("navButton");
-    m_btnDashboard->setToolTip("Dashboard: View overall member counts, fund stats, and budget progress.");
+    m_btnDashboard->setToolTip(AppTranslator::t("Dashboard: View overall member counts, fund stats, and budget progress."));
     layCong->addWidget(m_btnDashboard);
 
-    m_btnMembers = new QPushButton("People", this);
+    m_btnMembers = new QPushButton(AppTranslator::t("People"), this);
     m_btnMembers->setObjectName("navButton");
-    m_btnMembers->setToolTip("Members: Search, add, edit member details and view activity history.");
+    m_btnMembers->setToolTip(AppTranslator::t("Members: Search, add, edit member details and view activity history."));
     layCong->addWidget(m_btnMembers);
 
-    m_btnGraph = new QPushButton("Connection Graph", this);
+    m_btnGraph = new QPushButton(AppTranslator::t("Connection Graph"), this);
     m_btnGraph->setObjectName("navButton");
-    m_btnGraph->setToolTip("Connection Graph: View relationships, care flags, and small group clusters.");
+    m_btnGraph->setToolTip(AppTranslator::t("Connection Graph: View relationships, care flags, and small group clusters."));
     layCong->addWidget(m_btnGraph);
 
-    m_btnAnalytics = new QPushButton("Pastoral Analytics", this);
+    m_btnAnalytics = new QPushButton(AppTranslator::t("Pastoral Analytics"), this);
     m_btnAnalytics->setObjectName("navButton");
-    m_btnAnalytics->setToolTip("Pastoral Analytics: View 5-Point Health Radar and Discipleship Pipeline.");
+    m_btnAnalytics->setToolTip(AppTranslator::t("Pastoral Analytics: View 5-Point Health Radar and Discipleship Pipeline."));
     layCong->addWidget(m_btnAnalytics);
 
-    m_btnShepherd = new QPushButton("Shepherd's Workbench", this);
+    m_btnShepherd = new QPushButton(AppTranslator::t("Shepherd's Workbench"), this);
     m_btnShepherd->setObjectName("navButton");
-    m_btnShepherd->setToolTip("Shepherd's Workbench: Today's follow-up queue, member care timeline, and prayer list.");
+    m_btnShepherd->setToolTip(AppTranslator::t("Shepherd's Workbench: Today's follow-up queue, member care timeline, and prayer list."));
     layCong->addWidget(m_btnShepherd);
 
     sidebarLayout->addWidget(m_secCongregation);
@@ -698,7 +701,7 @@ void MainWindow::setupUI() {
     });
 
     // 2. MINISTRY & SERVICES Section
-    m_headerMinistry = new QPushButton(" MINISTRY && SERVICES", this);
+    m_headerMinistry = new QPushButton(AppTranslator::t(" MINISTRY && SERVICES"), this);
     m_headerMinistry->setObjectName("sectionHeaderBtn");
     m_headerMinistry->setCursor(Qt::PointingHandCursor);
     
@@ -709,24 +712,24 @@ void MainWindow::setupUI() {
     layMin->setContentsMargins(0, 0, 0, 0);
     layMin->setSpacing(6);
 
-    m_btnGroups = new QPushButton("Groups && Ministries", this);
+    m_btnGroups = new QPushButton(AppTranslator::t("Groups && Ministries"), this);
     m_btnGroups->setObjectName("navButton");
-    m_btnGroups->setToolTip("Groups & Ministries: Coordinate small groups, classes, ministry blueprints, and volunteer teams.");
+    m_btnGroups->setToolTip(AppTranslator::t("Groups & Ministries: Coordinate small groups, classes, ministry blueprints, and volunteer teams."));
     layMin->addWidget(m_btnGroups);
 
-    m_btnService = new QPushButton("Service Builder", this);
+    m_btnService = new QPushButton(AppTranslator::t("Service Builder"), this);
     m_btnService->setObjectName("navButton");
-    m_btnService->setToolTip("Service Builder: Plan liturgy, run-sheets, and schedule volunteers.");
+    m_btnService->setToolTip(AppTranslator::t("Service Builder: Plan liturgy, run-sheets, and schedule volunteers."));
     layMin->addWidget(m_btnService);
 
-    m_btnFacilities = new QPushButton("Facilities Matrix", this);
+    m_btnFacilities = new QPushButton(AppTranslator::t("Facilities Matrix"), this);
     m_btnFacilities->setObjectName("navButton");
-    m_btnFacilities->setToolTip("Facilities Matrix: Reserve church spaces and audio/visual equipment.");
+    m_btnFacilities->setToolTip(AppTranslator::t("Facilities Matrix: Reserve church spaces and audio/visual equipment."));
     layMin->addWidget(m_btnFacilities);
 
-    m_btnPlanning = new QPushButton("Ministry Planning", this);
+    m_btnPlanning = new QPushButton(AppTranslator::t("Ministry Planning"), this);
     m_btnPlanning->setObjectName("navButton");
-    m_btnPlanning->setToolTip("Ministry Planning: View Product Roadmaps and Project Gantt Charts.");
+    m_btnPlanning->setToolTip(AppTranslator::t("Ministry Planning: View Product Roadmaps and Project Gantt Charts."));
     layMin->addWidget(m_btnPlanning);
 
     sidebarLayout->addWidget(m_secMinistry);
@@ -744,7 +747,7 @@ void MainWindow::setupUI() {
     });
 
     // 3. FINANCE & OPERATIONS Section
-    m_headerFinance = new QPushButton(" FINANCE && OPERATIONS", this);
+    m_headerFinance = new QPushButton(AppTranslator::t(" FINANCE && OPERATIONS"), this);
     m_headerFinance->setObjectName("sectionHeaderBtn");
     m_headerFinance->setCursor(Qt::PointingHandCursor);
     
@@ -755,19 +758,19 @@ void MainWindow::setupUI() {
     layFin->setContentsMargins(0, 0, 0, 0);
     layFin->setSpacing(6);
 
-    m_btnContributions = new QPushButton("Contributions", this);
+    m_btnContributions = new QPushButton(AppTranslator::t("Contributions"), this);
     m_btnContributions->setObjectName("navButton");
-    m_btnContributions->setToolTip("Contributions: Record donations, select funds, and view batches.");
+    m_btnContributions->setToolTip(AppTranslator::t("Contributions: Record donations, select funds, and view batches."));
     layFin->addWidget(m_btnContributions);
 
-    m_btnInventory = new QPushButton("Asset Inventory", this);
+    m_btnInventory = new QPushButton(AppTranslator::t("Asset Inventory"), this);
     m_btnInventory->setObjectName("navButton");
-    m_btnInventory->setToolTip("Asset Inventory: Manage church assets, checkouts, and barcodes.");
+    m_btnInventory->setToolTip(AppTranslator::t("Asset Inventory: Manage church assets, checkouts, and barcodes."));
     layFin->addWidget(m_btnInventory);
 
-    m_btnVault = new QPushButton("Document Vault", this);
+    m_btnVault = new QPushButton(AppTranslator::t("Document Vault"), this);
     m_btnVault->setObjectName("navButton");
-    m_btnVault->setToolTip("Document Vault: Securely store board minutes, bylaws, and official PDFs.");
+    m_btnVault->setToolTip(AppTranslator::t("Document Vault: Securely store board minutes, bylaws, and official PDFs."));
     layFin->addWidget(m_btnVault);
 
     sidebarLayout->addWidget(m_secFinance);
@@ -808,22 +811,22 @@ void MainWindow::setupUI() {
     };
 
     m_btnKiosk = new QPushButton(sidebarFooter);
-    footerBtn(m_btnKiosk, "user-check", "Kiosk: Launch full-screen self-checkin portal.");
+    footerBtn(m_btnKiosk, "user-check", AppTranslator::t("Kiosk: Launch full-screen self-checkin portal."));
     connect(m_btnKiosk, &QPushButton::clicked, this, &MainWindow::launchKiosk);
 
     QPushButton* btnManual = new QPushButton(sidebarFooter);
-    footerBtn(btnManual, "book-open", "User Manual: Open interactive documentation (F1).");
+    footerBtn(btnManual, "book-open", AppTranslator::t("User Manual: Open interactive documentation (F1)."));
     connect(btnManual, &QPushButton::clicked, this, [this]() { onShowUserManual(); });
 
     m_btnSettings = new QPushButton(sidebarFooter);
-    footerBtn(m_btnSettings, "settings", "Settings: Configure church details, themes, modules & backups.");
+    footerBtn(m_btnSettings, "settings", AppTranslator::t("Settings: Configure church details, themes, modules & backups."));
     connect(m_btnSettings, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
 
     footerLayout->addStretch();
 
     m_footerUserChip = new QLabel(sidebarFooter);
     m_footerUserChip->setObjectName("footerUserChip");
-    m_footerUserChip->setToolTip("Signed-in user — click to switch user / sign in with PIN.");
+    m_footerUserChip->setToolTip(AppTranslator::t("Signed-in user — click to switch user / sign in with PIN."));
     m_footerUserChip->setCursor(Qt::PointingHandCursor);
     connect(m_footerUserChip, &QLabel::linkActivated, this, [this]() { promptLogin(); });
     footerLayout->addWidget(m_footerUserChip);
@@ -907,8 +910,8 @@ void MainWindow::switchPage(int index) {
     // also keeps the sidebar highlight on Settings.
     if (leavingIndex == 8 && m_settingsWidget && m_settingsWidget->isDirty()) {
         const QMessageBox::StandardButton choice = QMessageBox::question(
-            this, "Unsaved Settings",
-            "You have unsaved changes in Settings.\n\nSave them before leaving?",
+            this, AppTranslator::t("Unsaved Settings"),
+            AppTranslator::t("You have unsaved changes in Settings.\n\nSave them before leaving?"),
             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
             QMessageBox::Save);
         if (choice == QMessageBox::Cancel) return;
@@ -990,7 +993,7 @@ void MainWindow::populatePages() {
     // declared minimum exceeds the screen opens oversized and GNOME cannot
     // tile or shrink it (Super+Up etc. do nothing).
     QHBoxLayout* grpHeaderLayout = new QHBoxLayout();
-    QLabel* grpHeader = new QLabel("Active Groups & Ministries", this);
+    QLabel* grpHeader = new QLabel(AppTranslator::t("Active Groups & Ministries"), this);
     grpHeader->setObjectName("pageHeader");
     grpHeaderLayout->addWidget(grpHeader);
     grpHeaderLayout->addStretch();
@@ -1054,7 +1057,7 @@ void MainWindow::populatePages() {
     connect(m_btnEditGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
         if (!item) {
-            QMessageBox::warning(this, "No Selection", "Please select a group to edit first.");
+            QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group to edit first."));
             return;
         }
         int groupId = item->data(0, Qt::UserRole).toInt();
@@ -1068,7 +1071,7 @@ void MainWindow::populatePages() {
     connect(m_btnDuplicateGroup, &QPushButton::clicked, this, [this]() {
         QTreeWidgetItem* item = m_groupsTreeWidget->currentItem();
         if (!item) {
-            QMessageBox::warning(this, "No Selection", "Please select a group to duplicate first.");
+            QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group to duplicate first."));
             return;
         }
         int groupId = item->data(0, Qt::UserRole).toInt();
@@ -1113,7 +1116,7 @@ void MainWindow::populatePages() {
         cyc.addBindValue(groupId);
         cyc.addBindValue(newParentId);
         if (cyc.exec() && cyc.next()) {
-            QMessageBox::warning(this, "Invalid Move", "A group cannot be moved under one of its own subgroups.");
+            QMessageBox::warning(this, AppTranslator::t("Invalid Move"), AppTranslator::t("A group cannot be moved under one of its own subgroups."));
             return;
         }
         QSqlQuery u;
@@ -1282,11 +1285,11 @@ void MainWindow::populatePages() {
     m_btnAddRosterMember->setStyleSheet("padding: 4px 10px; font-size: 11px;");
     connect(m_btnAddRosterMember, &QPushButton::clicked, this, [this]() {
         if (isReadOnlyRole()) {
-            QMessageBox::warning(this, "Read-Only Mode", "Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify.");
+            QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify."));
             return;
         }
         if (m_selectedGroupId <= 0) {
-            QMessageBox::warning(this, "No Selection", "Please select a group first.");
+            QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
             return;
         }
         // Guard: Root Ministry Blueprints do not allow direct members
@@ -1294,7 +1297,7 @@ void MainWindow::populatePages() {
         qCheckRoot.prepare("SELECT parent_id FROM groups WHERE id = ?");
         qCheckRoot.addBindValue(m_selectedGroupId);
         if (qCheckRoot.exec() && qCheckRoot.next() && (qCheckRoot.value(0).isNull() || qCheckRoot.value(0).toInt() <= 0)) {
-            QMessageBox::information(this, "Ministry Blueprint", "Direct membership is disabled on Ministry Blueprints.\n\nPlease create or select a sub-group/team under this blueprint to enroll members.");
+            QMessageBox::information(this, AppTranslator::t("Ministry Blueprint"), AppTranslator::t("Direct membership is disabled on Ministry Blueprints.\n\nPlease create or select a sub-group/team under this blueprint to enroll members."));
             return;
         }
         QDialog dlg(this);
@@ -1366,7 +1369,7 @@ void MainWindow::populatePages() {
                         refreshGroupsTree();
                         if (m_graphWidget) m_graphWidget->loadGraph();
                     } else {
-                        QMessageBox::critical(this, "Database Error", "Failed to update member in this group:\n" + up.lastError().text());
+                        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to update member in this group:\n") + up.lastError().text());
                     }
                 } else {
                     QSqlQuery ins(db);
@@ -1382,7 +1385,7 @@ void MainWindow::populatePages() {
                         refreshGroupsTree();
                         if (m_graphWidget) m_graphWidget->loadGraph();
                     } else {
-                        QMessageBox::critical(this, "Database Error", "Failed to add member to group:\n" + ins.lastError().text());
+                        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to add member to group:\n") + ins.lastError().text());
                     }
                 }
             }
@@ -1396,11 +1399,11 @@ void MainWindow::populatePages() {
     m_btnSuggestPeople->setStyleSheet("padding: 4px 10px; font-size: 11px;");
     connect(m_btnSuggestPeople, &QPushButton::clicked, this, [this]() {
         if (isReadOnlyRole()) {
-            QMessageBox::warning(this, "Read-Only Mode", "Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify.");
+            QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot change group rosters. Sign in with the Admin PIN (1234) to modify."));
             return;
         }
         if (m_selectedGroupId <= 0) {
-            QMessageBox::warning(this, "No Selection", "Please select a group first.");
+            QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
             return;
         }
         MatchDialog dlg(m_selectedGroupId, this);
@@ -1508,7 +1511,7 @@ void MainWindow::populatePages() {
         if (m_selectedGroupId > 0) {
             onGraphClicked();
         } else {
-            QMessageBox::warning(this, "No Selection", "Please select a group first.");
+            QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
         }
     });
     detailLayout->addWidget(btnViewInGraph);
@@ -1555,7 +1558,7 @@ QWidget* MainWindow::createDashboardPage() {
     headerRow->setSpacing(15);
 
     QVBoxLayout* headerTextLay = new QVBoxLayout();
-    m_lblWelcomeHeader = new QLabel("Welcome to OpenEkklesia", page);
+    m_lblWelcomeHeader = new QLabel(AppTranslator::t("Welcome to OpenEkklesia"), page);
     m_lblWelcomeHeader->setObjectName("pageHeader");
     m_lblWelcomeHeader->setStyleSheet("font-size: 22px; font-weight: bold; margin: 0;");
 
@@ -1893,7 +1896,7 @@ void MainWindow::onConfigureKpiCards() {
             }
         }
         if (selected.size() < 2 || selected.size() > 8) {
-            QMessageBox::warning(&dlg, "Selection Limit", "Please select between 2 and 8 KPI cards for optimal layout.");
+            QMessageBox::warning(&dlg, AppTranslator::t("Selection Limit"), AppTranslator::t("Please select between 2 and 8 KPI cards for optimal layout."));
             return;
         }
         AppSettings s;
@@ -1908,7 +1911,7 @@ void MainWindow::onConfigureKpiCards() {
 
 void MainWindow::onLogQuickPastoralNote(int prefillPersonId) {
     if (isReadOnlyRole()) {
-        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot log pastoral care notes. Sign in with the Admin PIN (1234) to record care interactions.");
+        QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot log pastoral care notes. Sign in with the Admin PIN (1234) to record care interactions."));
         return;
     }
     QDialog dlg(this);
@@ -1954,7 +1957,7 @@ void MainWindow::onLogQuickPastoralNote(int prefillPersonId) {
 
     QString notes = notesEdit->toPlainText().trimmed();
     if (notes.isEmpty()) {
-        QMessageBox::warning(this, "Missing Details", "Please enter a short note describing the care interaction.");
+        QMessageBox::warning(this, AppTranslator::t("Missing Details"), AppTranslator::t("Please enter a short note describing the care interaction."));
         return;
     }
 
@@ -1981,7 +1984,7 @@ void MainWindow::onLogQuickPastoralNote(int prefillPersonId) {
     updateDashboardStats();
     if (m_shepherdWidget) m_shepherdWidget->refreshAll();
 
-    QMessageBox::information(this, "Note Logged", QString("Pastoral care note logged for %1.").arg(personCombo->currentText()));
+    QMessageBox::information(this, AppTranslator::t("Note Logged"), QString(AppTranslator::t("Pastoral care note logged for %1.")).arg(personCombo->currentText()));
 }
 
 void MainWindow::updatePieChart() {
@@ -2025,12 +2028,14 @@ void MainWindow::updateDashboardStats() {
 
     // 1. Dynamic Time-of-Day Welcome Greeting Banner
     int hour = QTime::currentTime().hour();
-    QString greeting = (hour < 12) ? "Good Morning" : (hour < 17) ? "Good Afternoon" : "Good Evening";
+    QString greeting = (hour < 12) ? AppTranslator::t("Good Morning")
+                                   : (hour < 17) ? AppTranslator::t("Good Afternoon")
+                                                 : AppTranslator::t("Good Evening");
     AppSettings s;
     QString churchName = s.value("churchName", "OpenEkklesia Church").toString();
     QString churchSubtitle = s.value("churchSubtitle", "Church Management & Pastoral Analytics").toString();
     if (m_lblWelcomeHeader) {
-        m_lblWelcomeHeader->setText(QString("%1, %2").arg(greeting, m_username.isEmpty() ? "Pastor / Leader" : m_username));
+        m_lblWelcomeHeader->setText(QString("%1, %2").arg(greeting, m_username.isEmpty() ? AppTranslator::t("Pastor / Leader") : m_username));
     }
     if (m_lblSubHeader) {
         m_lblSubHeader->setText(QString("%1 — %2").arg(churchName, churchSubtitle));
@@ -2335,7 +2340,7 @@ void MainWindow::onSettingsClicked() {
         connect(m_settingsWidget, &SettingsWidget::settingsSaved, this, [this]() {
             AppSettings s;
             QString chName = s.value("churchName", "OpenEkklesia").toString();
-            setWindowTitle(QString("%1 - Church Management System").arg(chName));
+            setWindowTitle(QString(AppTranslator::t("%1 - Church Management System")).arg(chName));
             m_isDarkMode = ThemeManager::instance().currentTokens().isDark;
             applyModuleVisibility();
         });
@@ -2605,7 +2610,7 @@ void MainWindow::applyRolePermissions() {
     if (m_groupRosterTable && m_selectedGroupId > 0) refreshGroupDetailPanel(m_selectedGroupId);
 
     if (statusBar()) {
-        statusBar()->showMessage(QString("Signed in as: %1 (%2)").arg(m_username, m_userRole));
+        statusBar()->showMessage(QString(AppTranslator::t("Signed in as: %1 (%2)")).arg(m_username, m_userRole));
         if (m_footerUserChip)
             m_footerUserChip->setText(QString("<b style='color:var(--text-primary)'>%1</b>").arg(m_username.toHtmlEscaped()));
     }
@@ -3238,7 +3243,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
             btnRemove->setStyleSheet(QString("border: none; color: %1; font-weight: bold; background: transparent;").arg(tok.accentDanger.name()));
             connect(btnRemove, &QPushButton::clicked, this, [this, relId, memName]() {
                 if (isReadOnlyRole()) return;
-                auto confirm = QMessageBox::question(this, "Remove Member", QString("Remove '%1' from this group?").arg(memName), QMessageBox::Yes | QMessageBox::No);
+                auto confirm = QMessageBox::question(this, AppTranslator::t("Remove Member"), QString(AppTranslator::t("Remove '%1' from this group?")).arg(memName), QMessageBox::Yes | QMessageBox::No);
                 if (confirm == QMessageBox::Yes) {
                     QSqlQuery del;
                     del.prepare("DELETE FROM entity_relationships WHERE id = ?");
@@ -3369,7 +3374,7 @@ void MainWindow::refreshGroupDetailPanel(int groupId) {
 
 void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParentId) {
     if (isReadOnlyRole()) {
-        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot create or edit groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot create or edit groups. Sign in with the Admin PIN (1234) to modify ministry structure."));
         return;
     }
     QSqlDatabase db = QSqlDatabase::database();
@@ -3792,7 +3797,7 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
     if (dlg.exec() == QDialog::Accepted) {
         QString name = nameEdit->text().trimmed();
         if (name.isEmpty()) {
-            QMessageBox::warning(this, "Validation Error", "Group name cannot be empty.");
+            QMessageBox::warning(this, AppTranslator::t("Validation Error"), AppTranslator::t("Group name cannot be empty."));
             return;
         }
 
@@ -3866,9 +3871,9 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                 refreshGroupsTree();
                 refreshGroupDetailPanel(groupId);
                 if (m_graphWidget) m_graphWidget->loadGraph();
-                QMessageBox::information(this, "Success", "Group updated successfully.");
+                QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Group updated successfully."));
             } else {
-                QMessageBox::critical(this, "Database Error", "Failed to update group: " + update.lastError().text());
+                QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to update group: ") + update.lastError().text());
             }
         } else {
             db.transaction();
@@ -3942,10 +3947,10 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
                 m_selectedGroupId = newId;
                 refreshGroupDetailPanel(newId);
                 if (m_graphWidget) m_graphWidget->loadGraph();
-                QMessageBox::information(this, "Success", "Group created successfully.");
+                QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Group created successfully."));
             } else {
                 db.rollback();
-                QMessageBox::critical(this, "Database Error", "Failed to create group: " + ins.lastError().text());
+                QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to create group: ") + ins.lastError().text());
             }
         }
     }
@@ -3955,19 +3960,19 @@ void MainWindow::showGroupDialog(int groupId, bool isDuplicate, int defaultParen
 
 void MainWindow::onEditGroup() {
     if (isReadOnlyRole()) {
-        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot edit groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot edit groups. Sign in with the Admin PIN (1234) to modify ministry structure."));
         return;
     }
     if (m_selectedGroupId > 0) {
         showGroupDialog(m_selectedGroupId, false);
     } else {
-        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
     }
 }
 
 void MainWindow::onAddGroup(int defaultParentId) {
     if (isReadOnlyRole()) {
-        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot create groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot create groups. Sign in with the Admin PIN (1234) to modify ministry structure."));
         return;
     }
     showGroupDialog(0, false, defaultParentId);
@@ -3975,11 +3980,11 @@ void MainWindow::onAddGroup(int defaultParentId) {
 
 void MainWindow::onArchiveGroup() {
     if (isReadOnlyRole()) {
-        QMessageBox::warning(this, "Read-Only Mode", "Guests cannot archive groups. Sign in with the Admin PIN (1234) to modify ministry structure.");
+        QMessageBox::warning(this, AppTranslator::t("Read-Only Mode"), AppTranslator::t("Guests cannot archive groups. Sign in with the Admin PIN (1234) to modify ministry structure."));
         return;
     }
     if (m_selectedGroupId <= 0) {
-        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
         return;
     }
     // Root guard: top-level ministry blueprints are system-locked.
@@ -3988,7 +3993,7 @@ void MainWindow::onArchiveGroup() {
     rootQ.addBindValue(m_selectedGroupId);
     const bool isRoot = (!rootQ.exec() || !rootQ.next()) ? false : rootQ.value(0).isNull();
     if (isRoot) {
-        QMessageBox::information(this, "Protected Ministry", "Top-level Ministry Blueprints are system-locked and cannot be archived.");
+        QMessageBox::information(this, AppTranslator::t("Protected Ministry"), AppTranslator::t("Top-level Ministry Blueprints are system-locked and cannot be archived."));
         return;
     }
 
@@ -3997,10 +4002,10 @@ void MainWindow::onArchiveGroup() {
     qState.addBindValue(m_selectedGroupId);
     const int current = (qState.exec() && qState.next()) ? qState.value(0).toInt() : 0;
     const int target = (current == 1) ? 0 : 1;
-    const QString action = (target == 1) ? "archive" : "unarchive";
+    const QString action = (target == 1) ? AppTranslator::t("archive") : AppTranslator::t("unarchive");
 
-    if (QMessageBox::question(this, "Confirm Action",
-                              QString("Are you sure you want to %1 this group and all of its sub-groups?").arg(action),
+    if (QMessageBox::question(this, AppTranslator::t("Confirm Action"),
+                              QString(AppTranslator::t("Are you sure you want to %1 this group and all of its sub-groups?")).arg(action),
                               QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
         return;
     }
@@ -4031,7 +4036,7 @@ void MainWindow::onDeleteGroup() {
         return;
     }
     if (m_selectedGroupId <= 0) {
-        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
         return;
     }
     // Root guard: top-level ministry blueprints are system-locked.
@@ -4097,7 +4102,7 @@ void MainWindow::onToggleHiddenGroup() {
         return;
     }
     if (m_selectedGroupId <= 0) {
-        QMessageBox::warning(this, "No Selection", "Please select a group first.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a group first."));
         return;
     }
     QSqlQuery qState;
@@ -4564,19 +4569,19 @@ void MainWindow::refreshSidebarIcons() {
         btn->setText("  " + text);
     };
 
-    setNav(m_btnDashboard, "bar-chart-3", "Dashboard");
-    setNav(m_btnMembers, "users", "People");
-    setNav(m_btnGraph, "network", "Connection Graph");
-    setNav(m_btnAnalytics, "bar-chart-3", "Pastoral Analytics");
-    setNav(m_btnShepherd, "heart-handshake", "Shepherd's Workbench");
-    setNav(m_btnGroups, "layers", "Groups & Ministries");
-    setNav(m_btnService, "list-music", "Service Builder");
-    setNav(m_btnFacilities, "landmark", "Facilities Matrix");
-    setNav(m_btnPlanning, "calendar", "Ministry Planning");
-    setNav(m_btnContributions, "hand-coins", "Giving & Batches");
-    setNav(m_btnInventory, "package", "Asset Inventory");
-    setNav(m_btnVault, "shield-check", "Document Vault");
-    setNav(m_btnSettings, "settings", "Settings");
+    setNav(m_btnDashboard, "bar-chart-3", AppTranslator::t("Dashboard"));
+    setNav(m_btnMembers, "users", AppTranslator::t("People"));
+    setNav(m_btnGraph, "network", AppTranslator::t("Connection Graph"));
+    setNav(m_btnAnalytics, "bar-chart-3", AppTranslator::t("Pastoral Analytics"));
+    setNav(m_btnShepherd, "heart-handshake", AppTranslator::t("Shepherd's Workbench"));
+    setNav(m_btnGroups, "layers", AppTranslator::t("Groups & Ministries"));
+    setNav(m_btnService, "list-music", AppTranslator::t("Service Builder"));
+    setNav(m_btnFacilities, "landmark", AppTranslator::t("Facilities Matrix"));
+    setNav(m_btnPlanning, "calendar", AppTranslator::t("Ministry Planning"));
+    setNav(m_btnContributions, "hand-coins", AppTranslator::t("Giving & Batches"));
+    setNav(m_btnInventory, "package", AppTranslator::t("Asset Inventory"));
+    setNav(m_btnVault, "shield-check", AppTranslator::t("Document Vault"));
+    setNav(m_btnSettings, "settings", AppTranslator::t("Settings"));
 }
 
 void MainWindow::onShowUserManual(const QString& section) {
