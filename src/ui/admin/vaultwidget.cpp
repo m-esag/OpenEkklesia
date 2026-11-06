@@ -104,7 +104,7 @@ void VaultWidget::setupUI() {
     QHBoxLayout* controls = new QHBoxLayout();
     
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("Search documents...");
+    m_searchEdit->setPlaceholderText(AppTranslator::t("Search documents..."));
     m_searchEdit->setFixedWidth(220);
     m_searchEdit->setObjectName("searchEdit");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &VaultWidget::onSearchChanged);
@@ -191,10 +191,10 @@ void VaultWidget::setupUI() {
                         // and report the real result instead of false success.
                         if (QFile::exists(savePath)) QFile::remove(savePath);
                         if (QFile::copy(fullPath, savePath)) {
-                            QMessageBox::information(this, "Success", "Document copy saved!");
+                            QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Document copy saved!"));
                         } else {
-                            QMessageBox::warning(this, "Export Failed",
-                                "Could not save a copy (check disk space and permissions).");
+                            QMessageBox::warning(this, AppTranslator::t("Export Failed"),
+                                AppTranslator::t("Could not save a copy (check disk space and permissions)."));
                         }
                     }
                 }
@@ -208,7 +208,7 @@ void VaultWidget::setupUI() {
     });
     vaultLay->addWidget(m_tableView);
 
-    tabs->addTab(tabVault, "Document Vault");
+    tabs->addTab(tabVault, AppTranslator::t("Document Vault"));
 
     // --- Tab 2: Board Minutes & Motion Tracker ---
     QWidget* tabMinutes = new QWidget(this);
@@ -289,7 +289,7 @@ void VaultWidget::setupUI() {
     });
     minLay->addWidget(m_minutesView);
 
-    tabs->addTab(tabMinutes, "📜 Board Minutes & Motion Tracker");
+    tabs->addTab(tabMinutes, "📜 " + AppTranslator::t("Board Minutes & Motion Tracker"));
 
     mainLayout->addWidget(tabs);
 }
@@ -328,7 +328,7 @@ void VaultWidget::onUploadClicked() {
     QFormLayout* form = new QFormLayout();
 
     QLineEdit* titleEdit = new QLineEdit(&dlg);
-    titleEdit->setPlaceholderText("Auto-generated — edit if you like");
+    titleEdit->setPlaceholderText(AppTranslator::t("Auto-generated — edit if you like"));
     form->addRow("Title:", titleEdit);
 
     QDateEdit* dateEdit = new QDateEdit(QDate::currentDate(), &dlg);
@@ -451,7 +451,7 @@ void VaultWidget::onUploadClicked() {
     connect(btnConfirm, &QPushButton::clicked, &dlg, [&]() {
         QString title = titleEdit->text().trimmed();
         if (title.isEmpty()) {
-            QMessageBox::warning(&dlg, "Required", "Please provide a document title.");
+            QMessageBox::warning(&dlg, AppTranslator::t("Required"), AppTranslator::t("Please provide a document title."));
             return;
         }
         
@@ -464,7 +464,7 @@ void VaultWidget::onUploadClicked() {
         }
 
         if (!QFile::copy(selectedFile, destPath)) {
-            QMessageBox::critical(&dlg, "File Error", "Could not copy selected document to local Vault storage.");
+            QMessageBox::critical(&dlg, AppTranslator::t("File Error"), AppTranslator::t("Could not copy selected document to local Vault storage."));
             return;
         }
 
@@ -486,7 +486,7 @@ void VaultWidget::onUploadClicked() {
             dlg.accept();
         } else {
             QFile::remove(destPath); // Clean up
-            QMessageBox::critical(&dlg, "DB Error", "Failed to register document in ledger: " + insert.lastError().text());
+            QMessageBox::critical(&dlg, AppTranslator::t("DB Error"), AppTranslator::t("Failed to register document in ledger: ") + insert.lastError().text());
         }
     });
     actions->addWidget(btnConfirm);
@@ -500,7 +500,7 @@ void VaultWidget::onUploadClicked() {
 void VaultWidget::onOpenClicked() {
     QModelIndex current = m_tableView->currentIndex();
     if (!current.isValid()) {
-        QMessageBox::warning(this, "No Selection", "Please select a document to open.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a document to open."));
         return;
     }
 
@@ -510,19 +510,19 @@ void VaultWidget::onOpenClicked() {
     QString absolutePath = vaultDirPath() + "/" + fileName;
 
     if (!QFile::exists(absolutePath)) {
-        QMessageBox::critical(this, "File Missing", QString("The requested document was not found at:\n%1\n\nIt may have been deleted or moved.").arg(absolutePath));
+        QMessageBox::critical(this, AppTranslator::t("File Missing"), QString(AppTranslator::t("The requested document was not found at:\n%1\n\nIt may have been deleted or moved.")).arg(absolutePath));
         return;
     }
 
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(absolutePath))) {
-        QMessageBox::critical(this, "Launch Error", "Could not open document. Make sure you have a registered PDF reader installed.");
+        QMessageBox::critical(this, AppTranslator::t("Launch Error"), AppTranslator::t("Could not open document. Make sure you have a registered PDF reader installed."));
     }
 }
 
 void VaultWidget::onDeleteClicked() {
     QModelIndex current = m_tableView->currentIndex();
     if (!current.isValid()) {
-        QMessageBox::warning(this, "No Selection", "Please select a document entry to remove.");
+        QMessageBox::warning(this, AppTranslator::t("No Selection"), AppTranslator::t("Please select a document entry to remove."));
         return;
     }
 
@@ -536,9 +536,9 @@ void VaultWidget::onDeleteClicked() {
     // which orphaned everything over time.)
     QMessageBox box(this);
     box.setWindowTitle("Remove Document");
-    box.setText(QString("Remove '%1'?\n\nChoose whether the stored file should also be deleted.").arg(title));
-    QPushButton* keepFile = box.addButton("Remove record only (keep file)", QMessageBox::ActionRole);
-    QPushButton* deleteFile = box.addButton("Remove record + delete file", QMessageBox::DestructiveRole);
+        box.setText(QString(AppTranslator::t("Remove '%1'?\n\nChoose whether the stored file should also be deleted.")).arg(title));
+        QPushButton* keepFile = box.addButton(AppTranslator::t("Remove record only (keep file)"), QMessageBox::ActionRole);
+        QPushButton* deleteFile = box.addButton(AppTranslator::t("Remove record + delete file"), QMessageBox::DestructiveRole);
     box.addButton(QMessageBox::Cancel);
     box.exec();
 
@@ -554,15 +554,15 @@ void VaultWidget::onDeleteClicked() {
         if (alsoDeleteFile) {
             const QString abs = vaultDirPath() + "/" + fileName;
             if (QFile::exists(abs) && !QFile::remove(abs)) {
-                QMessageBox::warning(this, "File Not Removed",
-                    QString("The record was removed but the file could not be deleted:\n%1\nUse Sweep Orphans later.").arg(abs));
+                QMessageBox::warning(this, AppTranslator::t("File Not Removed"),
+                    QString(AppTranslator::t("The record was removed but the file could not be deleted:\n%1\nUse Sweep Orphans later.")).arg(abs));
             }
         }
         DatabaseManager::logAudit("vault_documents", id, "record", title,
                                   alsoDeleteFile ? "DELETED (record + file)" : "DELETED (record only)", "admin");
         refreshVault();
     } else {
-        QMessageBox::critical(this, "DB Error", "Failed to delete document: " + query.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("DB Error"), AppTranslator::t("Failed to delete document: ") + query.lastError().text());
     }
 }
 
@@ -582,12 +582,12 @@ void VaultWidget::onSweepOrphans() {
     }
 
     if (orphans.isEmpty()) {
-        QMessageBox::information(this, "Sweep Orphans", "No orphaned files — every file in the vault is linked to a record. 🎉");
+        QMessageBox::information(this, AppTranslator::t("Sweep Orphans"), AppTranslator::t("No orphaned files — every file in the vault is linked to a record. 🎉"));
         return;
     }
 
-    const auto res = QMessageBox::question(this, "Sweep Orphans",
-        QString("Found %1 file(s) on disk with no database record:\n\n%2\n\nDelete these files permanently?")
+    const auto res = QMessageBox::question(this, AppTranslator::t("Sweep Orphans"),
+        QString(AppTranslator::t("Found %1 file(s) on disk with no database record:\n\n%2\n\nDelete these files permanently?"))
             .arg(QString::number(orphans.size()), orphans.join("\n")),
         QMessageBox::Yes | QMessageBox::No);
     if (res != QMessageBox::Yes) return;
@@ -596,8 +596,8 @@ void VaultWidget::onSweepOrphans() {
     for (const QString& name : orphans) {
         if (QFile::remove(dir + "/" + name)) removed++;
     }
-    QMessageBox::information(this, "Sweep Orphans",
-        QString("Deleted %1 of %2 orphaned file(s).").arg(QString::number(removed), QString::number(orphans.size())));
+    QMessageBox::information(this, AppTranslator::t("Sweep Orphans"),
+        QString(AppTranslator::t("Deleted %1 of %2 orphaned file(s).")).arg(QString::number(removed), QString::number(orphans.size())));
 }
 
 void VaultWidget::applyRole(const QString& role) {
@@ -683,19 +683,19 @@ void VaultWidget::onAddBoardMinutes() {
     dateEdit->setDisplayFormat("yyyy-MM-dd");
 
     QLineEdit* motionEdit = new QLineEdit(&dlg);
-    motionEdit->setPlaceholderText("e.g. Approved $5,000 for roof repairs");
+    motionEdit->setPlaceholderText(AppTranslator::t("e.g. Approved $5,000 for roof repairs"));
 
     QLineEdit* moverEdit = new QLineEdit(&dlg);
-    moverEdit->setPlaceholderText("Trustee / Elder name");
+    moverEdit->setPlaceholderText(AppTranslator::t("Trustee / Elder name"));
 
     QLineEdit* seconderEdit = new QLineEdit(&dlg);
-    seconderEdit->setPlaceholderText("Trustee / Elder name");
+    seconderEdit->setPlaceholderText(AppTranslator::t("Trustee / Elder name"));
 
     QComboBox* resultCombo = new QComboBox(&dlg);
     resultCombo->addItems({"Passed (Unanimous)", "Passed (Majority)", "Tabled / Postponed", "Failed / Rejected"});
 
     QLineEdit* detailsEdit = new QLineEdit(&dlg);
-    detailsEdit->setPlaceholderText("Optional notes or conditions");
+    detailsEdit->setPlaceholderText(AppTranslator::t("Optional notes or conditions"));
 
     form->addRow("Meeting Date:", dateEdit);
     form->addRow("Motion / Resolution:", motionEdit);
@@ -718,7 +718,7 @@ void VaultWidget::onAddBoardMinutes() {
         QString details = detailsEdit->text().trimmed();
 
         if (title.isEmpty() || mover.isEmpty()) {
-            QMessageBox::warning(this, "Validation Error", "Motion title and mover name are required.");
+            QMessageBox::warning(this, AppTranslator::t("Validation Error"), AppTranslator::t("Motion title and mover name are required."));
             return;
         }
 
@@ -735,9 +735,9 @@ void VaultWidget::onAddBoardMinutes() {
 
         if (q.exec()) {
             refreshBoardMinutes();
-            QMessageBox::information(this, "Motion Saved", "Board motion logged to official minutes history.");
+            QMessageBox::information(this, AppTranslator::t("Motion Saved"), AppTranslator::t("Board motion logged to official minutes history."));
         } else {
-            QMessageBox::critical(this, "Error", "Failed to log motion: " + q.lastError().text());
+            QMessageBox::critical(this, AppTranslator::t("Error"), AppTranslator::t("Failed to log motion: ") + q.lastError().text());
         }
     }
 }
@@ -745,13 +745,13 @@ void VaultWidget::onAddBoardMinutes() {
 void VaultWidget::onDeleteMinutes() {
     int row = m_minutesView->currentIndex().row();
     if (row < 0) {
-        QMessageBox::warning(this, "Selection Required", "Please select a motion entry to remove.");
+        QMessageBox::warning(this, AppTranslator::t("Selection Required"), AppTranslator::t("Please select a motion entry to remove."));
         return;
     }
     int mId = m_minutesModel->index(row, 0).data().toInt();
     QString title = m_minutesModel->index(row, 2).data().toString();
 
-    if (QMessageBox::question(this, "Confirm Removal", QString("Delete board motion log for '%1'?").arg(title), QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+    if (QMessageBox::question(this, AppTranslator::t("Confirm Removal"), QString(AppTranslator::t("Delete board motion log for '%1'?")).arg(title), QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
         QSqlDatabase db = DatabaseManager::instance().database();
         QSqlQuery q(db);
         q.prepare("DELETE FROM board_motions WHERE id = ?");
@@ -805,9 +805,9 @@ void VaultWidget::onExportMinutesPDF() {
     doc.print(&printer);
     QFileInfo doneInfo(savePath);
     if (!doneInfo.exists() || doneInfo.size() == 0) {
-        QMessageBox::warning(this, "Export Failed",
-            "Could not write minutes PDF (check disk space and permissions).");
+        QMessageBox::warning(this, AppTranslator::t("Export Failed"),
+            AppTranslator::t("Could not write minutes PDF (check disk space and permissions)."));
         return;
     }
-    QMessageBox::information(this, "PDF Export Complete", QString("Board Minutes PDF successfully exported to:\n%1").arg(savePath));
+    QMessageBox::information(this, AppTranslator::t("PDF Export Complete"), QString(AppTranslator::t("Board Minutes PDF successfully exported to:\n%1")).arg(savePath));
 }
