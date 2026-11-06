@@ -4,9 +4,6 @@
 #include "../database/databasemanager.h"
 #include "appsettings.h"
 #include <QVBoxLayout>
-#include <QGraphicsDropShadowEffect>
-#include <QGraphicsOpacityEffect>
-#include <QPropertyAnimation>
 #include <QEasingCurve>
 #include <QKeyEvent>
 #include <QSqlQuery>
@@ -45,31 +42,18 @@ CommandPaletteDialog::CommandPaletteDialog(QWidget* parent)
 
 CommandPaletteDialog::~CommandPaletteDialog() {}
 
-void CommandPaletteDialog::showEvent(QShowEvent* event) {
-    QDialog::showEvent(event);
-    // Fade-in, then REMOVE the effect when the animation finishes. The old
-    // code left the opacity effect installed forever: an effect on a
-    // WA_TranslucentBackground top-level forces every later repaint through
-    // the offscreen effect path, which intermittently rendered the whole
-    // dialog blank mid-use (user-reported: palette + results vanish while
-    // typing in the search field).
-    QGraphicsOpacityEffect* opacity = new QGraphicsOpacityEffect(this);
-    setGraphicsEffect(opacity);
-    QPropertyAnimation* anim = new QPropertyAnimation(opacity, "opacity", this);
-    anim->setDuration(140);
-    anim->setStartValue(0.0);
-    anim->setEndValue(1.0);
-    anim->setEasingCurve(QEasingCurve::OutQuad);
-    connect(anim, &QPropertyAnimation::finished, this, [this]() {
-        setGraphicsEffect(nullptr);
-    });
-    anim->start(QAbstractAnimation::DeleteWhenStopped);
-}
+// Design policy (see DEVELOPMENT_GUIDELINES.md): the app is animation-free.
+// The former fade-in here left a QGraphicsOpacityEffect installed on this
+// WA_TranslucentBackground top-level, which intermittently rendered the whole
+// dialog blank mid-use (bug b9eb0cf). Instant display is also the right UX
+// for a keyboard-summoned palette: speed is the feature.
 
 void CommandPaletteDialog::setupUI() {
     resize(550, 380);
 
-    // Frame wrapper to support rounded corners & shadows
+    // Frame wrapper for the rounded floating-panel look. No drop-shadow
+    // effect: effects on a translucent top-level window force repaints
+    // through an offscreen path and have caused blank-dialog bugs here.
     QWidget* frame = new QWidget(this);
     frame->setObjectName("paletteFrame");
     frame->setStyleSheet(
@@ -79,12 +63,6 @@ void CommandPaletteDialog::setupUI() {
         "  border-radius: 12px; "
         "}"
     );
-
-    QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(15);
-    shadow->setOffset(0, 5);
-    shadow->setColor(QColor(0, 0, 0, 120));
-    frame->setGraphicsEffect(shadow);
 
     QVBoxLayout* frameLayout = new QVBoxLayout(frame);
     frameLayout->setContentsMargins(10, 10, 10, 10);

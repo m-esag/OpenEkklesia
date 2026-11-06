@@ -45,7 +45,6 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QHeaderView>
-#include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QEasingCurve>
 #include <QSqlQuery>

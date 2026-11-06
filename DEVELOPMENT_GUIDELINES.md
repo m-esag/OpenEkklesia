@@ -171,6 +171,28 @@ The QSS engine styles by object name. Use these names — never invent a new
   
 ---
 
+## 6. Animation policy — none by default
+
+OpenEkklesia is deliberately **animation-free**. Do not add
+`QPropertyAnimation`, `QGraphicsOpacityEffect`, `QGraphicsDropShadowEffect`,
+or any other time-based UI effect without an explicit engineering review.
+
+Rationale (all incidents in this codebase, not hypothetical):
+- A palette fade-in left its opacity effect installed on a
+  `WA_TranslucentBackground` top-level and intermittently rendered the whole
+  dialog blank mid-use (bug b9eb0cf).
+- The compact-sidebar width animation fought `setFixedWidth` with min/max
+  overrides and produced rendering artifacts.
+- Timed UI state flakes under load: render tests must then wait for
+  animation completion, which serializes suites and still races.
+
+Animations are justified only when they help the eye track a physically
+moving/rearranging element — and any that are added must be removed in
+`finished()` handlers and covered by a render test asserting no effect
+remains.
+
+---
+
 ## 7. Testing (tests/tst_openekklesia.cpp)
 - Plain `CHECK` / `CHECK_EQ` harness (no QtTest). One kebab-case test name per
   scenario, registered in the `tests[]` table in `main()`.

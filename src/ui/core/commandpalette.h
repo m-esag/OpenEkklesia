@@ -14,7 +14,6 @@ public:
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
-    void showEvent(QShowEvent* event) override;
 
 private slots:
     void onSearchChanged(const QString& text);

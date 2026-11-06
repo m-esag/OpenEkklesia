@@ -264,20 +264,16 @@ bool test_settingsWidgetConstructs() {
 // removes the effect when the fade finishes; this test drives a real show()
 // and asserts the rendered surface is actually painted.
 bool test_commandPaletteRendersVisible() {
+    // The palette is animation-free by policy (former fade-in left a
+    // QGraphicsOpacityEffect on the translucent top-level and intermittently
+    // rendered the whole dialog blank — bug b9eb0cf). With no timing in the
+    // widget, this test is a deterministic grab-and-assert.
     MainWindow mw;
     CommandPaletteDialog palette(&mw);
     palette.resize(550, 380);
     palette.show();
 
-    // Wait for the fade-in's finished() handler (which removes the effect)
-    // rather than a fixed delay: under a loaded machine the 140 ms animation
-    // can lag, and grabbing mid-fade would see the effect still installed.
-    QElapsedTimer t;
-    t.start();
-    while (palette.graphicsEffect() != nullptr && t.elapsed() < 5000)
-        QCoreApplication::processEvents();
-    // Effect must be gone (removal is the fix being guarded); the deadline
-    // above only guards against an infinite loop on a pathological failure.
+    // Policy guard: no graphics effect may ever be installed on the palette.
     CHECK(palette.graphicsEffect() == nullptr);
 
     const QImage img = palette.grab().toImage();
