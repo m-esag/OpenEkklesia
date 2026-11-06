@@ -54,6 +54,15 @@ linuxdeploy.AppImage --appdir dist/OpenEkklesia.AppDir \
 
 # Desktop entry + icon (required by AppImage packaging)
 cp assets/openekklesia.png dist/OpenEkklesia.AppDir/OpenEkklesia.png
+
+# Stage the i18n dictionary beside the executable (<exe dir>/assets/i18n/) —
+# AppTranslator's packaged-layout lookup — and keep a visible copy at
+# usr/share/openekklesia/i18n for packagers inspecting the bundle.
+mkdir -p dist/OpenEkklesia.AppDir/usr/bin/assets/i18n \
+         dist/OpenEkklesia.AppDir/usr/share/openekklesia/i18n
+cp assets/i18n/es.json dist/OpenEkklesia.AppDir/usr/bin/assets/i18n/
+cp assets/i18n/es.json dist/OpenEkklesia.AppDir/usr/share/openekklesia/i18n/
+
 cat > dist/OpenEkklesia.AppDir/OpenEkklesia.desktop <<'DESKTOP'
 [Desktop Entry]
 Type=Application

@@ -441,6 +441,20 @@ if ($SkipBuild) {
 }
 
 Assert-DeployedTree -Path $releaseDir
+
+# Stage the i18n dictionary before packaging. build-windows.ps1 does this on
+# full builds; doing it here too guarantees -SkipBuild runs still ship it in
+# both artifacts (the .iss copies the Release tree recursively; the ZIP
+# stages the same folder).
+$i18nSrc = Join-Path $repoRoot "assets\i18n\es.json"
+if (Test-Path -LiteralPath $i18nSrc) {
+    $i18nDir = Join-Path $releaseDir "assets\i18n"
+    New-Item -ItemType Directory -Force -Path $i18nDir | Out-Null
+    Copy-Item $i18nSrc $i18nDir -Force
+} else {
+    Write-Warning "assets\i18n\es.json not found - the Spanish dictionary will not ship in the artifacts."
+}
+
 if (-not (Test-Path -LiteralPath $distDir)) {
     New-Item -ItemType Directory -Path $distDir -Force | Out-Null
 }

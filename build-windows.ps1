@@ -146,6 +146,17 @@ Write-Host "  $appExe" -ForegroundColor Green
 
 if (-not $NoDeploy) {
     $windeployqt = Join-Path $qtBin "windeployqt.exe"
+
+    # Stage the i18n dictionary next to the executable (<exe dir>/assets/i18n/)
+    # so AppTranslator finds it in dev builds, the portable ZIP and the Inno
+    # Setup installer (which ships this Release tree recursively).
+    $i18nSrc = Join-Path $PSScriptRoot "assets\i18n\es.json"
+    if (Test-Path $i18nSrc) {
+        $i18nDir = Join-Path (Split-Path -Parent $appExe) "assets\i18n"
+        New-Item -ItemType Directory -Force -Path $i18nDir | Out-Null
+        Copy-Item $i18nSrc $i18nDir -Force
+    }
+
     if (Test-Path $windeployqt) {
         Write-Host "Deploying Qt runtime next to the executable (windeployqt)..."
         $deployMode = if ($Config -eq "Debug") { "--debug" } else { "--release" }
