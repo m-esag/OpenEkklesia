@@ -1067,7 +1067,7 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {
   border: 1px solid var(--accent-primary);
 }
 QPushButton {
-  background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px 16px; border-radius: var(--radius-md); font-weight: bold; font-size: var(--font-size);
+  background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px 16px; border-radius: var(--radius-md); font-weight: bold; font-size: var(--font-size); min-height: 18px;
 }
 QPushButton:hover { background-color: var(--surface-hover); }
 QPushButton:pressed { background-color: var(--surface-pressed); }
@@ -1082,12 +1082,12 @@ QPushButton#primaryBtn:pressed, QPushButton#saveBtn:pressed { background-color: 
 QPushButton#primaryBtn:disabled, QPushButton#saveBtn:disabled {
   background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
 }
-QPushButton#secondaryBtn {
+QPushButton#secondaryBtn, QPushButton#ledgerEntryBtn {
   background-color: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color);
 }
-QPushButton#secondaryBtn:hover { background-color: var(--surface-hover); }
-QPushButton#secondaryBtn:pressed { background-color: var(--surface-pressed); }
-QPushButton#secondaryBtn:disabled {
+QPushButton#secondaryBtn:hover, QPushButton#ledgerEntryBtn:hover { background-color: var(--surface-hover); }
+QPushButton#secondaryBtn:pressed, QPushButton#ledgerEntryBtn:pressed { background-color: var(--surface-pressed); }
+QPushButton#secondaryBtn:disabled, QPushButton#ledgerEntryBtn:disabled {
   background-color: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);
 }
 QPushButton#dangerBtn {
@@ -1117,6 +1117,9 @@ QPushButton#navButton {
 }
 QPushButton#navButton:hover { background-color: var(--bg-surface); }
 QPushButton#navButton[active="true"] { background-color: var(--nav-active-bg); color: var(--accent-primary); font-weight: bold; }
+QToolButton {
+  min-width: 28px; min-height: 28px; padding: 3px;
+}
 QPushButton#checkinBtn {
   background-color: var(--accent-success); color: var(--text-on-success); border: none; border-radius: 10px; font-size: 18px;
 }
@@ -1156,11 +1159,34 @@ QListWidget::item:selected, QTreeView::item:selected, QTreeWidget::item:selected
 QTabWidget::pane { border: 1px solid var(--border-color); background-color: var(--bg-surface); border-radius: var(--radius-md); }
 QTabBar::tab { background-color: var(--bg-input); color: var(--text-secondary); padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; border: 1px solid var(--border-color); border-bottom: none; font-size: var(--font-size); }
 QTabBar::tab:selected { background-color: var(--bg-surface); color: var(--text-primary); border-bottom: 3px solid var(--accent-primary); }
-QFrame#cardWidget, QFrame#hintPanel {
+QFrame#cardWidget, QFrame#hintPanel, QFrame#card {
   background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);
 }
 QCheckBox, QRadioButton {
   color: var(--text-primary); font-weight: bold; font-size: var(--font-size);
+}
+/* Indicators: flat accent-fill checked state (no glyph images) so module
+   toggles and settings checkboxes match the rounded design system instead
+   of the native square. Radio = ring via a thick base-color border. */
+QCheckBox::indicator, QGroupBox::indicator {
+  width: 16px; height: 16px; border: 1px solid var(--border-color); border-radius: 4px;
+  background-color: var(--bg-input);
+}
+QRadioButton::indicator {
+  width: 16px; height: 16px; border: 1px solid var(--border-color); border-radius: 8px;
+  background-color: var(--bg-input);
+}
+QCheckBox::indicator:hover, QRadioButton::indicator:hover, QGroupBox::indicator:hover {
+  border-color: var(--accent-primary);
+}
+QCheckBox::indicator:checked, QGroupBox::indicator:checked {
+  background-color: var(--accent-primary); border-color: var(--accent-primary);
+}
+QRadioButton::indicator:checked {
+  background-color: var(--accent-primary); border: 4px solid var(--bg-base);
+}
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled, QGroupBox::indicator:disabled {
+  background-color: var(--bg-input); border-color: var(--border-color);
 }
 QComboBox {
   padding: 6px 28px 6px 10px;
@@ -1274,9 +1300,9 @@ QProgressBar::chunk {
 QSplitter::handle { background-color: var(--border-color); }
 QSplitter::handle:hover { background-color: var(--accent-primary); }
 QDialogButtonBox QPushButton { min-width: 80px; }
-QScrollBar:vertical, QScrollBar:horizontal { background-color: var(--bg-base); border: none; margin: 0; }
-QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background-color: var(--bg-input); border-radius: var(--radius-sm); min-height: 24px; min-width: 24px; }
-QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background-color: var(--surface-hover); }
+QScrollBar:vertical, QScrollBar:horizontal { background-color: var(--bg-base); border: none; margin: 0; width: 12px; height: 12px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background-color: var(--border-color); border-radius: 5px; min-height: 24px; min-width: 24px; }
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background-color: var(--accent-primary); }
 QScrollBar::add-line, QScrollBar::sub-line { border: none; background: none; width: 0; height: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: none; }
 )";

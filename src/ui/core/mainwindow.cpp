@@ -698,7 +698,7 @@ void MainWindow::setupUI() {
     });
 
     // 2. MINISTRY & SERVICES Section
-    m_headerMinistry = new QPushButton(" MINISTRY & SERVICES", this);
+    m_headerMinistry = new QPushButton(" MINISTRY && SERVICES", this);
     m_headerMinistry->setObjectName("sectionHeaderBtn");
     m_headerMinistry->setCursor(Qt::PointingHandCursor);
     
@@ -709,7 +709,7 @@ void MainWindow::setupUI() {
     layMin->setContentsMargins(0, 0, 0, 0);
     layMin->setSpacing(6);
 
-    m_btnGroups = new QPushButton("Groups & Ministries", this);
+    m_btnGroups = new QPushButton("Groups && Ministries", this);
     m_btnGroups->setObjectName("navButton");
     m_btnGroups->setToolTip("Groups & Ministries: Coordinate small groups, classes, ministry blueprints, and volunteer teams.");
     layMin->addWidget(m_btnGroups);
@@ -744,7 +744,7 @@ void MainWindow::setupUI() {
     });
 
     // 3. FINANCE & OPERATIONS Section
-    m_headerFinance = new QPushButton(" FINANCE & OPERATIONS", this);
+    m_headerFinance = new QPushButton(" FINANCE && OPERATIONS", this);
     m_headerFinance->setObjectName("sectionHeaderBtn");
     m_headerFinance->setCursor(Qt::PointingHandCursor);
     
@@ -1522,8 +1522,8 @@ void MainWindow::populatePages() {
     m_tabMinistryBlueprints = new QWidget(m_groupsTabWidget);
     setupMinistryBlueprintsTab(m_tabMinistryBlueprints);
 
-    m_groupsTabWidget->addTab(tabActiveGroups, IconManager::instance().getIcon("layers", 14), "Active Groups & Serving Rosters");
-    m_groupsTabWidget->addTab(m_tabMinistryBlueprints, IconManager::instance().getIcon("building-2", 14), "Ministry Blueprints & Archetype Catalog");
+    m_groupsTabWidget->addTab(tabActiveGroups, IconManager::instance().getIcon("layers", 14), "Active Groups && Serving Rosters");
+    m_groupsTabWidget->addTab(m_tabMinistryBlueprints, IconManager::instance().getIcon("building-2", 14), "Ministry Blueprints && Archetype Catalog");
 
     groupsLayout->addWidget(m_groupsTabWidget);
 

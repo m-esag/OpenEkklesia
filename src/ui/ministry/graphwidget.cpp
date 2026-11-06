@@ -1261,7 +1261,10 @@ void GraphWidget::setupUI() {
     m_detailsScrollArea->setWidgetResizable(true);
     m_detailsScrollArea->setFrameShape(QFrame::NoFrame);
     m_detailsScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_detailsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollBar:vertical { width: 6px; background: transparent; } QScrollBar::handle:vertical { background: #313244; border-radius: 3px; }");
+    // Only transparency is set inline; the scrollbar look comes from the
+    // global themed QSS (the previous inline copy hardcoded a dark-theme hex
+    // that washed out on light brands).
+    m_detailsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     m_detailsScrollArea->setWidget(m_detailsStack);
     m_dockTabs->addTab(m_detailsScrollArea, "Inspector");
     m_dockTabs->setTabIcon(0, IconManager::instance().getIcon("sidebar", tok.accentPrimary, 14));

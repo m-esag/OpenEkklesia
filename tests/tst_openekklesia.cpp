@@ -58,6 +58,8 @@
 #include <QAbstractButton>
 #include <QTimer>
 #include <QJsonArray>
+#include <QRegularExpression>
+#include "../src/common/apptranslator.h"
 #include "../src/ui/core/usermanualdialog.h"
 
 namespace {
@@ -276,6 +278,69 @@ bool test_setupWizardAppliesProfile() {
     CHECK_EQ(s.value("churchAddress").toString().toStdString(), std::string("456 Real St, Fresno, CA"));
     CHECK_EQ(s.value("churchTaxId").toString().toStdString(), std::string("12-3456789"));
     CHECK(s.value("profileComplete").toBool());
+    return true;
+}
+
+// --- AppTranslator (staged Spanish localization) -----------------------------
+
+// %1..%9 placeholder tokens; the dictionary parity test relies on this.
+int placeholderTokenCount(const QString& s) {
+    int count = 0;
+    auto it = QRegularExpression("%[0-9]").globalMatch(s);
+    while (it.hasNext()) { it.next(); ++count; }
+    return count;
+}
+
+// English and unknown languages must return keys unchanged, and a missing
+// "es" entry must degrade to the English key — never crash, never blank out.
+bool test_appTranslatorFallback() {
+    AppTranslator::instance().setLanguage("en");
+    CHECK_EQ(AppTranslator::t("Members").toStdString(), std::string("Members"));
+
+    AppTranslator::instance().setLanguage("fr");  // unknown -> "en"
+    CHECK_EQ(AppTranslator::t("Groups & Ministries").toStdString(),
+             std::string("Groups & Ministries"));
+
+    AppTranslator::instance().setLanguage("es");
+    CHECK_EQ(AppTranslator::t("Absolutely Missing Key 4711").toStdString(),
+             std::string("Absolutely Missing Key 4711"));
+    AppTranslator::instance().setLanguage("en");  // restore for later tests
+    return true;
+}
+
+// The dictionary ships as data, so the guard rail lives here: it must parse,
+// carry no blank values, preserve every %N placeholder, and contain no
+// duplicate keys (QJsonObject dedups silently — compare against raw text).
+bool test_esDictionaryValidity() {
+    const QString path = AppTranslator::instance().loadDictionary();
+    CHECK(!path.isEmpty());
+    if (path.isEmpty()) return false;
+
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    if (!file.isOpen()) return false;
+    const QByteArray rawBytes = file.readAll();
+    const QJsonDocument doc = QJsonDocument::fromJson(rawBytes);
+    CHECK(doc.isObject());
+    if (!doc.isObject()) return false;
+    const QJsonObject obj = doc.object();
+    CHECK(!obj.isEmpty());
+
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        CHECK(!it.value().toString().trimmed().isEmpty());
+        CHECK_EQ(placeholderTokenCount(it.key()),
+                 placeholderTokenCount(it.value().toString()));
+    }
+
+    static const QRegularExpression pairRe(
+        QStringLiteral("\"((?:\\\\.|[^\"\\\\])*)\"\\s*:"));
+    const QString raw = QString::fromUtf8(rawBytes);
+    int rawPairs = 0;
+    auto pairIt = pairRe.globalMatch(raw);
+    while (pairIt.hasNext()) { pairIt.next(); ++rawPairs; }
+    CHECK_EQ(rawPairs, obj.size());
+
+    AppTranslator::instance().setLanguage("en");  // restore for later tests
     return true;
 }
 
@@ -3237,7 +3302,8 @@ bool test_planningFrameworksAndEventsSuite() {
         CHECK_EQ(tabs->tabText(1).toStdString(), std::string("Church Events Hub"));
         CHECK_EQ(tabs->tabText(2).toStdString(), std::string("Agile Kanban Board"));
         CHECK_EQ(tabs->tabText(3).toStdString(), std::string("Event Project Gantt"));
-        CHECK_EQ(tabs->tabText(4).toStdString(), std::string("Ministry OKRs & Goals"));
+        // Raw text keeps the && mnemonic escape; rendering shows a single &.
+        CHECK_EQ(tabs->tabText(4).toStdString(), std::string("Ministry OKRs && Goals"));
     }
 
     // 3. Church Events Hub table
@@ -4692,6 +4758,8 @@ int main(int argc, char** argv) {
     {"pco_split_donation_import", test_pcoSplitDonationImport},
         {"people_confirm_discard_edits", test_peopleConfirmDiscardEdits},
         {"settings_retention_controls", test_settingsRetentionControls},
+        {"app_translator_fallback", test_appTranslatorFallback},
+        {"es_dictionary_validity", test_esDictionaryValidity},
     };
 
     // Optional debugging aid: OE_TEST_FILTER=name1,name2 runs only the named

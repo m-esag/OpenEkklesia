@@ -739,7 +739,7 @@ void PlanningWidget::setupGoalsTab(QTabWidget* tabs) {
     scroll->setWidget(m_goalsContainer);
     lay->addWidget(scroll);
 
-    tabs->addTab(tab, "Ministry OKRs & Goals");
+    tabs->addTab(tab, "Ministry OKRs && Goals");
     tabs->setTabIcon(4, IconManager::instance().getIcon("target", ThemeManager::instance().currentTokens().accentPrimary, 14));
 }
 
