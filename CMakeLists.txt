@@ -43,6 +43,34 @@ enable_testing()
 message(STATUS "Found Qt Version: ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}")
 
 # ---------------------------------------------------------------------------
+# Version automation — the project version (line 2 of this file) is the ONLY
+# place a version number is written. Everything else derives from it:
+#   - cmake/appversion.h.in -> generated appversion.h (About dialog, tests)
+#   - macOS bundle metadata (${PROJECT_VERSION} below)
+#   - installer/OpenEkklesia.iss receives /DMyAppVersion parsed from here by
+#     build-windows-installer.ps1
+# OE_BUILD_ID stamps the exact source state (git describe) into every build so
+# bug reports identify themselves. Bump versions with scripts/set-version.sh.
+# ---------------------------------------------------------------------------
+find_package(Git QUIET)
+set(OE_BUILD_ID "")
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE OE_BUILD_ID
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE OE_GIT_DESCRIBE_RC)
+    if(NOT OE_GIT_DESCRIBE_RC EQUAL 0)
+        set(OE_BUILD_ID "")
+    endif()
+endif()
+set(OE_VERSION_STRING "${PROJECT_VERSION}")
+configure_file(cmake/appversion.h.in "${CMAKE_BINARY_DIR}/generated/appversion.h" @ONLY)
+message(STATUS "OpenEkklesia version ${OE_VERSION_STRING}, build id: '${OE_BUILD_ID}'")
+
+# ---------------------------------------------------------------------------
 # Application sources — the single canonical list, shared by the app, the
 # test suite, and diagnostic probes so a new file can never be added to one
 # target and silently missing from another (that gap once let UI-breaking
@@ -160,6 +188,7 @@ set(OE_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/finance
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/ministry
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/admin
+    ${CMAKE_BINARY_DIR}/generated          # appversion.h (configure_file)
 )
 
 set(OE_LINK_LIBS
@@ -178,8 +207,8 @@ if(APPLE)
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "OpenEkklesia"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.openekklesia.OpenEkklesia"
-        MACOSX_BUNDLE_BUNDLE_VERSION "0.8.5"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.8.5"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
     )
 endif()
 

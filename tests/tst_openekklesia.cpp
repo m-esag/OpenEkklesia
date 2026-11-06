@@ -62,6 +62,7 @@
 #include <QRegularExpression>
 #include "../src/common/apptranslator.h"
 #include "../src/ui/core/usermanualdialog.h"
+#include "appversion.h"   // generated into <build>/generated (OE_INCLUDE_DIRS)
 
 namespace {
 
@@ -250,6 +251,29 @@ bool test_seedDataCounts() {
 // checkbox when the auto-column-size option was introduced).
 bool test_settingsWidgetConstructs() {
     SettingsWidget sw;
+    return true;
+}
+
+// Version automation: OE_VERSION_STRING comes from the generated appversion.h
+// (single source = project(VERSION) in CMakeLists.txt) and must stay in the
+// numeric X.Y.Z shape CMake accepts, so the installer's parser and the build
+// id stamping keep working.
+bool test_versionHeaderFormat() {
+    const std::string v = OE_VERSION_STRING;
+    CHECK(v.size() >= 5);
+    bool ok = false;
+    int dots = 0, digits = 0;
+    for (const char c : v) {
+        if (c == '.') ++dots;
+        else if (c >= '0' && c <= '9') ++digits;
+        else { ok = false; break; }
+        ok = true;
+    }
+    CHECK(ok);
+    CHECK_EQ(dots, 2);
+    CHECK(digits >= 3);
+    // The build id, when present, names the exact source state.
+    CHECK(std::string(OE_BUILD_ID).size() < 128);
     return true;
 }
 
@@ -4755,6 +4779,7 @@ int main(int argc, char** argv) {
         {"ytd_income_and_expenses_filter_by_year", test_ytdIncomeAndExpensesFilterByYear},
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"settings_widget_constructs", test_settingsWidgetConstructs},
+        {"version_header_format", test_versionHeaderFormat},
         {"setup_wizard_applies_profile", test_setupWizardAppliesProfile},
         {"church_profile_defaults_not_fake_data", test_churchProfileDefaultsAreNotFakeData},
         {"pastoral_queue", test_pastoralQueue},

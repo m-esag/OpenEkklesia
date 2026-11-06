@@ -2,6 +2,7 @@
 #include "appsettings.h"
 #include "../../common/tableutil.h"
 #include "thememanager.h"
+#include "appversion.h"
 #include "touchhelper.h"
 #include "iconmanager.h"
 #include "ministryarchetypes.h"
@@ -538,8 +539,14 @@ void MainWindow::setupMenuBar() {
         lay->setSpacing(14);
 
         QLabel* lblTitle = new QLabel("<h3>OpenEkklesia ChMS</h3>", &dlg);
+        // Version comes from the generated appversion.h (single source:
+        // project(VERSION) in CMakeLists.txt); the build id is the git
+        // describe stamp so bug reports identify the exact source state.
+        QString versionLine = QString("<b>Version %1</b>").arg(OE_VERSION_STRING);
+        if (OE_BUILD_ID[0] != '\0')
+            versionLine += QString(" <small>(build %1)</small>").arg(OE_BUILD_ID);
         QLabel* lblDesc = new QLabel(
-            "<b>Version 0.8.5-rc1</b> — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
+            versionLine + " — Privacy-First Open-Source Church Management & Pastoral Analytics Suite.<br><br>"
             "Features double-entry fund accounting, relational connection graph visualization, "
             "Smart Bridge v2.0 group dynamics synergy engine, service liturgy flow builder, "
             "facilities management, document vault, and nursery kiosk check-in portal.", &dlg);
