@@ -146,7 +146,7 @@ void ShepherdWidget::setupUI() {
     queueBtns->addWidget(m_btnLogFollowUp);
     queueBtns->addStretch();
     queueLay->addLayout(queueBtns);
-    m_tabs->addTab(tabQueue, "Today's Queue");
+    m_tabs->addTab(tabQueue, AppTranslator::t("Today's Queue"));
     m_tabs->setTabIcon(0, IconManager::instance().getIcon("check-square", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 2: Member Activities ----
@@ -212,7 +212,7 @@ void ShepherdWidget::setupUI() {
                 refreshTimeline();
             }
         } else if (sel == actDelete && !isReadOnly) {
-            if (QMessageBox::question(this, "Confirm Delete", "Delete this pastoral activity record?") == QMessageBox::Yes) {
+            if (QMessageBox::question(this, AppTranslator::t("Confirm Delete"), AppTranslator::t("Delete this pastoral activity record?")) == QMessageBox::Yes) {
                 QSqlQuery dq;
                 dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
                 dq.addBindValue(actId);
@@ -222,7 +222,7 @@ void ShepherdWidget::setupUI() {
         }
     });
     memberLay->addWidget(m_timelineList);
-    m_tabs->addTab(tabMember, "Member Care Timeline");
+    m_tabs->addTab(tabMember, AppTranslator::t("Member Care Timeline"));
     m_tabs->setTabIcon(1, IconManager::instance().getIcon("user", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 3: Prayer List ----
@@ -283,7 +283,7 @@ void ShepherdWidget::setupUI() {
                 refreshPrayerList();
             }
         } else if (sel == actDelete && !isReadOnly) {
-            if (QMessageBox::question(this, "Confirm Delete", "Delete this prayer request?") == QMessageBox::Yes) {
+            if (QMessageBox::question(this, AppTranslator::t("Confirm Delete"), AppTranslator::t("Delete this prayer request?")) == QMessageBox::Yes) {
                 QSqlQuery dq;
                 dq.prepare("DELETE FROM pastoral_activities WHERE id = ?");
                 dq.addBindValue(pId);
@@ -307,7 +307,7 @@ void ShepherdWidget::setupUI() {
     connect(m_btnPrayerDone, &QPushButton::clicked, this, [this]() {
         QListWidgetItem* item = m_prayerList->currentItem();
         if (!item) {
-            QMessageBox::information(this, "Notice", "Select a prayer item to mark as answered.");
+            QMessageBox::information(this, AppTranslator::t("Notice"), AppTranslator::t("Select a prayer item to mark as answered."));
             return;
         }
         int id = item->data(Qt::UserRole).toInt();
@@ -321,7 +321,7 @@ void ShepherdWidget::setupUI() {
     prayerBtns->addWidget(m_btnPrayerDone);
     prayerBtns->addStretch();
     prayerLay->addLayout(prayerBtns);
-    m_tabs->addTab(tabPrayer, "Prayer List");
+    m_tabs->addTab(tabPrayer, AppTranslator::t("Prayer List"));
     m_tabs->setTabIcon(2, IconManager::instance().getIcon("heart", ThemeManager::instance().currentTokens().accentPrimary, 14));
 
     // ---- Tab 4: Giving Care (lapsed-giver watchlist) ----
@@ -345,7 +345,7 @@ void ShepherdWidget::setupUI() {
         if (personId > 0) emit navigateToMember(personId);
     });
     givingLay->addWidget(m_lapsedGiverList);
-    m_tabs->addTab(tabGiving, "Giving Care");
+    m_tabs->addTab(tabGiving, AppTranslator::t("Giving Care"));
     m_tabs->setTabIcon(3, IconManager::instance().getIcon("dollar-sign", ThemeManager::instance().currentTokens().accentPrimary, 14));
 }
 
@@ -547,7 +547,7 @@ void ShepherdWidget::onLogFollowUp() {
 void ShepherdWidget::onMarkFollowUpDone() {
     int row = m_queueTable->currentRow();
     if (row < 0 || !m_queueTable->item(row, 0)) {
-        QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
+        QMessageBox::information(this, AppTranslator::t("Notice"), AppTranslator::t("Select a follow-up item from the queue first."));
         return;
     }
     int id = m_queueTable->item(row, 0)->data(Qt::UserRole).toInt();
@@ -557,14 +557,14 @@ void ShepherdWidget::onMarkFollowUpDone() {
     if (q.exec()) {
         refreshAll();
     } else {
-        QMessageBox::critical(this, "Database Error", "Failed to update follow-up: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to update follow-up: ") + q.lastError().text());
     }
 }
 
 void ShepherdWidget::onRescheduleFollowUp() {
     int row = m_queueTable->currentRow();
     if (row < 0 || !m_queueTable->item(row, 0) || !m_queueTable->item(row, 1)) {
-        QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
+        QMessageBox::information(this, AppTranslator::t("Notice"), AppTranslator::t("Select a follow-up item from the queue first."));
         return;
     }
     int id = m_queueTable->item(row, 0)->data(Qt::UserRole).toInt();
@@ -572,7 +572,7 @@ void ShepherdWidget::onRescheduleFollowUp() {
     QString currentDue = m_queueTable->item(row, 0)->text();
 
     QDialog dlg(this);
-    dlg.setWindowTitle("Reschedule Follow-up — " + memberName);
+    dlg.setWindowTitle(AppTranslator::t("Reschedule Follow-up —") + " " + memberName);
     dlg.resize(380, 220);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
     lay->setSpacing(12);
@@ -616,9 +616,9 @@ void ShepherdWidget::onRescheduleFollowUp() {
         q.addBindValue(id);
         if (q.exec()) {
             refreshAll();
-            QMessageBox::information(this, "Success", QString("Follow-up rescheduled to %1.").arg(newDate));
+            QMessageBox::information(this, AppTranslator::t("Success"), QString(AppTranslator::t("Follow-up rescheduled to %1.")).arg(newDate));
         } else {
-            QMessageBox::critical(this, "Database Error", "Failed to reschedule: " + q.lastError().text());
+            QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to reschedule: ") + q.lastError().text());
         }
     }
 }
@@ -627,7 +627,7 @@ void ShepherdWidget::onExportCalendarEvent() {
     int row = m_queueTable->currentRow();
     if (row < 0 || !m_queueTable->item(row, 0) || !m_queueTable->item(row, 1)
         || !m_queueTable->item(row, 2) || !m_queueTable->item(row, 3)) {
-        QMessageBox::information(this, "Notice", "Select a follow-up item from the queue first.");
+        QMessageBox::information(this, AppTranslator::t("Notice"), AppTranslator::t("Select a follow-up item from the queue first."));
         return;
     }
     int id = m_queueTable->item(row, 0)->data(Qt::UserRole).toInt();
@@ -645,8 +645,8 @@ void ShepherdWidget::onExportCalendarEvent() {
     QString fileName = QFileDialog::getSaveFileName(this, "Save Calendar Reminder (.ics)", defaultFile, "iCalendar Files (*.ics)");
     if (fileName.isEmpty()) return;
 
-    auto warn = QMessageBox::warning(this, "Data Security Notice",
-        "This calendar file contains pastoral care details in plain text.\nOnly store it on a trusted device.",
+    auto warn = QMessageBox::warning(this, AppTranslator::t("Data Security Notice"),
+        AppTranslator::t("This calendar file contains pastoral care details in plain text.\nOnly store it on a trusted device."),
         QMessageBox::Ok | QMessageBox::Cancel);
     if (warn != QMessageBox::Ok) return;
 
@@ -657,14 +657,14 @@ void ShepherdWidget::onExportCalendarEvent() {
         followUpDate, QTime(), QTime(),
         QString("Pastoral Care: %1 (%2)").arg(memberName, type), description);
     if (ics.isEmpty()) {
-        QMessageBox::warning(this, "Export Failed",
-                             "The follow-up date could not be read; nothing was exported.");
+        QMessageBox::warning(this, AppTranslator::t("Export Failed"),
+                             AppTranslator::t("The follow-up date could not be read; nothing was exported."));
         return;
     }
 
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "File Error", "Could not create calendar file: " + file.errorString());
+        QMessageBox::critical(this, AppTranslator::t("File Error"), AppTranslator::t("Could not create calendar file: ") + file.errorString());
         return;
     }
     QTextStream out(&file);
@@ -672,8 +672,8 @@ void ShepherdWidget::onExportCalendarEvent() {
     file.close();
 
     DatabaseManager::logAudit("exports", id, "pastoral_ics", memberName, fileName, "shepherd");
-    QMessageBox::information(this, "Calendar Event Exported",
-        QString("Calendar reminder exported successfully!\n\nYou can open this file in Outlook, Apple Calendar, Google Calendar, or Thunderbird:\n%1").arg(fileName));
+    QMessageBox::information(this, AppTranslator::t("Calendar Event Exported"),
+        QString(AppTranslator::t("Calendar reminder exported successfully!\n\nYou can open this file in Outlook, Apple Calendar, Google Calendar, or Thunderbird:\n%1")).arg(fileName));
 }
 
 void ShepherdWidget::onQueueContextMenu(const QPoint& pos) {
@@ -732,7 +732,7 @@ void ShepherdWidget::onQueueActivated(int row, int column) {
 
 bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& prefillType) {
     QDialog dlg(this);
-    dlg.setWindowTitle("Log Pastoral Activity");
+    dlg.setWindowTitle(AppTranslator::t("Log Pastoral Activity"));
     dlg.resize(440, 400);
     QFormLayout* form = new QFormLayout(&dlg);
     form->setSpacing(10);
@@ -761,11 +761,11 @@ bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& pref
     form->addRow("Date:", dateEdit);
 
     QTextEdit* notesEdit = new QTextEdit(&dlg);
-    notesEdit->setPlaceholderText("What happened, what was discussed...");
+    notesEdit->setPlaceholderText(AppTranslator::t("What happened, what was discussed..."));
     form->addRow("Notes:", notesEdit);
 
     QLineEdit* outcomeEdit = new QLineEdit(&dlg);
-    outcomeEdit->setPlaceholderText("e.g. Hospital visit, prayed together");
+    outcomeEdit->setPlaceholderText(AppTranslator::t("e.g. Hospital visit, prayed together"));
     form->addRow("Outcome:", outcomeEdit);
 
     QCheckBox* followUpChk = new QCheckBox("Schedule a follow-up", &dlg);
@@ -791,7 +791,7 @@ bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& pref
     if (personId <= 0) return false;
     QString notes = notesEdit->toPlainText().trimmed();
     if (notes.isEmpty() && outcomeEdit->text().trimmed().isEmpty()) {
-        QMessageBox::warning(this, "Missing Details", "Add a short note or outcome before saving.");
+        QMessageBox::warning(this, AppTranslator::t("Missing Details"), AppTranslator::t("Add a short note or outcome before saving."));
         return false;
     }
 
@@ -807,7 +807,7 @@ bool ShepherdWidget::showActivityDialog(int prefillPersonId, const QString& pref
     q.addBindValue(followUpChk->isChecked() ? followUpEdit->date().toString("yyyy-MM-dd") : QVariant());
     q.addBindValue(0);
     if (!q.exec()) {
-        QMessageBox::critical(this, "Database Error", "Failed to save activity: " + q.lastError().text());
+        QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to save activity: ") + q.lastError().text());
         return false;
     }
     return true;
