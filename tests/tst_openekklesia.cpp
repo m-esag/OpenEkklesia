@@ -49,6 +49,9 @@
 #include "../src/ui/people/pastoralhistoryservice.h"
 #include "../src/integrations/planningcenterclient.h"
 #include "../src/ui/core/mainwindow.h"
+#include "../src/ui/core/commandpalette.h"
+#include <QImage>
+#include <QElapsedTimer>
 
 #include <QStackedLayout>
 #include <QToolButton>
@@ -251,6 +254,42 @@ bool test_seedDataCounts() {
 // checkbox when the auto-column-size option was introduced).
 bool test_settingsWidgetConstructs() {
     SettingsWidget sw;
+    return true;
+}
+
+// User-reported: the Ctrl+K palette faded in, then the whole dialog AND its
+// results went invisible mid-use. Root cause: showEvent() installed a
+// QGraphicsOpacityEffect on the WA_TranslucentBackground top-level and never
+// removed it — later repaints through the effect path rendered blank. The fix
+// removes the effect when the fade finishes; this test drives a real show()
+// and asserts the rendered surface is actually painted.
+bool test_commandPaletteRendersVisible() {
+    MainWindow mw;
+    CommandPaletteDialog palette(&mw);
+    palette.resize(550, 380);
+    palette.show();
+
+    // Run the fade-in to completion (140 ms) plus margin so the effect-removal
+    // finished() handler has executed.
+    QElapsedTimer t;
+    t.start();
+    while (t.elapsed() < 400)
+        QCoreApplication::processEvents();
+
+    const QImage img = palette.grab().toImage();
+    CHECK(img.width() >= 400);
+    CHECK(img.height() >= 300);
+
+    int solid = 0;
+    for (int y = 0; y < img.height(); y += 4)
+        for (int x = 0; x < img.width(); x += 4)
+            if (qAlpha(img.pixel(x, y)) > 40) ++solid;
+    // A blank translucent render samples nearly zero opaque pixels; the real
+    // frame (search field + list + chrome) covers most of the 550x380 dialog.
+    CHECK(solid > 2000);
+
+    // The lingering-opacity bug is fixed: no graphics effect may remain.
+    CHECK(palette.graphicsEffect() == nullptr);
     return true;
 }
 
@@ -4780,6 +4819,7 @@ int main(int argc, char** argv) {
         {"split_sharing_round_trip", test_splitSharingRoundTrip},
         {"settings_widget_constructs", test_settingsWidgetConstructs},
         {"version_header_format", test_versionHeaderFormat},
+        {"command_palette_renders_visible", test_commandPaletteRendersVisible},
         {"setup_wizard_applies_profile", test_setupWizardAppliesProfile},
         {"church_profile_defaults_not_fake_data", test_churchProfileDefaultsAreNotFakeData},
         {"pastoral_queue", test_pastoralQueue},

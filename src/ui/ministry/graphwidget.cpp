@@ -710,7 +710,11 @@ void GraphCanvasView::wheelEvent(QWheelEvent* event) {
 
 void GraphCanvasView::mousePressEvent(QMouseEvent* event) {
     QGraphicsView::mousePressEvent(event);
-    if (m_graphWidget) m_graphWidget->resumePhysics(); // a drag may follow
+    // Deliberately NO resumePhysics() here: the old unconditional resume
+    // restarted the layout whenever the user grabbed a node while the graph
+    // was frozen — dragging overrode an explicit pause (user-requested
+    // behavior: a frozen graph stays frozen during drags; node edges are
+    // reconciled by updateEdgesForNode() on release instead).
     if (!itemAt(event->pos()) && m_graphWidget) {
         m_graphWidget->resetHighlight();
     }
