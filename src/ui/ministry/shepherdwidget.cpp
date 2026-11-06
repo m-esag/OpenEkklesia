@@ -1,5 +1,6 @@
 #include "shepherdwidget.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 #include "../../common/tableutil.h"
 #include "../../common/icalgenerator.h"
 #include "../database/databasemanager.h"
@@ -59,9 +60,9 @@ void ShepherdWidget::setupUI() {
     // Header + stats
     QHBoxLayout* headerRow = new QHBoxLayout();
     QVBoxLayout* titleCol = new QVBoxLayout();
-    QLabel* header = new QLabel("Shepherd's Workbench", this);
+    QLabel* header = new QLabel(AppTranslator::t("Shepherd's Workbench"), this);
     header->setObjectName("pageHeader");
-    QLabel* sub = new QLabel("Today's pastoral priorities — the people who need you, gathered in one place.", this);
+    QLabel* sub = new QLabel(AppTranslator::t("Today's pastoral priorities — the people who need you, gathered in one place."), this);
     sub->setStyleSheet("font-size: 13px; opacity: 0.8;");
     titleCol->addWidget(header);
     titleCol->addWidget(sub);

@@ -1,5 +1,6 @@
 #include "pastoralanalyticswidget.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 #include "../database/databasemanager.h"
 #include "../../common/appdateformatter.h"
 #include <QVBoxLayout>
@@ -56,10 +57,10 @@ void PastoralAnalyticsWidget::setupUI() {
     QVBoxLayout* titleBox = new QVBoxLayout();
     titleBox->setSpacing(4);
 
-    QLabel* header = new QLabel("Pastoral Analytics", this);
+    QLabel* header = new QLabel(AppTranslator::t("Pastoral Analytics"), this);
     header->setObjectName("pageHeader");
 
-    m_lblSubtitle = new QLabel(QString("Current Snapshot as of %1 • Real-Time Congregation Health Indicators")
+    m_lblSubtitle = new QLabel(QString(AppTranslator::t("Current Snapshot as of %1 • Real-Time Congregation Health Indicators"))
                                    .arg(AppDateFormatter::formatDate(QDate::currentDate())), this);
     m_lblSubtitle->setStyleSheet("color: palette(placeholderText); font-size: 12px; font-weight: bold;");
 

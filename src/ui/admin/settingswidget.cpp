@@ -63,7 +63,7 @@ void SettingsWidget::setupUI() {
     QHBoxLayout* topBar = new QHBoxLayout();
     
     QVBoxLayout* titleCol = new QVBoxLayout();
-    QLabel* pageHeader = new QLabel("Application Settings & Preferences", this);
+    QLabel* pageHeader = new QLabel(AppTranslator::t("Application Settings & Preferences"), this);
     pageHeader->setObjectName("pageHeader");
     pageHeader->setStyleSheet("font-size: 20px; font-weight: bold;");
 

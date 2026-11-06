@@ -1,4 +1,5 @@
 #include "planningwidget.h"
+#include "apptranslator.h"
 #include "../../common/tableutil.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -111,7 +112,7 @@ void PlanningWidget::setupUI() {
     QHBoxLayout* headerLayout = new QHBoxLayout();
     headerLayout->setSpacing(10);
 
-    QLabel* header = new QLabel("Ministry Planning & Strategic Execution", this);
+    QLabel* header = new QLabel(AppTranslator::t("Ministry Planning & Strategic Execution"), this);
     header->setObjectName("pageHeader");
     headerLayout->addWidget(header);
     headerLayout->addStretch();

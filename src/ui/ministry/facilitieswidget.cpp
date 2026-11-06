@@ -1,4 +1,5 @@
 #include "facilitieswidget.h"
+#include "apptranslator.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -51,7 +52,7 @@ void FacilitiesWidget::setupUI() {
     mainLayout->setSpacing(15);
 
     QHBoxLayout* headerLayout = new QHBoxLayout();
-    QLabel* header = new QLabel("Facilities & Equipment Scheduling Matrix", this);
+    QLabel* header = new QLabel(AppTranslator::t("Facilities & Equipment Scheduling Matrix"), this);
     header->setObjectName("pageHeader");
     headerLayout->addWidget(header);
     headerLayout->addStretch();

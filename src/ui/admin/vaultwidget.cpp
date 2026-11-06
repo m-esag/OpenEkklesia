@@ -1,5 +1,6 @@
 #include "vaultwidget.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 #include "../common/churchprofile.h"
 #include "../common/appdateformatter.h"
 #include <QDate>
@@ -88,7 +89,7 @@ void VaultWidget::setupUI() {
     mainLayout->setSpacing(20);
 
     // Title / Header
-    QLabel* pageTitle = new QLabel("Board Minutes & Document Vault", this);
+    QLabel* pageTitle = new QLabel(AppTranslator::t("Board Minutes & Document Vault"), this);
     pageTitle->setObjectName("pageHeader");
     mainLayout->addWidget(pageTitle);
 
