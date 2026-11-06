@@ -62,6 +62,8 @@ set(OE_APP_SOURCES
     src/common/givingstatementgenerator.cpp
     src/common/appsettings.h
     src/common/appsettings.cpp
+    src/common/apptranslator.h
+    src/common/apptranslator.cpp
     src/common/appcurrency.h
 
     # Database Module

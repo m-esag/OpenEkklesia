@@ -15,6 +15,7 @@
 #include "thememanager.h"
 #include "touchhelper.h"
 #include "appsettings.h"
+#include "apptranslator.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
@@ -58,6 +59,13 @@ int main(int argc, char *argv[]) {
     // unaffected, but a normalized CWD makes every launch path equal.
     QDir::setCurrent(QCoreApplication::applicationDirPath());
 #endif
+
+    // Resolve the UI language before any UI is constructed (theme engine,
+    // first-run wizard, main window) so the first paint is already localized.
+    // No live retranslation in this phase: a language change made in Settings
+    // applies on restart (the first-run wizard retranslates itself live).
+    AppTranslator::instance().setLanguage(
+        AppSettings().value("ui/language", "en").toString());
 
     ThemeManager::instance().initialize();
 
