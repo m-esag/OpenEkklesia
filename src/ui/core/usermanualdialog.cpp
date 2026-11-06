@@ -450,7 +450,18 @@ QString UserManualDialog::getFullManualHtml() {
 
 <a name="intro"></a>
 <h1><img class="header-icon" src="%7"> OpenEkklesia — Comprehensive User Manual</h1>
-<p>Welcome to the official operating guide and manual of use for <b>OpenEkklesia</b>, the privacy-first, open-source Church Management System (ChMS) and Pastoral Analytics Suite. Designed with SQLite WAL database architecture, relational network visualizers, liturgical worship planners, Lucide vector icons, and the Smart Bridge v2.0 synergy engine.</p>
+<p>Welcome to the official operating guide for <b>OpenEkklesia</b>, an offline-first desktop Church Management System (ChMS) for small churches (1–2 administrators). It uses a 4-digit PIN sign-in (seeded defaults, changeable in Settings → Access PINs), a local SQLite database, no network listener, no telemetry, and no encryption of data at rest; see <b>SECURITY.md</b> for scope. This manual documents the current release only.</p>
+
+<p>Modules: Dashboard, People, Connection Graph, Pastoral Analytics, Shepherd's Workbench, Groups &amp; Ministries, Service Builder, Facilities Matrix, Ministry Planning, Giving &amp; Batches, Asset Inventory, Document Vault, and Settings.</p>
+<!-- nav modules: Dashboard, People, Connection Graph, Pastoral Analytics, Shepherd's Workbench, Groups & Ministries, Service Builder, Facilities Matrix, Ministry Planning, Giving & Batches, Asset Inventory, Document Vault -->
+
+<h3>Getting started</h3>
+<ul>
+    <li><b>First-run setup wizard:</b> church profile fields (name, tagline, denomination, address, phone, email, website, Tax ID). They print on giving statements. <b>Skip for Now</b> never nags again; the giving page nudges until an address exists. Completing via Settings also marks it done.</li>
+    <li><b>First-run sign-in:</b> four seeded accounts — Admin <kbd>1234</kbd>, Pastor <kbd>5555</kbd>, Finance <kbd>7777</kbd>, Guest <kbd>0000</kbd>. Change these in Settings → Access PINs before real use.</li>
+    <li><b>Language selection:</b> English / Español on first run; restart applies. Settings changes restart-apply too.</li>
+    <li><b>Theme selection:</b> system light/dark default, Catppuccin presets, custom brand colors, and the Contrast Guardian.</li>
+</ul>
 
 <div class="alert-tip">
     <img src="%21" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"> <b>Quick Navigation Index:</b> Click any of the topics below to jump directly to that chapter:
@@ -474,12 +485,14 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="shortcuts"></a>
-<h2><img class="header-icon" src="%8"> 2. Keyboard Shortcuts & Command Palette</h2>
+<h2><img class="header-icon" src="%8"> <span class="badge">[Available]</span> 2. Keyboard Shortcuts & Command Palette</h2>
 <p>OpenEkklesia provides high-speed keyboard shortcuts for pastors, administrators, and volunteers to navigate without taking their hands off the keyboard:</p>
 
 <table>
     <tr><th>Shortcut</th><th>Action</th><th>Description</th></tr>
     <tr><td><kbd>Ctrl+K</kbd></td><td>Command Palette</td><td>Fuzzy search across all people, groups, services, and commands</td></tr>
+<tr><td><kbd>Ctrl+T</kbd></td><td>Theme Toggle</td><td>Toggle Dark / Light Theme</td></tr>
+    <tr><td><kbd>Ctrl+S</kbd></td><td>Save</td><td>Save in Settings pages</td></tr>
     <tr><td><kbd>F1</kbd></td><td>User Manual</td><td>Open this interactive in-app help manual from anywhere</td></tr>
     <tr><td><kbd>Ctrl+1</kbd></td><td>Dashboard</td><td>Switch to Main Executive KPI & Summary Dashboard</td></tr>
     <tr><td><kbd>Ctrl+2</kbd></td><td>People</td><td>Open Congregation Directory & Member Dossier</td></tr>
@@ -492,8 +505,16 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="people"></a>
-<h2><img class="header-icon" src="%9"> 3. People & 360° Pastoral Dossier</h2>
+<h2><img class="header-icon" src="%9"> <span class="badge">[Available]</span> 3. People & 360° Pastoral Dossier</h2>
 <p>The <b>People Module</b> is the central repository for member records, growth tracking, spiritual gifts assessment, behavioral ministry profiling, and relational connection mapping.</p>
+<h3>Membership &amp; care</h3>
+<ul>
+    <li><b>Membership lifecycle:</b> Visitor → Regular Attender → Member → Inactive.</li>
+    <li><b>Care flags:</b> Normal, Needs Contact, Follow-up, At-Risk, Grief Support, Leader.</li>
+    <li><b>Member history:</b> timestamped care notes and milestones.</li>
+    <li><b>Tag chips:</b> interest tags and labels.</li>
+    <li><b>Visitor management:</b> track visitors through engagement.</li>
+</ul>
 
 <h3>Key Dossier Views:</h3>
 <ul>
@@ -601,12 +622,12 @@ QString UserManualDialog::getFullManualHtml() {
     // document is longer than that. MSVC 14.44 (VS 2022) rejects it with
     // "string too big, trailing characters truncated".
     + QString(R"rawhtml(<a name="groups"></a>
-<h2><img class="header-icon" src="%10"> 4. Fixed Ministries & Serving Groups</h2>
+<h2><img class="header-icon" src="%10"> <span class="badge">[Available]</span> 4. Fixed Ministries & Serving Groups</h2>
 <p>OpenEkklesia implements a <b>"Ministry = Blueprint, Group = Roster + Override"</b> dual-layer hierarchy.</p>
 
 <h3>Architecture Overview:</h3>
 <ul>
-    <li><b>Level 0 (Top-Level Fixed Ministries):</b> The 11 Canonical Ministries (<a href="#smartbridge">see blueprints</a>) exist as permanent root nodes. They are system-locked and cannot be deleted or archived.</li>
+    <li><b>Primary blueprints on fresh installs:</b> Worship, Children's Ministry, Ushers &amp; Greeters, and Multimedia &amp; AV Tech ship enabled; other canonical blueprints materialize on demand. Archived/hidden groups are available via the Show Archived toggle; the blueprint manager creates, edits, and archives blueprints.</li>
     <li><b>Level 1+ (Dynamic Child Serving Teams):</b> Serving sub-teams (e.g. <i>"Band A"</i> under <i>Worship & Creative Arts</i>, or <i>"Sunday Tech Crew"</i> under <i>Media & AV Tech</i>) are nested underneath their parent root ministry.</li>
     <li><b>Automatic Blueprint Inheritance:</b> When creating a new serving group under a parent ministry, it automatically inherits the parent blueprint's category, ideal archetypes, target vector, and required spiritual gifts.</li>
     <li><b>Macro Department Aggregation:</b> Selecting a root ministry aggregates all active volunteers across its child teams, displaying a combined department roster and macro-level archetype composition.</li>
@@ -615,7 +636,7 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="smartbridge"></a>
-<h2><img class="header-icon" src="%11"> 5. Smart Bridge v2.0 & Synergy Engine</h2>
+<h2><img class="header-icon" src="%11"> <span class="badge">[Available]</span> 5. Smart Bridge v2.0 & Synergy Engine</h2>
 <p>The <b>Smart Bridge v2.0</b> engine calculates mathematical chemistry and relational equilibrium when placing volunteers onto ministry teams.</p>
 
 <h3>Chemistry Scoring (0–100, clamped to 15–98):</h3>
@@ -654,12 +675,16 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="graph"></a>
-<h2><img class="header-icon" src="%12"> 6. Connection Graph & Relational Visualizer</h2>
+<h2><img class="header-icon" src="%12"> <span class="badge">[Available]</span> 6. Connection Graph & Relational Visualizer</h2>
 <p>The <b>Connection Graph</b> renders force-directed physics visualizations of household and relationship networks, small group clusters, and Smart Bridge recommendations.</p>
 
 <h3>Canvas Features:</h3>
 <ul>
     <li><b>Node Interaction:</b> Click on any Person or Group to inspect relational ties and open the Smart Bridge match panel.</li>
+    <li><b>Hover detail cards:</b> hover a node to see summary details.</li>
+    <li><b>Filters:</b> filter people, households, groups, burnout, isolation, hygiene, bridge, family.</li>
+    <li><b>Physics pause:</b> physics pauses when leaving the page.</li>
+    <li><b>Spotlight / Context Inspector:</b> focused inspection of a selected node.</li>
     <li><b>Relational Edge Legend:</b>
         <ul>
             <li><span style="color:%25;">Gold Solid</span>: Verified household family relationships.</li>
@@ -677,7 +702,7 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="shepherd"></a>
-<h2><img class="header-icon" src="%13"> 7. Shepherd's Workbench & Pastoral Care</h2>
+<h2><img class="header-icon" src="%13"> <span class="badge">[Available]</span> 7. Shepherd's Workbench & Pastoral Care</h2>
 <p>The <b>Shepherd's Workbench</b> gives pastoral staff a focused, privacy-conscious cockpit for member care and follow-up.</p>
 
 <ul>
@@ -690,7 +715,7 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="service"></a>
-<h2><img class="header-icon" src="%14"> 8. Service Liturgy Builder & Run-Sheet</h2>
+<h2><img class="header-icon" src="%14"> <span class="badge">[Available]</span> 8. Service Liturgy Builder & Run-Sheet</h2>
 <p>Plan weekly worship services, order of liturgy, sermon elements, and volunteer production rosters.</p>
 
 <ul>
@@ -703,10 +728,15 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="planning"></a>
-<h2><img class="header-icon" src="%15"> 9. Ministry Planning Matrix</h2>
+<h2><img class="header-icon" src="%15"> <span class="badge">[Available]</span> 9. Ministry Planning Matrix</h2>
 <p>The <b>Ministry Planning Matrix</b> coordinates ministry initiatives, leadership retreats, seasonal programs, and volunteer schedules on a shared timeline.</p>
 
 <ul>
+    <li><b>Strategic Roadmap:</b> horizons and quarter chips with themed status colors.</li>
+    <li><b>Kanban drag &amp; drop:</b> stage columns; status persists; Completed auto-sets 100%.</li>
+    <li><b>Event Project Gantt:</b> 20-day rolling window; owner, status, start/end.</li>
+    <li><b>Ministry OKRs:</b> objectives and key results tracking.</li>
+    <li><b>Add Initiative/Task/Church Event dialogs:</b> create roadmap items.</li>
     <li><b>Ministry Product Roadmap:</b> 12-month initiative benchmarks organized by Ministry / Team, with quarterly milestone coloring.</li>
     <li><b>Event Project Gantt Chart:</b> A 20-day rolling window anchored to a real calendar date (or a dated service event) showing each activity's owner, status, and start/end span.</li>
     <li><b>Task Lifecycle:</b> Add, edit, and remove initiatives with assigned ministry team, owner, planned vs. actual dates, and status transitions (Planned → In-Progress → Completed).</li>
@@ -716,46 +746,69 @@ QString UserManualDialog::getFullManualHtml() {
 <hr>
 
 <a name="facilities"></a>
-<h2><img class="header-icon" src="%16"> 10. Facilities Matrix & Asset Inventory</h2>
+<h2><img class="header-icon" src="%16"> <span class="badge">[Available]</span> 10. Facilities Matrix & Asset Inventory</h2>
 <p>Track church buildings, rooms, AV equipment, vehicles, and loanable assets.</p>
 
 <ul>
     <li><b>Facility Booking Matrix:</b> Schedule sanctuaries, fellowship halls, classrooms, and equipment with automated collision prevention — double-bookings of the same space, date, and time are rejected, and reservations export to calendar (.ics).</li>
     <li><b>Asset Barcode Checkout:</b> Scan or log equipment check-outs with condition notes and return dates, plus a full chain-of-custody log per asset.</li>
     <li><b>Asset Tracking:</b> Manage serial numbers, purchase dates, locations, and current condition for every piece of equipment.</li>
+    <li><b>Kiosk:</b> nursery check-in, timeout, and exit PIN.</li>
 </ul>
 
 <hr>
 
 <a name="finance"></a>
-<h2><img class="header-icon" src="%17"> 11. Giving, Contributions & Double-Entry Ledger</h2>
+<h2><img class="header-icon" src="%17"> <span class="badge">[Available]</span> 11. Giving, Contributions & Double-Entry Ledger</h2>
 <p>OpenEkklesia contains a full <b>double-entry accounting engine</b> for tithes, offerings, and church financial stewardship.</p>
 
 <ul>
     <li><b>Multi-Fund Contributions:</b> Record gifts split across General Fund, Building Fund, Missions, and Youth Ministries.</li>
     <li><b>Batch Entry:</b> Rapid envelope number entry for Sunday counting teams with batch reconciliation before posting.</li>
+    <li><b>Anonymous plate offerings:</b> record anonymous offerings while maintaining balanced books.</li>
+    <li><b>Planning Center import:</b> import gifts, including split-gift designations.</li>
+    <li><b>GnuCash CSV export:</b> bridge to the dedicated bookkeeping package.</li>
     <li><b>General Ledger:</b> Complete Chart of Accounts (Assets, Liabilities, Equity, Income, Expenses).</li>
-    <li><b>Tax Receipts &amp; Statements:</b> Generate annual donor contribution statements formatted as U.S. IRS-style reports.</li>
+    <li><b>Annual donor contribution statements:</b> Generate annual donor contribution statements with configurable church letterhead and Tax ID line. OpenEkklesia is not tax/IRS compliance software; the general ledger lives in a dedicated bookkeeping package (e.g. GnuCash) — CSV export is provided as the bridge.</li>
     <li><b>Anonymous Giving Support:</b> Record anonymous offerings while maintaining balanced double-entry ledger books.</li>
 </ul>
 
 <hr>
 
 <a name="vault"></a>
-<h2><img class="header-icon" src="%18"> 12. Document Vault & Data Hygiene</h2>
+<h2><img class="header-icon" src="%18"> <span class="badge">[Configurable]</span> 12. Document Vault & Data Hygiene</h2>
 <p>The <b>Document Vault</b> provides local, privacy-first document storage linked to people, households, or ministry teams.</p>
 
 <ul>
     <li><b>Document Categories:</b> Membership, Meeting Minutes, Legal, Financial, Sign-up Sheets, or Other — each document can be linked to a person, a group, or neither.</li>
+    <li><b>Linking:</b> link documents to people, groups, or households.</li>
     <li><b>Database Backup &amp; Restore:</b> Create full WAL-aware SQLite snapshots (manual export, or scheduled daily / weekly / monthly with retention pruning) or export portable JSON archives. Restore replaces the working database from a chosen backup.</li>
+    <li><b>Export Database Backup, Restore, Purge Demo Data:</b> Purge Demo Data clears all content tables, keeps users/funds/accounts/audit trail. Danger Zone factory reset requires Administrator and typed ERASE confirmation.</li>
     <li><b>Erase All Ministry Records (Factory Reset):</b> There is no demo/sample data in the database. This action permanently erases every ministry and operational record — people, households, groups, services, giving batches and contributions, ledger transactions, assets, vault documents, events, tasks, reservations, board motions, and care logs — and keeps only the structural scaffold: chart of accounts, funds, login users, ministry blueprints, the service library, and the audit trail. It requires the Administrator role and a typed <kbd>ERASE</kbd> confirmation, and a database backup should be exported first — the action cannot be undone.</li>
 </ul>
 
 <hr>
 
 <a name="settings"></a>
-<h2><img class="header-icon" src="%19"> 13. Settings, Security & RBAC</h2>
+<h2><img class="header-icon" src="%19"> <span class="badge">[Configurable]</span> 13. Settings, Security & RBAC</h2>
 <p>Customize OpenEkklesia to your church's governance and visual preferences.</p>
+
+<h3>Settings guide</h3>
+<ul>
+    <li><b>Modules &amp; presets:</b> All / Standard / Minimal. Fresh installs open with four primary ministries: Worship, Children's, Ushers, and AV.</li>
+    <li><b>Unsaved-changes guard:</b> Save / Discard / Cancel when leaving the page; Ctrl+S saves; a save toast confirms.</li>
+    <li><b>Regional formats:</b> currency and date formatting per settings.</li>
+    <li><b>Retention settings:</b> audit/history retention windows.</li>
+    <li><b>Access PIN manager:</b> change the four role PINs.</li>
+    <li><b>Data page:</b> auto-backup schedule, snapshot retention, and the displayed database + settings.json paths.</li>
+</ul>
+
+<h3>Where your data lives</h3>
+<ul>
+    <li><b>Installed flavor:</b> %APPDATA%\OpenEkklesia (database + settings.json + backups/).</li>
+    <li><b>Portable flavor:</b> next to the exe when a .portable marker exists.</li>
+    <li><b>Backups:</b> weekly auto-snapshots by default; manual export/restore; retention pruning.</li>
+</ul>
 
 <ul>
     <li><b>Role-Based Access Control (RBAC):</b>
@@ -767,8 +820,9 @@ QString UserManualDialog::getFullManualHtml() {
             <tr><td><b>Guest</b></td><td><kbd>0000</kbd></td><td>Read-only mode: record-editing and destructive controls are disabled across the application (create, edit, delete, restore, JSON import, erase, and PIN changes). Viewing, searching, and local theme/view preferences remain available; changing data requires an Administrator sign-in.</td></tr>
         </table>
     </li>
-    <li><b>Theme Contrast Guardian:</b> Targets WCAG 2.1 AA color-contrast standards across dark and light palettes (with AAA-level contrast on body text where practical).</li>
+    <li><b>Theme Contrast Guardian:</b> Engineered for WCAG 2.1 AA contrast across light and dark palettes via the automated Theme Contrast Guardian.</li>
     <li><b>KPI Card Customizer:</b> Configure 2 to 8 key metrics on your main dashboard for personalized ministry monitoring.</li>
+    <li><b>Troubleshooting:</b> Windows SmartScreen one-time "More info → Run anyway" (unsigned build); database errors show the real error + attempted path; Linux requires glibc ≥ 2.35; report issues via GitHub, private vulnerability reporting for security.</li>
 </ul>
 
 <hr>

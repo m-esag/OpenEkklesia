@@ -2722,6 +2722,41 @@ bool test_userManualIntegrity() {
     return true;
 }
 
+
+bool test_manualCoversEveryNavModule() {
+    QString html = UserManualDialog::getFullManualHtml();
+    const QStringList labels = {
+        "Dashboard", "People", "Connection Graph", "Pastoral Analytics",
+        "Shepherd's Workbench", "Groups & Ministries", "Service Builder",
+        "Facilities Matrix", "Ministry Planning", "Giving & Batches",
+        "Asset Inventory", "Document Vault"
+    };
+    for (const QString& l : labels) {
+        CHECK(html.contains(l));
+    }
+    return true;
+}
+
+bool test_manualHonestyClaims() {
+    QString html = UserManualDialog::getFullManualHtml().toLower();
+    const QStringList banned = {
+        "irs-style", "irs-compliant", "wcag 2.1 aaa", "bank-grade", "military-grade"
+    };
+    for (const QString& b : banned) {
+        CHECK(!html.contains(b));
+    }
+    return true;
+}
+
+bool test_manualStatusBadges() {
+    QString html = UserManualDialog::getFullManualHtml();
+    int h2Count = html.count("<h2");
+    int badgeCount = html.count("[Available]") + html.count("[Configurable]") + html.count("[Advisory]");
+    CHECK(h2Count > 0);
+    CHECK_EQ(h2Count, badgeCount);
+    return true;
+}
+
 bool test_graphViewOptionsAndDockToggle() {
     GraphWidget gw;
     
@@ -4767,6 +4802,9 @@ int main(int argc, char** argv) {
         {"comprehensive_settings_round_trip", test_comprehensiveSettingsRoundTrip},
         {"giving_batches_and_multi_fund_splits", test_givingBatchesAndMultiFundSplits},
         {"user_manual_integrity", test_userManualIntegrity},
+        {"manual_covers_every_nav_module", test_manualCoversEveryNavModule},
+        {"manual_honesty_claims", test_manualHonestyClaims},
+        {"manual_status_badges", test_manualStatusBadges},
         {"graph_view_options_and_dock_toggle", test_graphViewOptionsAndDockToggle},
         {"people_module_stress_and_break_suite", test_peopleModuleStressAndBreakSuite},
         {"context_menus_and_role_gating_suite", test_contextMenusAndRoleGatingSuite},
