@@ -196,3 +196,38 @@ translate the same string the sidebar uses (labels come from one source).
 — End of brief. When done, append a "## Implementation Report (your name)"
 section to this file listing: files touched, dictionary coverage count,
 test counts before/after, and any deviations with reasons.
+
+## Implementation Report (ZCode — GLM agent session, 2026-11-05)
+
+**Status: phase 1 implemented on branch `Testing`, all acceptance criteria met.**
+
+### Files touched (commits in order)
+| Commit | Content |
+|---|---|
+| `1907919` | `src/common/apptranslator.{h,cpp}` (new), `assets/i18n/es.json` (new), `CMakeLists.txt` (OE_APP_SOURCES), `src/main.cpp` (startup wiring before ThemeManager/wizard/MainWindow) |
+| `48f4290` | `src/ui/core/setupwizard.{h,cpp}` — language combo first form row, live retranslation; `tests/` — `setup_wizard_language_persists` |
+| `f6c3e68` | `src/ui/admin/settingswidget.{h,cpp}` — Language / Idioma row + restart notice on save |
+| `531e52a` | `src/ui/core/mainwindow.cpp` — menus, sidebar, tooltips, titles, greeting, status bar, login dialog, ~20 message boxes |
+| `ac11a86` | page headers: vaultwidget, settingswidget, facilitieswidget, shepherdwidget (+subtitle), planningwidget, pastoralanalyticswidget (+%1 subtitle) — one file per edit, build after each |
+| `6521ecf` | `build-windows.ps1`, `build-windows-installer.ps1`, `build-linux-appimage.sh` — es.json staging |
+| `4156a0f` | dictionary gaps found by the live smoke (`Service Builder`, Shepherd tooltip, `Members`) |
+
+### Dictionary coverage
+167 entries (`assets/i18n/es.json`), formal **usted**, glossary applied. Loading: file-based (no qrc) — `OPENEKKLESIA_I18N_DIR` → `<exe dir>/assets/i18n/es.json` → dev build-dir fallbacks; documented in `apptranslator.h`.
+
+### Test counts
+- Before: **1370 checks, 0 failed** (baseline `41766ec`).
+- After: **1717 checks, 0 failed** (Windows, Qt 6.10.1 MSVC, canonical `build-windows.ps1` run) and **1717, 0 failed** on WSL Ubuntu 22.04 / Qt 6.2.4 — parity.
+- New tests: `app_translator_fallback`, `es_dictionary_validity` (parse, non-empty, no blank values, %N placeholder parity, duplicate-key detection), `setup_wizard_language_persists`.
+
+### Live verification
+Fresh Windows launch with `ui/language = "es"`: title "OpenEkklesia - Sistema de Gestión de Iglesias", menus (Archivo/Congregación/Ministerio/Finanzas/Herramientas/Ver/Ayuda), sidebar sections + nav, greeting "Buenas noches, Admin" all Spanish; wizard title verified via OS window title and the live-retranslation test. The smoke caught 2 dictionary gaps → `4156a0f`.
+
+### Deviations (with reasons)
+1. **Settings placement**: the brief says "Settings → General"; the row went onto the existing **Localization & Region** page beside currency/date-format — the page that already owns regional display. Flagged for review.
+2. **Dictionary keys follow post-`e035526` literals**: a concurrent control-chrome pass escaped `&`→`&&` in section headers/tab titles; keys match the rendered raw strings (`" MINISTRY && SERVICES"` etc.). Single-`&` nav labels come from `refreshSidebarIcons` and key the un-escaped text.
+3. **Qt version note**: the canonical Windows build picked Qt 6.10.1 (script default newest kit); the Qt 6.2 floor was verified on WSL as usual.
+4. Test-suite growth 1370→1700 between baseline and my first commit includes the concurrent agent's work (`e035526`); my i18n tests account for 1702→1717.
+
+### Out of scope, untouched (per brief §7)
+Schema, auth, version (still 0.8.5), kiosk internals, PDFs/reports, live retranslation beyond the wizard, plurals/RTL/QLocale.
