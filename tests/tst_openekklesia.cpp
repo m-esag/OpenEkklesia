@@ -58,6 +58,7 @@
 #include <QAbstractButton>
 #include <QTimer>
 #include <QJsonArray>
+#include <QComboBox>
 #include <QRegularExpression>
 #include "../src/common/apptranslator.h"
 #include "../src/ui/core/usermanualdialog.h"
@@ -339,6 +340,31 @@ bool test_esDictionaryValidity() {
     auto pairIt = pairRe.globalMatch(raw);
     while (pairIt.hasNext()) { pairIt.next(); ++rawPairs; }
     CHECK_EQ(rawPairs, obj.size());
+
+    AppTranslator::instance().setLanguage("en");  // restore for later tests
+    return true;
+}
+
+// The wizard's language combo (brief §2a) must persist through AppSettings
+// immediately on activated() and flip the translator so its own labels
+// retranslate live — the one surface allowed to do that.
+bool test_setupWizardLanguagePersists() {
+    SetupWizard wiz;
+    QComboBox* cmb = wiz.findChild<QComboBox*>();
+    CHECK(cmb != nullptr);
+    if (!cmb) return false;
+
+    const int esIdx = cmb->findData("es");
+    CHECK(esIdx >= 0);
+    if (esIdx < 0) return false;
+    cmb->setCurrentIndex(esIdx);
+    emit cmb->activated(esIdx);  // the user-choice handler per brief §0.4
+
+    AppSettings s;
+    CHECK_EQ(s.value("ui/language").toString().toStdString(), std::string("es"));
+    CHECK_EQ(AppTranslator::instance().language().toStdString(), std::string("es"));
+    // Live retranslation: the wizard's own header is now Spanish.
+    CHECK_EQ(wiz.windowTitle().toStdString(), std::string("Le damos la bienvenida a OpenEkklesia"));
 
     AppTranslator::instance().setLanguage("en");  // restore for later tests
     return true;
@@ -4760,6 +4786,7 @@ int main(int argc, char** argv) {
         {"settings_retention_controls", test_settingsRetentionControls},
         {"app_translator_fallback", test_appTranslatorFallback},
         {"es_dictionary_validity", test_esDictionaryValidity},
+        {"setup_wizard_language_persists", test_setupWizardLanguagePersists},
     };
 
     // Optional debugging aid: OE_TEST_FILTER=name1,name2 runs only the named
