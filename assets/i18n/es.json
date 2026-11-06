@@ -208,5 +208,20 @@
     "The record was removed but the file could not be deleted:\n%1\nUse Sweep Orphans later.": "El registro se eliminó, pero el archivo no pudo borrarse:\n%1\nUse \"Limpiar Huérfanos\" más adelante.",
     "The requested document was not found at:\n%1\n\nIt may have been deleted or moved.": "El documento solicitado no se encontró en:\n%1\n\nPuede haber sido eliminado o movido.",
     "Trustee / Elder name": "Nombre del fiduciario / Anciano",
-    "e.g. Approved $5,000 for roof repairs": "p. ej., Aprobación de $5,000 para reparación del techo"
+    "e.g. Approved $5,000 for roof repairs": "p. ej., Aprobación de $5,000 para reparación del techo",
+    "Book Space or Equipment": "Reservar Espacio o Equipo",
+    "Calendar file exported!": "¡Archivo de calendario exportado!",
+    "Cancelled": "Cancelado",
+    "Cannot book '%1'. It is already reserved by [%2] from %3 to %4.": "No se puede reservar '%1'. Ya está reservado por [%2] de %3 a %4.",
+    "Confirm Cancellation": "Confirmar Cancelación",
+    "Event purpose and organizer name are required.": "El propósito del evento y el nombre del organizador son obligatorios.",
+    "Failed to book space: ": "No se pudo reservar el espacio: ",
+    "Failed to cancel: ": "No se pudo cancelar: ",
+    "Leader / Contact Person": "Líder / Persona de Contacto",
+    "Please select a reservation row to cancel.": "Por favor seleccione una reserva para cancelar.",
+    "Reservation cancelled.": "Reserva cancelada.",
+    "Reservation confirmed cleanly!": "¡Reserva confirmada sin conflictos!",
+    "Scheduling Conflict!": "¡Conflicto de Programación!",
+    "The reservation date could not be read; nothing was exported.": "No se pudo leer la fecha de la reserva; no se exportó nada.",
+    "e.g. Youth Worship Night, Choir Rehearsal": "p. ej., Noche de Adoración Juvenil, Ensayo del Coro"
 }

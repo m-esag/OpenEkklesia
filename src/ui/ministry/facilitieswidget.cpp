@@ -141,8 +141,8 @@ void FacilitiesWidget::setupUI() {
                     reservationDate, startTime, endTime,
                     QString("%1 (%2)").arg(eventName, facility), description, facility);
                 if (ics.isEmpty()) {
-                    QMessageBox::warning(this, "Export Failed",
-                                        "The reservation date could not be read; nothing was exported.");
+                    QMessageBox::warning(this, AppTranslator::t("Export Failed"),
+                                        AppTranslator::t("The reservation date could not be read; nothing was exported."));
                     return;
                 }
                 QFile file(fileName);
@@ -150,7 +150,7 @@ void FacilitiesWidget::setupUI() {
                     QTextStream out(&file);
                     out << ics;
                     file.close();
-                    QMessageBox::information(this, "Success", "Calendar file exported!");
+                    QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Calendar file exported!"));
                 }
             }
         } else if (sel == actDelete && !isReadOnly) {
@@ -187,7 +187,7 @@ void FacilitiesWidget::onDateFilterChanged(const QDate&) {
 
 void FacilitiesWidget::onBookFacility() {
     QDialog dlg(this);
-    dlg.setWindowTitle("Book Space or Equipment");
+    dlg.setWindowTitle(AppTranslator::t("Book Space or Equipment"));
     dlg.resize(360, 260);
 
     QFormLayout* form = new QFormLayout(&dlg);
@@ -205,7 +205,7 @@ void FacilitiesWidget::onBookFacility() {
     });
 
     QLineEdit* eventEdit = new QLineEdit(&dlg);
-    eventEdit->setPlaceholderText("e.g. Youth Worship Night, Choir Rehearsal");
+    eventEdit->setPlaceholderText(AppTranslator::t("e.g. Youth Worship Night, Choir Rehearsal"));
 
     QDateEdit* dateEdit = new QDateEdit(m_dateFilter->date(), &dlg);
     dateEdit->setCalendarPopup(true);
@@ -215,7 +215,7 @@ void FacilitiesWidget::onBookFacility() {
     QTimeEdit* endEdit = new QTimeEdit(QTime(20, 0), &dlg);
 
     QLineEdit* organizerEdit = new QLineEdit(&dlg);
-    organizerEdit->setPlaceholderText("Leader / Contact Person");
+    organizerEdit->setPlaceholderText(AppTranslator::t("Leader / Contact Person"));
 
     form->addRow("Space / Equipment:", facilityCombo);
     form->addRow("Event Purpose:", eventEdit);
@@ -238,7 +238,7 @@ void FacilitiesWidget::onBookFacility() {
         QString organizer = organizerEdit->text().trimmed();
 
         if (eventName.isEmpty() || organizer.isEmpty()) {
-            QMessageBox::warning(this, "Validation Error", "Event purpose and organizer name are required.");
+            QMessageBox::warning(this, AppTranslator::t("Validation Error"), AppTranslator::t("Event purpose and organizer name are required."));
             return;
         }
 
@@ -258,8 +258,8 @@ void FacilitiesWidget::onBookFacility() {
             QString confEvent = qConflict.value(0).toString();
             QString confStart = qConflict.value(1).toString();
             QString confEnd = qConflict.value(2).toString();
-            QMessageBox::critical(this, "Scheduling Conflict!",
-                                  QString("Cannot book '%1'. It is already reserved by [%2] from %3 to %4.")
+            QMessageBox::critical(this, AppTranslator::t("Scheduling Conflict!"),
+                                  QString(AppTranslator::t("Cannot book '%1'. It is already reserved by [%2] from %3 to %4."))
                                       .arg(facility, confEvent, confStart, confEnd));
             return;
         }
@@ -278,9 +278,9 @@ void FacilitiesWidget::onBookFacility() {
         if (qInsert.exec()) {
             m_dateFilter->setDate(dateEdit->date());
             refreshReservations();
-            QMessageBox::information(this, "Success", "Reservation confirmed cleanly!");
+            QMessageBox::information(this, AppTranslator::t("Success"), AppTranslator::t("Reservation confirmed cleanly!"));
         } else {
-            QMessageBox::critical(this, "Database Error", "Failed to book space: " + qInsert.lastError().text());
+            QMessageBox::critical(this, AppTranslator::t("Database Error"), AppTranslator::t("Failed to book space: ") + qInsert.lastError().text());
         }
     }
 }
@@ -288,14 +288,14 @@ void FacilitiesWidget::onBookFacility() {
 void FacilitiesWidget::onDeleteReservation() {
     int row = m_table->currentIndex().row();
     if (row < 0) {
-        QMessageBox::warning(this, "Selection Required", "Please select a reservation row to cancel.");
+        QMessageBox::warning(this, AppTranslator::t("Selection Required"), AppTranslator::t("Please select a reservation row to cancel."));
         return;
     }
     int resId = m_model->index(row, 0).data().toInt();
     QString facility = m_model->index(row, 1).data().toString();
     QString eventName = m_model->index(row, 2).data().toString();
 
-    auto reply = QMessageBox::question(this, "Confirm Cancellation",
+    auto reply = QMessageBox::question(this, AppTranslator::t("Confirm Cancellation"),
                                        QString("Cancel reservation for '%1' (%2)?").arg(facility, eventName),
                                        QMessageBox::Yes | QMessageBox::No);
     if (reply == QMessageBox::Yes) {
@@ -305,9 +305,9 @@ void FacilitiesWidget::onDeleteReservation() {
         qDel.addBindValue(resId);
         if (qDel.exec()) {
             refreshReservations();
-            QMessageBox::information(this, "Cancelled", "Reservation cancelled.");
+            QMessageBox::information(this, AppTranslator::t("Cancelled"), AppTranslator::t("Reservation cancelled."));
         } else {
-            QMessageBox::critical(this, "Error", "Failed to cancel: " + qDel.lastError().text());
+            QMessageBox::critical(this, AppTranslator::t("Error"), AppTranslator::t("Failed to cancel: ") + qDel.lastError().text());
         }
     }
 }
