@@ -45,6 +45,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QHeaderView>
+#include <QScrollArea>
 #include <QGraphicsOpacityEffect>
 #include <QEasingCurve>
 #include <QSqlQuery>
@@ -1568,18 +1569,12 @@ QWidget* MainWindow::createDashboardPage() {
     btnServiceQuick->setObjectName("secondaryBtn");
     connect(btnServiceQuick, &QPushButton::clicked, this, &MainWindow::onServiceClicked);
 
-    QPushButton* btnCmdQuick = new QPushButton(" Search (Ctrl+K)", page);
-    btnCmdQuick->setIcon(IconManager::instance().getIcon("search", QColor(), 14));
-    btnCmdQuick->setObjectName("secondaryBtn");
-    connect(btnCmdQuick, &QPushButton::clicked, this, [this]() {
-        CommandPaletteDialog palette(this);
-        palette.exec();
-    });
-
+    // Global search intentionally has NO dashboard quick action: the top-bar
+    // button and Ctrl+K own it, and duplicating it here read as two competing
+    // commands (user-reported).
     headerRow->addWidget(btnAddPersonQuick);
     headerRow->addWidget(btnGivingQuick);
     headerRow->addWidget(btnServiceQuick);
-    headerRow->addWidget(btnCmdQuick);
 
     layout->addLayout(headerRow);
 
@@ -1732,7 +1727,14 @@ QWidget* MainWindow::createDashboardPage() {
     bottomLayout->addWidget(rightCol, 2);
     layout->addLayout(bottomLayout, 1);
 
-    return page;
+    // Narrow windows scroll instead of clipping: IgnoreMinStackedLayout pins
+    // the page stack's minimum to zero, so an oversized dashboard used to be
+    // cut off at the right edge (KPI row + care-alert panels, user-reported).
+    QScrollArea* dashScroll = new QScrollArea(this);
+    dashScroll->setWidgetResizable(true);
+    dashScroll->setFrameShape(QFrame::NoFrame);
+    dashScroll->setWidget(page);
+    return dashScroll;
 }
 
 QWidget* MainWindow::createTablePage(const QString& title, QTableView* view) {
@@ -1776,6 +1778,7 @@ void MainWindow::rebuildKpiCards() {
         QHBoxLayout* top = new QHBoxLayout();
         QLabel* lblTitle = new QLabel(title, card);
         lblTitle->setStyleSheet("font-size: 12px; font-weight: bold; opacity: 0.8; text-transform: uppercase;");
+        lblTitle->setWordWrap(true); // wrap to 2 lines at narrow widths instead of clipping ("VISITORS / A...")
         QLabel* lblIcon = new QLabel(card);
         lblIcon->setPixmap(IconManager::instance().getPixmap(iconName, tok.accentPrimary, 18));
         top->addWidget(lblTitle);
@@ -1789,6 +1792,7 @@ void MainWindow::rebuildKpiCards() {
 
         QLabel* lblSub = new QLabel(subtext, card);
         lblSub->setStyleSheet("font-size: 11px; opacity: 0.6;");
+        lblSub->setWordWrap(true);
         v->addWidget(lblSub);
 
         KpiCardInfo info;

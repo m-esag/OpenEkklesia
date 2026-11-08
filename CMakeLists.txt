@@ -93,6 +93,8 @@ set(OE_APP_SOURCES
     src/common/apptranslator.h
     src/common/apptranslator.cpp
     src/common/appcurrency.h
+    src/common/flowlayout.h
+    src/common/flowlayout.cpp
 
     # Database Module
     src/database/databasemanager.h

@@ -15,6 +15,7 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QSplitter>
+#include "../../common/flowlayout.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QPdfWriter>
@@ -396,7 +397,9 @@ void PeopleWidget::setupUI() {
     leftLayout->addLayout(searchSortRow);
 
     // Membership-status filter row
-    QHBoxLayout* statusFilterRow = new QHBoxLayout();
+    // Wrapping layout: the radio filter row flows to new lines at narrow
+    // window widths instead of clipping mid-word ("Atten", "Inacti...").
+    FlowLayout* statusFilterRow = new FlowLayout(nullptr); // nested: no widget parent (auto-install corrupts the existing layout)
     statusFilterRow->setSpacing(4);
     m_statusFilterGroup = new QButtonGroup(this);
     m_statusFilterGroup->setExclusive(true);
@@ -413,7 +416,7 @@ void PeopleWidget::setupUI() {
         m_statusFilterGroup->addButton(btn, it.key());
         statusFilterRow->addWidget(btn);
     }
-    statusFilterRow->addSpacing(6);
+    statusFilterRow->addItem(new QSpacerItem(6, 1, QSizePolicy::Fixed, QSizePolicy::Minimum));
     m_cmbPathwayFilter = new QComboBox(this);
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("layers", QColor(), 13), "All Pathways", 0);
     m_cmbPathwayFilter->addItem(IconManager::instance().getIcon("compass", QColor(), 13), "Needs Baptism", 1);
@@ -424,7 +427,6 @@ void PeopleWidget::setupUI() {
     connect(m_cmbPathwayFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &PeopleWidget::onPathwayFilterChanged);
     statusFilterRow->addWidget(m_cmbPathwayFilter);
-    statusFilterRow->addStretch();
     leftLayout->addLayout(statusFilterRow);
     connect(m_statusFilterGroup, &QButtonGroup::idClicked, this, &PeopleWidget::onStatusFilterChanged);
 
@@ -595,6 +597,18 @@ void PeopleWidget::setupUI() {
     badgesRow->addWidget(m_lblHeaderCareBadge);
 
     badgesRow->addStretch();
+
+    // Expand/collapse the profile pane across the full window width: keeps
+    // every header action reachable at narrow window sizes without a pop-out
+    // dialog (user-requested).
+    m_btnExpandProfile = new QToolButton(m_headerWidget);
+    m_btnExpandProfile->setObjectName("secondaryBtn");
+    m_btnExpandProfile->setToolTip("Expand profile to full width");
+    m_btnExpandProfile->setIcon(IconManager::instance().getIcon("maximize-2", QColor(), 14));
+    m_btnExpandProfile->setCursor(Qt::PointingHandCursor);
+    connect(m_btnExpandProfile, &QToolButton::clicked, this, &PeopleWidget::toggleProfileExpanded);
+    badgesRow->addWidget(m_btnExpandProfile);
+
     headerInfo->addLayout(badgesRow);
     headerLayout->addLayout(headerInfo, 1);
     dossierLayout->addWidget(m_headerWidget);
@@ -1001,7 +1015,7 @@ void PeopleWidget::setupUI() {
 
     m_adminNotesText = new QTextEdit(cardPastoral);
     m_adminNotesText->setMaximumHeight(80);
-    m_adminNotesText->setPlaceholderText("Confidential pastoral notes, prayer needs, or counseling context...");
+    m_adminNotesText->setPlaceholderText("Confidential pastoral notes...");
     connect(m_adminNotesText, &QTextEdit::textChanged, this, [this]() { setDirty(true); });
 
     formPastoral->addRow("Care Flag:", m_careFlagCombo);
@@ -1461,14 +1475,33 @@ void PeopleWidget::setupUI() {
     rightMainLayout->addWidget(m_dossierContainer);
 
     // Initial Splitter Setup
-    QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
-    mainSplitter->addWidget(leftPanel);
-    mainSplitter->addWidget(rightContainer);
-    mainSplitter->setStretchFactor(0, 3);
-    mainSplitter->setStretchFactor(1, 2);
-    mainLayout->addWidget(mainSplitter);
+    m_mainSplitter = new QSplitter(Qt::Horizontal, this);
+    m_mainSplitter->addWidget(leftPanel);
+    m_mainSplitter->addWidget(rightContainer);
+    m_mainSplitter->setStretchFactor(0, 3);
+    m_mainSplitter->setStretchFactor(1, 2);
+    m_mainSplitter->setChildrenCollapsible(false);
+    mainLayout->addWidget(m_mainSplitter);
 }
 
+
+void PeopleWidget::toggleProfileExpanded() {
+    if (!m_mainSplitter) return;
+    m_profileExpanded = !m_profileExpanded;
+    if (m_profileExpanded) {
+        m_savedSplitterSizes = m_mainSplitter->sizes();
+        QList<int> full;
+        full << 0 << m_mainSplitter->width() - m_mainSplitter->handleWidth();
+        m_mainSplitter->setSizes(full);
+        m_btnExpandProfile->setToolTip("Restore directory panel");
+        m_btnExpandProfile->setIcon(IconManager::instance().getIcon("minimize-2", QColor(), 14));
+    } else {
+        if (m_savedSplitterSizes.size() == 2)
+            m_mainSplitter->setSizes(m_savedSplitterSizes);
+        m_btnExpandProfile->setToolTip("Expand profile to full width");
+        m_btnExpandProfile->setIcon(IconManager::instance().getIcon("maximize-2", QColor(), 14));
+    }
+}
 
 void PeopleWidget::setupModels() {
     QSqlDatabase db = QSqlDatabase::database();

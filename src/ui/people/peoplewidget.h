@@ -22,6 +22,8 @@
 #include <QStackedWidget>
 #include <QTimer>
 #include <QCheckBox>
+#include <QToolButton>
+#include <QSplitter>
 
 // Custom Clickable Avatar Label with Camera Overlay on Hover
 class ClickableAvatarLabel : public QLabel {
@@ -155,6 +157,7 @@ private slots:
 
 private:
     void setupUI();
+    void toggleProfileExpanded();
     void setupModels();
     void populateHouseholdCombo();
     void loadAvatar(const QString& path);
@@ -203,6 +206,12 @@ private:
     // Right Panel (Detail - 360° Dossier)
     QWidget* m_emptyStateWidget = nullptr;
     QWidget* m_dossierContainer = nullptr;
+    // Full-width profile expand toggle (user-requested): drives the main
+    // splitter between the saved ratio and dossier-fills-window.
+    QSplitter* m_mainSplitter = nullptr;
+    QToolButton* m_btnExpandProfile = nullptr;
+    bool m_profileExpanded = false;
+    QList<int> m_savedSplitterSizes;
 
     // Pinned Header
     QWidget* m_headerWidget = nullptr;

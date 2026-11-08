@@ -3,6 +3,7 @@
 #include "iconmanager.h"
 #include "synergyengine.h"
 #include "ministryarchetypes.h"
+#include "../../common/flowlayout.h"
 #include "../database/databasemanager.h"
 #include "matchdialog.h"
 #include <QApplication>
@@ -927,10 +928,10 @@ void GraphWidget::setupUI() {
     topControlsLayout->setContentsMargins(15, 10, 15, 10);
     topControlsLayout->setSpacing(8);
 
-    QHBoxLayout* row1 = new QHBoxLayout();
-    row1->setSpacing(8);
-    QHBoxLayout* row2 = new QHBoxLayout();
-    row2->setSpacing(8);
+    // Wrapping rows: buttons flow onto extra lines at narrow window widths
+    // instead of clipping mid-word ("Force-Dire...", "Expor..." — user-reported).
+    FlowLayout* row1 = new FlowLayout(nullptr, 0, 8);
+    FlowLayout* row2 = new FlowLayout(nullptr, 0, 8);
 
     auto createToggleBtn = [this](const QString& text, bool defaultActive) {
         QPushButton* btn = new QPushButton(text, this);
@@ -1053,7 +1054,6 @@ void GraphWidget::setupUI() {
     row1->addWidget(m_btnToggleHygiene);
     row1->addWidget(m_btnToggleBridgeNodes);
     row1->addWidget(m_btnToggleFamilyDynasty);
-    row1->addStretch();
 
     m_btnToggleLayout = new QPushButton(" Force-Directed", this);
     m_btnToggleLayout->setIcon(IconManager::instance().getIcon("activity", QColor(), 14));
@@ -1115,7 +1115,6 @@ void GraphWidget::setupUI() {
 
     row2->addWidget(m_graphSearchEdit);
     row2->addWidget(m_btnIsolatedBanner);
-    row2->addStretch();
     row2->addWidget(m_btnToggleLayout);
     row2->addWidget(m_btnToggleFreeze);
     row2->addWidget(m_btnToggleStatusCluster);
@@ -1298,7 +1297,7 @@ void GraphWidget::setupUI() {
     hLay->addLayout(hControls);
 
     m_hierarchyTreeWidget = new QTreeWidget(m_hierarchyTab);
-    m_hierarchyTreeWidget->setHeaderLabels({"Entity / Member", "Role / Type", "Status"});
+    m_hierarchyTreeWidget->setHeaderLabels({"Entity", "Role / Type", "Status"});
     m_hierarchyTreeWidget->setAlternatingRowColors(true);
     m_hierarchyTreeWidget->setAnimated(true);
     m_hierarchyTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Stretch);
