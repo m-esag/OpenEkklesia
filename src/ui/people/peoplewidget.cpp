@@ -2818,8 +2818,7 @@ void PeopleWidget::onSaveProfile() {
     QString nextStepsDate = m_txtNextStepsDate ? m_txtNextStepsDate->text().trimmed() : "";
     QString appScanPath = m_txtAppScanPath ? m_txtAppScanPath->text().trimmed() : "";
 
-    QSqlDatabase db = QSqlDatabase::database();
-    QSqlQuery q(db);
+    QSqlQuery q(db); // db declared earlier (household fallback)
     q.prepare("UPDATE people SET "
               "first_name = :fn, "
               "last_name = :ln, "
