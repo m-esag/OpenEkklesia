@@ -1813,6 +1813,11 @@ void PeopleWidget::refreshTagCompleter() {
 }
 
 void PeopleWidget::setDirty(bool dirty) {
+    // No profile selected = nothing to save. Field-change signals can fire
+    // with the empty-state form visible; entering the dirty state then made
+    // the footer show "Unsaved Changes" + an enabled Save whose click only
+    // produced "No Selection" (user-reported).
+    if (dirty && m_currentPersonId <= 0) return;
     m_isDirty = dirty;
     if (m_lblDirtyIndicator) {
         m_lblDirtyIndicator->setVisible(dirty);
@@ -2778,6 +2783,25 @@ void PeopleWidget::onSaveProfile() {
     QString firstVisit = dateOrEmpty(m_firstVisitEdit);
     QString joinDate = dateOrEmpty(m_joinDateEdit);
     int selectedHouseholdId = m_householdCombo->currentData().toInt();
+    QSqlDatabase db = QSqlDatabase::database(); // used by the household fallback below
+    // Defaults requested by the coordinator: a blank household assignment
+    // falls back to a household named after the person's last name, and a
+    // blank membership status falls back to Visitor.
+    QString statusForSave = status.trimmed().isEmpty() ? "Visitor" : status.trimmed();
+    if (selectedHouseholdId <= 0 && !ln.isEmpty()) {
+        QSqlQuery qHh(db);
+        qHh.prepare("SELECT id FROM households WHERE family_name = ? LIMIT 1");
+        qHh.addBindValue(ln);
+        if (qHh.exec() && qHh.next()) {
+            selectedHouseholdId = qHh.value(0).toInt();
+        } else {
+            QSqlQuery qIns(db);
+            qIns.prepare("INSERT INTO households (family_name) VALUES (?)");
+            qIns.addBindValue(ln);
+            if (qIns.exec())
+                selectedHouseholdId = qIns.lastInsertId().toInt();
+        }
+    }
     QString gender = m_genderCombo->currentText();
     QString giftsText = m_giftsEdit->text().trimmed();
     QString styleText = m_styleEdit->text().trimmed();
@@ -2830,7 +2854,7 @@ void PeopleWidget::onSaveProfile() {
     q.bindValue(":avatar", avatarPath);
     q.bindValue(":care", careFlag);
     q.bindValue(":notes", notes);
-    q.bindValue(":status", status);
+    q.bindValue(":status", statusForSave);
     q.bindValue(":fv", firstVisit);
     q.bindValue(":jd", joinDate);
     q.bindValue(":hid", selectedHouseholdId > 0 ? QVariant(selectedHouseholdId) : QVariant(QMetaType(QMetaType::Int)));

@@ -1,6 +1,7 @@
 #include "servicebuilderwidget.h"
 #include "appsettings.h"
 #include "apptranslator.h"
+#include "../../common/flowlayout.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -218,7 +219,7 @@ void ServiceBuilderWidget::setupUI() {
     dragTip->setStyleSheet("font-size: 11px; color: palette(placeholderText);");
     libraryLayout->addWidget(dragTip);
 
-    QHBoxLayout* libActions = new QHBoxLayout();
+    FlowLayout* libActions = new FlowLayout(nullptr, 0, 6); // wraps at narrow widths
     m_btnAddElement = new QPushButton(" Add Element", this);
     m_btnAddElement->setIcon(IconManager::instance().getIcon("plus", QColor(), 14));
     m_btnAddElement->setObjectName("secondaryBtn");
@@ -365,7 +366,7 @@ void ServiceBuilderWidget::setupUI() {
     // apart from file/template actions.
     auto minH = [](QPushButton* b) { b->setMinimumHeight(30); return b; };
 
-    QHBoxLayout* actionsLayout = new QHBoxLayout();
+    FlowLayout* actionsLayout = new FlowLayout(nullptr, 0, 6); // wraps at narrow widths
     m_btnRemove = minH(new QPushButton(" Remove Selected", this));
     m_btnRemove->setIcon(IconManager::instance().getDangerIcon("trash-2", 14));
     m_btnRemove->setObjectName("dangerBtn");
@@ -392,11 +393,10 @@ void ServiceBuilderWidget::setupUI() {
     m_btnExportPDF->setObjectName("accentBtnCyan");
     connect(m_btnExportPDF, &QPushButton::clicked, this, &ServiceBuilderWidget::onExportRunSheet);
     actionsLayout->addWidget(m_btnExportPDF);
-    actionsLayout->addStretch();
     playlistLayout->addLayout(actionsLayout);
 
     // Second row: file backup + named templates (everything else auto-saves).
-    QHBoxLayout* fileActions = new QHBoxLayout();
+    FlowLayout* fileActions = new FlowLayout(nullptr, 0, 6); // wraps at narrow widths
     m_btnSave = minH(new QPushButton(" Save Layout File", this));
     m_btnSave->setIcon(IconManager::instance().getPrimaryIcon("check", 14));
     m_btnSave->setObjectName("saveBtn");
@@ -423,7 +423,6 @@ void ServiceBuilderWidget::setupUI() {
     m_btnApplyTemplate->setToolTip("Load a saved run-sheet template into the current date");
     connect(m_btnApplyTemplate, &QPushButton::clicked, this, &ServiceBuilderWidget::onApplyTemplate);
     fileActions->addWidget(m_btnApplyTemplate);
-    fileActions->addStretch();
     playlistLayout->addLayout(fileActions);
 
     mainLayout->addWidget(playlistPanel, 4);
@@ -549,7 +548,7 @@ void ServiceBuilderWidget::setupUI() {
     });
     volunteerLayout->addWidget(m_volunteerList, 1);
 
-    QHBoxLayout* volActions = new QHBoxLayout();
+    FlowLayout* volActions = new FlowLayout(nullptr, 0, 6); // wraps at narrow widths
     m_btnSchedule = new QPushButton(" Assign Volunteer", this);
     m_btnSchedule->setIcon(IconManager::instance().getPrimaryIcon("user-plus", 14));
     m_btnSchedule->setObjectName("primaryBtn");

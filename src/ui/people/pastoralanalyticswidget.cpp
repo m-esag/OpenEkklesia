@@ -219,6 +219,7 @@ void PastoralAnalyticsWidget::setupUI() {
     // Conversion Arrow 1 -> 2
     m_lblConv1To2 = new QLabel("⬇️ 74% conversion to Regular Attenders  •  26% drop-off", this);
     m_lblConv1To2->setAlignment(Qt::AlignCenter);
+    m_lblConv1To2->setWordWrap(true); // long conversion text must wrap at narrow widths (forced h-scroll before)
     funnelLayout->addWidget(m_lblConv1To2);
 
     // Stage 2 Card: Teal / Cyan
@@ -238,6 +239,7 @@ void PastoralAnalyticsWidget::setupUI() {
     // Conversion Arrow 2 -> 3
     m_lblConv2To3 = new QLabel("⬇️ 81% conversion to Formal Members  •  19% drop-off", this);
     m_lblConv2To3->setAlignment(Qt::AlignCenter);
+    m_lblConv2To3->setWordWrap(true); // long conversion text must wrap at narrow widths (forced h-scroll before)
     funnelLayout->addWidget(m_lblConv2To3);
 
     // Stage 3 Card: Emerald Green
@@ -257,6 +259,7 @@ void PastoralAnalyticsWidget::setupUI() {
     // Conversion Arrow 3 -> 4
     m_lblConv3To4 = new QLabel("⬇️ 65% conversion to Serving Leaders  •  35% drop-off", this);
     m_lblConv3To4->setAlignment(Qt::AlignCenter);
+    m_lblConv3To4->setWordWrap(true); // long conversion text must wrap at narrow widths (forced h-scroll before)
     funnelLayout->addWidget(m_lblConv3To4);
 
     // Stage 4 Card: Warm Gold

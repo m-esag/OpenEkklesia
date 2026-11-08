@@ -1110,6 +1110,7 @@ void MainWindow::populatePages() {
             if (m_graphWidget) m_graphWidget->loadGraph();
         }
     };
+    m_groupsTreeWidget->header()->setMinimumSectionSize(110); // Name never crushes to unreadable
     m_groupsTreeWidget->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_groupsTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_groupsTreeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -4261,17 +4262,27 @@ void MainWindow::refreshMinistryBlueprintsTab() {
         lblGifts->setWordWrap(true);
         cardLay->addWidget(lblGifts);
 
-        // Behavioral Vector Breakdown Bar
+        // Behavioral Vector Breakdown: the stored weights are raw scores
+        // (e.g. Org 20, Con 40), NOT percentages — displaying them *100 gave
+        // nonsense like "Org 2000%" (user-reported). Normalize each weight to
+        // its share of the six-weight sum so the mix reads as real percent.
+        const double vecSum = bp.targetVector.organizer + bp.targetVector.listener
+                              + bp.targetVector.doer + bp.targetVector.energizer
+                              + bp.targetVector.strategist + bp.targetVector.connector;
+        auto vecPct = [vecSum](double w) -> int {
+            return vecSum > 0 ? qRound(w / vecSum * 100.0) : 0;
+        };
         QLabel* lblVector = new QLabel(QString("<span style='font-size: 10px; color: %1;'>"
                                                "<b>Target Mix:</b> "
                                                "Org %2% | Lis %3% | Doe %4% | Ene %5% | Str %6% | Con %7%</span>")
                                            .arg(tok.textSecondary.name())
-                                           .arg(static_cast<int>(bp.targetVector.organizer * 100))
-                                           .arg(static_cast<int>(bp.targetVector.listener * 100))
-                                           .arg(static_cast<int>(bp.targetVector.doer * 100))
-                                           .arg(static_cast<int>(bp.targetVector.energizer * 100))
-                                           .arg(static_cast<int>(bp.targetVector.strategist * 100))
-                                           .arg(static_cast<int>(bp.targetVector.connector * 100)), card);
+                                           .arg(vecPct(bp.targetVector.organizer))
+                                           .arg(vecPct(bp.targetVector.listener))
+                                           .arg(vecPct(bp.targetVector.doer))
+                                           .arg(vecPct(bp.targetVector.energizer))
+                                           .arg(vecPct(bp.targetVector.strategist))
+                                           .arg(vecPct(bp.targetVector.connector)), card);
+        lblVector->setWordWrap(true); // the mix line is long: wrap inside narrow cards
         cardLay->addWidget(lblVector);
 
         // Actions Row
