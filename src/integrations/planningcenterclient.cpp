@@ -112,11 +112,12 @@ void PlanningCenterClient::fetchPeople(const QString& appId, const QString& secr
                                        std::function<void(bool, const QJsonArray&, const QString&)> callback)
 {
     auto allPeople = std::make_shared<QJsonArray>();
+    auto pagesFetched = std::make_shared<int>(0); // hard cap: hostile/broken API must not loop forever (audit oe-006)
 
     auto fetchPage = std::make_shared<std::function<void(int)>>();
-    *fetchPage = [this, appId, secret, allPeople, fetchPage, callback](int offset) mutable {
+    *fetchPage = [this, appId, secret, allPeople, pagesFetched, fetchPage, callback](int offset) mutable {
         QString endpoint = QString("/people/v2/people?per_page=100&offset=%1").arg(offset);
-        executeGet(endpoint, appId, secret, [this, appId, secret, allPeople, fetchPage, callback, offset](int httpCode, const QByteArray& body, const QString& err) mutable {
+        executeGet(endpoint, appId, secret, [this, appId, secret, allPeople, pagesFetched, fetchPage, callback, offset](int httpCode, const QByteArray& body, const QString& err) mutable {
             if (!err.isEmpty() || httpCode != 200) {
                 // Never report a truncated roster as success: a mid-pagination
                 // failure would silently drop everyone on later pages and the
@@ -145,6 +146,11 @@ void PlanningCenterClient::fetchPeople(const QString& appId, const QString& secr
             // Check if there are more records to paginate
             QJsonObject links = obj.value("links").toObject();
             if (data.size() == 100 && links.contains("next")) {
+                if (++(*pagesFetched) > 200) {
+                    fetchPage.reset(); // break the self-reference so the cycle frees
+                    callback(false, *allPeople, QString("Planning Center pagination cap (200 pages) exceeded; import aborted."));
+                    return;
+                }
                 (*fetchPage)(offset + 100);
             } else {
                 callback(true, *allPeople, QString());
@@ -503,6 +509,7 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
                                                 std::function<void(bool, const QList<PcoDonationRecord>&, const QString&)> callback)
 {
     auto allDonations = std::make_shared<QList<PcoDonationRecord>>();
+    auto pagesFetched = std::make_shared<int>(0); // hard cap (audit oe-006)
     // Sideloading designations (and the funds that name them) is what lets a
     // gift be attributed to the right fund. If the deployed API rejects the
     // include parameter, fall back once to a plain donations fetch instead of
@@ -511,11 +518,11 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
     auto includeDesignations = std::make_shared<bool>(true);
 
     auto fetchPage = std::make_shared<std::function<void(int)>>();
-    *fetchPage = [this, appId, secret, allDonations, includeDesignations, fetchPage, callback](int offset) mutable {
+    *fetchPage = [this, appId, secret, allDonations, includeDesignations, pagesFetched, fetchPage, callback](int offset) mutable {
         QString endpoint = QString("/giving/v2/donations?per_page=100&offset=%1").arg(offset);
         if (*includeDesignations) endpoint += "&include=designations.fund";
         executeGet(endpoint, appId, secret,
-                   [allDonations, includeDesignations, fetchPage, callback, offset]
+                   [allDonations, includeDesignations, pagesFetched, fetchPage, callback, offset]
                    (int httpCode, const QByteArray& body, const QString& err) mutable {
             // A 4xx on the first page usually means the API does not accept the
             // include parameter: retry the feed once without it.
@@ -551,6 +558,11 @@ void PlanningCenterClient::fetchGivingDonations(const QString& appId, const QStr
             // Check if there are more records to paginate
             QJsonObject links = obj.value("links").toObject();
             if (data.size() == 100 && links.contains("next")) {
+                if (++(*pagesFetched) > 200) {
+                    fetchPage.reset(); // break the self-reference so the cycle frees
+                    callback(false, QList<PcoDonationRecord>(), QString("Planning Center pagination cap (200 pages) exceeded; import aborted."));
+                    return;
+                }
                 (*fetchPage)(offset + 100);
             } else {
                 fetchPage.reset(); // break the self-reference so the cycle frees

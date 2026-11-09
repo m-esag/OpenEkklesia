@@ -862,6 +862,35 @@ bool test_restoreFromBackup() {
     return true;
 }
 
+// restoreFromBackup must reject structurally valid SQLite files whose
+// schema_version is not an integer in 1..kLatestSchemaVersion — they are not
+// OpenEkklesia backups and must never replace the live database (audit oe-004).
+bool test_restoreRejectsForeignSchemaVersion() {
+    seedDemoFixture();
+    const QString dbPath = DatabaseManager::instance().database().databaseName();
+    const QString foreignPath = dbPath + ".foreign_test";
+    QFile::remove(foreignPath);
+    const int peopleBefore = countRows("people");
+
+    // Build a structurally valid SQLite database with an out-of-range version.
+    {
+        QSqlDatabase foreign = QSqlDatabase::addDatabase("QSQLITE", "__oe_foreign_probe__");
+        foreign.setDatabaseName(foreignPath);
+        CHECK(foreign.open());
+        QSqlQuery fk(foreign);
+        CHECK(fk.exec("CREATE TABLE schema_version (version INTEGER NOT NULL);"));
+        CHECK(fk.exec("INSERT INTO schema_version (version) VALUES (9999);"));
+        foreign.close();
+    }
+    QSqlDatabase::removeDatabase("__oe_foreign_probe__");
+
+    CHECK(!DatabaseManager::instance().restoreFromBackup(foreignPath));
+    CHECK_EQ(countRows("people"), peopleBefore); // live DB untouched
+
+    QFile::remove(foreignPath);
+    return true;
+}
+
 // restoreFromBackup used to log its "migrated older backup forward" success
 // line on the FAILURE path (and emitted nothing when migration actually
 // succeeded) — an inverted condition at the migrateSchema() call. Pin the
@@ -4822,6 +4851,7 @@ int main(int argc, char** argv) {
         {"pastoral_queue", test_pastoralQueue},
         {"person_gender_and_household_save", test_personGenderAndHouseholdSave},
         {"restore_from_backup", test_restoreFromBackup},
+        {"restore_rejects_foreign_schema_version", test_restoreRejectsForeignSchemaVersion},
         {"export_backup_rejects_live_paths", test_exportBackupRejectsLivePaths},
         {"restore_migration_log_matches_outcome", test_restoreMigrationLogMatchesOutcome},
         {"purge_demo_data", test_purgeDemoData},

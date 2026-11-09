@@ -83,6 +83,14 @@ QString VaultWidget::vaultDirPath() {
     return path;
 }
 
+QString VaultWidget::containedVaultPath(const QString& storedPath) {
+    const QString base = QDir::cleanPath(vaultDirPath());
+    const QString full = QDir::cleanPath(base + "/" + storedPath);
+    if (!full.startsWith(base + "/"))
+        return QString(); // traversal or absolute path outside the vault
+    return full;
+}
+
 void VaultWidget::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(30, 30, 30, 30);
@@ -182,8 +190,8 @@ void VaultWidget::setupUI() {
             q.addBindValue(docId);
             if (q.exec() && q.next()) {
                 QString relPath = q.value(0).toString();
-                QString fullPath = vaultDirPath() + "/" + relPath;
-                if (QFile::exists(fullPath)) {
+                QString fullPath = containedVaultPath(relPath);
+                if (!fullPath.isEmpty() && QFile::exists(fullPath)) {
                     QFileInfo fi(fullPath);
                     QString savePath = QFileDialog::getSaveFileName(this, "Export Document", fi.fileName(), "All Files (*.*)");
                     if (!savePath.isEmpty()) {
@@ -507,9 +515,9 @@ void VaultWidget::onOpenClicked() {
     // Column order: ID, Title, Date, Category, Person, Group, Filename
     int row = current.row();
     QString fileName = m_queryModel->index(row, 6).data().toString();
-    QString absolutePath = vaultDirPath() + "/" + fileName;
+    QString absolutePath = containedVaultPath(fileName);
 
-    if (!QFile::exists(absolutePath)) {
+    if (absolutePath.isEmpty() || !QFile::exists(absolutePath)) {
         QMessageBox::critical(this, AppTranslator::t("File Missing"), QString(AppTranslator::t("The requested document was not found at:\n%1\n\nIt may have been deleted or moved.")).arg(absolutePath));
         return;
     }
@@ -552,7 +560,7 @@ void VaultWidget::onDeleteClicked() {
 
     if (query.exec()) {
         if (alsoDeleteFile) {
-            const QString abs = vaultDirPath() + "/" + fileName;
+            const QString abs = containedVaultPath(fileName);
             if (QFile::exists(abs) && !QFile::remove(abs)) {
                 QMessageBox::warning(this, AppTranslator::t("File Not Removed"),
                     QString(AppTranslator::t("The record was removed but the file could not be deleted:\n%1\nUse Sweep Orphans later.")).arg(abs));

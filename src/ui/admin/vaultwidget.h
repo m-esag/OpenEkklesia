@@ -23,6 +23,11 @@ public:
     // old lowercase pre-refactor location on first call and keeps the
     // directory private (0700). Shared with PeopleWidget's document section.
     static QString vaultDirPath();
+    // Resolves a stored file_path against the vault directory and enforces
+    // containment: returns the absolute path only if it stays inside the
+    // vault; empty string otherwise. Guards against tampered DB rows
+    // redirecting open/export/delete outside the vault (audit oe-003).
+    static QString containedVaultPath(const QString& storedPath);
 
 private slots:
     void onUploadClicked();

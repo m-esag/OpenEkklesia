@@ -19,6 +19,19 @@ to that reality:
   records and can emit contribution statements; the general ledger stays in a
   dedicated bookkeeping package (e.g. GnuCash).
 
+## Accepted risks (product decisions, Nov 2026 audit)
+
+- **PINs are stored in plaintext** in the local `users` table. This is a
+  deliberate decision for the personal-tool threat model: protection of the
+  database file is delegated to disk-level encryption (BitLocker/LUKS) and
+  physical security of the machine. If the threat model ever includes a
+  stolen or shared database file, this decision must be revisited (salted
+  PIN hashing + online lockout).
+- **Kiosk check-in requires no identity proof** beyond knowing a phone number
+  or barcode. The kiosk is designed for unsupervised, low-friction nursery
+  check-in; false attendance records are an accepted operational risk, and
+  attendance history can be corrected by an admin.
+
 ## Supported versions
 
 Security fixes land on the latest release tag. As a pre-1.0 project we do not

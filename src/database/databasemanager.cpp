@@ -290,10 +290,20 @@ bool DatabaseManager::restoreFromBackup(const QString& backupPath) {
                 const QString verdict = iq.value(0).toString();
                 checkOk = verdict.compare("ok", Qt::CaseInsensitive) == 0;
             }
-            // Require a schema_version table so random .db files are rejected.
+            // Require a schema_version table so random .db files are rejected,
+            // and require the version to be an integer this build can migrate
+            // forward (1..kLatestSchemaVersion). A structurally valid SQLite
+            // file with an out-of-range or non-numeric version is NOT a
+            // OpenEkklesia backup and must not replace the live database
+            // (audit oe-004).
             if (checkOk) {
                 QSqlQuery sv(checkDb);
-                checkOk = sv.exec("SELECT version FROM schema_version LIMIT 1;");
+                int backupVersion = 0;
+                if (sv.exec("SELECT version FROM schema_version LIMIT 1;") && sv.next())
+                    backupVersion = sv.value(0).toInt(&checkOk);
+                checkOk = checkOk
+                          && backupVersion >= 1
+                          && backupVersion <= kLatestSchemaVersion;
             }
             checkDb.close();
         }

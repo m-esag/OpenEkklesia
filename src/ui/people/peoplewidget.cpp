@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QRadioButton>
 #include <QCheckBox>
+#include <QSet>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
@@ -3529,7 +3530,25 @@ void PeopleWidget::onImportCSV() {
 
     int importedCount = 0;
     int failedCount = 0;
+    int skippedInvalid = 0;    // bad email/phone format (audit oe-005)
+    int skippedDuplicate = 0;  // duplicate within file or already in DB
     QString lastError;
+
+    // DB duplicate check (decision C): preload existing name+phone keys once.
+    QSet<QString> existingKeys;
+    {
+        QSqlQuery kq(db);
+        if (kq.exec("SELECT first_name, last_name, phone_number FROM people")) {
+            while (kq.next()) {
+                const QString key = (kq.value(0).toString().trimmed().toLower() + '|' +
+                                     kq.value(1).toString().trimmed().toLower() + '|' +
+                                     kq.value(2).toString().trimmed());
+                existingKeys.insert(key);
+            }
+        }
+    }
+    QSet<QString> in_fileKeys;
+
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.isEmpty()) continue;
@@ -3547,6 +3566,40 @@ void PeopleWidget::onImportCSV() {
         QString status = getVal(comboStatus);
 
         if (fn.isEmpty() && ln.isEmpty()) continue;
+
+        // --- Format validation (decision A): skip bad contact data with a count.
+        bool emailOk = true;
+        if (!email.isEmpty()) {
+            const int at = email.indexOf('@');
+            emailOk = at > 0 && at < email.size() - 1
+                      && !email.contains(' ')
+                      && email.indexOf('.', at) != -1;
+        }
+        bool phoneOk = true;
+        if (!phone.isEmpty()) {
+            QString digits;
+            for (const QChar& c : phone)
+                if (c.isDigit()) digits += c;
+            phoneOk = digits.size() >= 7;
+        }
+        if (!emailOk || !phoneOk) {
+            ++skippedInvalid;
+            continue;
+        }
+
+        // --- Duplicate detection (decisions B + C): same name+phone in the
+        // file, or already present in the database.
+        const QString dupKey = fn.trimmed().toLower() + '|' + ln.trimmed().toLower() + '|' + phone.trimmed();
+        if (in_fileKeys.contains(dupKey) || existingKeys.contains(dupKey)) {
+            ++skippedDuplicate;
+            continue;
+        }
+        in_fileKeys.insert(dupKey);
+
+        // Unknown membership statuses normalize to Visitor.
+        const QString knownStatuses = QString("|Visitor|Regular Attender|Member|Inactive|");
+        const QString statusNorm = knownStatuses.contains('|' + status + '|') && !status.isEmpty()
+                                   ? status : "Visitor";
 
         QSqlQuery q(db);
         q.prepare("INSERT INTO people (first_name, last_name, phone_number, email, membership_status, household_id) VALUES (?, ?, ?, ?, ?, ?)");
@@ -3575,17 +3628,23 @@ void PeopleWidget::onImportCSV() {
     m_peopleModel->select();
     reapplyFilter();
 
+    QString skipNote;
+    if (skippedInvalid > 0)
+        skipNote += QString("\n\nSkipped %1 row(s) with invalid email/phone.").arg(skippedInvalid);
+    if (skippedDuplicate > 0)
+        skipNote += QString("\n\nSkipped %1 duplicate row(s) (same name and phone).").arg(skippedDuplicate);
+
     if (importedCount == 0) {
         QMessageBox::warning(this, "Import Failed",
-            QString("No members were imported.%1")
-                .arg(lastError.isEmpty() ? "" : "\n\nDatabase error: " + lastError));
+            QString("No members were imported.%1%2")
+                .arg(lastError.isEmpty() ? "" : "\n\nDatabase error: " + lastError).arg(skipNote));
     } else if (failedCount > 0) {
         QMessageBox::warning(this, "Import Partially Completed",
-            QString("Imported %1 members; %2 row(s) could not be saved.%3")
+            QString("Imported %1 members; %2 row(s) could not be saved.%3%4")
                 .arg(importedCount).arg(failedCount)
-                .arg(lastError.isEmpty() ? "" : "\n\nLast error: " + lastError));
+                .arg(lastError.isEmpty() ? "" : "\n\nLast error: " + lastError).arg(skipNote));
     } else {
-        QMessageBox::information(this, "Success", QString("Successfully imported %1 members!").arg(importedCount));
+        QMessageBox::information(this, "Success", QString("Successfully imported %1 members!%2").arg(importedCount).arg(skipNote));
     }
 }
 
