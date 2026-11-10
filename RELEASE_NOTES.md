@@ -1,3 +1,70 @@
+# Release Notes — OpenEkklesia v0.8.8
+
+**Tag:** `v0.8.8`
+**Date:** 2026-11-10
+**Status:** Pre-release (post-RC polish). Offline-first desktop for small
+churches (1–2 admins). GPL-3.0.
+
+## Highlights since v0.8.5-rc1
+
+### Spanish translation (phase 1 + 2)
+- **Español selectable at first run and in Settings** (restart applies it):
+  first-run wizard language row with live retranslation, Settings → General
+  language selector, and translated main-window chrome, login, dialogs, and
+  page headers. 280+ entry dictionary, formal *usted* register
+  (`assets/i18n/es.json` ships in all artifacts).
+
+### Rewritten in-app manual
+- Complete coverage of the current product: first-run wizard, default PINs
+  (with change guidance), settings guide, data locations, backups, Planning
+  Center import, troubleshooting. Honesty contract enforced by tests: no
+  "IRS-style"/AAA claims; every section carries an
+  `[Available]`/`[Configurable]`/`[Advisory]` status badge.
+
+### Security audit fixes (source-only audit, coordinator-scoped)
+- **Vault containment**: stored document paths are canonicalized and required
+  to stay inside the vault directory on open/export/delete.
+- **Restore gate**: backup files must carry a valid `schema_version`
+  (1..supported); foreign/crafted SQLite files are rejected before the live
+  database is touched.
+- **CSV import validation**: malformed email/phone rows skipped and counted;
+  in-file and database duplicate detection; unknown statuses normalize to
+  Visitor; skip counts reported in the summary.
+- **Planning Center pagination cap**: hard 200-page limit per fetch aborts
+  cleanly instead of following an unbounded `links.next` chain.
+- Plaintext-PIN storage and unsupervised kiosk check-in documented as
+  accepted risks in SECURITY.md (coordinator decisions).
+
+### UI polish
+- **Control chrome**: themed checkbox/radio indicators, slim themed
+  scrollbars, button variant completion (`ledgerEntryBtn`), global touch-target
+  minimums, `&`-mnemonic rendering fixes ("Giving_ Batches" → "Giving &
+  Batches").
+- **Animation-free by policy**: Ctrl+K palette invisibility bug fixed by
+  removing the fade (and the written policy prevents regression); instant
+  palette display.
+- **Adaptive text fitting**: dashboard scrolls at narrow widths (no more
+  clipped KPI cards/care panels); KPI labels wrap; People filter row and
+  Connection Graph toolbars wrap via FlowLayout; People 360° dossier gains a
+  full-width expand toggle; Ministry Planning tables themed; **Kanban drag &
+  drop** across stage columns; roadmap selected-cell washout fixed.
+- Compact sidebar mode removed (superseded by full sidebar collapse).
+- Groups: fresh installs open with the 4 primary ministries (English-only
+  blueprint names); Groups tree duplicate-render bug fixed; graph hover-card
+  clipping fixed; database-error dialog reports the real error and path.
+
+### Build & packaging
+- Single canonical CMake source list shared by app/tests/probes (tests now
+  compile the full app surface).
+- Version automation: `project(VERSION)` is the single source; binaries embed
+  a git `build id`; `scripts/set-version.sh` one-command bumps.
+- Installer payload excludes all developer state; portable ZIP verified clean;
+  AppImage tooling cached for offline rebuilds.
+- ~1,980 automated checks green on Windows (MSVC/Qt 6.8) and Linux
+  (GCC/Qt 6.2) at release time.
+
+---
+
 # Release Notes — OpenEkklesia v0.8.5-rc1
 
 **Tag:** `v0.8.5-rc1`
